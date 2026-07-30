@@ -1,0 +1,3 @@
+CREATE TRIGGER portfolio_observations_reject_delete
+BEFORE DELETE ON portfolio_observations
+FOR EACH ROW EXECUTE FUNCTION reject_portfolio_observation_mutation()
