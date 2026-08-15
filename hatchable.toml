@@ -1,2 +1,11 @@
 [mcp]
 enabled = true
+
+[[api]]
+name = "linear"
+auth = "api_key"
+base_url = "https://api.linear.app/graphql"
+key_header = "Authorization"
+key_prefix = ""
+description = "Archive terminal Linear issues from the bounded portfolio execution surface."
+required = true
