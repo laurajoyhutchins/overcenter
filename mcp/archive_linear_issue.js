@@ -29,7 +29,12 @@ export default {
         dryRun: args?.dry_run === true,
       });
     } catch (error) {
-      if (error?.code === 'SetupRequired') {
+      const code = String(error?.code || '');
+      const message = String(error?.message || '');
+      const setupRequired = code === 'SetupRequired'
+        || Number(error?.status || error?.statusCode || error?.httpStatus) === 412
+        || (message.includes('412') && message.includes('API "linear" is not connected'));
+      if (setupRequired) {
         return {
           ok: false,
           action: 'archive_linear_issue',

@@ -3,9 +3,17 @@ import { archiveLinearIssue } from 'lib/linear-archive.js';
 export const access = 'admin';
 export const methods = ['POST'];
 
+function isSetupRequired(error) {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  return code === 'SetupRequired'
+    || Number(error?.status || error?.statusCode || error?.httpStatus) === 412
+    || (message.includes('412') && message.includes('API "linear" is not connected'));
+}
+
 function statusFor(error) {
   const code = String(error?.code || 'LINEAR_ARCHIVE_ERROR');
-  if (code === 'SetupRequired') return 412;
+  if (isSetupRequired(error)) return 412;
   if (code.includes('INVALID')) return 400;
   if (code.includes('NOT_FOUND')) return 404;
   if (code.includes('NOT_TERMINAL') || code.includes('NOT_CONFIRMED')) return 409;
@@ -21,7 +29,7 @@ export default async function (req, res) {
     });
     return res.json(result);
   } catch (error) {
-    const setupRequired = error?.code === 'SetupRequired';
+    const setupRequired = isSetupRequired(error);
     return res.status(statusFor(error)).json({
       ok: false,
       action: 'archive_linear_issue',
