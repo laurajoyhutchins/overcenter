@@ -4,6 +4,12 @@
 
 Use it when an agent has a complete declared repository changeset and needs one coherent Git commit instead of one Contents API commit per file.
 
+## Authentication
+
+The deployed command authenticates as the installed **Hatchable Portfolio Control Plane GitHub App**, not as the project owner's user account and not through a broad OAuth `repo` token. For each operation, Hatchable mints a short-lived GitHub App installation token narrowed to the requested repository with `contents: write` (plus GitHub's implicit `metadata: read`), uses it for the bounded Git Data operation, does not persist or return it, and attempts immediate revocation in `finally`.
+
+The GitHub App itself must be installed on the target repository. Repository selection at GitHub installation time is the outer authorization boundary. The current signing implementation is a proof-of-concept adapter pending native Hatchable `auth = "github_app"` support; application code must not grow a second credential model around it.
+
 ## Request
 
 Provide exactly one of `base_ref` or `base_sha`.
@@ -84,7 +90,7 @@ Reusing a key with different input returns `IDEMPOTENCY_CONFLICT`. Reusing a key
 }
 ```
 
-Other explicit failures include `BRANCH_CREATION_RACE`, `CREATE_TARGET_EXISTS`, `UPDATE_TARGET_MISSING`, `DELETE_TARGET_MISSING`, `DUPLICATE_PATH`, `INVALID_PATH`, `GITHUB_PERMISSION_DENIED`, `GITHUB_REF_REJECTED`, `IDEMPOTENCY_CONFLICT`, and `GITHUB_SETUP_REQUIRED`.
+Other explicit failures include `BRANCH_CREATION_RACE`, `CREATE_TARGET_EXISTS`, `UPDATE_TARGET_MISSING`, `DELETE_TARGET_MISSING`, `DUPLICATE_PATH`, `INVALID_PATH`, `GITHUB_PERMISSION_DENIED`, `GITHUB_REF_REJECTED`, `IDEMPOTENCY_CONFLICT`, `GITHUB_APP_SETUP_REQUIRED`, `GITHUB_APP_INSTALLATION_NOT_FOUND`, and `GITHUB_APP_PERMISSION_DENIED`.
 
 ## Non-goals
 
