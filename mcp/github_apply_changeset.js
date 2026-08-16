@@ -1,4 +1,4 @@
-import { applyGithubChangeset } from 'lib/github-apply-changeset.js';
+import { applyGithubChangesetWithGitHubApp } from 'lib/github-apply-changeset.js';
 
 export const access = 'admin';
 
@@ -77,6 +77,6 @@ export default {
     },
   },
   async handler(args, ctx) {
-    return applyGithubChangeset(args, { db: ctx.db });
+    return applyGithubChangesetWithGitHubApp(args, { db: ctx.db });
   },
 };

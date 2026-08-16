@@ -10,20 +10,7 @@ key_prefix = ""
 description = "Archive terminal Linear issues from the bounded portfolio execution surface."
 required = true
 
-[[api]]
-name = "github"
-auth = "oauth2"
-base_url = "https://api.github.com"
-authorize_url = "https://github.com/login/oauth/authorize"
-token_url = "https://github.com/login/oauth/access_token"
-scopes = ["repo"]
-description = "Apply atomic, optimistic-concurrency-protected Git changesets to repositories the connected GitHub identity may write."
-required = false
-
-[api.headers]
-Accept = "application/vnd.github+json"
-X-GitHub-Api-Version = "2026-03-10"
-User-Agent = "Hatchable-Portfolio-Control-Plane/1.0"
+# GitHub repository mutations authenticate through the installed GitHub App below.
 
 [[secret]]
 key = "GITHUB_APP_ID"
