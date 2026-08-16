@@ -8,7 +8,7 @@ Use it when an agent has a complete declared repository changeset and needs one 
 
 The deployed command authenticates as the installed **Hatchable Portfolio Control Plane GitHub App**, not as the project owner's user account and not through a broad OAuth `repo` token. For each operation, Hatchable mints a short-lived GitHub App installation token narrowed to the requested repository with `contents: write` (plus GitHub's implicit `metadata: read`), uses it for the bounded Git Data operation, does not persist or return it, and attempts immediate revocation in `finally`.
 
-The GitHub App itself must be installed on the target repository. Repository selection at GitHub installation time is the outer authorization boundary. The current signing implementation is a proof-of-concept adapter pending native Hatchable `auth = "github_app"` support; application code must not grow a second credential model around it.
+The GitHub App itself must be installed on the target repository. Repository selection at GitHub installation time is the outer authorization boundary. JWT signing currently uses a small isolated compatibility shim because Hatchable does not yet provide native `auth = "github_app"` or RSA signing. That shim is an implementation detail to delete when the platform primitive lands; application code must not grow a second credential model around it.
 
 ## Request
 
