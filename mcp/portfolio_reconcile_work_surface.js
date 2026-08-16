@@ -2,36 +2,6 @@ import { reconcilePortfolioWorkSurfaceWithGitHubApp } from 'lib/portfolio-reconc
 
 export const access = 'admin';
 
-const dependencySchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['kind', 'ref'],
-  properties: {
-    kind: { type: 'string', enum: ['linear_issue'] },
-    ref: { type: 'string', minLength: 1, maxLength: 128 },
-  },
-};
-
-const projectionSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['title', 'state', 'lane', 'priority', 'objective', 'gate', 'acceptance'],
-  properties: {
-    title: { type: 'string', minLength: 1, maxLength: 255 },
-    state: { type: 'string', enum: ['Todo', 'Backlog'] },
-    lane: { type: 'string', enum: ['lane:repo-implementation', 'lane:source-implementation', 'lane:verification', 'lane:integration'] },
-    priority: { type: 'integer', minimum: 0, maximum: 4 },
-    objective: { type: 'string', minLength: 1, maxLength: 4000 },
-    gate: { type: 'string', minLength: 1, maxLength: 2000 },
-    acceptance: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 1000 } },
-    repository: { type: ['string', 'null'], maxLength: 256, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' },
-    exact_coordinate: { type: ['string', 'null'], maxLength: 1000 },
-    owner_impact: { type: ['string', 'null'], maxLength: 500 },
-    dependencies: { type: 'array', maxItems: 25, items: dependencySchema },
-    promotion_condition: { type: ['string', 'null'], maxLength: 2000 },
-  },
-};
-
 export default {
   name: 'portfolio_reconcile_work_surface',
   description: 'Reconcile explicitly selected GitHub issue demand onto the Portfolio Orchestration Linear execution surface without ranking, selecting, or interpreting work.',
@@ -42,12 +12,18 @@ export default {
     properties: {
       project: { type: 'string', enum: ['Portfolio Orchestration'] },
       items: {
-        type: 'array', minItems: 1, maxItems: 25,
+        type: 'array',
+        minItems: 1,
+        maxItems: 25,
         items: {
-          type: 'object', additionalProperties: false, required: ['source', 'projection'],
+          type: 'object',
+          additionalProperties: false,
+          required: ['source', 'projection'],
           properties: {
             source: {
-              type: 'object', additionalProperties: false, required: ['kind', 'repo', 'issue_number'],
+              type: 'object',
+              additionalProperties: false,
+              required: ['kind', 'repo', 'issue_number'],
               properties: {
                 kind: { type: 'string', enum: ['github_issue'] },
                 repo: { type: 'string', minLength: 3, maxLength: 256, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' },
@@ -55,7 +31,42 @@ export default {
                 expected_revision: { type: ['string', 'null'], maxLength: 128 },
               },
             },
-            projection: projectionSchema,
+            projection: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['title', 'state', 'lane', 'priority', 'objective', 'gate', 'acceptance'],
+              properties: {
+                title: { type: 'string', minLength: 1, maxLength: 255 },
+                state: { type: 'string', enum: ['Todo', 'Backlog'] },
+                lane: { type: 'string', enum: ['lane:repo-implementation', 'lane:source-implementation', 'lane:verification', 'lane:integration'] },
+                priority: { type: 'integer', minimum: 0, maximum: 4 },
+                objective: { type: 'string', minLength: 1, maxLength: 4000 },
+                gate: { type: 'string', minLength: 1, maxLength: 2000 },
+                acceptance: {
+                  type: 'array',
+                  minItems: 1,
+                  maxItems: 20,
+                  items: { type: 'string', minLength: 1, maxLength: 1000 },
+                },
+                repository: { type: ['string', 'null'], maxLength: 256, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' },
+                exact_coordinate: { type: ['string', 'null'], maxLength: 1000 },
+                owner_impact: { type: ['string', 'null'], maxLength: 500 },
+                dependencies: {
+                  type: 'array',
+                  maxItems: 25,
+                  items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['kind', 'ref'],
+                    properties: {
+                      kind: { type: 'string', enum: ['linear_issue'] },
+                      ref: { type: 'string', minLength: 1, maxLength: 128 },
+                    },
+                  },
+                },
+                promotion_condition: { type: ['string', 'null'], maxLength: 2000 },
+              },
+            },
           },
         },
       },
