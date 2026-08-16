@@ -6,7 +6,7 @@ export const methods = ['POST'];
 
 function statusFor(result) {
   if (result.ok) return 200;
-  if (result.error === 'GITHUB_SETUP_REQUIRED' || result.error === 'GITHUB_APP_SETUP_REQUIRED') return 412;
+  if (result.error === 'GITHUB_APP_SETUP_REQUIRED') return 412;
   if (result.error === 'GITHUB_PERMISSION_DENIED' || result.error === 'GITHUB_APP_PERMISSION_DENIED') return 403;
   if (result.error === 'GITHUB_NOT_FOUND' || result.error === 'GITHUB_APP_INSTALLATION_NOT_FOUND') return 404;
   if (['HEAD_MISMATCH', 'BRANCH_CREATION_RACE', 'TARGET_BRANCH_DISAPPEARED', 'IDEMPOTENCY_CONFLICT', 'IDEMPOTENCY_IN_PROGRESS', 'CREATE_TARGET_EXISTS', 'UPDATE_TARGET_MISSING', 'DELETE_TARGET_MISSING', 'GITHUB_CONFLICT'].includes(result.error)) return 409;
