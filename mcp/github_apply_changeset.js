@@ -9,6 +9,10 @@ export default {
     type: 'object',
     required: ['repo', 'branch', 'changes', 'commit_message'],
     additionalProperties: false,
+    oneOf: [
+      { required: ['base_ref'], not: { required: ['base_sha'] } },
+      { required: ['base_sha'], not: { required: ['base_ref'] } },
+    ],
     properties: {
       repo: {
         type: 'string',
@@ -46,6 +50,16 @@ export default {
           type: 'object',
           required: ['path', 'operation'],
           additionalProperties: false,
+          allOf: [
+            {
+              if: { properties: { operation: { enum: ['create', 'update'] } }, required: ['operation'] },
+              then: { required: ['content'] },
+            },
+            {
+              if: { properties: { operation: { const: 'delete' } }, required: ['operation'] },
+              then: { not: { required: ['content'] } },
+            },
+          ],
           properties: {
             path: { type: 'string', minLength: 1, maxLength: 4096 },
             operation: { type: 'string', enum: ['create', 'update', 'delete'] },
