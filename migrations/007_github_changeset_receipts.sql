@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS github_changeset_receipts (
+  repo text NOT NULL,
+  idempotency_key text NOT NULL,
+  request_sha256 text NOT NULL CHECK (request_sha256 ~ '^[0-9a-f]{64}$'),
+  request_json jsonb NOT NULL,
+  state text NOT NULL CHECK (state IN ('processing', 'prepared', 'succeeded')),
+  attempt_token uuid NOT NULL,
+  branch text NOT NULL,
+  base_sha text,
+  old_head text,
+  tree_sha text,
+  commit_sha text,
+  created_branch boolean,
+  precondition_verified boolean,
+  changed_paths jsonb,
+  receipt jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (repo, idempotency_key)
+)
