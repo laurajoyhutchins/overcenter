@@ -19,7 +19,8 @@ export default async function (req, res) {
       ok: false,
       error: setupRequired ? "GITHUB_APP_SETUP_REQUIRED" : error?.code || "GITHUB_APP_POC_ERROR",
       message,
-      upstream_status: error?.status || null
+      upstream_status: error?.status || null,
+      upstream_path: error?.githubPath || null
     });
   }
 }
