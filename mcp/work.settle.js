@@ -10,7 +10,9 @@ export default {
     properties: {
       lease_token: { type: 'string' }, disposition: { type: 'string', enum: ['completed','requeue','blocked'] },
       evidence: { type: 'array', items: { type: 'object', required: ['kind','ref'], properties: { kind: { type: 'string' }, ref: { type: 'string' } } } },
-      reason: { type: ['string','null'] }, promotion_condition: { type: ['string','null'] }, idempotency_key: { type: 'string' },
+      reason: { type: ['string','null'] }, promotion_condition: { type: ['string','null'] },
+      next_state: { type: ['string','null'] }, next_lane: { type: ['string','null'] },
+      idempotency_key: { type: 'string' },
     },
   },
   async handler(args) { return createPostgresWorkLeaseService().settle(args || {}); },
