@@ -6,7 +6,7 @@ Use it when an agent has a complete declared repository changeset and needs one 
 
 ## Authentication
 
-The deployed command authenticates as the installed **Hatchable Portfolio Control Plane GitHub App**, not as the project owner's user account and not through a broad OAuth `repo` token. For each operation, Hatchable mints a short-lived GitHub App installation token narrowed to the requested repository with `contents: write` (plus GitHub's implicit `metadata: read`), uses it for the bounded Git Data operation, does not persist or return it, and attempts immediate revocation in `finally`.
+The deployed command authenticates as the installed **Hatchable Portfolio Control Plane GitHub App**, not as the project owner's user account and not through a broad OAuth `repo` token. Hatchable caches only the non-secret installation identity in-process. For each operation it still mints a fresh short-lived GitHub App installation token narrowed to the requested repository with `contents: write` (plus GitHub's implicit `metadata: read`), does not persist or return the token, and attempts immediate revocation in `finally`. A cached installation identity is invalidated and reread if token minting reports that the installation no longer exists.
 
 The GitHub App itself must be installed on the target repository. Repository selection at GitHub installation time is the outer authorization boundary. JWT signing currently uses a small isolated compatibility shim because Hatchable does not yet provide native `auth = "github_app"` or RSA signing. That shim is an implementation detail to delete when the platform primitive lands; application code must not grow a second credential model around it.
 
@@ -44,13 +44,19 @@ Immediately before the final ref mutation, the command reads the branch again. E
 
 ## Atomicity boundary
 
-The command creates Git objects before it mutates the branch ref: blobs, one tree, one commit, then one branch create/update. GitHub may retain unreachable objects if the final ref operation fails. The branch itself never receives a partial subset of the changeset: it either remains unchanged or points to the single complete changeset commit.
+The command creates Git objects before it mutates the branch ref: one tree carrying complete text content for create/update entries, one commit, then one branch create/update. GitHub materializes the corresponding blobs as part of tree creation. GitHub may retain unreachable objects if the final ref operation fails. The branch itself never receives a partial subset of the changeset: it either remains unchanged or points to the single complete changeset commit.
 
 ## Idempotency
 
 `idempotency_key` is optional but recommended for every mutation. Receipts are keyed by `(repo, idempotency_key)` and include an SHA-256 of the canonical semantic request.
 
-Reusing a key with different input returns `IDEMPOTENCY_CONFLICT`. Reusing a key after success returns the exact stored receipt with `idempotent_replay: true`. The commit SHA is checkpointed before the ref mutation; if a transport failure happens after GitHub moved the ref but before the caller receives a response, a retry recognizes that exact prepared commit and completes the receipt without creating another logical commit.
+Reusing a key with different input returns `IDEMPOTENCY_CONFLICT`. Reusing a key after success returns the exact stored receipt with `idempotent_replay: true`. Processing receipts are heartbeated after authoritative preflight so a slow live changeset is not mistaken for an abandoned attempt. The commit SHA is checkpointed before the ref mutation; if a transport failure happens after GitHub moved the ref but before the caller receives a response, a retry recognizes that exact prepared commit and completes the receipt without creating another logical commit.
+
+## Transport behavior
+
+Read-only GitHub calls use a bounded retry policy for HTTP 429 and transient 5xx responses, honoring `Retry-After` when present. Mutation calls are never automatically replayed by the transport layer. Ambiguous writes instead rely on the command's existing idempotency checkpoint and authoritative ref readback.
+
+Upstream failures carry machine-readable transport evidence when available: `phase`, `github_path`, `github_request_id`, `retry_after`, `attempts`, and `may_have_mutated`. Phases distinguish authentication, preflight reads, Git object mutations, ref updates, and reconciliation readback.
 
 ## Success receipt
 
