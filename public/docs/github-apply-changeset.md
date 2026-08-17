@@ -42,6 +42,12 @@ For an existing target branch, the command builds on the branch's current head. 
 
 Immediately before the final ref mutation, the command reads the branch again. Existing branches must still equal the original head; new branches must still be absent. Any race fails closed. Ref updates use `force: false`.
 
+### Mechanical cleanup coalescing
+
+Formatting and other mechanical cleanup must be batched. If an existing branch already ends in a mechanical cleanup commit whose message begins with `style:`, `format:`, `fmt:`, `lint:`, `chore(format):`, `chore(fmt):`, `chore(lint):`, `fix(format):`, `fix(fmt):`, or `fix(lint):`, another changeset with one of those mechanical prefixes is rejected with `MECHANICAL_CHANGESET_MUST_COALESCE` before any Git object or ref mutation occurs.
+
+This is intentionally narrow. A substantive follow-up such as `fix: repair operator behavior` remains allowed. The guard prevents file-by-file formatter/style commit streams without turning commit-message classification into a general workflow policy.
+
 ## Atomicity boundary
 
 The command creates Git objects before it mutates the branch ref: one tree carrying complete text content for create/update entries, one commit, then one branch create/update. GitHub materializes the corresponding blobs as part of tree creation. GitHub may retain unreachable objects if the final ref operation fails. The branch itself never receives a partial subset of the changeset: it either remains unchanged or points to the single complete changeset commit.
@@ -96,7 +102,7 @@ Upstream failures carry machine-readable transport evidence when available: `pha
 }
 ```
 
-Other explicit failures include `BRANCH_CREATION_RACE`, `CREATE_TARGET_EXISTS`, `UPDATE_TARGET_MISSING`, `DELETE_TARGET_MISSING`, `DUPLICATE_PATH`, `INVALID_PATH`, `GITHUB_PERMISSION_DENIED`, `GITHUB_REF_REJECTED`, `IDEMPOTENCY_CONFLICT`, `GITHUB_APP_SETUP_REQUIRED`, `GITHUB_APP_INSTALLATION_NOT_FOUND`, and `GITHUB_APP_PERMISSION_DENIED`.
+Other explicit failures include `BRANCH_CREATION_RACE`, `MECHANICAL_CHANGESET_MUST_COALESCE`, `CREATE_TARGET_EXISTS`, `UPDATE_TARGET_MISSING`, `DELETE_TARGET_MISSING`, `DUPLICATE_PATH`, `INVALID_PATH`, `GITHUB_PERMISSION_DENIED`, `GITHUB_REF_REJECTED`, `IDEMPOTENCY_CONFLICT`, `GITHUB_APP_SETUP_REQUIRED`, `GITHUB_APP_INSTALLATION_NOT_FOUND`, and `GITHUB_APP_PERMISSION_DENIED`.
 
 ## Non-goals
 
