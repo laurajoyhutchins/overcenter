@@ -71,3 +71,17 @@ The object commands already used nested `details`, so they do not invent new fla
 `portfolio.reconcile_work_surface` keeps its two-level result model. `ok: true` means the batch command completed; an item may still have `result: "rejected"` or dry-run `result: "would_reject"` with a domain `reason`. Item reconciliation rejection is not a command-level failure and therefore does not use the command-level `rejection` field.
 
 `github.review_packet` keeps partial-capability behavior. Optional evidence may be represented as unavailable inside an otherwise successful packet. When the observation itself cannot be established, its command failure normally carries `rejection: false`; guarded mutation semantics are not inferred merely from a stable error name shared with another command.
+
+## Work lease settlement semantics
+
+`work.claim` persists both the broad authoritative Linear revision it observed and a deterministic execution-critical projection/fingerprint used to authorize later settlement. The execution projection is intentionally narrower than the full Linear issue representation. It covers durable work/project identity, archive status, lifecycle state, execution lane, priority, managed repository/source/authority and acceptance/promotion fields, and dependency identities.
+
+Comments, appended execution evidence, unrelated labels, relation titles, timestamps, generic description prose outside managed fields, and broad revision counters do not by themselves invalidate settlement. `work.settle` rereads authority, derives the same canonical execution projection, and compares that projection rather than requiring generic Linear revision equality.
+
+A successful settlement can therefore report different `claim_authoritative_revision` and `pre_settlement_authoritative_revision` values together with `authoritative_revision_changed_before_settlement: true` and `execution_precondition_verified: true`. This means the broad record moved but the execution contract remained unchanged; it does not mean Hatchable ignored the revision.
+
+When execution-critical authority changes, settlement fails closed with `WORK_STATE_CHANGED`, `rejection: true`, `retryable: false`, and structured mismatch evidence such as `changed_fields`, `claim`, and `current`. A conclusive semantic rejection terminates that lease's ownership rather than leaving a misleading active lease waiting for expiry.
+
+Settlement uses an explicit `settling` state for an upstream or otherwise indeterminate transition attempt. In that case Hatchable does not release ownership as though the command were rejected. The caller must replay the identical semantic settlement with the same idempotency key so Hatchable can reconcile whether the Linear transition already occurred without creating a second lifecycle transition. Lease expiry remains crash/dead-worker recovery, not the normal cleanup path for a live settlement attempt.
+
+Historical lease rows may retain terminal evidence after authority ends. Actual current ownership requires a valid unexpired active slot; an expired lease grants no execution authority.
