@@ -11,7 +11,7 @@ The Portfolio Control Plane correlates compatible Fast Forward and scheduled-wor
 - MCP tool: `orchestration_status`
 - API: `POST /api/orchestration/status`
 
-Both commands are read-only with respect to Linear, GitHub, Drive, work leases, and command-specific receipts. A correlated read may append its own bounded journal invocation because the journal is observability metadata.
+Both commands are read-only with respect to Linear, GitHub, Drive, work leases, and command-specific receipts. `orchestration.status` may append a bounded journal invocation when called with current-run correlation metadata. `orchestration.resume_packet` does not journal itself into the target run it is reconstructing, so the recovery observation cannot self-shadow the prior unresolved invocation.
 
 ## Worker procedure
 
