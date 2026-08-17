@@ -7,8 +7,13 @@ The current control-plane commands use one additive response envelope while reta
 - `work.claim`
 - `work.settle`
 - `github.apply_changeset`
+- `github.delete_branch`
+- `github.required_checks.ensure`
 - `github.review_packet`
 - `portfolio.reconcile_work_surface`
+- `linear.archive`
+- `orchestration.resume_packet`
+- `orchestration.status`
 - `object.capture`
 - `object.get_verified`
 
@@ -26,6 +31,8 @@ Every successful command response includes:
 ```
 
 Domain fields remain at their existing top-level paths. The envelope does not introduce a generic `data`, `resource`, `subject`, `mutation`, or `outcome` wrapper.
+
+When a compatible command is invoked with orchestration metadata `run_id`, the same value is returned as an additive top-level field on both success and failure. This does not change `command-response-v1`. For commands where `run_id` is not already domain input, the wrapper removes it before command-specific normalization and semantic hashing so run correlation cannot create a false idempotency conflict. `work.claim` retains its existing domain use of `run_id`; `orchestration.resume_packet` uses `run_id` as the run being reconstructed.
 
 Idempotent mutation commands retain `idempotent_replay`. Read-only commands do not add a synthetic replay field. Domain timestamps such as lease expiry, settlement, and GitHub packet snapshot timestamps remain independent of `observed_at`.
 
@@ -85,3 +92,19 @@ When execution-critical authority changes, settlement fails closed with `WORK_ST
 Settlement uses an explicit `settling` state for an upstream or otherwise indeterminate transition attempt. In that case Hatchable does not release ownership as though the command were rejected. The caller must replay the identical semantic settlement with the same idempotency key so Hatchable can reconcile whether the Linear transition already occurred without creating a second lifecycle transition. Lease expiry remains crash/dead-worker recovery, not the normal cleanup path for a live settlement attempt.
 
 Historical lease rows may retain terminal evidence after authority ends. Actual current ownership requires a valid unexpired active slot; an expired lease grants no execution authority.
+
+## Run correlation and recovery
+
+Compatible Portfolio Control Plane commands may be correlated with one orchestration `run_id`. The control plane records one bounded `orchestration_command_invocations` row per correlated invocation with command identity, safe target coordinates, request/result digests, bounded request/result projections, outcome classification, and timing.
+
+The journal is an evidence/correlation index. It is not work authority and it never stores chain of thought, prompts, arbitrary conversation content, credentials, API tokens, lease tokens, full patches, complete source files, retained binaries, or redundant full Linear/GitHub objects. Existing command-specific durability remains authoritative for mutation safety.
+
+Journal outcomes are `running`, `succeeded`, `rejected`, `failed`, and `indeterminate`. `rejected` is reserved for conclusive expected rejections from the shared command envelope. `indeterminate` means a durable mutation may have occurred or the command has an explicit indeterminate error code and requires command-specific reconciliation/retry behavior.
+
+`orchestration.resume_packet` is read-only. Given a `run_id`, it combines journal evidence with existing work leases/slots and command-specific receipts. Its continuation vocabulary is deliberately small: `recover_active_lease`, `retry_same_request`, `reconcile_authority`, `recompute_frontier`, `owner_action_required`, and `terminal_or_quiescent`. It never selects the next Linear issue. A valid unexpired lease token may be returned only for the exact run's still-authoritative active/settling lease; the token is never copied into the journal.
+
+`orchestration.status` is a read-only operator projection over expired active slots, stuck claiming/settling leases, stuck/indeterminate journal rows, GitHub changeset receipts, portfolio reconciliation receipts, and recent command outcomes/errors/rejections. It is bounded health evidence, not durable state.
+
+`portfolio.reconcile_work_surface` now retains per-item durable-effect progress when an idempotency key is present. It marks an effect boundary before dispatch, confirms it after durable success, preserves an `indeterminate` receipt when a post-dispatch outcome is ambiguous, skips already completed batch items on exact replay, and rereads GitHub/Linear authority for uncertain items. A material authority change during recovery fails closed rather than discarding the recovery marker.
+
+`linear.archive` is canonicalized into this envelope while the existing `/api/linear-archive` route and `archive_linear_issue` MCP tool remain compatibility surfaces. A lost response after archival is explicitly indeterminate; exact retry rereads Linear and treats an already archived issue as idempotent success.
