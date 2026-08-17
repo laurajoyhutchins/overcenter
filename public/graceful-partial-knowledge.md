@@ -19,27 +19,25 @@ Coherence-critical evidence:
 - exact base identity
 - final identity reread and head/base coherence
 
-Required observation evidence in the current packet contract:
+Bounded observational evidence:
 
 - review state and review threads
 - changed paths
-
-Optional evidence:
-
 - check runs
 - commit statuses
 - applicable repository rulesets
-- classic branch protection
 
-The GitHub App identity token requests only `metadata: read` and `pull_requests: read`. Checks, statuses, and classic protection use isolated internal permission profiles so a missing optional grant cannot prevent PR/head identity from being established.
+Repository rulesets are the sole branch-policy authority for this Hatchable deployment. The review packet does not inspect the older branch-protection API and does not request GitHub Administration permission.
 
-Only recognized permission, unsupported/not-found, or transient upstream failures on those optional surfaces may degrade to structured unavailable evidence. Malformed GitHub responses, unexpected internal exceptions, transport failures that cannot be classified safely, and identity/head movement remain command-level failures.
+The GitHub App uses the already-approved Contents grant for exact PR/head identity, while Pull Requests, Checks, and Statuses use isolated internal permission profiles. A missing bounded observation grant therefore does not prevent exact PR/head identity from being established.
 
-`protection.policy_surfaces` records each optional surface with `available`, `configured`, completeness where applicable, and structured `unavailable` evidence. Existing compatibility fields such as `rulesets_complete`, `classic_branch_protection_available`, and classic `unavailable` remain present.
+Only recognized permission, unsupported/not-found, or transient upstream failures on bounded observation surfaces may degrade to structured unavailable evidence. Malformed GitHub responses, unexpected internal exceptions, transport failures that cannot be classified safely, and identity/head movement remain command-level failures.
 
-Policy-dependent derived values remain `null` or `evaluation: unavailable` when the required policy evidence is not established. Known unsatisfied evidence can still be reported as unsatisfied; unknown evidence is never promoted to satisfied.
+`protection.policy_surfaces.rulesets` records ruleset availability, configuration, completeness, and structured unavailable evidence. `protection.source` is `rulesets` when applicable and `none` when the ruleset surface was successfully observed and contains no applicable policy.
 
-The canonical snapshot digest includes the explicit availability state, so known-empty policy evidence cannot hash identically to unavailable policy evidence.
+Policy-dependent derived values remain `null` or `evaluation: unavailable` when ruleset evidence is not established. Known unsatisfied evidence can still be reported as unsatisfied; unknown evidence is never promoted to satisfied.
+
+The canonical snapshot digest includes explicit availability state, so known-empty ruleset evidence cannot hash identically to unavailable ruleset evidence.
 
 ## Other current read primitives
 
