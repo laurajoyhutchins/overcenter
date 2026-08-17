@@ -1,13 +1,14 @@
-import { executeCommand } from 'lib/command-response.js';
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { createPostgresWorkLeaseService, statusForWorkLeaseError } from 'lib/work-leases.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
 
 export default async function (req, res) {
-  const response = await executeCommand(
+  const response = await executeCorrelatedCommand(
     'work.claim',
-    () => createPostgresWorkLeaseService().claim(req.body || {}),
+    req.body || {},
+    (input) => createPostgresWorkLeaseService().claim(input),
     {
       statusForFailure: statusForWorkLeaseError,
       defaultError: 'WORK_CLAIM_ERROR',

@@ -1,4 +1,4 @@
-import { executeCommand } from 'lib/command-response.js';
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import {
   reconcilePortfolioWorkSurfaceWithGitHubApp,
   statusForPortfolioReconcileResult,
@@ -8,9 +8,10 @@ export const access = 'admin';
 export const methods = ['POST'];
 
 export default async function (req, res) {
-  const response = await executeCommand(
+  const response = await executeCorrelatedCommand(
     'portfolio.reconcile_work_surface',
-    () => reconcilePortfolioWorkSurfaceWithGitHubApp(req.body || {}),
+    req.body || {},
+    (input) => reconcilePortfolioWorkSurfaceWithGitHubApp(input),
     { statusForFailure: statusForPortfolioReconcileResult, flattenDetails: true },
   );
   return res.status(response.status).json(response.body);

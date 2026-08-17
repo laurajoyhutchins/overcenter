@@ -1,0 +1,1 @@
+ALTER TABLE work_leases ADD COLUMN IF NOT EXISTS claim_request jsonb

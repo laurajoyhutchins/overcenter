@@ -1,0 +1,1 @@
+ALTER TABLE portfolio_reconcile_receipts ADD COLUMN IF NOT EXISTS phase text, ADD COLUMN IF NOT EXISTS progress jsonb, ADD COLUMN IF NOT EXISTS last_error jsonb

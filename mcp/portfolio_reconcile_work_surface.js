@@ -1,4 +1,4 @@
-import { executeCommand } from 'lib/command-response.js';
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { reconcilePortfolioWorkSurfaceWithGitHubApp } from 'lib/portfolio-reconcile-work-surface.js';
 
 export const access = 'admin';
@@ -73,13 +73,15 @@ export default {
       },
       idempotency_key: { type: ['string', 'null'], minLength: 1, maxLength: 256 },
       dry_run: { type: 'boolean' },
+      run_id: { type: 'string', minLength: 1, maxLength: 512, description: 'Optional orchestration run token used only for correlation and excluded from the reconciliation semantic request hash.' },
     },
   },
   async handler(args, ctx) {
-    const response = await executeCommand(
+    const response = await executeCorrelatedCommand(
       'portfolio.reconcile_work_surface',
-      () => reconcilePortfolioWorkSurfaceWithGitHubApp(args),
-      { flattenDetails: true },
+      args || {},
+      (input) => reconcilePortfolioWorkSurfaceWithGitHubApp(input),
+      { flattenDetails: true, db: ctx?.db },
     );
     return response.body;
   },

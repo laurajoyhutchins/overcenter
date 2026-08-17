@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS orchestration_command_invocations_unresolved_idx ON orchestration_command_invocations (started_at) WHERE outcome IN ('running','indeterminate')

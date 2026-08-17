@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS orchestration_command_invocations_started_idx ON orchestration_command_invocations (started_at)

@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS orchestration_command_invocations_outcome_idx ON orchestration_command_invocations (outcome)

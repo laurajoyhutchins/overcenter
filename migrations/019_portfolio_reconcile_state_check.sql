@@ -1,0 +1,1 @@
+ALTER TABLE portfolio_reconcile_receipts ADD CONSTRAINT portfolio_reconcile_receipts_state_check CHECK (state IN ('processing','indeterminate','succeeded'))

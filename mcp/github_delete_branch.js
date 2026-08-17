@@ -1,4 +1,4 @@
-import { executeCommand } from 'lib/command-response.js';
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { deleteGithubBranchWithGitHubApp } from 'lib/github-delete-branch.js';
 
 export const access = 'admin';
@@ -11,31 +11,18 @@ export default {
     required: ['repo', 'branch', 'expected_head'],
     additionalProperties: false,
     properties: {
-      repo: {
-        type: 'string',
-        minLength: 3,
-        maxLength: 256,
-        pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$',
-        description: 'Repository in owner/repo form.',
-      },
-      branch: {
-        type: 'string',
-        minLength: 1,
-        maxLength: 255,
-        description: 'Unqualified branch name under refs/heads/. Tags and refs/... values are rejected.',
-      },
-      expected_head: {
-        type: 'string',
-        pattern: '^[0-9a-fA-F]{40}$',
-        description: 'Required optimistic concurrency fence. Deletion is authorized only if the branch still points to this exact full commit SHA.',
-      },
+      repo: { type: 'string', minLength: 3, maxLength: 256, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$', description: 'Repository in owner/repo form.' },
+      branch: { type: 'string', minLength: 1, maxLength: 255, description: 'Unqualified branch name under refs/heads/. Tags and refs/... values are rejected.' },
+      expected_head: { type: 'string', pattern: '^[0-9a-fA-F]{40}$', description: 'Required optimistic concurrency fence. Deletion is authorized only if the branch still points to this exact full commit SHA.' },
+      run_id: { type: 'string', minLength: 1, maxLength: 512, description: 'Optional orchestration run token used only for correlation.' },
     },
   },
-  async handler(args) {
-    const response = await executeCommand(
+  async handler(args, ctx) {
+    const response = await executeCorrelatedCommand(
       'github.delete_branch',
-      () => deleteGithubBranchWithGitHubApp(args),
-      { flattenDetails: true },
+      args || {},
+      (input) => deleteGithubBranchWithGitHubApp(input),
+      { flattenDetails: true, db: ctx?.db },
     );
     return response.body;
   },

@@ -1,0 +1,1 @@
+ALTER TABLE portfolio_reconcile_receipts DROP CONSTRAINT IF EXISTS portfolio_reconcile_receipts_state_check

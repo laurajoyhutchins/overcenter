@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS orchestration_command_invocations (
+  invocation_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  run_id text NOT NULL,
+  sequence bigserial NOT NULL,
+  command text NOT NULL,
+  target_kind text,
+  target_ref text,
+  request_sha256 text,
+  idempotency_key text,
+  request_projection jsonb,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  outcome text NOT NULL CHECK (outcome IN ('running','succeeded','rejected','failed','indeterminate')),
+  error_code text,
+  error_class text,
+  retryable boolean,
+  rejection boolean,
+  may_have_mutated boolean,
+  result_sha256 text,
+  result_projection jsonb,
+  schema_version text NOT NULL DEFAULT 'orchestration-journal-v1'
+)

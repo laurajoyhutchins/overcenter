@@ -1,4 +1,4 @@
-import { executeCommand } from 'lib/command-response.js';
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { reviewGithubPullRequestWithGitHubApp } from 'lib/github-review-packet.js';
 
 export const access = 'admin';
@@ -15,9 +15,10 @@ function statusFor(result) {
 }
 
 export default async function (req, res) {
-  const response = await executeCommand(
+  const response = await executeCorrelatedCommand(
     'github.review_packet',
-    () => reviewGithubPullRequestWithGitHubApp(req.body || {}),
+    req.body || {},
+    (input) => reviewGithubPullRequestWithGitHubApp(input),
     { statusForFailure: statusFor, flattenDetails: true },
   );
   return res.status(response.status).json(response.body);

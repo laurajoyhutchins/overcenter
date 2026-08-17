@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS orchestration_command_invocations_run_sequence_idx ON orchestration_command_invocations (run_id, sequence)

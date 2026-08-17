@@ -1,10 +1,11 @@
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { archiveLinearIssue } from 'lib/linear-archive.js';
 
 export const access = 'admin';
 
 export default {
   name: 'archive_linear_issue',
-  description: 'Archive one completed or canceled Linear issue after its durable outcome is established. Refuses non-terminal issues, is idempotent for already-archived issues, and never deletes issues. Use dry_run to check eligibility without changing Linear.',
+  description: 'Archive one completed or canceled Linear issue after its durable outcome is established. Refuses non-terminal issues, is idempotent for already-archived issues, never deletes issues, and participates in canonical run correlation when run_id is supplied.',
   inputSchema: {
     type: 'object',
     required: ['issue'],
@@ -20,29 +21,21 @@ export default {
         default: false,
         description: 'When true, validate and report archive eligibility without archiving the issue.',
       },
+      run_id: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 512,
+        description: 'Optional orchestration run token used only for run correlation.',
+      },
     },
   },
-  async handler(args) {
-    try {
-      return await archiveLinearIssue({
-        issue: args?.issue,
-        dryRun: args?.dry_run === true,
-      });
-    } catch (error) {
-      const code = String(error?.code || '');
-      const message = String(error?.message || '');
-      const setupRequired = code === 'SetupRequired'
-        || Number(error?.status || error?.statusCode || error?.httpStatus) === 412
-        || (message.includes('412') && message.includes('API "linear" is not connected'));
-      if (setupRequired) {
-        return {
-          ok: false,
-          action: 'archive_linear_issue',
-          error: 'LINEAR_SETUP_REQUIRED',
-          message: 'Connect the Linear API in the Portfolio Control Plane Hatchable Setup page.',
-        };
-      }
-      throw error;
-    }
+  async handler(args, ctx) {
+    const response = await executeCorrelatedCommand(
+      'linear.archive',
+      args || {},
+      (input) => archiveLinearIssue({ issue: input.issue, dryRun: input.dry_run === true }),
+      { flattenDetails: true, db: ctx?.db },
+    );
+    return response.body;
   },
 };

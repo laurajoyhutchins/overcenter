@@ -1,5 +1,5 @@
 import { db } from 'hatchable';
-import { executeCommand } from 'lib/command-response.js';
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { applyGithubChangesetWithGitHubApp } from 'lib/github-apply-changeset.js';
 
 export const access = 'admin';
@@ -17,10 +17,11 @@ function statusFor(result) {
 }
 
 export default async function (req, res) {
-  const response = await executeCommand(
+  const response = await executeCorrelatedCommand(
     'github.apply_changeset',
-    () => applyGithubChangesetWithGitHubApp(req.body || {}, { db }),
-    { statusForFailure: statusFor, flattenDetails: true },
+    req.body || {},
+    (input) => applyGithubChangesetWithGitHubApp(input, { db }),
+    { statusForFailure: statusFor, flattenDetails: true, db },
   );
   return res.status(response.status).json(response.body);
 }

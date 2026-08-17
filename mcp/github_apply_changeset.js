@@ -1,4 +1,4 @@
-import { executeCommand } from 'lib/command-response.js';
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { applyGithubChangesetWithGitHubApp } from 'lib/github-apply-changeset.js';
 
 export const access = 'admin';
@@ -86,13 +86,20 @@ export default {
         maxLength: 200,
         description: 'Optional exact retry key. Reuse only for the identical semantic request.',
       },
+      run_id: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 512,
+        description: 'Optional orchestration run token used only for correlation and excluded from the changeset semantic request hash.',
+      },
     },
   },
   async handler(args, ctx) {
-    const response = await executeCommand(
+    const response = await executeCorrelatedCommand(
       'github.apply_changeset',
-      () => applyGithubChangesetWithGitHubApp(args, { db: ctx.db }),
-      { flattenDetails: true },
+      args || {},
+      (input) => applyGithubChangesetWithGitHubApp(input, { db: ctx.db }),
+      { flattenDetails: true, db: ctx.db },
     );
     return response.body;
   },
