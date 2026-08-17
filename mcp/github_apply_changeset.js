@@ -57,13 +57,24 @@ export default {
             },
             {
               if: { properties: { operation: { const: 'delete' } }, required: ['operation'] },
-              then: { not: { required: ['content'] } },
+              then: {
+                not: {
+                  anyOf: [
+                    { required: ['content'] },
+                    { required: ['ensure_final_newline'] },
+                  ],
+                },
+              },
             },
           ],
           properties: {
             path: { type: 'string', minLength: 1, maxLength: 4096 },
             operation: { type: 'string', enum: ['create', 'update', 'delete'] },
             content: { type: 'string', description: 'Complete UTF-8 text. Required for create/update and forbidden for delete.' },
+            ensure_final_newline: {
+              type: 'boolean',
+              description: 'For create/update, append a final LF only when content does not already end in LF. Use when an upstream text transport cannot preserve terminal newlines.',
+            },
           },
         },
       },
