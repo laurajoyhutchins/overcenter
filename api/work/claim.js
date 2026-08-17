@@ -1,17 +1,19 @@
+import { executeCommand } from 'lib/command-response.js';
 import { createPostgresWorkLeaseService, statusForWorkLeaseError } from 'lib/work-leases.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
 
 export default async function (req, res) {
-  try {
-    return res.json(await createPostgresWorkLeaseService().claim(req.body || {}));
-  } catch (error) {
-    return res.status(statusForWorkLeaseError(error)).json({
-      ok: false,
-      error: String(error?.code || 'WORK_CLAIM_ERROR'),
-      message: String(error?.message || 'work.claim failed'),
-      ...(error?.details || {}),
-    });
-  }
+  const response = await executeCommand(
+    'work.claim',
+    () => createPostgresWorkLeaseService().claim(req.body || {}),
+    {
+      statusForFailure: statusForWorkLeaseError,
+      defaultError: 'WORK_CLAIM_ERROR',
+      defaultMessage: 'work.claim failed',
+      flattenDetails: true,
+    },
+  );
+  return res.status(response.status).json(response.body);
 }

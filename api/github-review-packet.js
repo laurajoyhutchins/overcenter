@@ -1,3 +1,4 @@
+import { executeCommand } from 'lib/command-response.js';
 import { reviewGithubPullRequestWithGitHubApp } from 'lib/github-review-packet.js';
 
 export const access = 'admin';
@@ -14,6 +15,10 @@ function statusFor(result) {
 }
 
 export default async function (req, res) {
-  const result = await reviewGithubPullRequestWithGitHubApp(req.body || {});
-  return res.status(statusFor(result)).json(result);
+  const response = await executeCommand(
+    'github.review_packet',
+    () => reviewGithubPullRequestWithGitHubApp(req.body || {}),
+    { statusForFailure: statusFor, flattenDetails: true },
+  );
+  return res.status(response.status).json(response.body);
 }

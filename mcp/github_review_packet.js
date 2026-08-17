@@ -1,3 +1,4 @@
+import { executeCommand } from 'lib/command-response.js';
 import { reviewGithubPullRequestWithGitHubApp } from 'lib/github-review-packet.js';
 
 export const access = 'admin';
@@ -30,6 +31,11 @@ export default {
     },
   },
   async handler(args, ctx) {
-    return reviewGithubPullRequestWithGitHubApp(args);
+    const response = await executeCommand(
+      'github.review_packet',
+      () => reviewGithubPullRequestWithGitHubApp(args),
+      { flattenDetails: true },
+    );
+    return response.body;
   },
 };

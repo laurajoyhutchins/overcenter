@@ -1,4 +1,5 @@
-import { createPostgresWorkLeaseService } from 'lib/work-leases.js';
+import { executeCommand } from 'lib/command-response.js';
+import { createPostgresWorkLeaseService, statusForWorkLeaseError } from 'lib/work-leases.js';
 
 export const access = 'admin';
 
@@ -15,5 +16,17 @@ export default {
       idempotency_key: { type: 'string' },
     },
   },
-  async handler(args) { return createPostgresWorkLeaseService().settle(args || {}); },
+  async handler(args) {
+    const response = await executeCommand(
+      'work.settle',
+      () => createPostgresWorkLeaseService().settle(args || {}),
+      {
+        statusForFailure: statusForWorkLeaseError,
+        defaultError: 'WORK_SETTLE_ERROR',
+        defaultMessage: 'work.settle failed',
+        flattenDetails: true,
+      },
+    );
+    return response.body;
+  },
 };

@@ -1,3 +1,4 @@
+import { executeCommand } from 'lib/command-response.js';
 import { applyGithubChangesetWithGitHubApp } from 'lib/github-apply-changeset.js';
 
 export const access = 'admin';
@@ -88,6 +89,11 @@ export default {
     },
   },
   async handler(args, ctx) {
-    return applyGithubChangesetWithGitHubApp(args, { db: ctx.db });
+    const response = await executeCommand(
+      'github.apply_changeset',
+      () => applyGithubChangesetWithGitHubApp(args, { db: ctx.db }),
+      { flattenDetails: true },
+    );
+    return response.body;
   },
 };

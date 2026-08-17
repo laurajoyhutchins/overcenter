@@ -1,3 +1,4 @@
+import { executeCommand } from 'lib/command-response.js';
 import { reconcilePortfolioWorkSurfaceWithGitHubApp } from 'lib/portfolio-reconcile-work-surface.js';
 
 export const access = 'admin';
@@ -75,6 +76,11 @@ export default {
     },
   },
   async handler(args, ctx) {
-    return reconcilePortfolioWorkSurfaceWithGitHubApp(args);
+    const response = await executeCommand(
+      'portfolio.reconcile_work_surface',
+      () => reconcilePortfolioWorkSurfaceWithGitHubApp(args),
+      { flattenDetails: true },
+    );
+    return response.body;
   },
 };

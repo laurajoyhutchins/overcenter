@@ -1,4 +1,5 @@
 import { db } from 'hatchable';
+import { executeCommand } from 'lib/command-response.js';
 import { applyGithubChangesetWithGitHubApp } from 'lib/github-apply-changeset.js';
 
 export const access = 'admin';
@@ -16,6 +17,10 @@ function statusFor(result) {
 }
 
 export default async function (req, res) {
-  const result = await applyGithubChangesetWithGitHubApp(req.body || {}, { db });
-  return res.status(statusFor(result)).json(result);
+  const response = await executeCommand(
+    'github.apply_changeset',
+    () => applyGithubChangesetWithGitHubApp(req.body || {}, { db }),
+    { statusForFailure: statusFor, flattenDetails: true },
+  );
+  return res.status(response.status).json(response.body);
 }
