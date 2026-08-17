@@ -22,16 +22,18 @@ Coherence-critical evidence:
 Required observation evidence in the current packet contract:
 
 - review state and review threads
-- check runs
-- commit statuses
 - changed paths
 
-Optional policy evidence:
+Optional evidence:
 
+- check runs
+- commit statuses
 - applicable repository rulesets
 - classic branch protection
 
-Only recognized permission, unsupported/not-found, or transient upstream failures on those optional policy surfaces may degrade to structured unavailable evidence. Malformed GitHub responses, unexpected internal exceptions, transport failures that cannot be classified safely, and identity/head movement remain command-level failures.
+The GitHub App identity token requests only `metadata: read` and `pull_requests: read`. Checks, statuses, and classic protection use isolated internal permission profiles so a missing optional grant cannot prevent PR/head identity from being established.
+
+Only recognized permission, unsupported/not-found, or transient upstream failures on those optional surfaces may degrade to structured unavailable evidence. Malformed GitHub responses, unexpected internal exceptions, transport failures that cannot be classified safely, and identity/head movement remain command-level failures.
 
 `protection.policy_surfaces` records each optional surface with `available`, `configured`, completeness where applicable, and structured `unavailable` evidence. Existing compatibility fields such as `rulesets_complete`, `classic_branch_protection_available`, and classic `unavailable` remain present.
 
