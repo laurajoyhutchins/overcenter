@@ -43,11 +43,16 @@ Command-level failures use:
   "message": "<human-readable explanation>",
   "error_class": "<class>",
   "retryable": false,
+  "rejection": false,
   "details": {}
 }
 ```
 
 The shared `error_class` vocabulary is `validation`, `precondition`, `conflict`, `not_found`, `permission`, `setup`, `upstream`, and `internal`. Stable domain error codes remain authoritative. Retryability is an explicit semantic property and is not derived from HTTP status.
+
+`rejection: true` means Hatchable established enough authoritative state to determine that a guarded action was not permitted by its safety, concurrency, identity, idempotency, or precondition contract. `rejection: false` covers malformed requests, unavailable authority, permission/setup failures, upstream/internal failures, indeterminate outcomes, and ordinary observational failures. Rejection and retryability are independent: an idempotency-in-progress rejection may be safely retryable, while stale authority normally requires refresh-and-redecide.
+
+The shared classifier owns this distinction. A small command-specific override layer handles stable codes whose meaning differs by command, such as mutation `HEAD_MISMATCH` versus an observational review-packet guard, or `OBJECT_ID_CONFLICT` during capture versus verification.
 
 `details` is the canonical machine-readable evidence location.
 
@@ -63,6 +68,6 @@ The object commands already used nested `details`, so they do not invent new fla
 
 ## Domain semantics
 
-`portfolio.reconcile_work_surface` keeps its two-level result model. `ok: true` means the batch command completed; an item may still have `result: "rejected"` with a domain `reason`.
+`portfolio.reconcile_work_surface` keeps its two-level result model. `ok: true` means the batch command completed; an item may still have `result: "rejected"` or dry-run `result: "would_reject"` with a domain `reason`. Item reconciliation rejection is not a command-level failure and therefore does not use the command-level `rejection` field.
 
-`github.review_packet` keeps partial-capability behavior. Optional protection or rules evidence may be represented as unavailable inside an otherwise successful packet.
+`github.review_packet` keeps partial-capability behavior. Optional evidence may be represented as unavailable inside an otherwise successful packet. When the observation itself cannot be established, its command failure normally carries `rejection: false`; guarded mutation semantics are not inferred merely from a stable error name shared with another command.
