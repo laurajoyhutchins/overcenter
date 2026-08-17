@@ -2,7 +2,6 @@ const endpoints = {
   status: '/api/status',
   entities: '/api/entities?limit=200',
   decisions: '/api/owner-decisions',
-  next: '/api/next-work',
 };
 
 const state = { entities: [] };
@@ -116,18 +115,6 @@ function renderMetrics(status) {
   );
 }
 
-function renderNext(result) {
-  const node = byId('next-work');
-  clear(node);
-  if (!result.work) {
-    node.className = 'empty';
-    node.textContent = 'No eligible work. The queue is clear or every item is gated.';
-    return;
-  }
-  node.className = '';
-  node.append(workCard(result.work));
-}
-
 function renderEntities() {
   const query = byId('filter').value.trim().toLowerCase();
   const node = byId('entities');
@@ -176,15 +163,13 @@ async function refresh() {
   health.textContent = 'Refreshing source state…';
   health.classList.remove('error');
   try {
-    const [status, entities, decisions, next] = await Promise.all([
+    const [status, entities, decisions] = await Promise.all([
       json(endpoints.status),
       json(endpoints.entities),
       json(endpoints.decisions),
-      json(endpoints.next),
     ]);
     state.entities = entities.entities || [];
     renderMetrics(status);
-    renderNext(next);
     renderBlocked();
     renderDecisions(decisions.entities || decisions.decisions || []);
     renderEntities();

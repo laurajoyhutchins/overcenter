@@ -11,21 +11,13 @@ export default async function (_req, res) {
           <h1 id="page-title">Repository state without the issue-tracker fog</h1>
           <p class="lede">LORE establishes truth. Deciduous preserves the path. Factory Floor executes. This view reconciles what may happen next.</p>
         </div>
-        <div class="health" id="health" aria-live="polite">Loading control-plane state…</div>
+        <div class="masthead-actions">
+          <div class="health" id="health" aria-live="polite">Loading control-plane state…</div>
+          <button id="refresh" type="button">Refresh state</button>
+        </div>
       </header>
 
       <section class="metrics" aria-label="Control-plane summary" id="metrics"></section>
-
-      <section class="focus" aria-labelledby="eligible-heading">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">NEXT</p>
-            <h2 id="eligible-heading">Eligible work</h2>
-          </div>
-          <button id="refresh" type="button">Refresh state</button>
-        </div>
-        <div id="next-work" class="empty" aria-live="polite">Evaluating readiness…</div>
-      </section>
 
       <div class="columns">
         <section aria-labelledby="blocked-heading">
