@@ -6,6 +6,7 @@ The current control-plane commands use one additive response envelope while reta
 
 - `work.claim`
 - `work.checkpoint`
+- `work.heartbeat`
 - `work.settle`
 - `github.apply_changeset`
 - `github.delete_branch`
@@ -16,6 +17,11 @@ The current control-plane commands use one additive response envelope while reta
 - `github.review_packet`
 - `portfolio.reconcile_work_surface`
 - `linear.archive`
+- `orchestration.start`
+- `orchestration.horizon_checkpoint`
+- `orchestration.horizon_resolve`
+- `orchestration.finish`
+- `orchestration.maintain`
 - `orchestration.resume_packet`
 - `orchestration.status`
 - `object.capture`
@@ -99,7 +105,15 @@ Historical lease rows may retain terminal evidence after authority ends. Actual 
 
 `work.checkpoint` adds resumable execution progress without changing Linear lifecycle or lane. A checkpoint is accepted only while the lease still owns an unexpired slot and the semantic execution projection remains valid. `work.settle` may promote a checkpoint and exact candidate into `work-continuation-v1`; a later `work.claim` returns that predecessor packet only when the settlement's successor execution fingerprint still matches current Linear execution semantics. See `work-continuation-v1.md` for the full boundary and requeue taxonomy.
 
+`work.heartbeat` is the bounded lease-extension verb. It is accepted only for the exact unexpired active lease and slot, with the same `run_id`, an unchanged semantic execution projection, and durable checkpoint progress. It atomically advances the lease/slot expiry and records a heartbeat receipt, but never past the lease hard cap or a registered run's settlement-reserve boundary. An expired lease cannot be revived. Repeated extension attempts without materially advanced checkpoint progress are rejected rather than turning heartbeat into indefinite reservation.
+
 ## Run correlation and recovery
+
+Each execution session may be represented by one durable, non-authoritative orchestration run. `orchestration.start` records the worker/scope, establishes a bounded run deadline with settlement reserve and minimum fresh-gate runway, and identifies the latest compatible predecessor run by stable continuation key plus exact scope fingerprint. Registered run budgets mechanically fence `work.claim` and `work.heartbeat`; they do not make a Linear item executable.
+
+The execution agent may persist up to 10 already-selected plausible next gates with `orchestration.horizon_checkpoint`. Hatchable rereads Linear and retains the execution-critical projection/fingerprint for each candidate. `orchestration.horizon_resolve` later classifies those entries against current authority. Horizons are advisory only: they never claim work, change priority, or become durable work truth. Cross-run planning continuity comes from `orchestration.start` plus a revalidated predecessor horizon; exact interrupted ownership recovery still uses `orchestration.resume_packet`.
+
+`orchestration.finish` persists the machine-readable run handoff only after the run no longer owns an unexpired claiming/active/settling lease. It does not mutate Linear work authority. `orchestration.maintain` is a bounded deterministic repair surface for expired slots, stored claim/settlement replay, and journal entries whose durable receipts conclusively establish the result. It never selects, creates, prioritizes, or semantically edits portfolio work.
 
 Compatible Portfolio Control Plane commands may be correlated with one orchestration `run_id`. The control plane records one bounded `orchestration_command_invocations` row per correlated invocation with command identity, safe target coordinates, request/result digests, bounded request/result projections, outcome classification, and timing.
 
