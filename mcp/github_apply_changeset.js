@@ -54,7 +54,12 @@ export default {
           allOf: [
             {
               if: { properties: { operation: { enum: ['create', 'update'] } }, required: ['operation'] },
-              then: { required: ['content'] },
+              then: {
+                oneOf: [
+                  { required: ['content'], not: { required: ['content_gzip_base64'] } },
+                  { required: ['content_gzip_base64'], not: { required: ['content'] } },
+                ],
+              },
             },
             {
               if: { properties: { operation: { const: 'delete' } }, required: ['operation'] },
@@ -62,6 +67,7 @@ export default {
                 not: {
                   anyOf: [
                     { required: ['content'] },
+                    { required: ['content_gzip_base64'] },
                     { required: ['ensure_final_newline'] },
                   ],
                 },
@@ -71,7 +77,8 @@ export default {
           properties: {
             path: { type: 'string', minLength: 1, maxLength: 4096 },
             operation: { type: 'string', enum: ['create', 'update', 'delete'] },
-            content: { type: 'string', description: 'Complete UTF-8 text. Required for create/update and forbidden for delete.' },
+            content: { type: 'string', description: 'Complete UTF-8 text. Provide exactly one of content or content_gzip_base64 for create/update; forbidden for delete.' },
+            content_gzip_base64: { type: 'string', description: 'Base64-encoded gzip containing complete UTF-8 text. Expanded before semantic normalization and idempotency hashing. Provide exactly one content transport for create/update; forbidden for delete.' },
             ensure_final_newline: {
               type: 'boolean',
               description: 'For create/update, append a final LF only when content does not already end in LF. Use when an upstream text transport cannot preserve terminal newlines.',
