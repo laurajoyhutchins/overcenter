@@ -1,0 +1,1 @@
+ALTER TABLE work_leases ADD COLUMN IF NOT EXISTS predecessor_continuation jsonb

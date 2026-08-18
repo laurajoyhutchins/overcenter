@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS work_lease_checkpoints_latest_idx ON work_lease_checkpoints (lease_id, created_at DESC)

@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS work_leases_continuation_idx ON work_leases (work_ref, settled_at DESC)
