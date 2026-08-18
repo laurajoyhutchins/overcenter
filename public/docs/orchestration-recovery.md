@@ -94,7 +94,8 @@ The user-visible `Portfolio Run Handoff v1` remains a compact human index. It co
 - invoke existing expired-slot reconciliation;
 - replay an exact stored claiming request with its original idempotency key;
 - replay an exact stored settling request with its original idempotency key;
-- reconcile an old command-journal row only when a durable receipt conclusively establishes its result.
+- reconcile an old command-journal row only when a durable receipt conclusively establishes its result;
+- reconcile an interrupted `orchestration.start` as succeeded when its exact run record exists, or as not applied when the exact run record is conclusively absent after the stuck threshold.
 
 It must not choose or create work, change priority, invent blockers, make owner decisions, or convert uncertain historical effects into invented certainty. Ambiguous effects without authoritative receipts remain explicitly ambiguous.
 
