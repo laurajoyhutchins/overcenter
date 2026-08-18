@@ -41,7 +41,7 @@ export default async function (req, res) {
         const replacement = replacements[index];
         const path = String(replacement?.path || '');
         const oldText = replacement?.old;
-        const newText = replacement?.new;
+        const newText = replacement?.new_text;
         const expectedCount = replacement?.expected_count === undefined ? 1 : Number(replacement.expected_count);
         if (!path || typeof oldText !== 'string' || oldText.length === 0 || typeof newText !== 'string' || !Number.isInteger(expectedCount) || expectedCount < 1) {
           throw Object.assign(new Error(`invalid replacement at index ${index}`), { code: 'INVALID_REPLACEMENT', index });
