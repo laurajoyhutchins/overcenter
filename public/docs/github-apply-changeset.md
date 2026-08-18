@@ -18,7 +18,7 @@ Provide exactly one of `base_ref` or `base_sha`.
 {
   "repo": "owner/repo",
   "base_ref": "main",
-  "branch": "agent/example-change",
+  "branch": "feat/example-change",
   "expected_head": "0123456789abcdef0123456789abcdef01234567",
   "changes": [
     { "path": "README.md", "operation": "update", "content": "complete UTF-8 text" },
@@ -36,9 +36,9 @@ Each change has a repository-relative `path` and `operation` of `create`, `updat
 
 ## Branch and concurrency semantics
 
-For a new target branch, the command resolves the supplied base exactly and builds one commit on that commit. If `expected_head` is supplied, it must equal that resolved base commit.
+For a new target branch, the command resolves the supplied base exactly and builds one commit on that commit. If `expected_head` is supplied, it must equal that resolved base commit. New work branches must satisfy `branch-policy-v1`: `feat/`, `fix/`, `refactor/`, `test/`, `docs/`, `chore/`, or `research/` followed by a lower-case kebab description. Execution identities and Linear identifiers are not accepted as new branch namespaces.
 
-For an existing target branch, the command builds on the branch's current head. `expected_head` should be supplied for agent writes and must equal that head. The supplied base is still resolved, but it never causes an existing target branch to be rebased or reset.
+For an existing target branch, the command builds on the branch's current head. Existing legacy branch names are grandfathered so active work can drain without a mass rename. `expected_head` should be supplied for agent writes and must equal that head. The supplied base is still resolved, but it never causes an existing target branch to be rebased or reset.
 
 Immediately before the final ref mutation, the command reads the branch again. Existing branches must still equal the original head; new branches must still be absent. Any race fails closed. Ref updates use `force: false`.
 
@@ -70,7 +70,7 @@ Upstream failures carry machine-readable transport evidence when available: `pha
 {
   "ok": true,
   "repo": "owner/repo",
-  "branch": "agent/example-change",
+  "branch": "feat/example-change",
   "base_sha": "...",
   "old_head": null,
   "new_head": "...",
@@ -97,7 +97,7 @@ Upstream failures carry machine-readable transport evidence when available: `pha
   "message": "expected_head does not match the commit the changeset would build on",
   "expected_head": "...",
   "actual_head": "...",
-  "branch": "agent/example-change",
+  "branch": "feat/example-change",
   "phase": "preflight"
 }
 ```

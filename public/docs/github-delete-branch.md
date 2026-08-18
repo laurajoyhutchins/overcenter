@@ -12,12 +12,12 @@ Input:
 ```json
 {
   "repo": "owner/repo",
-  "branch": "agent/example",
+  "branch": "feat/example",
   "expected_head": "0123456789abcdef0123456789abcdef01234567"
 }
 ```
 
-The command requires a full 40-character `expected_head`. It queries the repository and branch, rejects the default branch, and then uses GitHub GraphQL `updateRefs` with:
+The command requires a full 40-character `expected_head`. It queries the repository and branch, rejects the default branch, and fails closed if the branch is still the head or base of any open pull request. That lifecycle check prevents deleting active work and stacked-PR dependencies without introducing a second stack model. It then uses GitHub GraphQL `updateRefs` with:
 
 - `name = refs/heads/<branch>`
 - `beforeOid = expected_head`
