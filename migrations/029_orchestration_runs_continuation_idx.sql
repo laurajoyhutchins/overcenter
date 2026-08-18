@@ -1,0 +1,1 @@
+CREATE INDEX orchestration_runs_continuation_idx ON orchestration_runs (continuation_key, scope_sha256, started_at DESC)

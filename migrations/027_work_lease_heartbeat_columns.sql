@@ -1,0 +1,1 @@
+ALTER TABLE work_leases ADD COLUMN hard_expires_at timestamptz, ADD COLUMN last_heartbeat_at timestamptz, ADD COLUMN heartbeat_count integer NOT NULL DEFAULT 0

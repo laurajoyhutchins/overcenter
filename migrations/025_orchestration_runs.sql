@@ -1,0 +1,21 @@
+CREATE TABLE orchestration_runs (
+  run_id text PRIMARY KEY,
+  worker text NOT NULL,
+  mode text NOT NULL,
+  continuation_key text NOT NULL,
+  scope jsonb NOT NULL,
+  scope_sha256 text NOT NULL,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  deadline_at timestamptz NOT NULL,
+  settlement_reserve_seconds integer NOT NULL DEFAULT 300,
+  minimum_new_gate_seconds integer NOT NULL DEFAULT 600,
+  predecessor_run_id text,
+  status text NOT NULL DEFAULT 'active',
+  disposition text,
+  last_work_ref text,
+  last_gate text,
+  latest_horizon_id uuid,
+  stop_reason text,
+  finished_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now()
+)

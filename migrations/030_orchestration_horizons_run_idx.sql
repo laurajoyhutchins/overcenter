@@ -1,0 +1,1 @@
+CREATE INDEX orchestration_horizons_run_idx ON orchestration_horizons (run_id, generation DESC)

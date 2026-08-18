@@ -1,0 +1,4 @@
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
+import { createPostgresOrchestrationRunService, statusForOrchestrationRunError } from 'lib/orchestration-runs.js';
+export const access='admin'; export const methods=['POST'];
+export default async function(req,res){ const response=await executeCorrelatedCommand('orchestration.finish',req.body||{},input=>createPostgresOrchestrationRunService().finish(input),{statusForFailure:statusForOrchestrationRunError,defaultError:'ORCHESTRATION_FINISH_ERROR',defaultMessage:'orchestration.finish failed',flattenDetails:true}); return res.status(response.status).json(response.body); }
