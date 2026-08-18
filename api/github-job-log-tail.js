@@ -13,7 +13,6 @@ export default async function (req, res) {
     const result = await withGitHubAppApiClient(repo, async (apiClient) => apiClient.call('github', {
       method: 'GET',
       path: `/repos/${repo}/actions/jobs/${jobId}/logs`,
-      headers: { Accept: 'text/plain' },
     }), { permissionProfile: 'actions_storage_read' });
     const text = typeof result?.body === 'string' ? result.body : JSON.stringify(result?.body || '');
     return res.json({ ok: true, status: result?.status || null, tail: text.slice(-16000) });
