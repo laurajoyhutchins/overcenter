@@ -1,9 +1,12 @@
-import { db } from 'hatchable';
+import { db, storage } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { applyGithubChangesetWithGitHubApp } from 'lib/github-apply-changeset.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
+
+const STAGE_ID = /^[A-Za-z0-9._-]{1,120}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
 
 function statusFor(result) {
   if (result.ok) return 200;
@@ -12,15 +15,60 @@ function statusFor(result) {
   if (result.error === 'GITHUB_NOT_FOUND' || result.error === 'GITHUB_APP_INSTALLATION_NOT_FOUND') return 404;
   if (['HEAD_MISMATCH', 'BRANCH_CREATION_RACE', 'TARGET_BRANCH_DISAPPEARED', 'IDEMPOTENCY_CONFLICT', 'IDEMPOTENCY_IN_PROGRESS', 'CREATE_TARGET_EXISTS', 'UPDATE_TARGET_MISSING', 'DELETE_TARGET_MISSING', 'GITHUB_CONFLICT'].includes(result.error)) return 409;
   if (result.error === 'GITHUB_REF_REJECTED') return 422;
-  if (String(result.error || '').startsWith('INVALID_') || result.error === 'DUPLICATE_PATH' || result.error === 'UNSUPPORTED_BINARY_PAYLOAD' || result.error === 'UNSUPPORTED_TARGET_TYPE') return 422;
+  if (String(result.error || '').startsWith('INVALID_') || result.error === 'DUPLICATE_PATH' || result.error === 'UNSUPPORTED_BINARY_PAYLOAD' || result.error === 'UNSUPPORTED_TARGET_TYPE' || result.error === 'CONTENT_CHECKSUM_MISMATCH') return 422;
   return 502;
 }
 
+async function expandStagedContent(input) {
+  if (!input || typeof input !== 'object' || !Array.isArray(input.changes)) return input;
+  const changes = [];
+  for (let changeIndex = 0; changeIndex < input.changes.length; changeIndex += 1) {
+    const change = input.changes[changeIndex];
+    const stage = change?.content_gzip_base64_stage;
+    if (stage === undefined) {
+      changes.push(change);
+      continue;
+    }
+    if (!stage || typeof stage !== 'object' || Array.isArray(stage)) {
+      throw Object.assign(new Error('content_gzip_base64_stage must be an object'), { code: 'INVALID_REQUEST' });
+    }
+    const stageId = String(stage.stage_id || '');
+    const totalChunks = Number(stage.total_chunks);
+    const compressedSha256 = String(stage.compressed_sha256 || '').toLowerCase();
+    if (!STAGE_ID.test(stageId) || !Number.isInteger(totalChunks) || totalChunks < 1 || totalChunks > 256 || !SHA256.test(compressedSha256)) {
+      throw Object.assign(new Error('invalid staged content descriptor'), { code: 'INVALID_REQUEST' });
+    }
+    const chunks = [];
+    for (let index = 0; index < totalChunks; index += 1) {
+      const key = `github-text-stage/${stageId}/${String(index).padStart(3, '0')}.txt`;
+      const stored = await storage.get(key);
+      if (!stored?.buffer) {
+        throw Object.assign(new Error(`staged content chunk ${index} is missing`), { code: 'INVALID_REQUEST' });
+      }
+      const chunk = new TextDecoder('utf-8', { fatal: true }).decode(stored.buffer);
+      chunks.push(chunk);
+    }
+    const { content_gzip_base64_stage: ignored, ...rest } = change;
+    changes.push({
+      ...rest,
+      content_gzip_base64_chunks: chunks,
+      content_gzip_base64_sha256: compressedSha256,
+    });
+  }
+  return { ...input, changes };
+}
+
 export default async function (req, res) {
+  let input;
+  try {
+    input = await expandStagedContent(req.body || {});
+  } catch (error) {
+    return res.status(422).json({ ok: false, error: error?.code || 'INVALID_REQUEST', message: String(error?.message || error) });
+  }
   const response = await executeCorrelatedCommand(
     'github.apply_changeset',
-    req.body || {},
-    (input) => applyGithubChangesetWithGitHubApp(input, { db }),
+    input,
+    (commandInput) => applyGithubChangesetWithGitHubApp(commandInput, { db }),
     { statusForFailure: statusFor, flattenDetails: true, db },
   );
   return res.status(response.status).json(response.body);
