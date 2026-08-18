@@ -5,6 +5,7 @@ The current control-plane commands use one additive response envelope while reta
 ## Commands
 
 - `work.claim`
+- `work.checkpoint`
 - `work.settle`
 - `github.apply_changeset`
 - `github.delete_branch`
@@ -95,6 +96,8 @@ When execution-critical authority changes, settlement fails closed with `WORK_ST
 Settlement uses an explicit `settling` state for an upstream or otherwise indeterminate transition attempt. In that case Hatchable does not release ownership as though the command were rejected. The caller must replay the identical semantic settlement with the same idempotency key so Hatchable can reconcile whether the Linear transition already occurred without creating a second lifecycle transition. Lease expiry remains crash/dead-worker recovery, not the normal cleanup path for a live settlement attempt.
 
 Historical lease rows may retain terminal evidence after authority ends. Actual current ownership requires a valid unexpired active slot; an expired lease grants no execution authority.
+
+`work.checkpoint` adds resumable execution progress without changing Linear lifecycle or lane. A checkpoint is accepted only while the lease still owns an unexpired slot and the semantic execution projection remains valid. `work.settle` may promote a checkpoint and exact candidate into `work-continuation-v1`; a later `work.claim` returns that predecessor packet only when the settlement's successor execution fingerprint still matches current Linear execution semantics. See `work-continuation-v1.md` for the full boundary and requeue taxonomy.
 
 ## Run correlation and recovery
 

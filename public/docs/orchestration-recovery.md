@@ -19,7 +19,9 @@ Create one unique run token for the execution session. Use that same token as `r
 
 If a worker/session disappears, a replacement worker first calls `orchestration.resume_packet` with the prior run token. Follow the returned mechanical continuation classification. Do not infer a new work item from the packet; if it returns `recompute_frontier`, return to the normal authoritative frontier-selection procedure.
 
-A packet may return an existing lease token only when the run still owns a valid unexpired active slot and fresh Linear state still matches that lease's execution gate. Settling leases may include the exact safe replay material already persisted by the work lease settlement protocol. Tokens never enter the orchestration journal.
+A packet may return an existing lease token only when the run still owns a valid unexpired active slot and fresh Linear state still matches that lease's execution gate. Active lease recovery may also expose the latest checkpoint identity as bounded `{checkpoint_sha256, created_at, phase, next_action_kind}` metadata. Settling leases may include the exact safe replay material already persisted by the work lease settlement protocol. Tokens never enter the orchestration journal.
+
+`orchestration.resume_packet` is same-run recovery only. Cross-run and cross-lane work succession is owned by `work.claim`, which may return a fingerprint-valid `work-continuation-v1` predecessor packet. This keeps run recovery from becoming another work selector or project-state authority.
 
 ## Continuations
 
