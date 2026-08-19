@@ -26,7 +26,8 @@ Call `orchestration.start` before selecting new work. Supply:
 - `scheduled` or `interactive` mode;
 - a stable `continuation_key` for the same worker/scope across firings;
 - a bounded scope containing the project and any hard lane/repository constraints;
-- optional narrower run-budget values.
+- optional narrower run-budget values;
+- when the worker can observe them exactly, immutable `contract_provenance` coordinates for the project instructions, Fast Forward skill, and execution-ownership skill. Missing provenance is recorded as unknown/not supplied rather than guessed. The control plane also stamps its own worker-transport revision.
 
 Scheduled workers normally use a 2700-second budget, a 300-second settlement reserve, and a 600-second minimum fresh-gate runway. Production `work.claim` requires a registered active run and is fenced by the run budget plus declared project/lane/repository scope. `orchestration.horizon_checkpoint` is fenced by the same scope. A worker may not acquire a fresh gate when less than the minimum runway remains before the reserve boundary, and a heartbeat may not extend ownership through that boundary.
 
@@ -77,13 +78,13 @@ Cross-run planning continuity is owned by `orchestration.start` plus advisory ho
 - durable checkpoint progress exists;
 - the run budget and three-hour hard lease cap still permit extension.
 
-The lease and slot expiry move together and a heartbeat receipt is retained. Repeated heartbeat attempts without materially advanced checkpoint progress are rejected. An expired lease cannot be revived; expired ownership returns to normal stale-lease recovery.
+The lease and slot expiry move together and a heartbeat receipt is retained. Repeated heartbeat attempts without materially advanced checkpoint progress are rejected. When the hard lease horizon produces `HEARTBEAT_LIMIT_REACHED`, the heartbeat's progress checkpoint is already durable and the response mechanically requires `settle_active_lease`; do not continue ordinary gate work. An expired lease cannot be revived; expired ownership returns to normal stale-lease recovery.
 
 ## Run finish
 
 After all acquired work is truthfully settled or no longer grants execution authority, call `orchestration.finish` with the run disposition, last work/gate, and bounded stop reason.
 
-Finish fails closed with `RUN_HAS_ACTIVE_LEASE` while the run still owns an unexpired claiming, active, or settling lease. That same lease-liveness definition is reused by abandoned-run reconciliation. A successful finish persists only machine continuation metadata and reports no work-authority mutation.
+Finish fails closed with `RUN_HAS_ACTIVE_LEASE` while the run still owns an unexpired claiming, active, or settling lease. The failure carries the safe `lease_ref` and the mechanical transition `settle_active_lease_then_retry_finish`: truthfully settle that lease, then retry `orchestration.finish`. The control plane never guesses a settlement disposition. That same lease-liveness definition is reused by abandoned-run reconciliation. A successful finish persists only machine continuation metadata and reports no work-authority mutation.
 
 If a worker session disappears without calling `orchestration.finish`, the run deadline remains the lifecycle fence. Once the deadline has elapsed and no live lease remains, deterministic maintenance terminalizes the run as `finished` with disposition `abandoned`. This does not infer whether the underlying work succeeded or failed, and it preserves the run's scope, continuation identity, predecessor, latest horizon, and last-work/gate evidence for later recovery.
 
@@ -105,10 +106,12 @@ Run terminalization and lease insertion serialize on the same `orchestration_run
 
 `orchestration.status` exposes `overdue_active_runs` with bounded run coordinates. Any overdue active run is unhealthy until its lifecycle is reconciled; after maintenance clears the condition, health returns to normal when no other unhealthy condition remains.
 
-It must not choose or create work, change priority, invent blockers, make owner decisions, or convert uncertain historical effects into invented certainty. Abandoned-run terminalization is orchestration metadata cleanup, so maintenance continues to report `semantic_work_mutations = 0` and `work_selection_performed = false`. Ambiguous effects without authoritative receipts remain explicitly ambiguous. Routine global maintenance belongs to the Dispatcher once per scheduling cycle; scheduled execution workers do not repeat the global sweep.
+It must not choose or create work, change priority, invent blockers, make owner decisions, or convert uncertain historical effects into invented certainty. Abandoned-run terminalization is orchestration metadata cleanup, so maintenance continues to report `semantic_work_mutations = 0` and `work_selection_performed = false`. Ambiguous effects without authoritative receipts remain explicitly ambiguous.
+
+A scheduler-only control-plane sweep runs hourly as the durable eventual-quiescence safety net. Dispatcher and interactive maintenance calls may still run opportunistically, but correctness no longer depends on either conversational workers or the Dispatcher remembering to invoke maintenance. The hourly cadence does not redefine lease expiry or infer worker death; it only applies the existing deterministic recovery rules after their authoritative boundaries have been crossed.
 
 ## Journal boundary
 
-The run journal records bounded command/target coordinates, request/result hashes, safe projections, timestamps, error classification, retryability, expected-rejection status, and mutation ambiguity. It does not record prompts, model reasoning, chain of thought, conversation text, credentials, lease tokens, source-file contents, patches, binary content, or full copies of authoritative objects.
+The run journal records bounded command/target coordinates, request/result hashes, safe projections, timestamps, error classification, retryability, expected-rejection status, and mutation ambiguity. After a correlated command completes durably, the run also records its monotonic last durable activity timestamp/type/sequence for diagnostics. This is evidence of the last observed command completion, never a worker-death timestamp. Run rows may additionally retain declared immutable worker-contract provenance coordinates. The journal does not record prompts, model reasoning, chain of thought, conversation text, credentials, lease tokens, source-file contents, patches, binary content, or full copies of authoritative objects.
 
 The journal never grants execution authority. Linear remains durable work truth; GitHub/Drive remain artifact/repository truth; work leases remain temporary exclusive execution ownership; command-specific receipt state machines remain the safety authority for idempotent mutation recovery.
