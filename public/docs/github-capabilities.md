@@ -1,6 +1,6 @@
 # GitHub App capabilities
 
-`POST /api/github-capabilities` and MCP `github_capabilities` provide a read-only projection of the GitHub App capabilities available for one repository.
+`POST /api/github-capabilities` and MCP `github_capabilities` provide a read-only `command-response-v1` projection of the GitHub App capabilities available for one repository. The canonical command name is `github.capabilities`.
 
 The projection exists to answer a runtime question: can the installed app currently mint the fixed command-owned permission profile needed by a control-plane capability? It does not grant authority, select work, mutate GitHub, or turn a permission failure into durable project truth.
 

@@ -1,4 +1,5 @@
 import { inspectGitHubAppCapabilities } from 'lib/github-app-auth.js';
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 
 export const access = 'admin';
 
@@ -13,11 +14,13 @@ export default {
       repo: { type: 'string', minLength: 3, maxLength: 256, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$', description: 'Repository in owner/repo form.' },
     },
   },
-  async handler(args) {
-    try {
-      return await inspectGitHubAppCapabilities(args?.repo);
-    } catch (error) {
-      return { ok: false, error: error?.code || 'GITHUB_CAPABILITY_INSPECTION_ERROR', message: String(error?.message || error) };
-    }
+  async handler(args, ctx) {
+    const response = await executeCorrelatedCommand(
+      'github.capabilities',
+      args || {},
+      (input) => inspectGitHubAppCapabilities(input.repo),
+      { flattenDetails: true, db: ctx?.db },
+    );
+    return response.body;
   },
 };

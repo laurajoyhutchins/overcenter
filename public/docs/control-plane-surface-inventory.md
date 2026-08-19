@@ -41,7 +41,7 @@ Kernel libraries include durable run records, advisory horizons, work leases/che
 
 Retain the bounded mechanical transports used by the live orchestration architecture:
 - GitHub app changesets and text staging/application
-- GitHub review packet, branch deletion, Actions storage, required-check reconciliation, branch-policy reconciliation, stack reconciliation, default-branch migration, and bounded job-log inspection
+- GitHub review packet, read-only App capability projection, branch deletion, Actions storage, required-check reconciliation, branch-policy reconciliation, stack reconciliation, default-branch migration, and bounded job-log inspection
 - terminal Linear archive
 - GitHub-issue to Linear `portfolio.reconcile_work_surface`
 - retained-object capture/read surfaces

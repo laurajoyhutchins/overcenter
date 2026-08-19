@@ -15,6 +15,7 @@ The current control-plane commands use one additive response envelope while reta
 - `github.stack.reconcile`
 - `github.default_branch.migrate`
 - `github.review_packet`
+- `github.capabilities`
 - `portfolio.reconcile_work_surface`
 - `linear.archive`
 - `orchestration.start`
