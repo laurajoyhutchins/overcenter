@@ -58,7 +58,7 @@ The operator dashboard is retained only as a read-only current-kernel health vie
 
 ## COMPATIBILITY_TEMPORARY
 
-The low-level HTTP request shapes for work claim/checkpoint/heartbeat/settle remain available as the advanced/internal compatibility surface. They continue accepting explicit idempotency keys and wire-format fields. The worker-facing MCP layer is the canonical ergonomic surface and derives protocol bookkeeping internally. `/api/worker-command` is a transport-equivalent semantic facade for connected runtimes that cannot see the generated MCP tool namespace; it accepts only the MCP semantic input fields and rejects caller-owned wire bookkeeping.
+The low-level HTTP request shapes for work claim/checkpoint/heartbeat/settle remain available as the advanced/internal compatibility surface. They continue accepting explicit idempotency keys and wire-format fields. The worker-facing MCP layer is the canonical ergonomic surface and derives protocol bookkeeping internally. `/api/worker-command` is a transport-equivalent semantic facade for connected runtimes that cannot see the generated MCP tool namespace; it accepts only semantic input fields and rejects caller-owned wire bookkeeping. For connector callers, claim returns a non-secret UUID `lease_ref` while the opaque lease capability remains server-side; checkpoint, heartbeat, and settlement use that reference. Native MCP callers continue using the capability-token contract unchanged.
 
 Deletion condition: remove a low-level compatibility field only after all non-MCP callers are proven migrated and a removal provides material simplification without weakening recovery or retry identity.
 
