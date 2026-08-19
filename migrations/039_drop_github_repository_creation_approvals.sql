@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS github_repository_creation_approvals;
