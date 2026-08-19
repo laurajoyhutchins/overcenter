@@ -1,0 +1,1 @@
+ALTER TABLE orchestration_runs ADD COLUMN start_request_sha256 text, ADD COLUMN finish_request_sha256 text

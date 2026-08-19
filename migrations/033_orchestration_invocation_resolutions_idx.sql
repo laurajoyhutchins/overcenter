@@ -1,0 +1,1 @@
+CREATE INDEX orchestration_invocation_resolutions_invocation_idx ON orchestration_invocation_resolutions (invocation_id, created_at DESC)
