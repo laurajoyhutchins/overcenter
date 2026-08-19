@@ -83,7 +83,9 @@ The lease and slot expiry move together and a heartbeat receipt is retained. Rep
 
 After all acquired work is truthfully settled or no longer grants execution authority, call `orchestration.finish` with the run disposition, last work/gate, and bounded stop reason.
 
-Finish fails closed with `RUN_HAS_ACTIVE_LEASE` while the run still owns an unexpired claiming, active, or settling lease. A successful finish persists only machine continuation metadata and reports no work-authority mutation.
+Finish fails closed with `RUN_HAS_ACTIVE_LEASE` while the run still owns an unexpired claiming, active, or settling lease. That same lease-liveness definition is reused by abandoned-run reconciliation. A successful finish persists only machine continuation metadata and reports no work-authority mutation.
+
+If a worker session disappears without calling `orchestration.finish`, the run deadline remains the lifecycle fence. Once the deadline has elapsed and no live lease remains, deterministic maintenance terminalizes the run as `finished` with disposition `abandoned`. This does not infer whether the underlying work succeeded or failed, and it preserves the run's scope, continuation identity, predecessor, latest horizon, and last-work/gate evidence for later recovery.
 
 The user-visible `Portfolio Run Handoff v1` remains a compact human index. It complements this machine handoff and never replaces live authority.
 
@@ -96,9 +98,14 @@ The user-visible `Portfolio Run Handoff v1` remains a compact human index. It co
 - replay an exact stored settling request with its original idempotency key;
 - reconcile an old command-journal row only when the durable receipt's semantic request hash exactly matches the journal invocation;
 - reconcile an interrupted `orchestration.start` from an exact request-bound run record, or mark it definitively not applied when the exact run record is conclusively absent after the stuck threshold;
+- terminalize an overdue `active` orchestration run as `abandoned` only after atomically revalidating that no unexpired claiming, active, or settling lease remains;
 - record every such journal reconciliation append-only in `orchestration_invocation_resolutions` rather than rewriting the historical invocation outcome.
 
-It must not choose or create work, change priority, invent blockers, make owner decisions, or convert uncertain historical effects into invented certainty. Ambiguous effects without authoritative receipts remain explicitly ambiguous. Routine global maintenance belongs to the Dispatcher once per scheduling cycle; scheduled execution workers do not repeat the global sweep.
+Run terminalization and lease insertion serialize on the same `orchestration_runs` row lock. A concurrent claim therefore either establishes its lease before reconciliation revalidates ownership, or observes the terminal run and fails closed; maintenance cannot finish a run underneath a valid newly acquired lease.
+
+`orchestration.status` exposes `overdue_active_runs` with bounded run coordinates. Any overdue active run is unhealthy until its lifecycle is reconciled; after maintenance clears the condition, health returns to normal when no other unhealthy condition remains.
+
+It must not choose or create work, change priority, invent blockers, make owner decisions, or convert uncertain historical effects into invented certainty. Abandoned-run terminalization is orchestration metadata cleanup, so maintenance continues to report `semantic_work_mutations = 0` and `work_selection_performed = false`. Ambiguous effects without authoritative receipts remain explicitly ambiguous. Routine global maintenance belongs to the Dispatcher once per scheduling cycle; scheduled execution workers do not repeat the global sweep.
 
 ## Journal boundary
 
