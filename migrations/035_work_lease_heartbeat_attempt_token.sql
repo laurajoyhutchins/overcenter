@@ -1,0 +1,1 @@
+ALTER TABLE work_lease_heartbeats ADD COLUMN attempt_token text
