@@ -28,9 +28,9 @@ Call `orchestration.start` before selecting new work. Supply:
 - a bounded scope containing the project and any hard lane/repository constraints;
 - optional narrower run-budget values.
 
-Scheduled workers normally use a 2700-second budget, a 300-second settlement reserve, and a 600-second minimum fresh-gate runway. Registered run budgets fence `work.claim` and `work.heartbeat`. A worker may not acquire a fresh gate when less than the minimum runway remains before the reserve boundary, and a heartbeat may not extend ownership through that boundary.
+Scheduled workers normally use a 2700-second budget, a 300-second settlement reserve, and a 600-second minimum fresh-gate runway. Production `work.claim` requires a registered active run and is fenced by the run budget plus declared project/lane/repository scope. `orchestration.horizon_checkpoint` is fenced by the same scope. A worker may not acquire a fresh gate when less than the minimum runway remains before the reserve boundary, and a heartbeat may not extend ownership through that boundary.
 
-`orchestration.start` finds the latest compatible predecessor by continuation key plus exact scope fingerprint. This is correlation, not ownership.
+`orchestration.start` considers only compatible predecessors that are already finished or whose registered deadline has passed. A still-live compatible run is not transferred to a new run. Explicit recovery of a known live session uses that exact prior `run_id` through `orchestration.resume_packet`. Continuation keys provide cross-run context, not authority.
 
 ## Cross-run planning continuity
 
@@ -45,7 +45,7 @@ For each candidate Hatchable rereads Linear and retains the execution-critical p
 
 `orchestration.horizon_resolve` revalidates the latest horizon and classifies candidates such as `valid`, `materially_changed`, `no_longer_executable`, or `authority_unavailable`.
 
-A new compatible run may receive its predecessor's revalidated horizon from `orchestration.start`. This is the machine planning handoff across sessions.
+A new compatible run may receive a finished or deadline-expired predecessor's revalidated horizon from `orchestration.start`. This is the machine planning handoff across sessions and never transfers a still-live worker's lease authority.
 
 ## Exact interrupted-execution recovery
 
@@ -94,10 +94,11 @@ The user-visible `Portfolio Run Handoff v1` remains a compact human index. It co
 - invoke existing expired-slot reconciliation;
 - replay an exact stored claiming request with its original idempotency key;
 - replay an exact stored settling request with its original idempotency key;
-- reconcile an old command-journal row only when a durable receipt conclusively establishes its result;
-- reconcile an interrupted `orchestration.start` as succeeded when its exact run record exists, or as not applied when the exact run record is conclusively absent after the stuck threshold.
+- reconcile an old command-journal row only when the durable receipt's semantic request hash exactly matches the journal invocation;
+- reconcile an interrupted `orchestration.start` from an exact request-bound run record, or mark it definitively not applied when the exact run record is conclusively absent after the stuck threshold;
+- record every such journal reconciliation append-only in `orchestration_invocation_resolutions` rather than rewriting the historical invocation outcome.
 
-It must not choose or create work, change priority, invent blockers, make owner decisions, or convert uncertain historical effects into invented certainty. Ambiguous effects without authoritative receipts remain explicitly ambiguous.
+It must not choose or create work, change priority, invent blockers, make owner decisions, or convert uncertain historical effects into invented certainty. Ambiguous effects without authoritative receipts remain explicitly ambiguous. Routine global maintenance belongs to the Dispatcher once per scheduling cycle; scheduled execution workers do not repeat the global sweep.
 
 ## Journal boundary
 
