@@ -5,7 +5,7 @@ export const access = 'admin';
 
 export default {
   name: 'github_repository_create',
-  description: 'Create or idempotently resolve one private, uninitialized GitHub repository owned by laurajoyhutchins. The owner, private visibility, and auto_init=false policy are fixed by the command and cannot be caller-supplied. Uses a separately authorized GitHub App user access token; ordinary repository mutations continue to use installation tokens.',
+  description: 'Request creation of one private, uninitialized GitHub repository owned by laurajoyhutchins. Every exact repository request requires separate manual owner approval on the human-only Hatchable approval page before this command can mutate GitHub. The owner, private visibility, and auto_init=false policy are fixed and cannot be caller-supplied. Approval expires and is consumed after successful creation.',
   inputSchema: {
     type: 'object',
     required: ['name'],
