@@ -18,7 +18,7 @@ Ordinary GitHub repository mutations continue to use short-lived GitHub App inst
 
 Repository creation uses a GitHub App **user access token** because GitHub's personal-repository creation endpoint requires user authority. Authorization is obtained with the GitHub device flow through `github_repository_authorization` or `/api/github-repository-authorization`.
 
-The control plane discovers the GitHub App client ID from the authenticated App identity. Device flow therefore does not require a client secret. The resulting access and refresh tokens are encrypted with AES-GCM before persistence. The wrapping key is deterministically derived, with a domain-separation label, from the existing Hatchable-protected GitHub App private key. Token plaintext is never returned, persisted, or logged.
+The control plane discovers the GitHub App client ID from the authenticated App identity. Device flow therefore does not require a client secret. The resulting access and refresh tokens are wrapped before persistence with an authenticated encrypt-then-MAC construction built from the isolate-supported HMAC-SHA256 primitive, independent domain-separated encryption and authentication keys, and a fresh random nonce. The root wrapping material is the existing Hatchable-protected GitHub App private key. Token plaintext is never returned, persisted, or logged.
 
 Expiring user tokens are refreshed automatically. Device-flow refresh does not require a GitHub App client secret. If the App private key rotates, the stored credential intentionally fails closed and user authorization must be repeated.
 
