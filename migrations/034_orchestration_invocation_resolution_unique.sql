@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX orchestration_invocation_resolution_unique ON orchestration_invocation_resolutions (invocation_id)
