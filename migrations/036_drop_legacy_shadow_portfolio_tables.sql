@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS portfolio_reconciliation_runs, portfolio_entity_projections, portfolio_observations
