@@ -1,3 +1,0 @@
-source-sync-live-probe
-phase=github-origin
-nonce=20260822T1620Z
