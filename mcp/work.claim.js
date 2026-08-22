@@ -1,6 +1,7 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { createPostgresWorkLeaseService, statusForWorkLeaseError } from 'lib/work-leases.js';
 import { canonicalClaimCommand } from 'lib/operator-commands.js';
+import { workerBoundaryCommandFailure, workerBoundaryFailureOptions } from 'lib/worker-boundary-errors.js';
 
 export const access = 'admin';
 
@@ -19,11 +20,17 @@ export default {
     additionalProperties: false,
   },
   async handler(args, ctx) {
-    const input = await canonicalClaimCommand(args || {}, ctx?.db);
+    const failureOptions = { statusForFailure: statusForWorkLeaseError, defaultError: 'WORK_CLAIM_ERROR', defaultMessage: 'work.claim failed', flattenDetails: true, db: ctx?.db };
+    let input;
+    try {
+      input = await canonicalClaimCommand(args || {}, ctx?.db);
+    } catch (error) {
+      return workerBoundaryCommandFailure('work.claim', error, failureOptions).body;
+    }
     const response = await executeCorrelatedCommand(
       'work.claim', input,
       (request) => createPostgresWorkLeaseService({ db: ctx?.db }).claim(request),
-      { statusForFailure: statusForWorkLeaseError, defaultError: 'WORK_CLAIM_ERROR', defaultMessage: 'work.claim failed', flattenDetails: true, db: ctx?.db },
+      workerBoundaryFailureOptions('work.claim', failureOptions),
     );
     return response.body;
   },

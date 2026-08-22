@@ -1,6 +1,7 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { createPostgresWorkLeaseService, statusForWorkLeaseError } from 'lib/work-leases.js';
 import { canonicalCheckpointCommand } from 'lib/operator-commands.js';
+import { workerBoundaryCommandFailure, workerBoundaryFailureOptions } from 'lib/worker-boundary-errors.js';
 
 export const access = 'admin';
 const evidence = { type:'array', maxItems:50, items:{ type:'object', required:['kind','ref'], properties:{kind:{type:'string'},ref:{type:'string'}}, additionalProperties:false } };
@@ -17,8 +18,11 @@ export default {
     }, additionalProperties:false,
   },
   async handler(args,ctx){
-    const input=await canonicalCheckpointCommand(args||{},ctx?.db);
-    const response=await executeCorrelatedCommand('work.checkpoint',input,request=>createPostgresWorkLeaseService({db:ctx?.db}).checkpoint(request),{statusForFailure:statusForWorkLeaseError,defaultError:'WORK_CHECKPOINT_ERROR',defaultMessage:'work.checkpoint failed',flattenDetails:true,db:ctx?.db});
+    const failureOptions={statusForFailure:statusForWorkLeaseError,defaultError:'WORK_CHECKPOINT_ERROR',defaultMessage:'work.checkpoint failed',flattenDetails:true,db:ctx?.db};
+    let input;
+    try { input=await canonicalCheckpointCommand(args||{},ctx?.db); }
+    catch(error){ return workerBoundaryCommandFailure('work.checkpoint',error,failureOptions).body; }
+    const response=await executeCorrelatedCommand('work.checkpoint',input,request=>createPostgresWorkLeaseService({db:ctx?.db}).checkpoint(request),workerBoundaryFailureOptions('work.checkpoint',failureOptions));
     return response.body;
   },
 };
