@@ -1,8 +1,10 @@
 # Orchestration run continuity and recovery
 
-The Portfolio Control Plane gives interactive Fast Forward and scheduled execution workers bounded continuity across disposable sessions without becoming work authority.
+The Portfolio Control Plane gives interactive Fast Forward and scheduled workers bounded continuity across disposable worker sessions without becoming work authority. Canonical naming is defined in [`architecture/terminology.md`](architecture/terminology.md).
 
-Linear remains durable work truth. GitHub and Drive remain repository/artifact truth. Hatchable stores only coordination state: run budgets, advisory horizons, leases, checkpoints, heartbeats, settlement receipts, and bounded recovery evidence.
+A **scheduled task** is the ChatGPT scheduler entry. A **worker** is the execution role. A **worker session** is one disposable ChatGPT execution. An **orchestration run** is the durable control-plane record identified by `run_id`; it can outlive the worker session that created it. These terms are not interchangeable.
+
+Linear remains durable work truth. GitHub and Drive remain repository/artifact truth. The Portfolio Control Plane GitHub App, currently deployed on Hatchable, stores only coordination state: run budgets, advisory horizons, leases, checkpoints, heartbeats, settlement receipts, and bounded recovery evidence.
 
 ## Surfaces
 
@@ -12,13 +14,14 @@ Linear remains durable work truth. GitHub and Drive remain repository/artifact t
 - `orchestration.finish` / `POST /api/orchestration/finish`
 - `orchestration.maintain` / `POST /api/orchestration/maintain`
 - `orchestration.resume_packet` / `POST /api/orchestration/resume-packet`
+- `orchestration.diagnose` / `POST /api/orchestration/diagnose`
 - `orchestration.status` / `POST /api/orchestration/status`
 
-The corresponding MCP commands use the same canonical names. `resume_packet` and `status` are observational. The other orchestration commands mutate only bounded Hatchable coordination state and do not change Linear, GitHub, Drive, work priority, work executability, or project requirements.
+The corresponding MCP commands use the same canonical names. `resume_packet`, `diagnose`, and `status` are observational. The other orchestration commands mutate only bounded Hatchable coordination state and do not change Linear, GitHub, Drive, work priority, work executability, or project requirements.
 
 ## Run start and budgeting
 
-Create one unique `run_id` for the execution session and reuse it for every compatible command in that run.
+Create one unique `run_id` for the orchestration run and reuse it for every compatible command in that run. The worker session is the disposable executor; `run_id` identifies the durable control-plane record.
 
 Call `orchestration.start` before selecting new work. Supply:
 
@@ -65,6 +68,14 @@ A packet may expose a lease token only when the predecessor run still owns a val
 
 Cross-run planning continuity is owned by `orchestration.start` plus advisory horizons. Cross-lane exact candidate succession remains `work-continuation-v1` delivered through a later `work.claim`. `resume_packet` does not select a new work item.
 
+## Typed diagnosis and recovery
+
+`orchestration.diagnose` is the deterministic answer to "why did this worker stop?" for known control-plane failure classes. It reads the durable run, current Linear work state, lease/slot/checkpoint state, and bounded journal evidence, then returns the last successful command, last typed failure, derived worker health, whether automatic recovery is allowed, the exact recovery operation, and whether reasoning/operator escalation is required. It is not inserted into the run journal it is inspecting and cannot choose work or invent a recovery plan.
+
+Known recovery states include `CLAIM_STATE_INVALID`, `ACTIVE_LEASE_REMAINS`, `HEARTBEAT_BUDGET_EXHAUSTED`, `STALE_LEASE`, `TRANSPORT_UNAVAILABLE`, `WORKER_DISABLED`, `RECOVERY_FAILED`, and `UNKNOWN`. Transient transport absence projects `degraded` and a bounded retry operation rather than disabling the worker. Persistent invalid configuration remains an operator error. Repeated automatic recovery is bounded; after three failed attempts the diagnosis becomes `RECOVERY_FAILED` and escalates rather than looping.
+
+Worker-facing recovery semantics are therefore one rule: execute the canonical command; when the response contains a known recoverable `failure_state`, execute its `recovery_operation`; escalate only when the machine response says escalation is required. Workers do not reconstruct lifecycle/lane strings, lease cleanup sequences, or historical recovery narratives.
+
 ## Long-running gates
 
 `work.checkpoint` persists bounded progress while an active lease remains authoritative.
@@ -78,15 +89,15 @@ Cross-run planning continuity is owned by `orchestration.start` plus advisory ho
 - durable checkpoint progress exists;
 - the run budget and three-hour hard lease cap still permit extension.
 
-The lease and slot expiry move together and a heartbeat receipt is retained. Repeated heartbeat attempts without materially advanced checkpoint progress are rejected. When the hard lease horizon produces `HEARTBEAT_LIMIT_REACHED`, the heartbeat's progress checkpoint is already durable and the response mechanically requires `settle_active_lease`; do not continue ordinary gate work. An expired lease cannot be revived; expired ownership returns to normal stale-lease recovery.
+The lease and slot expiry move together and a heartbeat receipt is retained. Repeated heartbeat attempts without materially advanced checkpoint progress are rejected. When the run budget or hard lease horizon prevents extension, the heartbeat checkpoint is already durable and the response is typed `HEARTBEAT_BUDGET_EXHAUSTED` with the exact `work.settle` recovery operation needed to requeue `resume_progress`. The worker executes that prescription rather than attempting another extension or reconstructing cleanup. An expired lease cannot be revived; diagnosis classifies expired/orphaned ownership as `STALE_LEASE` and prescribes the canonical reconciliation path.
 
 ## Run finish
 
-After all acquired work is truthfully settled or no longer grants execution authority, call `orchestration.finish` with the run disposition, last work/gate, and bounded stop reason.
+Call `orchestration.finish` with the run disposition, last work/gate, and bounded stop reason. If the run still owns a live lease, include truthful `active_lease_settlement` semantics in that same terminal command.
 
-Finish fails closed with `RUN_HAS_ACTIVE_LEASE` while the run still owns an unexpired claiming, active, or settling lease. The failure carries the safe `lease_ref` and the mechanical transition `settle_active_lease_then_retry_finish`: truthfully settle that lease, then retry `orchestration.finish`. The control plane never guesses a settlement disposition. That same lease-liveness definition is reused by abandoned-run reconciliation. A successful finish persists only machine continuation metadata and reports no work-authority mutation.
+Finish uses the canonical lease settlement state machine before terminalizing the run. It targets the exact lease owned by the run, preserves settlement idempotency and ownership fences, and never guesses `completed`, `requeue`, or `blocked`. If a live lease exists but settlement semantics are omitted, finish fails closed with typed `ACTIVE_LEASE_REMAINS` and prescribes the settlement-aware finish retry. If settlement itself fails, the run remains active and the underlying failure is not hidden. That same lease-liveness definition is reused by abandoned-run reconciliation.
 
-If a worker session disappears without calling `orchestration.finish`, the run deadline remains the lifecycle fence. Once the deadline has elapsed and no live lease remains, deterministic maintenance terminalizes the run as `finished` with disposition `abandoned`. This does not infer whether the underlying work succeeded or failed, and it preserves the run's scope, continuation identity, predecessor, latest horizon, and last-work/gate evidence for later recovery.
+If a worker session disappears without calling `orchestration.finish`, the run deadline remains the lifecycle fence. Once the deadline has elapsed and no live lease remains, deterministic maintenance terminalizes the run as `finished` with disposition `abandoned` and stop classification `UNOBSERVABLE_SESSION_TERMINATION`. This says exactly what the available evidence supports: no session-layer termination reason is observable. It does not infer client cancellation, context/runtime exhaustion, safety interruption, model behavior, or infrastructure failure, and it does not generate a continuing investigation queue unless new session-layer telemetry becomes available.
 
 The user-visible `Portfolio Run Handoff v1` remains a compact human index. It complements this machine handoff and never replaces live authority.
 

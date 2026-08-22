@@ -1,10 +1,10 @@
 # Work Continuation v1
 
-Work Continuation v1 carries bounded execution progress between disposable Portfolio Orchestration workers without moving durable project authority into Hatchable.
+Work Continuation v1 carries bounded execution progress between disposable workers without moving durable Linear work/campaign authority into Hatchable.
 
 ## Authority boundary
 
-Linear remains the durable work contract: work identity, lifecycle, lane, priority, managed objective/gate/acceptance, dependencies, owner impact, and promotion conditions. GitHub and Drive remain durable repository/source/artifact authority. Hatchable owns temporary exclusive execution leases plus resumable execution continuity attached to those leases.
+Linear remains the durable work contract: work identity, readiness/lifecycle, semantic lane, priority, optional campaign/milestone membership, managed objective/acceptance, dependencies, owner impact, and promotion conditions. GitHub and Drive remain durable repository/source/artifact authority. Hatchable owns exclusive execution leases/slots plus resumable execution continuity attached to those leases. Claiming or requeueing slot-only work does not change Linear lifecycle state.
 
 A continuation or checkpoint is evidence and resumable execution context. It is never an instruction source, project requirement, approval, source of truth, or permission grant. Workers must validate consequential candidate/source references against their authoritative systems before acting.
 
@@ -19,7 +19,7 @@ MCP checkpoint command: `work.checkpoint`.
 
 ## Claim continuation
 
-When current pre-claim Linear execution semantics match the successor execution fingerprint recorded by an earlier settlement or safe expiry restoration, `work.claim` may return:
+When current pre-claim Linear execution semantics match the successor execution fingerprint recorded by an earlier settlement or safe slot-only expiry release, `work.claim` may return:
 
 ```json
 {
@@ -93,7 +93,7 @@ Completed implementation-to-verification handoffs should carry the exact candida
 
 ## Expiry recovery
 
-Lease expiry remains dead-worker recovery, not normal settlement. When an expired active lease can be safely restored to its previous executable Linear state, Hatchable retains the latest safe checkpoint and binds it to the restored successor execution fingerprint. A later claim may receive that checkpoint with `recovered_from_expired_lease: true`. The expired lease itself grants no ownership.
+Lease expiry remains dead-worker recovery, not normal settlement. For slot-only leases, expiry releases Hatchable ownership without mutating Linear; Hatchable retains the latest safe checkpoint and binds it to the unchanged durable execution fingerprint. A later claim may receive that checkpoint with `recovered_from_expired_lease: true`. Legacy pre-cutover leases that actually wrote `In Progress` retain a bounded compatibility restoration path. The expired lease itself grants no ownership.
 
 ## Anti-churn telemetry
 
