@@ -27,9 +27,10 @@ export default {
       continuation_key: { type: 'string' },
       scope: {
         type: 'object',
-        required: ['project'],
         properties: {
-          project: { type: 'string' },
+          project: { type: 'string', description: 'Legacy single-project scope. Do not combine with team/projects.' },
+          team: { type: 'string', description: 'Team name or ID for campaign-aware scope when project is omitted.' },
+          projects: { type: 'array', items: { type: 'string' }, maxItems: 25, description: 'Optional allowed project names or IDs within team scope. Empty means any project or unprojected issue in the team.' },
           lanes: { type: 'array', items: { type: 'string' }, maxItems: 8 },
           repositories: { type: 'array', items: { type: 'string' }, maxItems: 25 },
           direction: { type: ['string', 'null'] },
