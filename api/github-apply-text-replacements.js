@@ -55,7 +55,7 @@ export default async function (req, res) {
         const response = await apiClient.call('github', {
           method: 'GET',
           path: `/repos/${body.repo.split('/').map(encodeURIComponent).join('/')}/contents/${encodePath(path)}`,
-          query: { ref: body.expected_head },
+          query: { ref: body.branch },
           headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', 'User-Agent': 'Hatchable-Portfolio-Control-Plane/1.0' },
         });
         if (Number(response?.status || 0) !== 200 || response?.body?.encoding !== 'base64') {
@@ -80,7 +80,7 @@ export default async function (req, res) {
 
       return applyGithubChangeset({
         repo: body.repo,
-        base_sha: body.base_sha || body.expected_head,
+        base_ref: body.branch,
         branch: body.branch,
         expected_head: body.expected_head,
         changes,
