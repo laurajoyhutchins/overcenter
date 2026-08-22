@@ -5,7 +5,7 @@ export const access = 'admin';
 
 export default {
   name: 'github_required_checks_ensure',
-  description: 'Ensure exact selected GitHub verification checks are required for one repository branch. Resolves check identities from an exact caller-approved branch head, preserves unrelated requirements, uses the repository effective rules/protection state as authority, rereads before and after mutation, and succeeds only after GitHub shows enforcement active. This is the Hatchable-safe tool name for github.required_checks.ensure.',
+  description: 'Ensure exact selected GitHub verification checks are required for one repository branch. Resolves check identities from an exact caller-approved branch head, preserves unrelated requirements, uses the repository effective rules/protection state as authority, rereads before and after mutation, and succeeds only after GitHub shows enforcement active. This MCP tool exposes github.required_checks.ensure using an underscore-safe transport name.',
   inputSchema: {
     type: 'object',
     required: ['repo', 'branch', 'expected_head', 'required_checks'],

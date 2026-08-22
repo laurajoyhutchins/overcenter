@@ -5,7 +5,7 @@ export const access = 'admin';
 
 export default {
   name: 'github_apply_changeset',
-  description: 'Atomically apply a declared multi-file UTF-8 repository changeset as one Git commit using GitHub Git Data APIs. Supports create/update/delete, optimistic expected_head checks, non-force branch updates, and exact idempotent replay. This is the Hatchable-safe tool name for the conceptual github.apply_changeset command.',
+  description: 'Atomically apply a declared multi-file UTF-8 repository changeset as one Git commit using GitHub Git Data APIs. Supports create/update/delete, optimistic expected_head checks, non-force branch updates, and exact idempotent replay. This MCP tool exposes the conceptual github.apply_changeset command using an underscore-safe transport name.',
   inputSchema: {
     type: 'object',
     required: ['repo', 'branch', 'changes', 'commit_message'],

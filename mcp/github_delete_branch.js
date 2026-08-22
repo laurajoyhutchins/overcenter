@@ -5,7 +5,7 @@ export const access = 'admin';
 
 export default {
   name: 'github_delete_branch',
-  description: 'Delete one GitHub branch only if it still points to the caller-approved full commit SHA. Uses GitHub updateRefs with beforeOid and a zero afterOid for an atomic compare-and-swap deletion. Returns already_absent idempotently and never accepts tags or arbitrary refs. This is the Hatchable-safe tool name for the conceptual github.delete_branch command.',
+  description: 'Delete one GitHub branch only if it still points to the caller-approved full commit SHA. Uses GitHub updateRefs with beforeOid and a zero afterOid for an atomic compare-and-swap deletion. Returns already_absent idempotently and never accepts tags or arbitrary refs. This MCP tool exposes the conceptual github.delete_branch command using an underscore-safe transport name.',
   inputSchema: {
     type: 'object',
     required: ['repo', 'branch', 'expected_head'],

@@ -5,7 +5,7 @@ export const access = 'admin';
 
 export default {
   name: 'github_review_packet',
-  description: 'Inspect one GitHub pull request as a compact exact-head-bound structural review/integration packet. Returns PR identity, mergeability, normalized review/check state, conservatively evaluated protection metadata, changed paths, and a deterministic snapshot digest without hydrating GitHub prose. This is the Hatchable-safe tool name for conceptual github.review_packet.',
+  description: 'Inspect one GitHub pull request as a compact exact-head-bound structural review/integration packet. Returns PR identity, mergeability, normalized review/check state, conservatively evaluated protection metadata, changed paths, and a deterministic snapshot digest without hydrating GitHub prose. This MCP tool exposes conceptual github.review_packet using an underscore-safe transport name.',
   inputSchema: {
     type: 'object',
     required: ['repo', 'pull_request'],
