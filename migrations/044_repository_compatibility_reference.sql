@@ -1,0 +1,1 @@
+ALTER TABLE portfolio_repository_disposition ADD COLUMN IF NOT EXISTS compatibility_reference text

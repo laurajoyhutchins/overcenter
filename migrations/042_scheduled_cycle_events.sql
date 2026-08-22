@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS scheduled_cycle_events (
+  event_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  sequence bigserial NOT NULL UNIQUE,
+  cycle_id text NOT NULL CHECK (cycle_id ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:00Z$'),
+  participant text NOT NULL,
+  automation_id text NOT NULL,
+  event_type text NOT NULL CHECK (event_type IN ('accepted','acknowledged','claimed','idle','completed','verified','failed_closed','ambiguous','missing')),
+  scheduler_accepted_at timestamptz,
+  reported_started_at timestamptz,
+  observed_at timestamptz NOT NULL,
+  run_id text,
+  run_receipt_sha256 text CHECK (run_receipt_sha256 IS NULL OR run_receipt_sha256 ~ '^[0-9a-f]{64}$'),
+  request_id text,
+  linear_receipt_ref text,
+  production_version text,
+  source_commit text,
+  evidence jsonb NOT NULL DEFAULT '[]'::jsonb,
+  source text NOT NULL,
+  idempotency_key text NOT NULL UNIQUE,
+  request_sha256 text NOT NULL CHECK (request_sha256 ~ '^[0-9a-f]{64}$'),
+  event_sha256 text NOT NULL CHECK (event_sha256 ~ '^[0-9a-f]{64}$'),
+  created_at timestamptz NOT NULL DEFAULT now()
+)
