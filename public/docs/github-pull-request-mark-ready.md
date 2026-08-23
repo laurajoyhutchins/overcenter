@@ -1,6 +1,6 @@
 # GitHub pull request ready-for-review command
 
-`github.pull_request.mark_ready` is the Portfolio Control Plane mutation for graduating one exact draft pull request to ready-for-review state.
+`github.pull_request.mark_ready` is the Busbar mutation for graduating one exact draft pull request to ready-for-review state.
 
 Surfaces:
 
