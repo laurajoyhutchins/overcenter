@@ -14,6 +14,54 @@ The lifecycle is deliberately small:
 
 Repository disposition has no compatibility exception. Disposed repositories remain historical state; stale callers requesting compatibility work receive `LEGACY_CONTROL_PLANE_RETIRED`.
 
+## Controls model
+
+For operator-facing explanations, Busbar projects repository lifecycle as a simple control circuit. This is a derived view of the canonical lifecycle state, not another authority or another state machine.
+
+- `ACTIVE` and `MAINTENANCE` are **ENERGIZED**. The repository disconnect is **CLOSED**, so ordinary-work permissives may be true.
+- `DORMANT`, `ARCHIVED`, and `SUPERSEDED` are **DE_ENERGIZED**. The repository disconnect is **OPEN**, so ordinary work, issue discovery, Linear projection, Fast Forward, and scheduled-worker targeting are inhibited.
+- A work item existing in GitHub or Linear is analogous to equipment being present. Presence does not energize it.
+- `work.claim` is downstream of the repository disconnect. A lease can establish exclusive execution ownership only after repository and run-scope permissives are satisfied.
+- Checkpoint, heartbeat, and settlement revalidate the lifecycle interlock. Opening the repository disconnect while a lease exists invalidates that lease before another execution effect.
+
+The controls projection is intentionally one-way:
+
+```text
+canonical repository disposition
+            |
+            v
+   derived controls view
+ power + disconnect + permissives
+```
+
+Changing descriptive controls language cannot make a repository executable. Only the canonical repository lifecycle transition can change execution eligibility.
+
+A deliberate temporary shutdown follows the same safe sequence as de-energized equipment work:
+
+```text
+ACTIVE / MAINTENANCE
+        |
+        v
+explicit transition to DORMANT
+        |
+        v
+de-energized: execution paths inhibited
+        |
+        v
+perform bounded relocation / restructuring work
+        |
+        v
+verify authority, wiring, and execution interlocks
+        |
+        v
+explicit transition to ACTIVE or MAINTENANCE
+        |
+        v
+re-energized
+```
+
+Busbar uses this analogy to make the system legible to operators. Canonical API enums, command names, error codes, and persistence fields retain their existing protocol vocabulary.
+
 ## GitHub evidence and sticky retirement
 
 GitHub repository state remains authoritative evidence. Observing `archived: true` forces a repository out of active lifecycle and into `ARCHIVED` unless it is already in another disposed state such as `SUPERSEDED`.
