@@ -5,7 +5,7 @@ export const access = 'admin';
 
 export default {
   name: 'github_pull_request_create',
-  description: 'Create one same-repository pull request through the Portfolio Control Plane GitHub App at exact base/head SHAs. Explicit draft intent is required. Existing exact PRs are idempotent, uncertain creation is reconciled before any retry, and the response records GitHub author plus same-installation viewer authorization evidence.',
+  description: 'Create one same-repository pull request through the Busbar GitHub App at exact base/head SHAs. Explicit draft intent is required. Existing exact PRs are idempotent, uncertain creation is reconciled before any retry, and the response records GitHub author plus same-installation viewer authorization evidence.',
   inputSchema: {
     type: 'object',
     required: ['repo', 'base', 'head', 'expected_base', 'expected_head', 'title', 'draft'],

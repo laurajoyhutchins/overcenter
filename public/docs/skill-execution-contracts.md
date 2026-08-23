@@ -6,7 +6,7 @@ Make worker skills first-class orchestration contracts without turning reasoning
 
 ## Architecture
 
-The Portfolio Control Plane remains the sole runtime authority. At `orchestration.start`, it derives a worker skill policy server-side and snapshots stable skill references into the run. Workers may activate only skills in that snapshot. `skill.activate` and `skill.complete` are semantic lifecycle operations correlated to the run and recorded durably. Completion-only skill requirements are enforced at `work.settle`; objective evidence remains a separate requirement.
+Busbar remains the sole runtime authority. At `orchestration.start`, it derives a worker skill policy server-side and snapshots stable skill references into the run. Workers may activate only skills in that snapshot. `skill.activate` and `skill.complete` are semantic lifecycle operations correlated to the run and recorded durably. Completion-only skill requirements are enforced at `work.settle`; objective evidence remains a separate requirement.
 
 Skills contain reusable reasoning procedures. Tools and commands contain deterministic capabilities. Workers compose skills and tools. Workflows and the control plane own state transitions, retries, leases, and settlement.
 

@@ -1,6 +1,6 @@
-# Portfolio Orchestration App
+# Busbar
 
-This repository contains the current Hatchable Portfolio Control Plane GitHub App and is the successor to the deprecated `laurajoyhutchins/engineering-agent-team` repository.
+Busbar is the GitHub App that owns portfolio orchestration and execution semantics for this engineering portfolio. It is the successor to the deprecated `laurajoyhutchins/engineering-agent-team` repository and is currently deployed on Hatchable.
 
 ## Authority boundary
 

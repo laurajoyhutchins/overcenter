@@ -8,8 +8,8 @@ export default async function (_req, res) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Portfolio Control Plane GitHub App</title>
-  <meta name="description" content="GitHub App implementing the Portfolio Control Plane, deployed on Hatchable.">
+  <title>Busbar</title>
+  <meta name="description" content="Busbar is the portfolio orchestration GitHub App, deployed on Hatchable.">
   <style>
     :root {
       color-scheme: dark;
@@ -67,7 +67,7 @@ export default async function (_req, res) {
 </head>
 <body>
   <main>
-    <h1>Portfolio Control Plane GitHub App</h1>
+    <h1>Busbar</h1>
     <p>v191</p>
     <a href="/dashboard">Open dashboard</a>
   </main>

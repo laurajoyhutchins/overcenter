@@ -56,7 +56,7 @@ export default async function (req, res) {
           method: 'GET',
           path: `/repos/${body.repo.split('/').map(encodeURIComponent).join('/')}/contents/${encodePath(path)}`,
           query: { ref: body.branch },
-          headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', 'User-Agent': 'Hatchable-Portfolio-Control-Plane/1.0' },
+          headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', 'User-Agent': 'Busbar/1.0' },
         });
         if (Number(response?.status || 0) !== 200 || response?.body?.encoding !== 'base64') {
           throw Object.assign(new Error(`unable to read ${path} at expected_head`), { code: 'SOURCE_READ_FAILED', path, status: response?.status || null });
