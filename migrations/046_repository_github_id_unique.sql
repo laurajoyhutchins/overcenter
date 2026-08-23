@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS portfolio_repository_disposition_github_id_uidx ON portfolio_repository_disposition (github_repository_id) WHERE github_repository_id IS NOT NULL
