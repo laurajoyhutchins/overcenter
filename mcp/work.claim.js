@@ -7,7 +7,7 @@ export const access = 'admin';
 
 export default {
   name: 'work.claim',
-  description: 'Acquire one bounded exclusive lease for already-selected work using the exact authoritative revision returned by the control plane. Pass observed_revision; infrastructure rereads Linear, derives lifecycle and lane, enforces run scope and revision fences, and supplies retry identity and ordinary lease duration. Do not reconstruct lifecycle or lane strings.',
+  description: 'Acquire one bounded exclusive lease for already-selected work using the exact authoritative revision returned by the control plane. Pass observed_revision; infrastructure rereads Linear, requires the current Todo gate to contain a handoff-ready Outcome and Next action, derives lifecycle and lane, enforces run scope and revision fences, and supplies retry identity and ordinary lease duration. Do not reconstruct lifecycle or lane strings.',
   inputSchema: {
     type: 'object',
     required: ['work_ref','run_id','observed_revision'],

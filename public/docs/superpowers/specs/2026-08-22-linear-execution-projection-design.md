@@ -57,6 +57,8 @@ projection:
 
 Linear description materialization is deliberately small: repository, authority reference, outcome, next action, and promotion condition when blocked. Exact heads, PR topology, leases, run IDs, command receipts, historical narratives, and verification evidence remain at their real authorities.
 
+The current executable gate is sized as one agent handoff. `work.claim` fails closed before lease creation when a `Todo` execution-lane issue lacks either `Outcome` or `Next action`. If the current gate still requires decomposition before a worker can act, it is not handoff-ready and must be bounded before it becomes executable. The durable issue may later be rewritten to the next lane after settlement; the invariant applies to the current gate, not to the issue's entire lifetime.
+
 ## Durable identity and phase collapse
 
 The existing `portfolio_work_identity` mapping remains the durable Linear identity. `source.unit_key` distinguishes bounded units backed by one roadmap issue. Optional `canonical_key` can collapse multiple source observations onto one executable identity.
