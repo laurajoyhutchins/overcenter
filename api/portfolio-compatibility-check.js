@@ -14,9 +14,9 @@ export default async function (_req, res) {
     retryable: false,
     rejection: true,
     may_have_mutated: false,
-    recommended_action: 'use_portfolio_control_plane',
+    recommended_action: 'use_busbar',
     escalation_required: false,
     legacy_system: 'agent_execution_control_plane',
-    replacement: { system: 'portfolio_control_plane', project_id: 'proj_I6FSm85xrY7T' },
+    replacement: { system: 'busbar', project_id: 'proj_I6FSm85xrY7T' },
   });
 }
