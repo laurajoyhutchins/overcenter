@@ -88,7 +88,7 @@ The shared classifier owns this distinction. A small command-specific override l
 
 This response version is additive. Existing domain success fields remain at their current top-level paths. Existing stable error codes are unchanged.
 
-For Portfolio Control Plane commands, existing flattened error-detail fields are temporarily retained alongside the canonical `details` object when current callers may depend on them. For example, a stale-head error can expose both `details.expected_head` and the legacy top-level `expected_head`.
+For Busbar commands, existing flattened error-detail fields are temporarily retained alongside the canonical `details` object when current callers may depend on them. For example, a stale-head error can expose both `details.expected_head` and the legacy top-level `expected_head`.
 
 These flattened fields are compatibility fields. They must not be removed inside `command-response-v1`; removal requires a deliberate future response-version change.
 
@@ -128,7 +128,7 @@ The execution agent may persist up to 10 already-selected plausible next gates w
 
 `orchestration.finish` is settlement-aware. If the run owns a live claiming/active/settling lease, the caller supplies truthful `active_lease_settlement` semantics and the control plane settles that exact owned lease through the canonical `work.settle` path before terminalizing the run. It never guesses `completed`, `requeue`, or `blocked`, and a failed settlement leaves the run active. If a live lease exists and settlement semantics are omitted, finish fails closed with typed `ACTIVE_LEASE_REMAINS` and prescribes the settlement-aware finish retry. Start and finish replays are idempotent only for the exact normalized request semantics. `orchestration.maintain` is a bounded deterministic repair surface for expired slots, stored claim/settlement/checkpoint/heartbeat replay evidence, and interrupted starts whose durable request hash and receipt conclusively match. Recovery is recorded append-only in `orchestration_invocation_resolutions`; historical invocation outcomes are not rewritten merely to clear operator health. Maintenance never selects, creates, prioritizes, or semantically edits portfolio work.
 
-Compatible Portfolio Control Plane commands may be correlated with one orchestration `run_id`. The control plane records one bounded `orchestration_command_invocations` row per correlated invocation with command identity, safe target coordinates, request/result digests, bounded request/result projections, outcome classification, and timing.
+Compatible Busbar commands may be correlated with one orchestration `run_id`. The control plane records one bounded `orchestration_command_invocations` row per correlated invocation with command identity, safe target coordinates, request/result digests, bounded request/result projections, outcome classification, and timing.
 
 The journal is an evidence/correlation index. It is not work authority and it never stores chain of thought, prompts, arbitrary conversation content, credentials, API tokens, lease tokens, full patches, complete source files, retained binaries, or redundant full Linear/GitHub objects. Existing command-specific durability remains authoritative for mutation safety.
 

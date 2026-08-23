@@ -1,9 +1,9 @@
-# Portfolio Control Plane source synchronization
+# Busbar source synchronization
 
 Source synchronization connects exactly two authorities:
 
 - Hatchable project `proj_I6FSm85xrY7T`
-- GitHub repository `laurajoyhutchins/portfolio-control-plane-github-app`, branch `main`
+- GitHub repository `laurajoyhutchins/busbar`, branch `main`
 
 The synchronization protocol is deterministic software. Authority-specific reads and mutations are performed by external authenticated adapters. The running Hatchable application does not authenticate back into its own management plane and does not hold a Hatchable account credential.
 
@@ -69,9 +69,9 @@ Hatchable currently exposes atomic multi-file writes but not a project-wide comp
 
 ## Authentication boundary
 
-No additional source-sync credential exists in the Portfolio Control Plane project.
+No additional source-sync credential exists in the Busbar project.
 
-The Hatchable adapter uses the caller's existing authenticated Hatchable connection. The GitHub adapter uses an authenticated GitHub connection or the already installed Portfolio Control Plane GitHub App for the exact-head Git mutation. Credentials remain owned by those platforms and do not cross into `lib/source-sync.js`.
+The Hatchable adapter uses the caller's existing authenticated Hatchable connection. The GitHub adapter uses an authenticated GitHub connection or the already installed Busbar GitHub App for the exact-head Git mutation. Credentials remain owned by those platforms and do not cross into `lib/source-sync.js`.
 
 The former in-app push/pull API routes and MCP tools were removed because they could not truthfully perform the Hatchable half without giving the application an account-level management credential.
 

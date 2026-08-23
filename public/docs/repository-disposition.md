@@ -1,6 +1,6 @@
 # Repository disposition
 
-Repository lifecycle is canonical machine state in the Portfolio Control Plane. It exists to answer whether a repository may generate ordinary executable portfolio work without asking an agent to rediscover repository history.
+Repository lifecycle is canonical machine state in Busbar. It exists to answer whether a repository may generate ordinary executable portfolio work without asking an agent to rediscover repository history.
 
 ## States
 

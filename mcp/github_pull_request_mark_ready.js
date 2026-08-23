@@ -5,7 +5,7 @@ export const access = 'admin';
 
 export default {
   name: 'github_pull_request_mark_ready',
-  description: 'Mark an exact-head draft pull request ready for review through the Portfolio Control Plane GitHub App. The command fails closed if GitHub does not authorize the installation actor for this PR, never retries a mutation blindly, and authoritatively rereads state after uncertain mutation transport.',
+  description: 'Mark an exact-head draft pull request ready for review through the Busbar GitHub App. The command fails closed if GitHub does not authorize the installation actor for this PR, never retries a mutation blindly, and authoritatively rereads state after uncertain mutation transport.',
   inputSchema: {
     type: 'object',
     required: ['repo', 'pull_request', 'expected_head'],

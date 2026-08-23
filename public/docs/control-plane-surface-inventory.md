@@ -1,12 +1,12 @@
-# Portfolio Control Plane surface inventory
+# Busbar surface inventory
 
 Classification refreshed after the Linear-native orchestration migration on 2026-08-19 UTC and repository-disposition hardening on 2026-08-22 UTC. Current authority model verified against the live control plane. Canonical naming is defined in [`architecture/terminology.md`](architecture/terminology.md); repository lifecycle semantics are defined in [`repository-disposition.md`](repository-disposition.md).
 
 ## Architectural boundary
 
-The **Portfolio Control Plane** is the logical control system. The **Portfolio Control Plane GitHub App** is its running application, currently deployed as Hatchable project `proj_I6FSm85xrY7T`. Hatchable is the hosting/runtime layer, not a separate portfolio authority.
+**Busbar** is the logical portfolio orchestration and execution system. The **Busbar GitHub App** is its running application, currently deployed as Hatchable project `proj_I6FSm85xrY7T`. Hatchable is the hosting/runtime layer, not a separate portfolio authority.
 
-Linear `Ljh-projects` owns durable work identity, readiness/lifecycle, semantic lane, priority, dependencies, acceptance boundaries, and optional campaign/project structure. `Todo` is durable readiness only and may be unclaimed or held by a live control-plane lease. GitHub owns repository/code truth and supplies authoritative repository archival evidence. Google Drive owns retained binary/private objects. The Portfolio Control Plane GitHub App owns canonical repository disposition derived from that evidence plus explicit lifecycle transitions/successor metadata, exclusive execution leases/slots, bounded orchestration-run continuity, checkpoints, mechanical external-effect transports, and reconciliation/recovery evidence. It does not choose or prioritize work.
+Linear `Ljh-projects` owns durable work identity, readiness/lifecycle, semantic lane, priority, dependencies, acceptance boundaries, and optional campaign/project structure. `Todo` is durable readiness only and may be unclaimed or held by a live control-plane lease. GitHub owns repository/code truth and supplies authoritative repository archival evidence. Google Drive owns retained binary/private objects. The Busbar GitHub App owns canonical repository disposition derived from that evidence plus explicit lifecycle transitions/successor metadata, exclusive execution leases/slots, bounded orchestration-run continuity, checkpoints, mechanical external-effect transports, and reconciliation/recovery evidence. It does not choose or prioritize work.
 
 ## CURRENT_KERNEL
 
