@@ -1,26 +1,28 @@
-# Portfolio Control Plane source synchronization
+# Portfolio Control Plane source materialization
 
-Source synchronization connects exactly two authorities:
+GitHub repository `laurajoyhutchins/portfolio-control-plane-github-app`, branch `main`, is the sole authority for repository source.
 
-- Hatchable project `proj_I6FSm85xrY7T`
-- GitHub repository `laurajoyhutchins/portfolio-control-plane-github-app`, branch `main`
-
-The synchronization protocol is deterministic software. Authority-specific reads and mutations are performed by external authenticated adapters. The running Hatchable application does not authenticate back into its own management plane and does not hold a Hatchable account credential.
+Hatchable project `proj_I6FSm85xrY7T` is a runtime projection. Runtime differences are drift to diagnose and repair from GitHub. They never authorize a write from Hatchable back to GitHub.
 
 ## Architecture
 
 ```text
-Authenticated Hatchable adapter       Deterministic source-sync protocol       Authenticated GitHub adapter
-(get_project/read/write/deploy)  <-->  observe -> plan -> apply -> verify  <--> (read Git/apply exact-head change)
+GitHub main authority
+       |
+       v
+observe exact Git head -> plan deterministic materialization -> fetch verified Git blobs -> stage runtime writes/deletes -> verify -> deploy
+       |
+       v
+Hatchable runtime projection
 ```
 
-The protocol implementation lives in `lib/source-sync.js`. It owns path selection, Git blob identity, exact-coordinate preconditions, diff planning, pull materialization, and postcondition verification. It performs no network calls and holds no credentials.
+The deterministic protocol lives in `lib/source-sync.js`. It owns synchronized path selection, exact-coordinate preconditions, Git blob identity, pull/materialization planning, runtime drift diagnostics, and postcondition verification. It performs no network calls and holds no credentials.
 
-The adapter layer owns authority access only. A ChatGPT worker with the connected Hatchable and GitHub applications is one valid adapter host. Another client may implement the same contract later without changing synchronization semantics.
+Authenticated adapters only observe GitHub and apply the derived runtime projection. No source-sync operation publishes repository source from Hatchable to GitHub.
 
-## Synchronized source surface
+## Materialized source surface
 
-Hatchable-backed paths are synchronized:
+These GitHub-backed paths may be materialized into Hatchable:
 
 - `api/**`
 - `lib/**`
@@ -32,49 +34,49 @@ Hatchable-backed paths are synchronized:
 - `package.json`
 - `seed.sql`
 
-Repository-only paths such as `.github/**` are preserved on GitHub and ignored on pull. Root `AGENTS.md` is not treated as a Hatchable source file.
+Repository-only paths such as `.github/**` remain GitHub-only and are not materialized into Hatchable. Root `AGENTS.md` is not a Hatchable source file.
 
-## Push workflow
+## Materialization workflow
 
-A push means Hatchable source becomes the desired synchronized projection on GitHub `main`.
+1. Observe the exact GitHub `main` head and the current Hatchable project version/source projection.
+2. Require those observations to match the caller's expected coordinates before planning.
+3. `planPullSync` compares GitHub authority with the runtime projection and reports missing, stale, or content-mismatched runtime paths.
+4. Fetch complete UTF-8 text for exactly the planned Git blobs.
+5. `materializePullPlan` verifies every fetched blob SHA and derives deterministic Hatchable writes, deletes, and the complete target manifest.
+6. Stage only the derived runtime changes.
+7. Re-observe and verify the complete draft before deployment.
+8. Run the project dry-run deployment gate when available.
+9. Recheck the GitHub head and Hatchable version immediately before deployment.
+10. Deploy and verify the resulting runtime manifest against the GitHub-derived target records.
 
-1. The Hatchable adapter observes the current project version, source file list, and complete text of synchronized files.
-2. The GitHub adapter observes the exact `main` head and recursive tree.
-3. `planPushSync` requires the observed Hatchable version and GitHub head to equal the caller's expected coordinates.
-4. The planner computes Git blob identities and a single create/update/delete changeset. GitHub-only paths are absent from that changeset.
-5. The GitHub adapter applies the changes with the existing exact-head `github.apply_changeset` transaction. No force push is allowed.
-6. Both authorities are observed again. `verifyGitProjection` must prove the synchronized Git tree equals the captured Hatchable source and the Hatchable version/source must still match the original observation.
+A no-op performs no runtime mutation.
 
-A no-op produces no commit.
+## Drift and recovery
 
-## Pull workflow
+Runtime projection drift is explicit evidence, not a competing source version.
 
-A pull means an exact GitHub `main` commit becomes the desired synchronized projection in Hatchable.
+`planPullSync` and `verifyHatchableProjection` report runtime drift such as:
 
-1. Both authority coordinates and current synchronized source are observed.
-2. `planPullSync` identifies only changed Git blobs to fetch plus synchronized Hatchable paths to delete.
-3. The GitHub adapter fetches complete UTF-8 text for exactly those planned blobs.
-4. `materializePullPlan` verifies every fetched blob SHA and produces deterministic Hatchable writes/deletes plus the complete target manifest.
-5. The Hatchable adapter stages writes/deletes, re-observes the full draft, and verifies it against `target_records`.
-6. Hatchable `dry_run_deploy` must pass.
-7. The GitHub head and Hatchable version/draft are rechecked immediately before deploy.
-8. The Hatchable adapter deploys and verifies the resulting deployment manifest against the target records.
-9. If any failure occurs before deployment, the adapter restores the captured Hatchable draft and verifies the restoration.
+- a GitHub-authoritative path missing from the runtime;
+- a stale runtime path that is no longer present in the GitHub source surface;
+- runtime content whose Git blob identity differs from GitHub authority.
+
+Recovery is deterministic rematerialization from the current fenced GitHub head. A detected runtime difference never creates, authorizes, or implies a GitHub mutation.
 
 ## Concurrency
 
-GitHub mutation uses a true expected-head compare-and-swap through `github.apply_changeset`.
+GitHub is observed at an exact commit before materialization and rechecked before deployment. A moved GitHub head invalidates the materialization attempt.
 
-Hatchable currently exposes atomic multi-file writes but not a project-wide compare-and-swap over draft source. Pull therefore uses version checks plus full-draft verification before staging, after staging, after dry-run, and immediately before deploy. Any observed drift is a conflict, never an implicit merge.
+Hatchable does not expose a project-wide compare-and-swap over draft source. Materialization therefore uses the observed project version plus complete-draft verification before staging, after staging, after dry-run, and immediately before deploy. Any observed runtime change invalidates the attempt rather than being merged implicitly.
 
 ## Authentication boundary
 
-No additional source-sync credential exists in the Portfolio Control Plane project.
+No source-sync credential exists in the Portfolio Control Plane project.
 
-The Hatchable adapter uses the caller's existing authenticated Hatchable connection. The GitHub adapter uses an authenticated GitHub connection or the already installed Portfolio Control Plane GitHub App for the exact-head Git mutation. Credentials remain owned by those platforms and do not cross into `lib/source-sync.js`.
+The GitHub adapter uses the already authorized GitHub surface to read the exact authoritative commit and blobs. The Hatchable adapter uses the caller's authenticated Hatchable connection to stage and deploy the derived runtime projection. Credentials remain owned by those platforms and do not cross into `lib/source-sync.js`.
 
-The former in-app push/pull API routes and MCP tools were removed because they could not truthfully perform the Hatchable half without giving the application an account-level management credential.
+Historical in-app source-sync routes and reverse-publication concepts are not part of the current architecture.
 
 ## Governing rule
 
-Agents do not decide how to reconcile source trees. Software derives the exact changes and verifies postconditions. Agents or workers only invoke authenticated authority adapters and carry the resulting observations/effects between them.
+Agents author or integrate authoritative repository source in GitHub. Deterministic software derives, materializes, diagnoses, and verifies the Hatchable runtime projection from that authority. Runtime state does not become repository authority merely because it differs from GitHub.
