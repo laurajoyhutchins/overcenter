@@ -28,6 +28,17 @@ Canonical sentence:
 | **tool** | An agent-callable surface that exposes a command or operation. |
 | **GitHub operation** | The underlying GitHub API read or mutation performed by the GitHub App. |
 | **Busbar source repository** | The authoritative GitHub repository containing Busbar source. |
+| **energized** | Operator-facing controls term for a repository whose canonical lifecycle currently permits ordinary execution. Today this means `ACTIVE` or `MAINTENANCE`. It is a derived description, not a separate lifecycle state. |
+| **de-energized** | Operator-facing controls term for a repository whose canonical lifecycle inhibits ordinary execution. Today this means `DORMANT`, `ARCHIVED`, or `SUPERSEDED`. It is a derived description, not a separate lifecycle state. |
+| **disconnect / breaker** | Controls analogy for the repository lifecycle fence. `CLOSED` corresponds to an energized repository; `OPEN` corresponds to a de-energized repository. Do not rename the canonical lifecycle API around this analogy. |
+| **permissive** | A machine-evaluated precondition that must be satisfied before an execution path is eligible, such as repository lifecycle, run scope, lane, or revision fencing. |
+| **interlock** | A machine-enforced condition that prevents or invalidates execution when a safety or authority prerequisite is no longer true. |
+
+## Controls analogy
+
+Workers are operator-like reasoning executors, not the control system. They may select, request, research, design, and implement bounded work. Busbar owns the execution permissives, interlocks, exclusive leases, lifecycle fences, and safe state transitions that determine whether those requested actions may actually proceed.
+
+Use the controls analogy when it improves human comprehension of system state, especially in diagrams and operator surfaces. Keep protocol names literal and stable. For example, say that `DORMANT` is de-energized and that `work.claim` is downstream of the lifecycle permissive; do not replace `DORMANT` with a new machine enum such as `BREAKER_OPEN`.
 
 ## Obsolete current-system names
 
