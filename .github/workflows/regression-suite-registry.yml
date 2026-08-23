@@ -1,0 +1,25 @@
+name: Regression suite registry
+
+on:
+  pull_request:
+    paths:
+      - 'lib/**'
+      - 'scripts/verify-regression-suite-registry.mjs'
+      - '.github/workflows/regression-suite-registry.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'scripts/verify-regression-suite-registry.mjs'
+      - '.github/workflows/regression-suite-registry.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  registry-complete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify every maintained test suite is registered
+        run: node scripts/verify-regression-suite-registry.mjs
