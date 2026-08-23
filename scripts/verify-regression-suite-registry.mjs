@@ -20,11 +20,15 @@ function repoPath(absolute) {
   return relative(ROOT, absolute).split(sep).join('/');
 }
 
+function registeredTestSources(source) {
+  const objectStyle = [...source.matchAll(/source:\s*['"]([^'"]+\.test\.js)['"]/g)].map(match => match[1]);
+  const suiteStyle = [...source.matchAll(/suite\(\s*['"][^'"]+['"]\s*,\s*['"][^'"]+['"]\s*,\s*['"]([^'"]+\.test\.js)['"]/g)].map(match => match[1]);
+  return [...objectStyle, ...suiteStyle].sort();
+}
+
 const maintained = (await collectTestFiles(LIB)).map(repoPath).sort();
 const registrySource = await readFile(REGISTRY, 'utf8');
-const registered = [...registrySource.matchAll(/source:\s*['"]([^'"]+\.test\.js)['"]/g)]
-  .map(match => match[1])
-  .sort();
+const registered = registeredTestSources(registrySource);
 
 const counts = new Map();
 for (const source of registered) counts.set(source, (counts.get(source) || 0) + 1);
