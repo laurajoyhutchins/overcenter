@@ -1,0 +1,3 @@
+CREATE TRIGGER orchestration_runs_terminalization_fence
+BEFORE UPDATE OF status ON orchestration_runs
+FOR EACH ROW EXECUTE FUNCTION enforce_orchestration_run_terminalization_fence()
