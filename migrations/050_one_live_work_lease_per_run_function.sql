@@ -2,11 +2,19 @@ CREATE FUNCTION enforce_one_live_work_lease_per_run()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  run_status text;
 BEGIN
   IF NEW.status IN ('claiming','active','settling') AND NEW.expires_at > now() THEN
-    PERFORM 1 FROM orchestration_runs WHERE run_id = NEW.run_id FOR UPDATE;
+    SELECT status INTO run_status
+      FROM orchestration_runs
+      WHERE run_id = NEW.run_id
+      FOR UPDATE;
     IF NOT FOUND THEN
       RAISE EXCEPTION 'RUN_NOT_REGISTERED: live work lease requires an orchestration run';
+    END IF;
+    IF run_status <> 'active' THEN
+      RAISE EXCEPTION 'RUN_NOT_ACTIVE: live work lease requires an active orchestration run';
     END IF;
     IF EXISTS (
       SELECT 1
