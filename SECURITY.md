@@ -1,6 +1,6 @@
 # Security policy
 
-Busbar is security-sensitive infrastructure. It can hold GitHub App credentials, mint repository-scoped installation tokens, manage execution leases, and perform bounded repository mutations. Security reports should be handled privately.
+Overcenter is security-sensitive infrastructure. It can hold GitHub App credentials, mint repository-scoped installation tokens, manage execution leases, and perform bounded repository mutations. Security reports should be handled privately.
 
 ## Supported version
 
@@ -16,7 +16,7 @@ Do not include live credentials, private keys, installation access tokens, lease
 
 ## Security boundaries
 
-Busbar is designed around the following invariants:
+Overcenter is designed around the following invariants:
 
 - GitHub App permissions are command-owned. Callers do not choose arbitrary permission scopes.
 - Installation tokens are scoped to the selected repository and are not returned to callers or intentionally persisted or logged.

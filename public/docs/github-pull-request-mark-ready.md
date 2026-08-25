@@ -1,6 +1,6 @@
 # GitHub pull request ready-for-review command
 
-`github.pull_request.mark_ready` is the Busbar mutation for graduating one exact draft pull request to ready-for-review state.
+`github.pull_request.mark_ready` is the Overcenter mutation for graduating one exact draft pull request to ready-for-review state.
 
 Surfaces:
 
@@ -23,7 +23,7 @@ The command rereads GitHub before mutation and refuses a stale head, a closed pu
 
 ## Authentication and authority
 
-The command authenticates only as the installed Busbar GitHub App. It mints a short-lived installation token narrowed to `contents: write` plus `pull_requests: write`, does not expose or persist the token, and uses no alternate user OAuth or connector identity.
+The command authenticates only as the installed Overcenter GitHub App. It mints a short-lived installation token narrowed to `contents: write` plus `pull_requests: write`, does not expose or persist the token, and uses no alternate user OAuth or connector identity.
 
 GitHub actor authorization is a separate boundary from installation permission scope. The preflight reads `viewerCanUpdate` and `viewerDidAuthor` through the same installation identity. When both are false, the command returns `GITHUB_PULL_REQUEST_READY_ACTOR_UNAUTHORIZED` before mutation with `may_have_mutated: false`.
 
@@ -39,4 +39,4 @@ Definite GitHub mutation refusal remains distinct from actor preflight refusal a
 
 ## Workflow rule
 
-Workers should use this control-plane command instead of a separate GitHub connector for draft graduation. A workflow that creates a draft must not assume the Busbar GitHub App can later graduate a PR authored by another principal. Future PR-creation flows should preserve a known authorized path out of draft state, or avoid draft state when that path does not exist.
+Workers should use this control-plane command instead of a separate GitHub connector for draft graduation. A workflow that creates a draft must not assume the Overcenter GitHub App can later graduate a PR authored by another principal. Future PR-creation flows should preserve a known authorized path out of draft state, or avoid draft state when that path does not exist.

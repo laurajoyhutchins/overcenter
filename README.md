@@ -1,13 +1,13 @@
-# Busbar
+# Overcenter
 
-Busbar is a GitHub App runtime for turning project work into verified state transitions.
+Overcenter is a GitHub App runtime for turning project work into verified state transitions.
 
 It separates **project truth** from **execution mechanics**:
 
 - GitHub repositories are authoritative for repository content and technical source truth.
-- Busbar owns execution semantics: bounded runs, exclusive work leases, claim/settlement, deterministic recovery, exact-revision mutation, receipts, and orchestration state.
+- Overcenter owns execution semantics: bounded runs, exclusive work leases, claim/settlement, deterministic recovery, exact-revision mutation, receipts, and orchestration state.
 - Linear is a thin projection of currently executable work. It is not a second repository, evidence archive, or execution authority.
-- Hatchable is the current hosting/runtime layer. It does not become project authority by hosting Busbar.
+- Hatchable is the current hosting/runtime layer. It does not become project authority by hosting Overcenter.
 
 ```text
         reasoning workers / deterministic operators
@@ -15,7 +15,7 @@ It separates **project truth** from **execution mechanics**:
                        v
        ENABLE -> ACQUIRE -> EXECUTE -> COMMIT -> CONFIRM
                        |
-                    BUSBAR
+                    OVERCENTER
                  /          \
                 v            v
              GitHub        Linear
@@ -24,7 +24,7 @@ It separates **project truth** from **execution mechanics**:
 
 ## Design principles
 
-Busbar exists to move repeated orchestration ceremony out of prompts and into deterministic software.
+Overcenter exists to move repeated orchestration ceremony out of prompts and into deterministic software.
 
 - Use reasoning agents for judgment, research, synthesis, design, debugging, and novel implementation.
 - Use software for bookkeeping, reconciliation, validation, counting, state derivation, idempotency, and known recovery choreography.
@@ -47,7 +47,7 @@ Important GitHub operations are intentionally command-owned when atomicity, idem
 
 ## Deployment
 
-Busbar is currently designed to run on Hatchable with PostgreSQL, a Linear API connection, and an installed GitHub App.
+Overcenter is currently designed to run on Hatchable with PostgreSQL, a Linear API connection, and an installed GitHub App.
 
 A deployment provides its own installation coordinates and credentials. Repository source does **not** contain a production Hatchable project ID, GitHub App private key, installation access token, or Linear credential.
 
@@ -57,7 +57,7 @@ The required secret/configuration names are declared in `hatchable.toml`:
 - `GITHUB_APP_PRIVATE_KEY`
 - the required Linear API connection
 
-The authoritative GitHub App permission profiles live in `lib/github-app-auth.js`. The App registration must grant the permissions needed by the commands you intend to enable; individual Busbar commands then mint repository-scoped installation tokens using their fixed command-owned profiles.
+The authoritative GitHub App permission profiles live in `lib/github-app-auth.js`. The App registration must grant the permissions needed by the commands you intend to enable; individual Overcenter commands then mint repository-scoped installation tokens using their fixed command-owned profiles.
 
 Source materialization is one-way: an authenticated adapter supplies the deployment's Hatchable project, GitHub repository, branch, exact Git head, and observed runtime version to `lib/source-sync.js`. GitHub is authoritative and runtime drift is repaired from GitHub, never pushed back upstream.
 
@@ -73,11 +73,11 @@ node scripts/verify-public-release.mjs
 
 `verify-public-release` requires full Git history. It checks the public repository boundary, rejects tracked development-journal residue and installation-specific project IDs, and scans Git history for high-confidence credential patterns.
 
-Busbar also exposes an admin-only runtime regression surface at `POST /api/verification/regressions`. Runtime verification and repository-static verification are complementary: neither substitutes for the other.
+Overcenter also exposes an admin-only runtime regression surface at `POST /api/verification/regressions`. Runtime verification and repository-static verification are complementary: neither substitutes for the other.
 
 ## Security
 
-Busbar is security-sensitive software. Read [`SECURITY.md`](SECURITY.md) before deployment or vulnerability reporting.
+Overcenter is security-sensitive software. Read [`SECURITY.md`](SECURITY.md) before deployment or vulnerability reporting.
 
 The intentionally public runtime preview exposes aggregate condition only. Privileged runs, lease references, receipts, raw errors, repository topology, and mutation capabilities remain on admin surfaces.
 

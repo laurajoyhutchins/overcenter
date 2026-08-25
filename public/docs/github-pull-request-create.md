@@ -1,6 +1,6 @@
 # GitHub pull request creation command
 
-`github.pull_request.create` creates one same-repository pull request through the Busbar GitHub App while preserving exact branch authority and actor continuity.
+`github.pull_request.create` creates one same-repository pull request through the Overcenter GitHub App while preserving exact branch authority and actor continuity.
 
 Surfaces:
 

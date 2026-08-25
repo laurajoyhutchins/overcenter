@@ -1,10 +1,10 @@
 # Orchestration run continuity and recovery
 
-Busbar gives interactive Fast Forward and scheduled workers bounded continuity across disposable worker sessions without becoming work authority. Canonical naming is defined in [`architecture/terminology.md`](architecture/terminology.md).
+Overcenter gives interactive Fast Forward and scheduled workers bounded continuity across disposable worker sessions without becoming work authority. Canonical naming is defined in [`architecture/terminology.md`](architecture/terminology.md).
 
 A **scheduled task** is the ChatGPT scheduler entry. A **worker** is the execution role. A **worker session** is one disposable ChatGPT execution. An **orchestration run** is the durable control-plane record identified by `run_id`; it can outlive the worker session that created it. These terms are not interchangeable.
 
-Linear remains durable work truth. GitHub and Drive remain repository/artifact truth. The Busbar GitHub App, currently deployed on Hatchable, stores only coordination state: run budgets, advisory horizons, leases, checkpoints, heartbeats, settlement receipts, and bounded recovery evidence.
+Linear remains durable work truth. GitHub and Drive remain repository/artifact truth. The Overcenter GitHub App, currently deployed on Hatchable, stores only coordination state: run budgets, advisory horizons, leases, checkpoints, heartbeats, settlement receipts, and bounded recovery evidence.
 
 ## Surfaces
 

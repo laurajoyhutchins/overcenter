@@ -1,13 +1,13 @@
-# Busbar surface inventory
+# Overcenter surface inventory
 
-This document describes the current authority and exposure boundaries of Busbar. It is a product surface inventory, not a historical implementation ledger.
+This document describes the current authority and exposure boundaries of Overcenter. It is a product surface inventory, not a historical implementation ledger.
 
 ## Authority model
 
-Busbar keeps authority deliberately narrow:
+Overcenter keeps authority deliberately narrow:
 
 - **GitHub repositories** are authoritative for repository content, repository identity, exact revisions, pull requests, checks, and other repository facts.
-- **Busbar** owns execution semantics and durable execution evidence: orchestration runs, work leases, claim/settlement, idempotency, deterministic recovery, command journaling, exact-revision mutation contracts, and receipts.
+- **Overcenter** owns execution semantics and durable execution evidence: orchestration runs, work leases, claim/settlement, idempotency, deterministic recovery, command journaling, exact-revision mutation contracts, and receipts.
 - **Linear** is a thin projection of currently executable work. It may reflect readiness, dependencies, acceptance boundaries, and current execution stage, but it is not repository authority and it is not a second execution/evidence store.
 - **Hatchable** is the current hosting/runtime layer. Runtime source and runtime deployment metadata are derived state, not repository authority.
 
@@ -15,7 +15,7 @@ No compatibility or fallback control plane is part of the current architecture.
 
 ## Public runtime surface
 
-The intentionally public runtime surface is the lightweight Busbar preview. It reports aggregate system condition only.
+The intentionally public runtime surface is the lightweight Overcenter preview. It reports aggregate system condition only.
 
 The preview may expose bounded aggregate facts such as active run count, active lease count, and overall health/recovery condition. It must not expose:
 
@@ -31,7 +31,7 @@ The operator dashboard and mutation surfaces are privileged.
 
 ## Privileged execution surfaces
 
-Busbar's privileged runtime is organized around semantic operations rather than arbitrary provider access.
+Overcenter's privileged runtime is organized around semantic operations rather than arbitrary provider access.
 
 ### Orchestration
 
@@ -55,7 +55,7 @@ Each retained GitHub App capability has a fixed command-owned permission profile
 
 ### Work-surface reconciliation
 
-`portfolio.reconcile_work_surface` derives the Linear executable-work projection from authoritative GitHub source facts and current Busbar policy. Reconciliation does not make Linear authoritative and does not create a second repository model.
+`portfolio.reconcile_work_surface` derives the Linear executable-work projection from authoritative GitHub source facts and current Overcenter policy. Reconciliation does not make Linear authoritative and does not create a second repository model.
 
 ### Verification
 
@@ -69,13 +69,13 @@ Transport adapters may authenticate to GitHub, Linear, or Hatchable, but credent
 
 ## Source materialization
 
-GitHub-authoritative source materialization is one-way. Deployment coordinates are supplied by the installation adapter. Busbar source does not hard-code a production Hatchable project identifier.
+GitHub-authoritative source materialization is one-way. Deployment coordinates are supplied by the installation adapter. Overcenter source does not hard-code a production Hatchable project identifier.
 
 See [`source-sync.md`](source-sync.md).
 
 ## Repository publication boundary
 
-A public Busbar repository should contain reusable product source, current product documentation, tests, migrations, and bounded examples. It should not contain:
+A public Overcenter repository should contain reusable product source, current product documentation, tests, migrations, and bounded examples. It should not contain:
 
 - secret values;
 - installation-specific project IDs;
