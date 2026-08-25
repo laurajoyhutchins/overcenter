@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a deterministic Busbar project-graph kernel that validates prerequisite graphs and derives the ready execution frontier above the existing five-stage lifecycle.
+**Goal:** Add a deterministic Overcenter project-graph kernel that validates prerequisite graphs and derives the ready execution frontier above the existing five-stage lifecycle.
 
 **Architecture:** `lib/project-graph.js` is a pure evaluator. It validates graph/node/executor structure, composes `resolveWorkLifecycle` for each node, rejects invalid prerequisite topology, derives per-node execution state, and returns a deterministic frontier. It does not persist or execute nodes.
 
-**Tech Stack:** JavaScript ES modules, existing Busbar lifecycle kernel, existing custom regression harness.
+**Tech Stack:** JavaScript ES modules, existing Overcenter lifecycle kernel, existing custom regression harness.
 
 **Spec:** `docs/superpowers/specs/2026-08-23-project-graph-runtime-design.md`
 
@@ -121,7 +121,7 @@ git commit -m "Add deterministic project graph frontier"
 
 Confirm the branch still descends from the expected authoritative main revision or explicitly reconcile a moved base before opening the pull request.
 
-- [ ] **Step 2: Inspect overlap with open Busbar pull requests**
+- [ ] **Step 2: Inspect overlap with open Overcenter pull requests**
 
 Verify no active PR implements the same project-graph/frontier primitive. Treat incidental regression-registry overlap as merge choreography, not a reason to duplicate functionality.
 
