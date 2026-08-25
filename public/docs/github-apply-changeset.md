@@ -8,7 +8,15 @@ Use it when an agent has a complete declared repository changeset and needs one 
 
 The deployed command authenticates as the installed **Busbar GitHub App**, not as the project owner's user account and not through a broad OAuth `repo` token. The GitHub App is currently deployed on Hatchable; Hatchable caches only the non-secret installation identity in-process. For each operation it still mints a fresh short-lived GitHub App installation token narrowed to the requested repository with `contents: write` (plus GitHub's implicit `metadata: read`), does not persist or return the token, and attempts immediate revocation in `finally`. A cached installation identity is invalidated and reread if token minting reports that the installation no longer exists.
 
-The GitHub App itself must be installed on the target repository. Repository selection at GitHub installation time is the outer authorization boundary. JWT signing currently uses a small isolated compatibility shim because Hatchable does not yet provide native `auth = "github_app"` or RSA signing. That shim is an implementation detail to delete when the platform primitive lands; application code must not grow a second credential model around it.
+The GitHub App itself must be installed on the target repository. Repository selection at GitHub installation time is the outer GitHub credential boundary. JWT signing currently uses a small isolated compatibility shim because Hatchable does not yet provide native `auth = "github_app"` or RSA signing. That shim is an implementation detail to delete when the platform primitive lands; application code must not grow a second credential model around it.
+
+## Execution authority
+
+A new or unfinished `github.apply_changeset` effect also requires the opaque `lease_token` returned by the active Busbar `work.claim`. The command hashes that capability and fails closed unless the corresponding lease is active and unexpired, still owns its `(work_ref, gate)` slot, belongs to an active orchestration run, covers the requested repository, is in `lane:repo-implementation`, and still matches the authoritative work projection observed at claim time.
+
+The lease token is capability material. It is excluded from orchestration semantic identity, journal-safe projections, persisted changeset request JSON, and success receipts. Receipts retain only non-secret authority evidence: work reference, lease ID, run ID, gate, repository, and execution fingerprint.
+
+A fully succeeded exact idempotent replay returns the stored receipt without revalidating live authority because it performs no new external effect. A prepared or otherwise unfinished retry must prove live authority again before Busbar continues the mutation.
 
 ## Request
 
@@ -20,6 +28,7 @@ Provide exactly one of `base_ref` or `base_sha`.
   "base_ref": "main",
   "branch": "feat/example-change",
   "expected_head": "0123456789abcdef0123456789abcdef01234567",
+  "lease_token": "opaque-token-from-work.claim",
   "changes": [
     { "path": "README.md", "operation": "update", "content": "complete UTF-8 text" },
     { "path": "docs/new.md", "operation": "create", "content": "complete UTF-8 text" },
@@ -30,7 +39,7 @@ Provide exactly one of `base_ref` or `base_sha`.
 }
 ```
 
-Root fields: `repo`, exactly one of `base_ref`/`base_sha`, `branch`, optional `expected_head`, non-empty `changes`, `commit_message`, optional `idempotency_key`. Unknown fields are rejected.
+Root fields: `repo`, exactly one of `base_ref`/`base_sha`, `branch`, optional `expected_head`, required `lease_token`, non-empty `changes`, `commit_message`, optional `idempotency_key`. Unknown fields are rejected.
 
 Each change has a repository-relative `path` and `operation` of `create`, `update`, or `delete`. `create` and `update` require complete text `content`; `delete` forbids `content`. Duplicate paths and traversal-like paths are rejected. This version is text-only and updates/deletes regular files (`100644`/`100755`) only.
 
@@ -56,7 +65,7 @@ The command creates Git objects before it mutates the branch ref: one tree carry
 
 `idempotency_key` is optional but recommended for every mutation. Receipts are keyed by `(repo, idempotency_key)` and include an SHA-256 of the canonical semantic request.
 
-Reusing a key with different input returns `IDEMPOTENCY_CONFLICT`. Reusing a key after success returns the exact stored receipt with `idempotent_replay: true`. Processing receipts are heartbeated after authoritative preflight so a slow live changeset is not mistaken for an abandoned attempt. The commit SHA is checkpointed before the ref mutation; if a transport failure happens after GitHub moved the ref but before the caller receives a response, a retry recognizes that exact prepared commit and completes the receipt without creating another logical commit.
+Reusing a key with different semantic changeset input returns `IDEMPOTENCY_CONFLICT`. The lease token is intentionally excluded from that semantic identity so a legitimate successor authority can recover the same prepared logical request. Reusing a key after success returns the exact stored receipt with `idempotent_replay: true` without another authority check or GitHub effect. Processing receipts are heartbeated after authoritative preflight so a slow live changeset is not mistaken for an abandoned attempt. The commit SHA is checkpointed before the ref mutation; if a transport failure happens after GitHub moved the ref but before the caller receives a response, a retry recognizes that exact prepared commit and completes the receipt without creating another logical commit after re-proving live authority.
 
 ## Transport behavior
 
@@ -81,6 +90,14 @@ Upstream failures carry machine-readable transport evidence when available: `pha
   "changed_paths": [
     { "path": "README.md", "operation": "update" }
   ],
+  "execution_authority": {
+    "work_ref": "LJH-123",
+    "lease_id": "...",
+    "run_id": "...",
+    "gate": "lane:repo-implementation",
+    "repository": "owner/repo",
+    "execution_fingerprint": "..."
+  },
   "idempotency_key": "agent-run-123:docs-update",
   "idempotent_replay": false
 }
@@ -102,7 +119,7 @@ Upstream failures carry machine-readable transport evidence when available: `pha
 }
 ```
 
-Other explicit failures include `BRANCH_CREATION_RACE`, `MECHANICAL_CHANGESET_MUST_COALESCE`, `CREATE_TARGET_EXISTS`, `UPDATE_TARGET_MISSING`, `DELETE_TARGET_MISSING`, `DUPLICATE_PATH`, `INVALID_PATH`, `GITHUB_PERMISSION_DENIED`, `GITHUB_REF_REJECTED`, `IDEMPOTENCY_CONFLICT`, `GITHUB_APP_SETUP_REQUIRED`, `GITHUB_APP_INSTALLATION_NOT_FOUND`, and `GITHUB_APP_PERMISSION_DENIED`.
+Execution-authority failures include `EXECUTION_AUTHORITY_REQUIRED`, `EXECUTION_AUTHORITY_INVALID`, `EXECUTION_AUTHORITY_STALE`, `EXECUTION_AUTHORITY_SCOPE_MISMATCH`, and retryable `EXECUTION_AUTHORITY_UNAVAILABLE`. Other explicit failures include `BRANCH_CREATION_RACE`, `MECHANICAL_CHANGESET_MUST_COALESCE`, `CREATE_TARGET_EXISTS`, `UPDATE_TARGET_MISSING`, `DELETE_TARGET_MISSING`, `DUPLICATE_PATH`, `INVALID_PATH`, `GITHUB_PERMISSION_DENIED`, `GITHUB_REF_REJECTED`, `IDEMPOTENCY_CONFLICT`, `GITHUB_APP_SETUP_REQUIRED`, `GITHUB_APP_INSTALLATION_NOT_FOUND`, and `GITHUB_APP_PERMISSION_DENIED`.
 
 ## Non-goals
 
