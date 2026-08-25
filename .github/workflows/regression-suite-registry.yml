@@ -1,25 +1,26 @@
-name: Regression suite registry
+name: Repository verification
 
 on:
   pull_request:
-    paths:
-      - 'lib/**'
-      - 'scripts/verify-regression-suite-registry.mjs'
-      - '.github/workflows/regression-suite-registry.yml'
   push:
     branches: [main]
-    paths:
-      - 'lib/**'
-      - 'scripts/verify-regression-suite-registry.mjs'
-      - '.github/workflows/regression-suite-registry.yml'
 
 permissions:
   contents: read
 
 jobs:
-  registry-complete:
+  repository-static:
     runs-on: ubuntu-latest
+    env:
+      PUBLIC_RELEASE_HISTORY_REF: origin/main
     steps:
       - uses: actions/checkout@v4
-      - name: Verify every maintained test suite is registered
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify every maintained regression suite is registered
         run: node scripts/verify-regression-suite-registry.mjs
+      - name: Test public-release policy
+        run: node --test scripts/verify-public-release.test.mjs
+      - name: Verify public-release boundary
+        run: node scripts/verify-public-release.mjs

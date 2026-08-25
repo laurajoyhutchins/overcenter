@@ -4,15 +4,15 @@ This document is the canonical vocabulary for human-facing Busbar documentation,
 
 Canonical sentence:
 
-> **Busbar** is the portfolio orchestration and execution system. It is implemented as a **GitHub App** and currently deployed on **Hatchable**.
+> **Busbar** is the orchestration and execution system for verified project state transitions. It is implemented as a **GitHub App** and currently deployed on **Hatchable**.
 
 ## Canonical terms
 
 | Term | Meaning |
 |---|---|
-| **Busbar** | The logical portfolio orchestration and execution system: work coordination, bounded execution ownership, commands, deterministic recovery, reconciliation, and evidence contracts. |
+| **Busbar** | The logical orchestration and execution system: work coordination, bounded execution ownership, commands, deterministic recovery, reconciliation, and evidence contracts. |
 | **Busbar GitHub App** | The running GitHub App identity that implements Busbar and performs its GitHub-facing operations. Use this longer form only when the GitHub application identity matters. |
-| **Hatchable project** | The Hatchable project that contains and deploys Busbar. This is a hosting/container identity, not a separate portfolio authority. |
+| **Hatchable project** | A Hatchable project that contains and deploys Busbar. This is a hosting/container identity, not a project or repository authority. |
 | **Hatchable deployment** | One deployed version of Busbar on Hatchable. |
 | **GitHub App installation** | The GitHub-side installation that grants the Busbar GitHub App repository access and permission scopes. |
 | **orchestration state** | Durable coordination state owned by Busbar, including orchestration runs, leases, checkpoints, receipts, journals, and recovery evidence. |
@@ -27,12 +27,21 @@ Canonical sentence:
 | **endpoint** | A concrete HTTP route. |
 | **tool** | An agent-callable surface that exposes a command or operation. |
 | **GitHub operation** | The underlying GitHub API read or mutation performed by the GitHub App. |
-| **Busbar source repository** | The authoritative GitHub repository containing Busbar source. |
+| **Busbar source repository** | The authoritative GitHub repository containing Busbar source for a deployment. |
 | **energized** | Operator-facing controls term for a repository whose canonical lifecycle currently permits ordinary execution. Today this means `ACTIVE` or `MAINTENANCE`. It is a derived description, not a separate lifecycle state. |
 | **de-energized** | Operator-facing controls term for a repository whose canonical lifecycle inhibits ordinary execution. Today this means `DORMANT`, `ARCHIVED`, or `SUPERSEDED`. It is a derived description, not a separate lifecycle state. |
 | **disconnect / breaker** | Controls analogy for the repository lifecycle fence. `CLOSED` corresponds to an energized repository; `OPEN` corresponds to a de-energized repository. Do not rename the canonical lifecycle API around this analogy. |
 | **permissive** | A machine-evaluated precondition that must be satisfied before an execution path is eligible, such as repository lifecycle, run scope, lane, or revision fencing. |
 | **interlock** | A machine-enforced condition that prevents or invalidates execution when a safety or authority prerequisite is no longer true. |
+
+## Authority vocabulary
+
+Use these distinctions consistently:
+
+- **GitHub repository authority** means repository content, repository identity, exact revisions, pull requests, checks, and other GitHub-owned repository facts.
+- **Busbar execution authority** means bounded execution ownership and the durable evidence needed to perform, reconcile, or settle work safely.
+- **Linear projection** means a current view of executable work. It is not repository authority or a parallel execution/evidence store.
+- **Hatchable hosting** means the runtime container/deployment surface. Hosting state does not become repository authority.
 
 ## Controls analogy
 
@@ -51,16 +60,8 @@ Do not introduce these phrases as current names:
 - **Portfolio Control Plane App**
 - **Portfolio Orchestration App**
 
-Historical records may quote former names when needed to preserve evidence. Stable API names, database fields, generic portfolio-domain terms, IDs, receipt schemas, and migration history are not renamed solely for product-name consistency.
+Historical records may quote former names when needed to preserve evidence. Stable API names, database fields, generic portfolio-domain terms, receipt schemas, and migration history are not renamed solely for product-name consistency.
 
 In particular, `portfolio.*` commands and `portfolio_*` tables describe the portfolio domain and remain valid. Do not treat them as obsolete product aliases.
 
-## Current deployment identity
-
-- Logical system: **Busbar**
-- Application identity when explicit: **Busbar GitHub App**
-- Hosting: **Hatchable**
-- Hatchable project ID: `proj_I6FSm85xrY7T`
-- Canonical source repository: `laurajoyhutchins/busbar`
-
-This vocabulary changes product identity, not authority boundaries or protocol semantics.
+Deployment-specific project IDs, repository coordinates, installation IDs, and actor identities are installation facts. They do not belong in this canonical product vocabulary.
