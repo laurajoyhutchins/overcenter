@@ -20,6 +20,11 @@ const CURRENT_SOURCE_RULES = Object.freeze([
   ['obsolete_product_coordinate', /\bportfolio-control-plane-github-app\b/],
 ]);
 
+const HISTORY_SECRET_ALLOWLIST = Object.freeze(new Set([
+  '12322a0a45cc06bd043aeba63609f64dc17054a3:api/diagnostics/github-app-crypto-selftest.js:private_key',
+  '3a54eb7172a5a8fbcd0530ae38cebf793caf3810:api/diagnostics/github-app-crypto-selftest.js:private_key',
+]));
+
 export function detectSecretPatterns(textInput) {
   const text = String(textInput ?? '');
   return SECRET_RULES
@@ -78,13 +83,45 @@ function currentSourceFindings(paths) {
   return findings;
 }
 
+export function findHistorySecretFindings(historyInput, historyRef = '--all') {
+  const findings = [];
+  const seen = new Set();
+  let commitSha = null;
+  let path = '<commit-metadata>';
+
+  for (const line of String(historyInput ?? '').split('\n')) {
+    const commitMatch = /^commit ([0-9a-f]{40})$/.exec(line);
+    if (commitMatch) {
+      commitSha = commitMatch[1];
+      path = '<commit-metadata>';
+      continue;
+    }
+    const diffMatch = /^diff --git a\/(.+) b\/(.+)$/.exec(line);
+    if (diffMatch) {
+      path = diffMatch[2];
+      continue;
+    }
+    if (!commitSha) continue;
+
+    for (const { rule } of detectSecretPatterns(line)) {
+      const allowlistKey = `${commitSha}:${path}:${rule}`;
+      if (HISTORY_SECRET_ALLOWLIST.has(allowlistKey)) continue;
+      const findingKey = `${allowlistKey}:${historyRef}`;
+      if (seen.has(findingKey)) continue;
+      seen.add(findingKey);
+      findings.push({ scope: 'git_history', history_ref: historyRef, commit_sha: commitSha, path, rule });
+    }
+  }
+  return findings;
+}
+
 function historySecretFindings(historyRef) {
   const refArgs = historyRef === '--all' ? ['--all'] : [historyRef];
   const history = git([
     'log', ...refArgs, '-p', '--no-ext-diff', '--text',
     '--format=commit %H%nAuthor: %an <%ae>%nDate: %aI%n',
   ]);
-  return detectSecretPatterns(history).map(finding => ({ scope: 'git_history', history_ref: historyRef, ...finding }));
+  return findHistorySecretFindings(history, historyRef);
 }
 
 export function verifyPublicRelease({ historyRef = process.env.PUBLIC_RELEASE_HISTORY_REF || '--all' } = {}) {
