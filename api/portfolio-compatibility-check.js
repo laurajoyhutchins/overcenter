@@ -17,6 +17,6 @@ export default async function (_req, res) {
     recommended_action: 'use_busbar',
     escalation_required: false,
     legacy_system: 'agent_execution_control_plane',
-    replacement: { system: 'busbar', project_id: 'proj_I6FSm85xrY7T' },
+    replacement: { system: 'busbar' },
   });
 }
