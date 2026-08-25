@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   detectSecretPatterns,
   findCurrentSourceViolations,
+  findHistorySecretFindings,
   verifyTrackedPaths,
 } from './verify-public-release.mjs';
 
@@ -61,5 +62,35 @@ test('tracked-path policy requires public boundary files and excludes developmen
     { path: 'LICENSE', rule: 'required_file_missing' },
     { path: 'SECURITY.md', rule: 'required_file_missing' },
     { path: 'docs/superpowers/plans/old.md', rule: 'development_journal_tracked' },
+  ]);
+});
+
+test('history scan allowlists only the known crypto self-test fixture commits', () => {
+  const privateKey = ['-----BEGIN ', 'PRIVATE KEY-----'].join('');
+  const fixturePath = 'api/diagnostics/github-app-crypto-selftest.js';
+  const allowedHistory = [
+    'commit 12322a0a45cc06bd043aeba63609f64dc17054a3',
+    `diff --git a/${fixturePath} b/${fixturePath}`,
+    `+const fixture = '${privateKey}';`,
+    'commit 3a54eb7172a5a8fbcd0530ae38cebf793caf3810',
+    `diff --git a/${fixturePath} b/${fixturePath}`,
+    `-const fixture = '${privateKey}';`,
+  ].join('\n');
+  assert.deepEqual(findHistorySecretFindings(allowedHistory, 'origin/main'), []);
+
+  const unexpectedCommit = '0000000000000000000000000000000000000000';
+  const unexpectedHistory = [
+    `commit ${unexpectedCommit}`,
+    `diff --git a/${fixturePath} b/${fixturePath}`,
+    `+const fixture = '${privateKey}';`,
+  ].join('\n');
+  assert.deepEqual(findHistorySecretFindings(unexpectedHistory, 'origin/main'), [
+    {
+      scope: 'git_history',
+      history_ref: 'origin/main',
+      commit_sha: unexpectedCommit,
+      path: fixturePath,
+      rule: 'private_key',
+    },
   ]);
 });
