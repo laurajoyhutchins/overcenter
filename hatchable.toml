@@ -15,9 +15,9 @@ required = true
 [[secret]]
 key = "GITHUB_APP_ID"
 required = true
-description = "GitHub App ID for repository-scoped Busbar mutations."
+description = "GitHub App ID for repository-scoped Overcenter mutations."
 
 [[secret]]
 key = "GITHUB_APP_PRIVATE_KEY"
 required = true
-description = "Private key for the narrowly installed Busbar GitHub App. Stored as a Hatchable project secret."
+description = "Private key for the narrowly installed Overcenter GitHub App. Stored as a Hatchable project secret."
