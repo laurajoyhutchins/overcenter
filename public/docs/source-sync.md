@@ -1,8 +1,8 @@
-# Busbar source materialization
+# Overcenter source materialization
 
-GitHub is the sole authority for Busbar repository source. A Hatchable deployment is a derived runtime projection of an exact GitHub repository revision.
+GitHub is the sole authority for Overcenter repository source. A Hatchable deployment is a derived runtime projection of an exact GitHub repository revision.
 
-Deployment coordinates are installation-owned inputs, not constants in Busbar source. An adapter supplies:
+Deployment coordinates are installation-owned inputs, not constants in Overcenter source. An adapter supplies:
 
 - the Hatchable project identifier;
 - the authoritative GitHub `owner/repo` coordinate;
