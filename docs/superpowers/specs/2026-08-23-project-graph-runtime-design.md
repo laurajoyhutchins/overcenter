@@ -1,8 +1,8 @@
-# Busbar Project Graph Runtime Design
+# Overcenter Project Graph Runtime Design
 
 ## Objective
 
-Add the missing deterministic layer above Busbar's existing five-stage work lifecycle so Busbar can derive the currently executable project frontier from authoritative state instead of relying on scheduled prompts or worker-selected routing.
+Add the missing deterministic layer above Overcenter's existing five-stage work lifecycle so Overcenter can derive the currently executable project frontier from authoritative state instead of relying on scheduled prompts or worker-selected routing.
 
 A project is a dynamically refined execution graph. Each node is one verifiable state transition. Edges express prerequisite predicates between nodes. The existing `ENABLE -> ACQUIRE -> EXECUTE -> COMMIT -> CONFIRM` lifecycle remains the execution protocol inside a node; the graph determines which nodes may execute.
 
@@ -65,13 +65,13 @@ The kernel fails closed when:
 
 A prerequisite cycle is invalid because prerequisite edges express facts that must already be satisfied. Lifecycle feedback remains legal inside nodes and does not require a cyclic project graph.
 
-## Relationship to existing Busbar machinery
+## Relationship to existing Overcenter machinery
 
 `lib/work-lifecycle.js` remains authoritative for productive-stage resolution. The project graph kernel composes it rather than recreating stage logic.
 
 `work.claim`, `work.settle`, GitHub mutation primitives, verification primitives, and skill execution remain lower-level execution mechanisms. This slice does not add replacements for them.
 
-Linear remains outside the graph authority boundary. When later projected, only `READY` nodes requiring human or agent judgment should need a Linear representation; deterministic nodes should be executable directly by Busbar.
+Linear remains outside the graph authority boundary. When later projected, only `READY` nodes requiring human or agent judgment should need a Linear representation; deterministic nodes should be executable directly by Overcenter.
 
 ## Testing
 
