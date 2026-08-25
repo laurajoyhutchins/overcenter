@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Busbar derives a project execution graph from authoritative facts. The graph is not an independently maintained queue, plan database, or Linear projection.
+Overcenter derives a project execution graph from authoritative facts. The graph is not an independently maintained queue, plan database, or Linear projection.
 
 `readProjectGraph(project_ref)` is a deterministic derivation boundary. It resolves a project reference to exact authority coordinates, reads the facts owned by those systems, derives transition nodes and dependency predicates, and returns both the graph and the authority identity needed for confirmation.
 
@@ -24,9 +24,9 @@ PR prose, issue prose, scheduler prompts, and Linear fields are not graph-defini
 
 ### System-owned observations
 
-Lifecycle predicates are observations of the systems that own the underlying facts. Examples include exact GitHub head/check/review state, Busbar lease or settlement state, and retained-object identity from the retained-source authority.
+Lifecycle predicates are observations of the systems that own the underlying facts. Examples include exact GitHub head/check/review state, Overcenter lease or settlement state, and retained-object identity from the retained-source authority.
 
-Busbar must derive these observations when evaluating the graph. It must not persist a shadow copy merely to make the graph executable.
+Overcenter must derive these observations when evaluating the graph. It must not persist a shadow copy merely to make the graph executable.
 
 Linear may project READY transitions that require human or agent judgment. Linear does not define nodes, dependencies, lifecycle truth, or completion.
 
@@ -69,14 +69,14 @@ A changed GitHub revision, changed retained-object identity, or other changed au
 
 This contract does not introduce:
 
-- a Busbar project-plan database;
+- an Overcenter project-plan database;
 - an agent-maintained graph manifest;
 - a Linear-backed planner;
 - a scheduler-owned graph;
 - a compatibility queue;
 - duplicated lifecycle/evidence state.
 
-If a graph fact can be deterministically derived from an authoritative system, Busbar derives it rather than asking an agent to maintain it.
+If a graph fact can be deterministically derived from an authoritative system, Overcenter derives it rather than asking an agent to maintain it.
 
 ## Next binding
 
