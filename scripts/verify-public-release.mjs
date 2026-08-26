@@ -1,19 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { detectSecretPatterns } from './public-release-rules.mjs';
+
+export { detectSecretPatterns } from './public-release-rules.mjs';
 
 const REQUIRED_FILES = Object.freeze(['README.md', 'LICENSE', 'SECURITY.md']);
 const DEVELOPMENT_JOURNAL_PREFIXES = Object.freeze(['docs/superpowers/', 'public/docs/superpowers/']);
-
-const SECRET_RULES = Object.freeze([
-  ['github_token', /\bgh[pousr]_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{20,}\b/],
-  ['openai_key', /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/],
-  ['private_key', /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/],
-  ['aws_access_key', /\bAKIA[0-9A-Z]{16}\b/],
-  ['linear_api_key', /\blin_api_[A-Za-z0-9_-]{20,}\b/],
-  ['stripe_live_secret', /\bsk_live_[A-Za-z0-9]{20,}\b/],
-  ['slack_token', /\bxox[baprs]-[A-Za-z0-9-]{20,}\b/],
-]);
 
 const CURRENT_SOURCE_RULES = Object.freeze([
   ['hatchable_project_id', /\bproj_[A-Za-z0-9]{12}\b/],
@@ -24,13 +17,6 @@ const HISTORY_SECRET_ALLOWLIST = Object.freeze(new Set([
   '12322a0a45cc06bd043aeba63609f64dc17054a3:api/diagnostics/github-app-crypto-selftest.js:private_key',
   '3a54eb7172a5a8fbcd0530ae38cebf793caf3810:api/diagnostics/github-app-crypto-selftest.js:private_key',
 ]));
-
-export function detectSecretPatterns(textInput) {
-  const text = String(textInput ?? '');
-  return SECRET_RULES
-    .filter(([, pattern]) => pattern.test(text))
-    .map(([rule]) => ({ rule }));
-}
 
 export function findCurrentSourceViolations(pathInput, textInput) {
   const path = String(pathInput || '');
@@ -139,10 +125,24 @@ export function verifyPublicRelease({ historyRef = process.env.PUBLIC_RELEASE_HI
   };
 }
 
-function main() {
+async function main() {
   let result;
   try {
     result = verifyPublicRelease();
+
+    if (result.ok && process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_REPOSITORY) {
+      const { verifyPublicGithubMetadata } = await import('./verify-public-github-metadata.mjs');
+      const metadata = await verifyPublicGithubMetadata({ repository: process.env.GITHUB_REPOSITORY });
+      result = {
+        ...result,
+        ok: metadata.ok,
+        metadata: {
+          repository: metadata.repository,
+          records_scanned: metadata.records_scanned,
+        },
+        findings: [...result.findings, ...metadata.findings],
+      };
+    }
   } catch (error) {
     result = {
       ok: false,
@@ -154,4 +154,4 @@ function main() {
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
-if (invokedPath && import.meta.url === invokedPath) main();
+if (invokedPath && import.meta.url === invokedPath) await main();
