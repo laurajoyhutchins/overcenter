@@ -45,6 +45,24 @@ test('current source rejects installation ids, obsolete coordinates, and credent
   assert.deepEqual(findCurrentSourceViolations('README.md', 'laurajoyhutchins/busbar'), []);
 });
 
+test('current source rejects deployment-specific absolute self origins', () => {
+  const deploymentOrigin = ['https://example-app-abc123', '.hatchable.site'].join('');
+  assert.deepEqual(
+    findCurrentSourceViolations('lib/self-links.js', `const origin = '${deploymentOrigin}';`),
+    [{ path: 'lib/self-links.js', rule: 'deployment_specific_origin' }],
+  );
+  assert.deepEqual(
+    findCurrentSourceViolations('public/docs/deployment.md', `Canonical origin: ${deploymentOrigin}`),
+    [{ path: 'public/docs/deployment.md', rule: 'deployment_specific_origin' }],
+  );
+});
+
+test('deployment-origin policy preserves relative self links, external services, and provider-neutral config names', () => {
+  assert.deepEqual(findCurrentSourceViolations('public/dashboard.js', "fetch('/api/orchestration/status')"), []);
+  assert.deepEqual(findCurrentSourceViolations('lib/github-app-auth.js', "const endpoint = 'https://api.github.com';"), []);
+  assert.deepEqual(findCurrentSourceViolations('lib/config.js', "const key = 'OVERCENTER_PUBLIC_ORIGIN';"), []);
+});
+
 test('production source rejects repository-backed installation credential transport', () => {
   const source = [
     "const lease = await createEncryptedGitHubInstallationLease(repository, 'changeset', encrypt);",

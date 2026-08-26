@@ -51,6 +51,8 @@ Overcenter is currently designed to run on Hatchable with PostgreSQL, a Linear A
 
 A deployment provides its own installation coordinates and credentials. Repository source does **not** contain a production Hatchable project ID, GitHub App private key, installation access token, or Linear credential.
 
+Deployment-specific self-origins are also installation-owned facts, not repository authority. Overcenter-owned browser and API links should remain relative whenever possible. If a future feature genuinely requires a canonical absolute self-origin, supply it through provider-neutral operator/runtime configuration such as `OVERCENTER_PUBLIC_ORIGIN`; do not commit the deployment value to repository source. No canonical-origin setting is required by the current runtime.
+
 The required secret/configuration names are declared in `hatchable.toml`:
 
 - `GITHUB_APP_ID`
@@ -71,7 +73,7 @@ node --test scripts/verify-public-release.test.mjs
 node scripts/verify-public-release.mjs
 ```
 
-`verify-public-release` requires full Git history. It checks the public repository boundary, rejects tracked development-journal residue and installation-specific project IDs, and scans Git history for high-confidence credential patterns.
+`verify-public-release` requires full Git history. It checks the public repository boundary, rejects tracked development-journal residue and installation-specific project IDs, rejects deployment-specific absolute self-origins, and scans Git history for high-confidence credential patterns.
 
 Overcenter also exposes an admin-only runtime regression surface at `POST /api/verification/regressions`. Runtime verification and repository-static verification are complementary: neither substitutes for the other.
 
