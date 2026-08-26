@@ -17,8 +17,10 @@ test('milestone ensure is a canonical command with narrow GitHub App permission'
 
 test('milestone due_on is optional but never nullable', async () => {
   const domain = await source('lib/github-milestone.js');
-  assert.doesNotMatch(domain, /if \(value === null\) return null;/);
-  assert.match(domain, /due_on must be an RFC3339 timestamp/);
+  const dueOnFunction = domain.match(/function normalizeDueOn\(value\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(dueOnFunction, /function normalizeDueOn/);
+  assert.doesNotMatch(dueOnFunction, /value === null/);
+  assert.match(dueOnFunction, /due_on must be an RFC3339 timestamp/);
 });
 
 test('milestone ensure has domain implementation, MCP tool, API adapter, journal projection, and registered regression suite', async () => {
