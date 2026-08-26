@@ -35,6 +35,12 @@ The coherent review packet base identity path is read-only and requests only:
 
 Specialized optional evidence remains isolated to narrower read profiles for pull-request observations, checks, and commit statuses.
 
+## Changesets
+
+Ordinary repository changesets use the least-privilege `changeset` capability with `contents: write`. Changes that touch `.github/workflows/**` use a distinct `workflow_changeset` capability with `contents: write` plus `workflows: write`.
+
+Capability inspection reports these separately. A repository can therefore have ordinary changeset capability available while workflow-file mutation remains unavailable. `github.apply_changeset` selects between the two profiles from the requested paths before token minting and fails closed if the workflow-specific grant is absent.
+
 ## Usage
 
 Do not call the capability projection before every GitHub operation. Use it when a GitHub App capability is uncertain, after a structured permission/setup failure, or during operator diagnostics. Normal commands remain responsible for their own exact permission profile and fail-safe behavior.
