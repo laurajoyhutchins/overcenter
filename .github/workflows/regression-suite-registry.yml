@@ -28,6 +28,8 @@ jobs:
         run: node --test scripts/verify-mcp-admission-contract.test.mjs
       - name: Test repository metadata command contract
         run: node --test scripts/verify-repository-metadata-command.test.mjs
+      - name: Test repository registration command admission
+        run: node --test scripts/verify-repository-register-command.test.mjs
       - name: Test public-release policy
         run: node --test scripts/verify-public-release.test.mjs
       - name: Test public GitHub metadata policy
