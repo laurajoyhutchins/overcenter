@@ -1,5 +1,5 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { reconcilePortfolioWorkSurfaceWithGitHubApp } from 'lib/portfolio-reconcile-work-surface.js';
+import { portfolioReconcileConfig, reconcilePortfolioWorkSurfaceWithGitHubApp } from 'lib/portfolio-reconcile-work-surface.js';
 
 export const access = 'admin';
 
@@ -40,7 +40,7 @@ export default {
               required: ['title', 'lane', 'priority', 'outcome', 'next_action', 'actor', 'changes_authority_or_produces_evidence', 'disposition'],
               properties: {
                 title: { type: 'string', minLength: 1, maxLength: 255 },
-                lane: { type: 'string', enum: ['lane:repo-implementation', 'lane:source-implementation', 'lane:verification', 'lane:integration'] },
+                lane: { type: 'string', enum: portfolioReconcileConfig.active_lanes },
                 priority: { type: 'integer', minimum: 0, maximum: 4 },
                 outcome: { type: 'string', minLength: 1, maxLength: 4000, description: 'One bounded executable result.' },
                 next_action: { type: 'string', minLength: 1, maxLength: 2000, description: 'The concrete action an available actor can perform next.' },
