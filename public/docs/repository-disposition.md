@@ -62,6 +62,14 @@ re-energized
 
 Overcenter uses this analogy to make the system legible to operators. Canonical API enums, command names, error codes, and persistence fields retain their existing protocol vocabulary.
 
+## Registration and activation
+
+Repository discovery is fail-safe. The first authoritative observation of an unarchived repository records its immutable GitHub repository ID and canonical coordinate as `DORMANT`; GitHub App installation or repository visibility alone never energizes ordinary execution. An archived repository is recorded as `ARCHIVED`.
+
+`portfolio.repository_register` makes that registration step explicit and idempotent. Re-registering a known repository preserves its existing lifecycle. A repository becomes executable only through the existing explicit lifecycle transition to `ACTIVE` or `MAINTENANCE`.
+
+Repository names are coordinates, not durable identity. Rename reconciliation follows the immutable GitHub repository ID and rebinds the canonical coordinate without creating a second lifecycle record.
+
 ## GitHub evidence and sticky retirement
 
 GitHub repository state remains authoritative evidence. Observing `archived: true` forces a repository out of active lifecycle and into `ARCHIVED` unless it is already in another disposed state such as `SUPERSEDED`.
@@ -97,12 +105,13 @@ Historical compatibility exceptions are retired. Historical repository identity 
 
 Admin HTTP surfaces:
 
+- `POST /api/portfolio-repository-register` — explicitly register repository identity in a non-executable lifecycle unless GitHub is already archived.
 - `GET|POST /api/portfolio-repository-status` — observe lifecycle plus a retirement verification packet.
 - `POST /api/portfolio-dispose-repository` — deterministic repository retirement.
 - `POST /api/portfolio-repository-transition` — explicit lifecycle transition, including deliberate reactivation.
 - `POST /api/portfolio-compatibility-check` — retired compatibility tombstone; returns `LEGACY_CONTROL_PLANE_RETIRED`.
 
-Equivalent live MCP surfaces are `portfolio_repository_status`, `portfolio_dispose_repository`, and `portfolio_repository_transition`. There is no compatibility MCP operation.
+Equivalent live MCP surfaces are `portfolio_repository_register`, `portfolio_repository_status`, `portfolio_dispose_repository`, and `portfolio_repository_transition`. There is no compatibility MCP operation.
 
 `portfolio.dispose_repository` is intentionally narrow. It observes GitHub archival state, commits canonical disposition, disables ordinary eligibility through that state, retires exact stale Linear execution projections by canceling when necessary and archiving rather than deleting, invalidates active work leases, records a supplied successor when applicable, and returns a fresh verification packet. Lifecycle state is written before cleanup so new ordinary work cannot enter while retirement is reconciling existing state.
 
