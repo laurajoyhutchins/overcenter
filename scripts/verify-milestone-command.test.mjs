@@ -12,7 +12,7 @@ test('milestone ensure is a canonical command with narrow GitHub App permission'
     source('lib/github-app-auth.js'),
   ]);
   assert.match(commandResponse, /'github\.milestone\.ensure'/);
-  assert.match(auth, /milestone:\s*Object\.freeze\(\{\s*permissions:\s*Object\.freeze\(\{\s*issues:\s*["']write["'],\s*metadata:\s*["']read["']/s);
+  assert.match(auth, /milestone:\s*Object\.freeze\(\{\s*permissions:\s*Object\.freeze\(\{\s*pull_requests:\s*["']write["'],\s*metadata:\s*["']read["']/s);
 });
 
 test('milestone ensure has domain implementation, MCP tool, API adapter, journal projection, and registered regression suite', async () => {
