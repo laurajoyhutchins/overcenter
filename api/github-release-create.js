@@ -1,6 +1,6 @@
 import { db } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { createGithubReleaseWithGitHubApp } from 'lib/github-release.js';
+import { createGithubReleaseWithGitHubApp } from 'lib/github-release-runtime.js';
 
 export const access='admin';
 export const methods=['POST'];

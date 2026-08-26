@@ -1,5 +1,5 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { createGithubReleaseWithGitHubApp } from 'lib/github-release.js';
+import { createGithubReleaseWithGitHubApp } from 'lib/github-release-runtime.js';
 
 export const access = 'admin';
 const expectedState = { type:'object', required:['tag','release'], properties:{ tag:{type:'string',enum:['absent','present_same_commit']}, release:{type:'string',enum:['absent','present_matching']} }, additionalProperties:false };

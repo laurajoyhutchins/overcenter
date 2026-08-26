@@ -14,11 +14,12 @@ test('release command has one semantic contract across MCP and worker transport'
 });
 
 test('release command is narrow, command-owned, and wired end to end', async () => {
-  const [domain, auth, response, journal, api] = await Promise.all([
-    source('lib/github-release.js'), source('lib/github-app-auth.js'), source('lib/command-response.js'),
-    source('lib/orchestration-journal.js'), source('api/github-release-create.js'),
+  const [domain, runtime, auth, response, journal, api] = await Promise.all([
+    source('lib/github-release.js'), source('lib/github-release-runtime.js'), source('lib/github-app-auth.js'),
+    source('lib/command-response.js'), source('lib/orchestration-journal.js'), source('api/github-release-create.js'),
   ]);
-  assert.match(domain, /createGithubReleaseWithGitHubApp/);
+  assert.match(runtime, /createGithubReleaseWithGitHubApp/);
+  assert.match(domain, /createGithubRelease/);
   assert.match(auth, /release:[\s\S]*?contents:\s*["']write["']/);
   assert.match(response, /github\.release\.create/);
   assert.match(journal, /github\.release\.create/);
