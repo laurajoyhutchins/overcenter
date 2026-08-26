@@ -36,7 +36,7 @@ jobs:
           export const config = { async get() { throw new Error('Hatchable config is unavailable in repository-static tests'); } };
           export const storage = {};
           EOF
-          ln -s ../../lib node_modules/lib
+          ln -s ../lib node_modules/lib
           printf '%s\n' '{"type":"module"}' > node_modules/lib/package.json
       - name: Test durable orchestration horizon targets
         run: node --test scripts/verify-orchestration-horizon-target.test.mjs
