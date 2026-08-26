@@ -5,10 +5,10 @@ export const access = 'admin';
 
 export default {
   name: 'github_apply_changeset',
-  description: 'Atomically apply a declared multi-file UTF-8 repository changeset as one Git commit using GitHub Git Data APIs. Supports create/update/delete, optimistic expected_head checks, non-force branch updates, and exact idempotent replay. This MCP tool exposes the conceptual github.apply_changeset command using an underscore-safe transport name.',
+  description: 'Atomically apply a declared multi-file UTF-8 repository changeset as one Git commit under an active Busbar work lease. Supports create/update/delete, optimistic expected_head checks, non-force branch updates, and exact idempotent replay. This MCP tool exposes the conceptual github.apply_changeset command using an underscore-safe transport name.',
   inputSchema: {
     type: 'object',
-    required: ['repo', 'branch', 'changes', 'commit_message'],
+    required: ['repo', 'branch', 'changes', 'commit_message', 'lease_token'],
     additionalProperties: false,
     oneOf: [
       { required: ['base_ref'], not: { required: ['base_sha'] } },
@@ -87,6 +87,12 @@ export default {
         },
       },
       commit_message: { type: 'string', minLength: 1, maxLength: 10000 },
+      lease_token: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 256,
+        description: 'Opaque token from the active Busbar work.claim lease that authorizes this repository mutation. Capability material; never persist or log it.',
+      },
       idempotency_key: {
         type: 'string',
         minLength: 1,
