@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { detectMetadataTextViolations as canonicalDetectMetadataTextViolations } from '../lib/public-github-metadata-policy.js';
 
 import {
   detectMetadataTextViolations,
   extractOwnerRepositoryCoordinates,
   listAll,
 } from './verify-public-github-metadata.mjs';
+
+test('repository scanner reuses the canonical metadata detector', () => { assert.equal(detectMetadataTextViolations, canonicalDetectMetadataTextViolations); });
 
 test('metadata policy rejects installation coordinates and work identifiers', () => {
   const projectId = ['proj_', 'abcdefghijkl'].join('');
