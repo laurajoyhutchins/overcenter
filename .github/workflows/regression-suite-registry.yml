@@ -32,6 +32,8 @@ jobs:
         run: node --test scripts/verify-repository-register-command.test.mjs
       - name: Test milestone command contract
         run: node --test scripts/verify-milestone-command.test.mjs
+      - name: Test Overcenter terminology boundary
+        run: node --test scripts/verify-overcenter-terminology.test.mjs
       - name: Test public-release policy
         run: node --test scripts/verify-public-release.test.mjs
       - name: Test public GitHub metadata policy
