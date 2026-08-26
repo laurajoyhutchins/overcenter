@@ -6,7 +6,9 @@ Use it when an agent has a complete declared repository changeset and needs one 
 
 ## Authentication
 
-The deployed command authenticates as the installed **Overcenter GitHub App**, not as the project owner's user account and not through a broad OAuth `repo` token. The GitHub App is currently deployed on Hatchable; Hatchable caches only the non-secret installation identity in-process. For each operation it still mints a fresh short-lived GitHub App installation token narrowed to the requested repository with `contents: write` (plus GitHub's implicit `metadata: read`), does not persist or return the token, and attempts immediate revocation in `finally`. A cached installation identity is invalidated and reread if token minting reports that the installation no longer exists.
+The deployed command authenticates as the installed **Overcenter GitHub App**, not as the project owner's user account and not through a broad OAuth `repo` token. The GitHub App is currently deployed on Hatchable; Hatchable caches only the non-secret installation identity in-process. For each operation it still mints a fresh short-lived GitHub App installation token narrowed to the requested repository. Ordinary changesets request only `contents: write` (plus GitHub's implicit `metadata: read`). A changeset that touches `.github/workflows/**` requests `contents: write` plus `workflows: write`, because GitHub treats workflow-file mutation as a separate permission boundary. Tokens are not persisted or returned and are revoked in `finally` when possible. A cached installation identity is invalidated and reread if token minting reports that the installation no longer exists.
+
+If a workflow-file changeset cannot mint the required workflow-scoped token, the command fails before Git object mutation with `GITHUB_WORKFLOWS_PERMISSION_REQUIRED` and `may_have_mutated: false` when that evidence is available. It does not fall back to a broader credential or bypass the workflow permission boundary.
 
 The GitHub App itself must be installed on the target repository. Repository selection at GitHub installation time is the outer GitHub credential boundary. JWT signing currently uses a small isolated compatibility shim because Hatchable does not yet provide native `auth = "github_app"` or RSA signing. That shim is an implementation detail to delete when the platform primitive lands; application code must not grow a second credential model around it.
 
@@ -119,7 +121,7 @@ Upstream failures carry machine-readable transport evidence when available: `pha
 }
 ```
 
-Execution-authority failures include `EXECUTION_AUTHORITY_REQUIRED`, `EXECUTION_AUTHORITY_INVALID`, `EXECUTION_AUTHORITY_STALE`, `EXECUTION_AUTHORITY_SCOPE_MISMATCH`, and retryable `EXECUTION_AUTHORITY_UNAVAILABLE`. Other explicit failures include `BRANCH_CREATION_RACE`, `MECHANICAL_CHANGESET_MUST_COALESCE`, `CREATE_TARGET_EXISTS`, `UPDATE_TARGET_MISSING`, `DELETE_TARGET_MISSING`, `DUPLICATE_PATH`, `INVALID_PATH`, `GITHUB_PERMISSION_DENIED`, `GITHUB_REF_REJECTED`, `IDEMPOTENCY_CONFLICT`, `GITHUB_APP_SETUP_REQUIRED`, `GITHUB_APP_INSTALLATION_NOT_FOUND`, and `GITHUB_APP_PERMISSION_DENIED`.
+Execution-authority failures include `EXECUTION_AUTHORITY_REQUIRED`, `EXECUTION_AUTHORITY_INVALID`, `EXECUTION_AUTHORITY_STALE`, `EXECUTION_AUTHORITY_SCOPE_MISMATCH`, and retryable `EXECUTION_AUTHORITY_UNAVAILABLE`. Other explicit failures include `BRANCH_CREATION_RACE`, `MECHANICAL_CHANGESET_MUST_COALESCE`, `CREATE_TARGET_EXISTS`, `UPDATE_TARGET_MISSING`, `DELETE_TARGET_MISSING`, `DUPLICATE_PATH`, `INVALID_PATH`, `GITHUB_PERMISSION_DENIED`, `GITHUB_REF_REJECTED`, `IDEMPOTENCY_CONFLICT`, `GITHUB_APP_SETUP_REQUIRED`, `GITHUB_APP_INSTALLATION_NOT_FOUND`, `GITHUB_APP_PERMISSION_DENIED`, and workflow-specific `GITHUB_WORKFLOWS_PERMISSION_REQUIRED`.
 
 ## Non-goals
 
