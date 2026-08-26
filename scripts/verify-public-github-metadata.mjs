@@ -112,7 +112,7 @@ function sanitizedFinding(source, rule) {
 }
 
 async function repositoryIsPublic(coordinate, currentRepository, fetchImpl = fetch) {
-  if (coordinate === currentRepository || coordinate === 'laurajoyhutchins/busbar') return true;
+  if (coordinate.toLowerCase() === currentRepository.toLowerCase()) return true;
   const [owner, repo] = coordinate.split('/');
   const response = await githubResponse(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, fetchImpl);
   if (response.status === 404) return false;
@@ -129,6 +129,7 @@ export async function verifyPublicGithubMetadata({
     throw new Error('PUBLIC_METADATA_REPOSITORY or GITHUB_REPOSITORY must be owner/repo');
   }
 
+  const [repositoryOwner] = repository.split('/');
   const records = await collectMetadataRecords(repository, fetchImpl);
   const findings = [];
   const visibilityCache = new Map();
@@ -138,7 +139,7 @@ export async function verifyPublicGithubMetadata({
       findings.push(sanitizedFinding(source, rule));
     }
 
-    for (const coordinate of extractOwnerRepositoryCoordinates(source.body)) {
+    for (const coordinate of extractOwnerRepositoryCoordinates(source.body, repositoryOwner)) {
       let isPublic = visibilityCache.get(coordinate);
       if (isPublic === undefined) {
         isPublic = await repositoryIsPublic(coordinate, repository, fetchImpl);
