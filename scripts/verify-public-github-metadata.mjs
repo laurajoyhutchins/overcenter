@@ -1,36 +1,9 @@
 import { pathToFileURL } from 'node:url';
-import { detectSecretPatterns } from './public-release-rules.mjs';
+import { detectMetadataTextViolations, extractOwnerRepositoryCoordinates } from '../lib/public-github-metadata-policy.js';
 
-const INSTALLATION_METADATA_RULES = Object.freeze([
-  ['hatchable_project_id', /\bproj_[A-Za-z0-9]{12}\b/],
-  ['github_app_client_id', /\bIv23[A-Za-z0-9]{16,}\b/],
-  ['github_app_registration_id', /\bGitHub App ID\s+\d+\b/i],
-  ['repository_numeric_id', /\brepository ID\s+\d+\b/i],
-  ['linear_work_id', /\bLJH-\d+\b/],
-]);
-
-const OWNER_REPOSITORY_PATTERN = /\blaurajoyhutchins\/([A-Za-z0-9_.-]+)\b/g;
+export { detectMetadataTextViolations, extractOwnerRepositoryCoordinates };
 const PAGE_SIZE = 100;
 const MAX_PAGES = 100;
-
-export function detectMetadataTextViolations(textInput) {
-  const text = String(textInput ?? '');
-  return [
-    ...INSTALLATION_METADATA_RULES
-      .filter(([, pattern]) => pattern.test(text))
-      .map(([rule]) => ({ rule })),
-    ...detectSecretPatterns(text).map(({ rule }) => ({ rule })),
-  ];
-}
-
-export function extractOwnerRepositoryCoordinates(textInput) {
-  const text = String(textInput ?? '');
-  const coordinates = new Set();
-  for (const match of text.matchAll(OWNER_REPOSITORY_PATTERN)) {
-    coordinates.add(`laurajoyhutchins/${match[1]}`);
-  }
-  return [...coordinates].sort();
-}
 
 function parseParentNumber(urlInput) {
   const match = /\/(?:issues|pulls)\/(\d+)$/.exec(String(urlInput || ''));
