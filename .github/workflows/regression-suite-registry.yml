@@ -22,10 +22,14 @@ jobs:
           persist-credentials: false
       - name: Verify every maintained regression suite is registered
         run: node scripts/verify-regression-suite-registry.mjs
+      - name: Syntax-check runtime modules
+        run: find api lib mcp pages -type f -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Test public-release policy
         run: node --test scripts/verify-public-release.test.mjs
       - name: Test public GitHub metadata policy
         run: node --test scripts/verify-public-github-metadata.test.mjs
+      - name: Test repository registration policy
+        run: node --test scripts/verify-repository-registration-policy.test.mjs
       - name: Verify public-release boundary
         env:
           GITHUB_TOKEN: ${{ github.token }}
