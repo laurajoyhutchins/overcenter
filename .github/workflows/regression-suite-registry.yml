@@ -26,6 +26,8 @@ jobs:
         run: find api lib mcp pages -type f -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Test project horizon semantics
         run: node --test scripts/verify-project-horizon.test.mjs
+      - name: Test durable orchestration horizon targets
+        run: node --test scripts/verify-orchestration-horizon-target.test.mjs
       - name: Test MCP admission contract
         run: node --test scripts/verify-mcp-admission-contract.test.mjs
       - name: Test repository metadata command contract
