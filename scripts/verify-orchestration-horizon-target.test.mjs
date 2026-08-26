@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createOrchestrationRunService } from '../lib/orchestration-runs.js';
 
-// This suite exercises the pure run service with only Hatchable I/O bindings stubbed by CI.
+// Red contract v2: loader is valid; failures must now come from missing target semantics.
 const TARGET_A = Object.freeze({
   project_ref: 'portfolio:primary',
   horizon: Object.freeze({ kind: 'project', ref: 'portfolio:primary' }),
