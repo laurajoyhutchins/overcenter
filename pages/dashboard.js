@@ -7,9 +7,9 @@ export default async function (_req, res) {
     <main class="shell" aria-labelledby="page-title">
       <header class="masthead">
         <div>
-          <p class="eyebrow">BUSBAR</p>
+          <p class="eyebrow">OVERCENTER</p>
           <h1 id="page-title">GitHub App runtime health</h1>
-          <p class="lede">Read-only operational evidence from the Busbar deployment: orchestration runs, leases, command journaling, and mechanical external-effect reconciliation. Portfolio truth remains in Linear, GitHub, and retained source authority.</p>
+          <p class="lede">Read-only operational evidence from the Overcenter deployment: orchestration runs, leases, command journaling, and deterministic external-effect reconciliation. GitHub repositories remain authoritative for repository truth; Linear is a thin executable-work projection.</p>
         </div>
         <div class="masthead-actions">
           <div class="health" id="health" aria-live="polite">Loading orchestration health…</div>

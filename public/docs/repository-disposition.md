@@ -1,6 +1,6 @@
 # Repository disposition
 
-Repository lifecycle is canonical machine state in Busbar. It exists to answer whether a repository may generate ordinary executable portfolio work without asking an agent to rediscover repository history.
+Repository lifecycle is canonical machine state in Overcenter. It exists to answer whether a repository may generate ordinary executable portfolio work without asking an agent to rediscover repository history.
 
 ## States
 
@@ -16,7 +16,7 @@ Repository disposition has no compatibility exception. Disposed repositories rem
 
 ## Controls model
 
-For operator-facing explanations, Busbar projects repository lifecycle as a simple control circuit. This is a derived view of the canonical lifecycle state, not another authority or another state machine.
+For operator-facing explanations, Overcenter projects repository lifecycle as a simple control circuit. This is a derived view of the canonical lifecycle state, not another authority or another state machine.
 
 - `ACTIVE` and `MAINTENANCE` are **ENERGIZED**. The repository disconnect is **CLOSED**, so ordinary-work permissives may be true.
 - `DORMANT`, `ARCHIVED`, and `SUPERSEDED` are **DE_ENERGIZED**. The repository disconnect is **OPEN**, so ordinary work, issue discovery, Linear projection, Fast Forward, and scheduled-worker targeting are inhibited.
@@ -60,7 +60,7 @@ explicit transition to ACTIVE or MAINTENANCE
 re-energized
 ```
 
-Busbar uses this analogy to make the system legible to operators. Canonical API enums, command names, error codes, and persistence fields retain their existing protocol vocabulary.
+Overcenter uses this analogy to make the system legible to operators. Canonical API enums, command names, error codes, and persistence fields retain their existing protocol vocabulary.
 
 ## GitHub evidence and sticky retirement
 
@@ -87,13 +87,11 @@ These are software preconditions. Worker prompts must not reproduce a second lif
 
 A `SUPERSEDED` repository may record `successor_repository` when the architecture establishes a real transfer of responsibility. The successor coordinate answers where the responsibility moved. It does not create synchronization, mirroring, dependency, or maintenance obligations between old and new repositories.
 
-Current explicit successor:
-
-- `laurajoyhutchins/building-code-dashboard` → `laurajoyhutchins/building-code-map`
+Concrete portfolio successor coordinates are runtime state and are not enumerated in this public product document. The command and persistence contracts describe how successor state behaves without publishing private portfolio topology.
 
 No successor is invented when there is no supported architectural relationship.
 
-Historical compatibility exceptions are retired. `laurajoyhutchins/agent-team-context-bridge` remains archived historical evidence and is not eligible for compatibility work.
+Historical compatibility exceptions are retired. Historical repository identity remains preserved in authoritative GitHub history, but this public product document does not enumerate private portfolio topology.
 
 ## Operations
 
