@@ -21,7 +21,7 @@ export default {
     const response = await executeCorrelatedCommand(
       'github.review_packet',
       args || {},
-      (input) => reviewGithubPullRequestWithGitHubApp(input),
+      (input) => reviewGithubPullRequestWithGitHubApp(input, { db: ctx?.db }),
       { flattenDetails: true, db: ctx?.db },
     );
     return response.body;

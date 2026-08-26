@@ -1,3 +1,4 @@
+import { db } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { reviewGithubPullRequestWithGitHubApp } from 'lib/github-review-packet.js';
 
@@ -18,7 +19,7 @@ export default async function (req, res) {
   const response = await executeCorrelatedCommand(
     'github.review_packet',
     req.body || {},
-    (input) => reviewGithubPullRequestWithGitHubApp(input),
+    (input) => reviewGithubPullRequestWithGitHubApp(input, { db }),
     { statusForFailure: statusFor, flattenDetails: true },
   );
   return res.status(response.status).json(response.body);

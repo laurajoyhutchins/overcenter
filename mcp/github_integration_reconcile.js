@@ -23,7 +23,7 @@ export default {
     const response = await executeCorrelatedCommand(
       'github.integration.reconcile',
       args || {},
-      (input) => reconcileGithubIntegrationWithGitHubApp(input),
+      (input) => reconcileGithubIntegrationWithGitHubApp(input, { db: ctx?.db }),
       { flattenDetails: true, db: ctx?.db },
     );
     return response.body;
