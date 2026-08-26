@@ -7,9 +7,9 @@ export default async function (_req, res) {
     <main class="shell" aria-labelledby="page-title">
       <header class="masthead">
         <div>
-          <p class="eyebrow">OVERCENTER</p>
-          <h1 id="page-title">GitHub App runtime health</h1>
-          <p class="lede">Read-only operational evidence from the Overcenter deployment: orchestration runs, leases, command journaling, and deterministic external-effect reconciliation. GitHub repositories remain authoritative for repository truth; Linear is a thin executable-work projection.</p>
+          <p class="eyebrow">OVERCENTER · OPERATOR STATUS</p>
+          <h1 id="page-title">Execution path</h1>
+          <p class="lede">Live read-only evidence from the orchestration kernel. Nodes show stranded state now; labeled connections show command outcomes observed in the last 24 hours. The diagram is a projection of Overcenter state, not a second authority.</p>
         </div>
         <div class="masthead-actions">
           <div class="health" id="health" aria-live="polite">Loading orchestration health…</div>
@@ -17,22 +17,44 @@ export default async function (_req, res) {
         </div>
       </header>
 
-      <section class="metrics" aria-label="Kernel summary" id="metrics"></section>
+      <section class="diagram-section" aria-labelledby="execution-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">CONTROL PATH</p>
+            <h2 id="execution-heading">Run → claim → work → effects → settle → finish</h2>
+          </div>
+          <div id="window" class="window-note">Observed window: loading…</div>
+        </div>
+        <div id="execution-path" class="execution-diagram" aria-live="polite"></div>
+      </section>
 
-      <div class="columns">
-        <section aria-labelledby="conditions-heading">
-          <div class="section-heading"><div><p class="eyebrow">RECOVERY</p><h2 id="conditions-heading">Stranded conditions</h2></div></div>
-          <div id="conditions" class="stack" aria-live="polite"></div>
-        </section>
-        <section aria-labelledby="errors-heading">
-          <div class="section-heading"><div><p class="eyebrow">SIGNALS</p><h2 id="errors-heading">Recent error codes</h2></div></div>
-          <div id="errors" class="stack" aria-live="polite"></div>
-        </section>
-      </div>
+      <section class="evidence-section" aria-labelledby="exceptions-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">CURRENT EXCEPTIONS</p>
+            <h2 id="exceptions-heading">Exact stranded evidence</h2>
+          </div>
+        </div>
+        <div id="exceptions" class="evidence-list" aria-live="polite"></div>
+      </section>
 
-      <section aria-labelledby="commands-heading">
-        <div class="section-heading"><div><p class="eyebrow">TRAFFIC</p><h2 id="commands-heading">Recent command outcomes</h2></div></div>
-        <div id="commands" class="entity-grid" aria-live="polite"></div>
+      <section class="signals-section" aria-labelledby="signals-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">RECENT SIGNALS</p>
+            <h2 id="signals-heading">Rejected and failed command evidence</h2>
+          </div>
+        </div>
+        <div class="signal-columns">
+          <div>
+            <h3>Expected rejections</h3>
+            <div id="rejections" class="signal-list" aria-live="polite"></div>
+          </div>
+          <div>
+            <h3>Error codes</h3>
+            <div id="errors" class="signal-list" aria-live="polite"></div>
+          </div>
+        </div>
       </section>
 
       <footer><span>Read-only current-kernel diagnostic</span><span id="updated">Not refreshed</span></footer>
