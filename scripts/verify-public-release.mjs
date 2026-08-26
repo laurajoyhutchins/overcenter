@@ -10,6 +10,7 @@ const DEVELOPMENT_JOURNAL_PREFIXES = Object.freeze(['docs/superpowers/', 'public
 
 const CURRENT_SOURCE_RULES = Object.freeze([
   ['hatchable_project_id', /\bproj_[A-Za-z0-9]{12}\b/],
+  ['deployment_specific_origin', /\bhttps?:\/\/[A-Za-z0-9.-]+\.hatchable\.site\b/i],
   ['obsolete_product_coordinate', /\bportfolio-control-plane-github-app\b/],
 ]);
 
