@@ -18,6 +18,17 @@ const HISTORY_SECRET_ALLOWLIST = Object.freeze(new Set([
   '3a54eb7172a5a8fbcd0530ae38cebf793caf3810:api/diagnostics/github-app-crypto-selftest.js:private_key',
 ]));
 
+function isProductionRuntimeSource(path) {
+  return /^(?:api|lib|mcp)\//.test(path)
+    && path.endsWith('.js')
+    && !path.endsWith('.test.js');
+}
+
+function materializesInstallationCredentialsInGit(text) {
+  return /\bcreateEncryptedGitHubInstallationLease\s*\(/.test(text)
+    && /\/git\/(?:blobs|trees|commits|ref|refs)\b/.test(text);
+}
+
 export function findCurrentSourceViolations(pathInput, textInput) {
   const path = String(pathInput || '');
   const text = String(textInput ?? '');
@@ -25,6 +36,9 @@ export function findCurrentSourceViolations(pathInput, textInput) {
     ...CURRENT_SOURCE_RULES
       .filter(([, pattern]) => pattern.test(text))
       .map(([rule]) => ({ path, rule })),
+    ...(isProductionRuntimeSource(path) && materializesInstallationCredentialsInGit(text)
+      ? [{ path, rule: 'managed_repository_credential_transport' }]
+      : []),
     ...detectSecretPatterns(text).map(({ rule }) => ({ path, rule })),
   ];
 }
