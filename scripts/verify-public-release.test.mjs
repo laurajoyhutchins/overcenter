@@ -45,6 +45,23 @@ test('current source rejects installation ids, obsolete coordinates, and credent
   assert.deepEqual(findCurrentSourceViolations('README.md', 'laurajoyhutchins/busbar'), []);
 });
 
+test('production source rejects repository-backed installation credential transport', () => {
+  const source = [
+    "const lease = await createEncryptedGitHubInstallationLease(repository, 'changeset', encrypt);",
+    "await api.call('github', { path: `${repoPath}/git/blobs`, method: 'POST' });",
+    "await api.call('github', { path: `${repoPath}/git/refs`, method: 'POST' });",
+  ].join('\n');
+  assert.deepEqual(
+    findCurrentSourceViolations('lib/delegated-capability.js', source),
+    [{ path: 'lib/delegated-capability.js', rule: 'managed_repository_credential_transport' }],
+  );
+  assert.deepEqual(findCurrentSourceViolations('lib/delegated-capability.test.js', source), []);
+  assert.deepEqual(
+    findCurrentSourceViolations('lib/github-app-auth.js', 'export async function createEncryptedGitHubInstallationLease() {}'),
+    [],
+  );
+});
+
 test('tracked-path policy requires public boundary files and excludes development journals', () => {
   const clean = verifyTrackedPaths([
     'README.md',
