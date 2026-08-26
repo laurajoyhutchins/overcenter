@@ -26,6 +26,16 @@ jobs:
         run: find api lib mcp pages -type f -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Test project horizon semantics
         run: node --test scripts/verify-project-horizon.test.mjs
+      - name: Provide Hatchable module stub for pure orchestration tests
+        run: |
+          mkdir -p node_modules/hatchable
+          printf '%s\n' '{"type":"module","exports":"./index.js"}' > node_modules/hatchable/package.json
+          cat > node_modules/hatchable/index.js <<'EOF'
+          export const api = {};
+          export const db = {};
+          export const config = { async get() { throw new Error('Hatchable config is unavailable in repository-static tests'); } };
+          export const storage = {};
+          EOF
       - name: Test durable orchestration horizon targets
         run: node --test scripts/verify-orchestration-horizon-target.test.mjs
       - name: Test MCP admission contract
