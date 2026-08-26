@@ -32,6 +32,8 @@ jobs:
         run: node --test scripts/verify-repository-register-command.test.mjs
       - name: Test milestone command contract
         run: node --test scripts/verify-milestone-command.test.mjs
+      - name: Test release command contract
+        run: node --test scripts/verify-release-command.test.mjs
       - name: Test public-release policy
         run: node --test scripts/verify-public-release.test.mjs
       - name: Test public GitHub metadata policy
