@@ -26,6 +26,8 @@ jobs:
         run: node --test scripts/verify-public-release.test.mjs
       - name: Test public GitHub metadata policy
         run: node --test scripts/verify-public-github-metadata.test.mjs
+      - name: Test repository registration policy
+        run: node --test scripts/verify-repository-registration-policy.test.mjs
       - name: Verify public-release boundary
         env:
           GITHUB_TOKEN: ${{ github.token }}
