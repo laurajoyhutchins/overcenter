@@ -39,14 +39,15 @@ test('metadata policy reuses high-confidence secret detection', () => {
   );
 });
 
-test('owner repository coordinates are extracted without duplication', () => {
+test('repository coordinate extraction is scoped by the supplied owner', () => {
   assert.deepEqual(
     extractOwnerRepositoryCoordinates([
-      'laurajoyhutchins/overcenter',
-      'laurajoyhutchins/private-example',
-      'laurajoyhutchins/private-example',
-    ].join('\n')),
-    ['laurajoyhutchins/overcenter', 'laurajoyhutchins/private-example'],
+      'example-org/public-repo',
+      'example-org/private-example',
+      'example-org/private-example',
+      'other-org/not-in-scope',
+    ].join('\n'), 'example-org'),
+    ['example-org/private-example', 'example-org/public-repo'],
   );
 });
 
