@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: read
+  issues: read
+  pull-requests: read
 
 jobs:
   repository-static:
@@ -22,5 +24,9 @@ jobs:
         run: node scripts/verify-regression-suite-registry.mjs
       - name: Test public-release policy
         run: node --test scripts/verify-public-release.test.mjs
+      - name: Test public GitHub metadata policy
+        run: node --test scripts/verify-public-github-metadata.test.mjs
       - name: Verify public-release boundary
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-public-release.mjs
