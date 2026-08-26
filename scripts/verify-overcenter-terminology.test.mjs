@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+const OBSOLETE_PRODUCT_NAME = ['Bus', 'bar'].join('');
+const OBSOLETE_PRODUCT_NAME_PATTERN = new RegExp(`\\b${OBSOLETE_PRODUCT_NAME}\\b`);
 const LIVE_PRODUCT_PATHS = Object.freeze([
   'lib/execution-authority.js',
   'lib/project-controller-runtime.js',
@@ -13,8 +15,8 @@ test('maintained production product language uses Overcenter terminology', () =>
   for (const path of LIVE_PRODUCT_PATHS) {
     const lines = readFileSync(path, 'utf8').split('\n');
     lines.forEach((line, index) => {
-      if (/\bBusbar\b/.test(line)) offenders.push(`${path}:${index + 1}`);
+      if (OBSOLETE_PRODUCT_NAME_PATTERN.test(line)) offenders.push(`${path}:${index + 1}`);
     });
   }
-  assert.deepEqual(offenders, [], `obsolete Busbar product wording remains: ${offenders.join(', ')}`);
+  assert.deepEqual(offenders, [], `obsolete product wording remains: ${offenders.join(', ')}`);
 });
