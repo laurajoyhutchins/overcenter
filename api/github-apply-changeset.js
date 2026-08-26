@@ -1,6 +1,7 @@
 import { db, storage } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { applyGithubChangesetWithGitHubApp } from 'lib/github-apply-changeset.js';
+import { createPostgresExecutionAuthorityService } from 'lib/execution-authority.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
@@ -59,6 +60,21 @@ async function expandStagedContent(input) {
   return { ...input, changes };
 }
 
+async function applyAuthorityAwareChangeset(commandInput) {
+  if (commandInput?.lease_ref === undefined || commandInput?.lease_ref === null) {
+    return applyGithubChangesetWithGitHubApp(commandInput, { db });
+  }
+
+  const { lease_ref: leaseRef, ...changesetInput } = commandInput;
+  const authority = createPostgresExecutionAuthorityService({ db });
+  const executionAuthority = {
+    require(request) {
+      return authority.require({ ...request, lease_ref: leaseRef });
+    },
+  };
+  return applyGithubChangesetWithGitHubApp(changesetInput, { db, executionAuthority });
+}
+
 export default async function (req, res) {
   let input;
   try {
@@ -69,7 +85,7 @@ export default async function (req, res) {
   const response = await executeCorrelatedCommand(
     'github.apply_changeset',
     input,
-    (commandInput) => applyGithubChangesetWithGitHubApp(commandInput, { db }),
+    applyAuthorityAwareChangeset,
     { statusForFailure: statusFor, flattenDetails: true, db },
   );
   return res.status(response.status).json(response.body);
