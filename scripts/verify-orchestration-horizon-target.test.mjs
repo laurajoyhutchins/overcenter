@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createOrchestrationRunService } from '../lib/orchestration-runs.js';
 
-// This suite exercises the pure run service with only Hatchable I/O bindings stubbed by CI.
+// Red contract: these assertions must fail against the runtime before #108 is implemented.
 const TARGET_A = Object.freeze({
   project_ref: 'portfolio:primary',
   horizon: Object.freeze({ kind: 'project', ref: 'portfolio:primary' }),
