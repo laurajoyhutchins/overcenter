@@ -36,8 +36,8 @@ jobs:
         run: node --test scripts/verify-overcenter-terminology.test.mjs
       - name: Test release command contract
         run: node --test scripts/verify-release-command.test.mjs
-      - name: Run release behavior regression
-        run: node --input-type=module -e "import { runGithubReleaseTests } from './lib/github-release.test.js'; const r=await runGithubReleaseTests(); console.log(JSON.stringify(r,null,2)); if(!r.ok) process.exit(1);"
+      - name: Test release behavior regression
+        run: node --test scripts/verify-release-behavior.test.mjs
       - name: Test public-release policy
         run: node --test scripts/verify-public-release.test.mjs
       - name: Test public GitHub metadata policy
