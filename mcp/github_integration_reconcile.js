@@ -1,11 +1,11 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { reconcileGithubIntegrationWithGitHubApp } from 'lib/github-integration.js';
+import { reconcileGithubIntegrationRoleAware } from 'lib/github-branch-role-runtime.js';
 
 export const access = 'admin';
 
 export default {
   name: 'github_integration_reconcile',
-  description: 'Inspect, advance, or reconcile deterministic GitHub PR integration. Exact-head fencing is mandatory. Standalone PRs that are behind may be merge-updated with GitHub expected_head_sha and must be rechecked before merge. Stacked PRs are never merge-updated; stale stacks return a cascading-rebase requirement. Ready standalone PRs and ready stacks use GitHub asynchronous squash merge with direct_merge, preserving branch rules and atomic stack semantics. Poll an existing asynchronous merge with merge_request_uuid.',
+  description: 'Inspect, advance, or reconcile deterministic GitHub PR integration. Exact-head fencing is mandatory. For repositories with branch roles, integration independently rereads the pull request and requires the base to be development branch dev; production is advanced only by the production-promotion command. Standalone PRs that are behind may be merge-updated and must be rechecked before merge.',
   inputSchema: {
     type: 'object',
     required: ['repo', 'pull_request', 'expected_head'],
@@ -23,7 +23,7 @@ export default {
     const response = await executeCorrelatedCommand(
       'github.integration.reconcile',
       args || {},
-      (input) => reconcileGithubIntegrationWithGitHubApp(input, { db: ctx?.db }),
+      (input) => reconcileGithubIntegrationRoleAware(input, { db: ctx?.db }),
       { flattenDetails: true, db: ctx?.db },
     );
     return response.body;

@@ -1,11 +1,11 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { createGithubPullRequestWithGitHubApp } from 'lib/github-pull-request-create.js';
+import { createGithubPullRequestRoleAware } from 'lib/github-branch-role-runtime.js';
 
 export const access = 'admin';
 
 export default {
   name: 'github_pull_request_create',
-  description: 'Create one same-repository pull request through the Overcenter GitHub App at exact base/head SHAs. Explicit draft intent is required. Existing exact PRs are idempotent, uncertain creation is reconciled before any retry, and the response records GitHub author plus same-installation viewer authorization evidence.',
+  description: 'Create one same-repository pull request through the Overcenter GitHub App at exact base/head SHAs. Explicit draft intent is required. For repositories with branch roles, the base must be the development branch dev; production cannot be targeted by an ordinary pull request. Existing exact PRs are idempotent and uncertain creation is reconciled before retry.',
   inputSchema: {
     type: 'object',
     required: ['repo', 'base', 'head', 'expected_base', 'expected_head', 'title', 'draft'],
@@ -26,7 +26,7 @@ export default {
     const response = await executeCorrelatedCommand(
       'github.pull_request.create',
       args || {},
-      (input) => createGithubPullRequestWithGitHubApp(input),
+      (input) => createGithubPullRequestRoleAware(input, { db: ctx?.db }),
       { flattenDetails: true, db: ctx?.db },
     );
     return response.body;

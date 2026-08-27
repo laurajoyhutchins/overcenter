@@ -1,6 +1,8 @@
 name: Exact revision V8 verification
 
 on:
+  push:
+    branches: [dev]
   workflow_dispatch:
     inputs:
       revision:
@@ -18,10 +20,12 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      TARGET_REVISION: ${{ github.event.inputs.revision || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.revision }}
+          ref: ${{ env.TARGET_REVISION }}
           fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -32,7 +36,7 @@ jobs:
       - name: Verify exact revision in isolated Hatchable V8 runtime
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
-          EXACT_REVISION: ${{ inputs.revision }}
+          EXACT_REVISION: ${{ env.TARGET_REVISION }}
           HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
           OVERCENTER_HATCHABLE_VERIFICATION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_VERIFICATION_PROJECT }}
           OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}

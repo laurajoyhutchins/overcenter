@@ -1,6 +1,6 @@
 import { db, storage } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { applyGithubChangesetWithGitHubApp } from 'lib/github-apply-changeset.js';
+import { applyGithubChangesetRoleAware } from 'lib/github-branch-role-runtime.js';
 import { createPostgresExecutionAuthorityService } from 'lib/execution-authority.js';
 
 export const access = 'admin';
@@ -14,7 +14,7 @@ function statusFor(result) {
   if (result.error === 'GITHUB_APP_SETUP_REQUIRED') return 412;
   if (result.error === 'GITHUB_PERMISSION_DENIED' || result.error === 'GITHUB_APP_PERMISSION_DENIED') return 403;
   if (result.error === 'GITHUB_NOT_FOUND' || result.error === 'GITHUB_APP_INSTALLATION_NOT_FOUND') return 404;
-  if (['HEAD_MISMATCH', 'BRANCH_CREATION_RACE', 'TARGET_BRANCH_DISAPPEARED', 'IDEMPOTENCY_CONFLICT', 'IDEMPOTENCY_IN_PROGRESS', 'CREATE_TARGET_EXISTS', 'UPDATE_TARGET_MISSING', 'DELETE_TARGET_MISSING', 'GITHUB_CONFLICT', 'EXECUTION_AUTHORITY_REQUIRED', 'EXECUTION_AUTHORITY_INVALID', 'EXECUTION_AUTHORITY_STALE', 'EXECUTION_AUTHORITY_SCOPE_MISMATCH'].includes(result.error)) return 409;
+  if (['HEAD_MISMATCH', 'BRANCH_CREATION_RACE', 'TARGET_BRANCH_DISAPPEARED', 'IDEMPOTENCY_CONFLICT', 'IDEMPOTENCY_IN_PROGRESS', 'CREATE_TARGET_EXISTS', 'UPDATE_TARGET_MISSING', 'DELETE_TARGET_MISSING', 'GITHUB_CONFLICT', 'EXECUTION_AUTHORITY_REQUIRED', 'EXECUTION_AUTHORITY_INVALID', 'EXECUTION_AUTHORITY_STALE', 'EXECUTION_AUTHORITY_SCOPE_MISMATCH', 'GITHUB_BRANCH_ROLE_VIOLATION'].includes(result.error)) return 409;
   if (result.error === 'EXECUTION_AUTHORITY_UNAVAILABLE') return 503;
   if (result.error === 'GITHUB_REF_REJECTED') return 422;
   if (String(result.error || '').startsWith('INVALID_') || result.error === 'DUPLICATE_PATH' || result.error === 'UNSUPPORTED_BINARY_PAYLOAD' || result.error === 'UNSUPPORTED_TARGET_TYPE' || result.error === 'CONTENT_CHECKSUM_MISMATCH') return 422;
@@ -62,7 +62,7 @@ async function expandStagedContent(input) {
 
 async function applyAuthorityAwareChangeset(commandInput) {
   if (commandInput?.lease_ref === undefined || commandInput?.lease_ref === null) {
-    return applyGithubChangesetWithGitHubApp(commandInput, { db });
+    return applyGithubChangesetRoleAware(commandInput, { db });
   }
 
   const { lease_ref: leaseRef, ...changesetInput } = commandInput;
@@ -72,7 +72,7 @@ async function applyAuthorityAwareChangeset(commandInput) {
       return authority.require({ ...request, lease_ref: leaseRef });
     },
   };
-  return applyGithubChangesetWithGitHubApp(changesetInput, { db, executionAuthority });
+  return applyGithubChangesetRoleAware(changesetInput, { db, executionAuthority });
 }
 
 export default async function (req, res) {
