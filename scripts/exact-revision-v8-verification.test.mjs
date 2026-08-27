@@ -10,6 +10,8 @@ const production_project='production-slot';
 const input={repository,revision,verification_project,production_project};
 const content="export const access = 'public';\n";
 const hash=createHash('sha256').update(content).digest('hex');
+const runtimeContent=content.replace(/[ \t\r\n\v\f]+$/u,'');
+const runtimeHash=createHash('sha256').update(runtimeContent).digest('hex');
 const green={ok:true,schema:'regression-verification-v1',passed:683,failed:0};
 
 function adapters(overrides={}) {
@@ -18,7 +20,7 @@ function adapters(overrides={}) {
     runtime:{
       inspect:async()=>({project:verification_project,version:7,files:[{path:'api/stale.js',sha256:'b'.repeat(64)}]}),
       reconcile:async()=>{}, deploy:async()=>({version:8}),
-      inspectDeployment:async()=>({version:8,files:[{path:'api/example.js',sha256:hash}]}),
+      inspectDeployment:async()=>({version:8,files:[{path:'api/example.js',sha256:runtimeHash}]}),
       runRegressions:async()=>green,
     },
     ...overrides,
@@ -34,6 +36,8 @@ test('returns canonical exact-revision evidence with isolated runtime attributio
   assert.equal(result.regression.schema,'regression-verification-v1');
   assert.equal(result.regression.execution.project,verification_project);
   assert.equal(result.regression.execution.deployment_version,8);
+  assert.equal(result.regression.execution.source_normalization,'hatchable-v8-text-v1');
+  assert.notEqual(result.regression.execution.source_manifest_sha256,result.regression.execution.runtime_manifest_sha256);
 });
 
 test('rejects post-deploy source mismatch', async()=>{
@@ -71,4 +75,25 @@ test('refuses a verification project equal to production before source access', 
   let touched=false;
   await assert.rejects(verifyExactRevisionV8({...input,verification_project:'same',production_project:'same'},{source:{observe:async()=>{touched=true;return {}}},runtime:{}}),e=>e?.code==='VERIFICATION_RUNTIME_NOT_ISOLATED');
   assert.equal(touched,false);
+});
+
+test('attributes exact GitHub bytes while verifying Hatchable-stable trailing-whitespace normalization', async()=>{
+  const raw='x \n';
+  const rawHash=createHash('sha256').update(raw).digest('hex');
+  const canonical='x';
+  const canonicalHash=createHash('sha256').update(canonical).digest('hex');
+  let writes=null;
+  const result=await verifyExactRevisionV8(input,{
+    source:{observe:async()=>({repository,revision,files:[{path:'lib/example.js',content:raw,sha256:rawHash}]})},
+    runtime:{
+      inspect:async()=>({project:verification_project,version:7,files:[]}),
+      reconcile:async request=>{writes=request.writes;},
+      deploy:async()=>({version:8}),
+      inspectDeployment:async()=>({version:8,files:[{path:'lib/example.js',sha256:canonicalHash}]}),
+      runRegressions:async()=>green,
+    },
+  });
+  assert.deepEqual(writes,[{path:'lib/example.js',content:canonical}]);
+  assert.equal(result.regression.execution.source_normalization,'hatchable-v8-text-v1');
+  assert.notEqual(result.regression.execution.source_manifest_sha256,result.regression.execution.runtime_manifest_sha256);
 });
