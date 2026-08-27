@@ -1,0 +1,147 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { createPostgresOrchestrationRunTargetStore } from '../lib/orchestration-run-target-store.js';
+import { createTargetAwareOrchestrationRunService } from '../lib/orchestration-run-targets.js';
+
+const TARGET_A = Object.freeze({ project_ref:'portfolio:primary', horizon:Object.freeze({ kind:'project', ref:'portfolio:primary' }) });
+const TARGET_B = Object.freeze({ project_ref:'portfolio:primary', horizon:Object.freeze({ kind:'milestone', ref:'later' }) });
+
+function memoryStore() {
+  const rows = new Map();
+  const sameSha = (left, right) => (left || null) === (right || null);
+  return {
+    rows,
+    async getRun(id) { return rows.get(id) || null; },
+    async findPredecessorByTarget(key, scopeSha, targetSha, exclude) {
+      return [...rows.values()]
+        .filter((row) => row.continuation_key === key && row.scope_sha256 === scopeSha && row.run_id !== exclude && sameSha(row.target_sha256, targetSha) && row.status === 'finished')
+        .sort((left, right) => String(right.started_at).localeCompare(String(left.started_at)))[0] || null;
+    },
+    async insertRunWithTarget(row, target, targetSha, journalRequestSha) {
+      const saved = { ...row, target, target_sha256:targetSha, base_start_request_sha256:target ? row.start_request_sha256 : null, start_request_sha256:target ? journalRequestSha : row.start_request_sha256 };
+      rows.set(saved.run_id, saved);
+      return saved;
+    },
+  };
+}
+
+function fakeBaseService(store) {
+  return {
+    async start(input) {
+      const existing = await store.getRun(input.run_id);
+      if (existing) {
+        assert.equal(existing.start_request_sha256, 'base-sha');
+        return { ...existing, idempotent_replay:true };
+      }
+      const scopeSha = 'scope-sha';
+      const predecessor = await store.findPredecessor(input.continuation_key, scopeSha, input.run_id);
+      return store.insertRun({
+        run_id:input.run_id,
+        continuation_key:input.continuation_key,
+        scope_sha256:scopeSha,
+        start_request_sha256:'base-sha',
+        predecessor_run_id:predecessor?.run_id || null,
+        status:'active',
+        started_at:`2026-08-26T20:00:0${store.rows.size}.000Z`,
+      });
+    },
+    async resolveHorizon(input) { return { ok:true, schema:'orchestration-horizon-v1', run_id:input.run_id, ownership_granted:false }; },
+  };
+}
+
+function responsibilities(done) {
+  return Object.fromEntries(['ENABLE','ACQUIRE','EXECUTE','COMMIT','CONFIRM'].map((stage)=>[stage,{ applicable:true, satisfied:done }]));
+}
+function graph(revision, done = false) {
+  return {
+    schema:'project-graph-authority-v1',
+    project_ref:'portfolio:primary',
+    authority:{ definition:{ kind:'github', repository:'laurajoyhutchins/overcenter', revision, derivation:'test-v1' }, observations:[] },
+    nodes:[{ id:'build', priority:1, requires:[], lifecycle:{ current_stage:done?'CONFIRM':'ENABLE', responsibilities:responsibilities(done) }, executor:{ kind:'operator', command:'test.noop' } }],
+    horizons:[{ kind:'milestone', ref:'later', target_node_ids:['build'] }],
+  };
+}
+function service(store, projectGraphReader = null) {
+  return createTargetAwareOrchestrationRunService({ store, createBaseService:fakeBaseService, projectGraphReader });
+}
+function startInput(runId, target = TARGET_A) { return { run_id:runId, continuation_key:'targeted:portfolio', target }; }
+
+test('run target is immutable and exact replay retains it', async()=>{
+  const store = memoryStore(); const runs = service(store);
+  const started = await runs.start(startInput('run-target'));
+  assert.deepEqual(started.target, TARGET_A);
+  assert.deepEqual(store.rows.get('run-target').target, TARGET_A);
+  assert.notEqual(store.rows.get('run-target').start_request_sha256, 'base-sha');
+  assert.equal(store.rows.get('run-target').base_start_request_sha256, 'base-sha');
+  const replay = await runs.start(startInput('run-target'));
+  assert.equal(replay.idempotent_replay, true);
+  assert.deepEqual(replay.target, TARGET_A);
+  await assert.rejects(()=>runs.start(startInput('run-target', TARGET_B)), (error)=>error?.code === 'IDEMPOTENCY_CONFLICT');
+});
+
+test('predecessor recovery is isolated by exact target identity', async()=>{
+  const store = memoryStore(); const runs = service(store);
+  await runs.start(startInput('run-a', TARGET_A)); store.rows.get('run-a').status = 'finished';
+  const different = await runs.start(startInput('run-b', TARGET_B)); assert.equal(different.predecessor_run_id, null);
+  const same = await runs.start(startInput('run-c', TARGET_A)); assert.equal(same.predecessor_run_id, 'run-a');
+});
+
+test('targeted resolution rereads authority and never grants ownership', async()=>{
+  const store = memoryStore(); let current = graph('a'.repeat(40)); let reads = 0;
+  const runs = service(store, async({project_ref})=>{ assert.equal(project_ref, TARGET_A.project_ref); reads += 1; return current; });
+  await runs.start(startInput('run-resolve', TARGET_A));
+  const incomplete = await runs.resolveHorizon({run_id:'run-resolve'});
+  assert.equal(incomplete.schema, 'project-horizon-evaluation-v1');
+  assert.equal(incomplete.complete, false);
+  assert.equal(incomplete.frontier[0]?.id, 'build');
+  assert.equal(incomplete.horizon.authority.revision, 'a'.repeat(40));
+  assert.equal(incomplete.nodes[0]?.state, 'READY');
+  assert.equal(incomplete.ownership_granted, false);
+  current = graph('b'.repeat(40), true);
+  const complete = await runs.resolveHorizon({run_id:'run-resolve'});
+  assert.equal(complete.complete, true);
+  assert.equal(complete.horizon.authority.revision, 'b'.repeat(40));
+  assert.equal(reads, 2);
+});
+
+test('targeted resolution fails closed when project graph authority is unavailable', async()=>{
+  const store = memoryStore(); const runs = service(store);
+  await runs.start(startInput('run-no-reader', TARGET_A));
+  await assert.rejects(()=>runs.resolveHorizon({run_id:'run-no-reader'}), (error)=>error?.code === 'PROJECT_GRAPH_READER_UNAVAILABLE');
+});
+
+test('target rejects caller-supplied membership or authority coordinates', async()=>{
+  const store = memoryStore(); const runs = service(store);
+  await assert.rejects(()=>runs.start(startInput('bad-membership',{...TARGET_A,target_node_ids:['build']})),(error)=>error?.code==='REQUEST_INVALID');
+  await assert.rejects(()=>runs.start(startInput('bad-authority',{...TARGET_A,authority:{revision:'a'.repeat(40)}})),(error)=>error?.code==='REQUEST_INVALID');
+});
+
+test('untargeted runs preserve the legacy advisory horizon path and cannot inherit targeted predecessors', async()=>{
+  const store = memoryStore(); const runs = service(store);
+  await runs.start(startInput('targeted', TARGET_A)); store.rows.get('targeted').status = 'finished';
+  const legacy = await runs.start({run_id:'legacy', continuation_key:'targeted:portfolio'});
+  assert.equal(legacy.target, null);
+  assert.equal(legacy.predecessor_run_id, null);
+  const resolved = await runs.resolveHorizon({run_id:'legacy'});
+  assert.equal(resolved.schema, 'orchestration-horizon-v1');
+});
+
+
+test('postgres target store isolates predecessor identity and preserves journal reconciliation hash', async()=>{
+  const calls = [];
+  const db = { async query(sql, params) { calls.push({sql, params}); return { rows:[{ run_id:'saved' }] }; } };
+  const baseStore = { async getRun(){ return null; } };
+  const store = createPostgresOrchestrationRunTargetStore(db, baseStore);
+  await store.findPredecessorByTarget('continuation', 'scope', 'a'.repeat(64), 'run-x');
+  assert.match(calls[0].sql, /target_sha256 IS NOT DISTINCT FROM \$3/);
+  assert.deepEqual(calls[0].params, ['continuation', 'scope', 'a'.repeat(64), 'run-x']);
+  await store.insertRunWithTarget({
+    run_id:'run-x', worker:'worker', mode:'interactive', continuation_key:'continuation', scope:{project:'x'}, scope_sha256:'scope',
+    start_request_sha256:'b'.repeat(64), started_at:'2026-08-26T20:00:00.000Z', deadline_at:'2026-08-26T21:00:00.000Z',
+    settlement_reserve_seconds:300, minimum_new_gate_seconds:600, predecessor_run_id:null, status:'active', contract_provenance:{}, skill_policy:{},
+  }, TARGET_A, 'c'.repeat(64), 'd'.repeat(64));
+  assert.equal(calls[1].params[6], 'd'.repeat(64));
+  assert.equal(calls[1].params[7], 'b'.repeat(64));
+  assert.equal(calls[1].params[17], 'c'.repeat(64));
+});
