@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { verifyExactRevisionV8 } from './exact-revision-v8-verification.mjs';
+import { hatchableMcpTransportConfig, verifyExactRevisionV8 } from './exact-revision-v8-verification.mjs';
 
 const repository='laurajoyhutchins/overcenter';
 const revision='a'.repeat(40);
@@ -26,6 +26,12 @@ function adapters(overrides={}) {
     ...overrides,
   };
 }
+
+test('Hatchable MCP transport uses canonical remote endpoint with bearer auth',()=>{
+  const config=hatchableMcpTransportConfig('secret-token');
+  assert.equal(config.url,'https://hatchable.com/mcp');
+  assert.deepEqual(config.requestInit,{headers:{Authorization:'Bearer secret-token'}});
+});
 
 test('returns canonical exact-revision evidence with isolated runtime attribution', async()=>{
   const result=await verifyExactRevisionV8(input,adapters());
