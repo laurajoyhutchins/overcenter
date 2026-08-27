@@ -36,6 +36,8 @@ jobs:
         run: node --test scripts/verify-milestone-command.test.mjs
       - name: Test Overcenter terminology boundary
         run: node --test scripts/verify-overcenter-terminology.test.mjs
+      - name: Test exact-revision V8 verification driver
+        run: node --test scripts/exact-revision-v8-verification*.test.mjs
       - name: Test public-release policy
         run: node --test scripts/verify-public-release.test.mjs
       - name: Test public GitHub metadata policy

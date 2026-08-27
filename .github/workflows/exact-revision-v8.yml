@@ -1,0 +1,39 @@
+name: Exact revision V8 verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Exact 40-character Git commit SHA to verify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: overcenter-exact-revision-v8-verifier
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install MCP client for this run
+        run: npm install --no-save --package-lock=false @modelcontextprotocol/client@2
+      - name: Verify exact revision in isolated Hatchable V8 runtime
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          EXACT_REVISION: ${{ inputs.revision }}
+          HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
+          OVERCENTER_HATCHABLE_VERIFICATION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_VERIFICATION_PROJECT }}
+          OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
+        run: node scripts/exact-revision-v8-verification.mjs
