@@ -3,7 +3,7 @@ name: Repository verification
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [dev, main]
 
 permissions:
   contents: read
