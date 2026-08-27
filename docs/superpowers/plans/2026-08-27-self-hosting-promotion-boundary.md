@@ -6,18 +6,18 @@
 
 **Architecture:** Persist explicit branch roles, enforce them at every existing GitHub semantic mutation boundary, reuse Overcenter's isolated exact-revision Hatchable V8 verifier as the promotion gate, and add one narrow ref-promotion command. Production source materialization derives its branch from the stored production role and is trusted only after immutable Hatchable deployment verification.
 
-**Tech Stack:** JavaScript ES modules, Hatchable V8/PostgreSQL, GitHub App REST/Actions APIs, existing command-response-v1/orchestration journal conventions, deterministic regression modules, `.github/workflows/exact-revision-v8.yml`.
+**Tech Stack:** JavaScript ES modules, Hatchable V8/PostgreSQL, GitHub App REST/Actions APIs, command-response-v1, orchestration journal, deterministic regression modules, `.github/workflows/exact-revision-v8.yml`.
 
 **Spec:** `docs/superpowers/specs/2026-08-27-self-hosting-promotion-boundary-design.md`
 
 ## Global Constraints
 
-- GitHub is authoritative for content, refs, commit identity, PRs, checks, workflow runs, and ancestry.
+- GitHub is authoritative for content, refs, commit identity, PRs, workflow runs, checks, and ancestry.
 - Overcenter is authoritative for branch-role configuration, orchestration, promotion receipts, idempotency, recovery, and verified deployment coordinates.
 - Managed development branch is literally `dev`.
-- Production branch is the branch already used by the production runtime. For Overcenter today, source-materialization evidence names `main`, so `main` remains production.
-- After cutover, GitHub default branch is `dev`. Default branch and production branch are different concepts.
-- Existing unconfigured repositories preserve current behavior until explicitly migrated.
+- Production branch is the branch already used by the production runtime. Current Overcenter source-materialization evidence names `main`, so `main` remains production unless fresh cutover evidence says otherwise.
+- After cutover, GitHub default branch is `dev`. Default branch and production branch are distinct concepts.
+- Unconfigured repositories preserve current behavior until explicitly migrated.
 - Ordinary changesets cannot mutate `dev` or the configured production branch.
 - Ordinary PR creation/integration cannot target the configured production branch.
 - Production promotion advances the existing production ref to an existing `dev` commit. It creates no commit/tree/blob.
@@ -27,7 +27,7 @@
 - Source receipts bind an exact GitHub SHA and exact immediate Hatchable target version.
 - Overcenter #161 remains open; this plan does not claim atomic Hatchable draft-to-deploy publication.
 
-## Exact-revision verification loop used throughout this plan
+## Exact-revision verification loop
 
 For every RED/GREEN checkpoint that changes registered runtime tests:
 
@@ -35,17 +35,13 @@ For every RED/GREEN checkpoint that changes registered runtime tests:
 node scripts/verify-regression-suite-registry.mjs
 find api lib mcp pages -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 SHA=$(git rev-parse HEAD)
-gh workflow run exact-revision-v8.yml --ref "$(git branch --show-current)" -f revision="$SHA"
-gh run list --workflow exact-revision-v8.yml --limit 1
+BRANCH=$(git branch --show-current)
+gh workflow run exact-revision-v8.yml --ref "$BRANCH" -f revision="$SHA"
+RUN_ID=$(gh run list --workflow exact-revision-v8.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$RUN_ID" --exit-status
 ```
 
-Then inspect/watch the returned run with:
-
-```bash
-gh run watch <RUN_ID> --exit-status
-```
-
-For a deliberate RED commit, `gh run watch` must exit non-zero for the new failing regression. For GREEN, it must exit zero. The exact-revision workflow checks out the supplied SHA, materializes it into the isolated Hatchable verification project, verifies immutable deployment bytes, and runs the canonical V8 regression endpoint. It already rejects using the production Hatchable project as the verification project.
+For deliberate RED, the last command must exit non-zero because the new registered regression fails. For GREEN, it must exit zero. The workflow checks out the supplied SHA, materializes it into the isolated Hatchable verification project, verifies immutable verification-deployment bytes, and runs the canonical V8 regression endpoint. It already rejects using the production Hatchable project as the verification project.
 
 ---
 
@@ -58,11 +54,11 @@ For a deliberate RED commit, `gh run watch` must exit non-zero for the new faili
 - Modify: `lib/regression-suite-registry.js`
 
 **Interfaces:**
-- Produces `normalizeRepositoryBranchRoleBinding(input)`.
-- Produces `createPostgresRepositoryBranchRoleStore(dbBinding)` with `get(repository)` and `ensure(binding)`.
-- Produces `resolveRepositoryBranchRoles(repository, { store })`, returning `null` for unconfigured repos.
+- `normalizeRepositoryBranchRoleBinding(input)` -> `{ repository, development_branch, production_branch, production_source_ref }`.
+- `createPostgresRepositoryBranchRoleStore(dbBinding)` -> `{ get(repository), ensure(binding) }`.
+- `resolveRepositoryBranchRoles(repository, { store })` -> canonical binding or `null`.
 
-- [ ] **Step 1: Add the failing tests**
+- [ ] **Step 1: Add failing tests**
 
 ```js
 await test('development role is exactly dev', async () => {
@@ -75,7 +71,7 @@ await test('development role is exactly dev', async () => {
   assert(binding.development_branch === 'dev', 'development branch drifted');
 });
 
-await test('development and production roles cannot alias', async () => {
+await test('development and production cannot alias', async () => {
   let code = null;
   try {
     normalizeRepositoryBranchRoleBinding({
@@ -89,11 +85,11 @@ await test('development and production roles cannot alias', async () => {
 });
 ```
 
-Also test idempotent `ensure()` and rejection of changing an existing production branch.
+Also test same-binding `ensure()` replay and rejection of a changed existing production branch.
 
-- [ ] **Step 2: Register the new suite and verify RED with the exact-revision loop**
+- [ ] **Step 2: Register the suite, commit the RED test, and run the exact-revision loop**
 
-Expected: the new suite fails because the branch-role module is not implemented.
+Expected: exact-revision verification fails because the new branch-role implementation is absent.
 
 - [ ] **Step 3: Add the table**
 
@@ -110,7 +106,7 @@ CREATE TABLE IF NOT EXISTS portfolio_repository_branch_roles (
 )
 ```
 
-- [ ] **Step 4: Implement the focused domain/store**
+- [ ] **Step 4: Implement normalization/store**
 
 ```js
 export function normalizeRepositoryBranchRoleBinding(input = {}) {
@@ -128,13 +124,11 @@ export function normalizeRepositoryBranchRoleBinding(input = {}) {
 }
 ```
 
-`ensure()` must return the existing identical row on replay and `REPOSITORY_BRANCH_ROLE_CHANGED` for a different existing binding.
+`ensure()` must return the identical existing row on replay and fail with `REPOSITORY_BRANCH_ROLE_CHANGED` for a different existing binding.
 
-- [ ] **Step 5: Verify GREEN with the exact-revision loop**
+- [ ] **Step 5: Run the exact-revision loop and require GREEN**
 
-Expected: registry/static checks pass and isolated exact-revision V8 verification succeeds.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit implementation**
 
 ```bash
 git add migrations/051_repository_branch_roles.sql lib/repository-branch-roles.js lib/repository-branch-roles.test.js lib/regression-suite-registry.js
@@ -153,40 +147,35 @@ git commit -m "feat: add repository branch-role bindings"
 - Modify: `lib/repository-branch-roles.test.js`
 
 **Interfaces:**
-- Produces command `portfolio.repository.branch_roles.ensure`.
+- Command: `portfolio.repository.branch_roles.ensure`.
 - Exact request: `{ repository, development_branch, production_branch, production_source_ref }`.
-- `development_branch` must equal `dev`.
 
-- [ ] **Step 1: Add failing tests for first ensure, replay, and conflicting rewrite**
+- [ ] **Step 1: Add failing tests for first ensure, identical replay, and conflicting rewrite**
 
-A same-request replay returns `changed:false`. A different production branch returns `REPOSITORY_BRANCH_ROLE_CHANGED` and performs no write.
+Same request returns `changed:false`; changing production returns `REPOSITORY_BRANCH_ROLE_CHANGED` and performs no write.
 
-- [ ] **Step 2: Verify RED with the exact-revision loop**
+- [ ] **Step 2: Commit RED and run the exact-revision loop**
 
-Expected: command/service entry point is missing.
-
-- [ ] **Step 3: Implement the command using `executeCorrelatedCommand`**
-
-The API route must call:
+- [ ] **Step 3: Implement the API using the existing correlated-command pattern**
 
 ```js
-executeCorrelatedCommand(
+const response = await executeCorrelatedCommand(
   'portfolio.repository.branch_roles.ensure',
   req.body || {},
   (input) => createRepositoryBranchRoleService({ db }).ensure(input),
   { flattenDetails: true, db },
-)
+);
 ```
 
-Do not route through GitHub mutation code because this changes Overcenter configuration, not GitHub state.
+The MCP schema exposes only the four exact fields. `development_branch` must equal `dev`.
 
-- [ ] **Step 4: Document binding semantics**
+- [ ] **Step 4: Document `production_source_ref` semantics**
 
-`production_source_ref` is the evidence coordinate that established the production source at migration time. GitHub default-branch changes do not rewrite this binding.
+It records the source-binding observation used for migration. Default-branch changes do not rewrite production identity.
 
-- [ ] **Step 5: Verify GREEN with the exact-revision loop**
+- [ ] **Step 5: Run the exact-revision loop and require GREEN**
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit implementation**
 
 ```bash
 git add api/portfolio-repository-branch-roles-ensure.js mcp/portfolio_repository_branch_roles_ensure.js public/docs/repository-branch-roles.md lib/repository-branch-roles.js lib/repository-branch-roles.test.js
@@ -210,40 +199,25 @@ git commit -m "feat: add branch-role configuration command"
 - Modify: `.github/workflows/regression-suite-registry.yml`
 
 **Interfaces:**
-- Consumes Task 1 resolver.
-- Unconfigured repositories keep current behavior.
-- Configured repositories treat `dev` and production as reserved semantic branches.
+- Consumes Task 1 role resolver.
+- Configured repos reserve both `dev` and production from ordinary content mutation.
+- Configured PRs/integration require `dev` as base.
 
 - [ ] **Step 1: Add failing PR-base tests**
 
-For `{development:'dev', production:'main'}`, `base:'main'` returns:
-
-```js
-{
-  ok: false,
-  error: 'GITHUB_BRANCH_ROLE_VIOLATION',
-  expected_base: 'dev',
-  may_have_mutated: false,
-}
-```
-
-`base:'dev'` remains valid.
+`base:'main'` with roles `dev/main` returns `GITHUB_BRANCH_ROLE_VIOLATION`, `expected_base:'dev'`, and `may_have_mutated:false`; `base:'dev'` remains valid.
 
 - [ ] **Step 2: Add failing integration tests**
 
-If GitHub rereads a PR whose base is `main`, integration returns `GITHUB_BRANCH_ROLE_VIOLATION` before update-branch or merge calls.
+A reread PR whose base is production must reject before update-branch or merge calls.
 
 - [ ] **Step 3: Add failing changeset tests**
 
-Both `branch:'dev'` and `branch:'main'` reject direct ordinary content mutation. A conforming `feat/...` branch still succeeds.
+Both `branch:'dev'` and `branch:'main'` reject; a conforming `feat/...` branch remains allowed.
 
-- [ ] **Step 4: Commit the RED tests and verify RED with the exact-revision loop**
+- [ ] **Step 4: Commit RED and run the exact-revision loop**
 
-Expected: current semantic paths still accept at least one prohibited target.
-
-- [ ] **Step 5: Inject branch-role resolution at API adapters**
-
-Keep lower-level functions deterministic and injectable. Use one shared guard:
+- [ ] **Step 5: Implement one shared branch-role guard**
 
 ```js
 export function assertOrdinaryWorkTarget(branch, roles) {
@@ -259,31 +233,24 @@ export function assertOrdinaryWorkTarget(branch, roles) {
 }
 ```
 
-- [ ] **Step 6: Make PR create and integration independently require `dev`**
+Inject the database-backed resolver from API adapters; keep lower-level GitHub functions deterministic.
 
-PR creation may retain `base` in its public contract for compatibility, but a configured repository requires it to equal `dev`. Integration must independently reread and enforce the PR base.
+- [ ] **Step 6: Enforce `dev` independently in PR create and integration**
+
+PR creation may retain caller `base` for compatibility but must require it to equal the resolved development branch. Integration rereads the PR and enforces the same rule independently.
 
 - [ ] **Step 7: Update repository verification workflow push branches**
-
-Change:
-
-```yaml
-push:
-  branches: [main]
-```
-
-to:
 
 ```yaml
 push:
   branches: [dev, main]
 ```
 
-PR verification remains enabled for all PRs.
+Keep `pull_request:` unchanged.
 
-- [ ] **Step 8: Verify GREEN with the exact-revision loop**
+- [ ] **Step 8: Run exact-revision verification and require GREEN**
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 9: Commit implementation**
 
 ```bash
 git add lib/github-pull-request-create.js lib/github-pull-request-create.test.js api/github-pull-request-create.js lib/github-integration.js lib/github-integration.test.js api/github-integration-reconcile.js lib/github-apply-changeset.js lib/github-apply-changeset.test.js api/github-apply-changeset.js .github/workflows/regression-suite-registry.yml
@@ -292,7 +259,7 @@ git commit -m "feat: enforce development and production branch roles"
 
 ---
 
-### Task 4: Add exact-SHA production promotion using the existing V8 verifier
+### Task 4: Add exact-SHA production promotion
 
 **Files:**
 - Create: `migrations/052_github_production_promotion_receipts.sql`
@@ -302,15 +269,16 @@ git commit -m "feat: enforce development and production branch roles"
 - Create: `mcp/github_production_promote.js`
 - Create: `public/docs/github-production-promotion.md`
 - Modify: `lib/regression-suite-registry.js`
-- Modify: `lib/github-app-auth.js` only if a named permission profile is required.
+- Modify: `lib/github-app-auth.js`
+- Modify: `public/docs/github-capabilities.md`
 
 **Interfaces:**
 - Command: `github.production.promote`.
-- Exact request: `{ repo, candidate_sha, observed_development_head, observed_production_head, verification_run_id, idempotency_key }`.
-- The candidate must equal the current `dev` head in v1.
-- Verification evidence is a GitHub Actions workflow run for `.github/workflows/exact-revision-v8.yml`.
+- Request: `{ repo, candidate_sha, observed_development_head, observed_production_head, verification_run_id, idempotency_key }`.
+- Candidate must equal current `dev` head in v1.
+- New GitHub App capability profile: `production_promotion` with `contents:'write'`, `actions:'read'`, fail-closed fallback.
 
-- [ ] **Step 1: Add the receipt table**
+- [ ] **Step 1: Add the promotion receipt table**
 
 ```sql
 CREATE TABLE IF NOT EXISTS github_production_promotion_receipts (
@@ -329,15 +297,26 @@ CREATE TABLE IF NOT EXISTS github_production_promotion_receipts (
 )
 ```
 
-- [ ] **Step 2: Add failing tests**
+- [ ] **Step 2: Add failing promotion tests**
 
-Cover exact candidate success, stale dev/prod heads, non-fast-forward, different-SHA workflow run, failed/incomplete workflow run, wrong workflow path, idempotent replay/conflict, and proof that success calls only the ref-update adapter.
+Cover exact candidate success; stale dev/prod; non-fast-forward; failed, incomplete, wrong-SHA, and wrong-workflow verification runs; idempotent replay/conflict; and proof that success calls no commit/tree/blob operation.
 
-- [ ] **Step 3: Register/commit RED tests and verify RED with the exact-revision loop**
+- [ ] **Step 3: Register/commit RED and run exact-revision verification**
 
-- [ ] **Step 4: Implement a minimal GitHub adapter**
+- [ ] **Step 4: Add the permission capability**
 
-Only these operations are needed:
+In `GITHUB_APP_CAPABILITIES` add:
+
+```js
+production_promotion: Object.freeze({
+  permissions: Object.freeze({ contents: 'write', actions: 'read' }),
+  fallback: Object.freeze({ class: 'fail_closed', mechanism: null }),
+}),
+```
+
+Use `{ permissionProfile: 'production_promotion' }` for the production-promotion GitHub App session.
+
+- [ ] **Step 5: Implement the minimal adapter**
 
 ```js
 {
@@ -348,9 +327,9 @@ Only these operations are needed:
 }
 ```
 
-- [ ] **Step 5: Validate the exact-revision run**
+- [ ] **Step 6: Verify exact-revision evidence by authoritative workflow-run reread**
 
-Require the authoritative workflow-run reread to satisfy all of:
+Require:
 
 ```js
 run.path === '.github/workflows/exact-revision-v8.yml'
@@ -360,9 +339,9 @@ run.status === 'completed'
 run.conclusion === 'success'
 ```
 
-This reuses the existing verifier that materializes the exact revision into the isolated Hatchable V8 verification project and runs canonical regressions. Do not substitute ordinary PR checks for this gate.
+Do not substitute ordinary PR checks.
 
-- [ ] **Step 6: Fence refs and ancestry**
+- [ ] **Step 7: Fence refs and ancestry**
 
 ```js
 assert(dev.sha === request.observed_development_head);
@@ -371,20 +350,20 @@ assert(request.candidate_sha === dev.sha);
 assert(compare.status === 'ahead' || compare.status === 'identical');
 ```
 
-If identical, return an idempotent no-change receipt. Immediately before mutation reread both refs; after mutation reread production and require exact candidate equality.
+Reread both refs immediately before mutation. If identical, return a verified no-change receipt. After mutation, reread production and require candidate equality.
 
-- [ ] **Step 7: Reconcile uncertain ref-update transport by readback**
+- [ ] **Step 8: Reconcile uncertain ref-update transport by production-ref readback**
 
-If transport loses certainty, reread production. Exact candidate means success/recovered; any other ref means `GITHUB_PRODUCTION_PROMOTION_INDETERMINATE` with `may_have_mutated:true`.
+Candidate equality means recovered success; any other ref returns `GITHUB_PRODUCTION_PROMOTION_INDETERMINATE` with `may_have_mutated:true`.
 
-- [ ] **Step 8: Wire API/MCP using `executeCorrelatedCommand`**
+- [ ] **Step 9: Wire API/MCP with `executeCorrelatedCommand` and durable receipt replay**
 
-- [ ] **Step 9: Verify GREEN with the exact-revision loop**
+- [ ] **Step 10: Run exact-revision verification and require GREEN**
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 11: Commit implementation**
 
 ```bash
-git add migrations/052_github_production_promotion_receipts.sql lib/github-production-promotion.js lib/github-production-promotion.test.js api/github-production-promote.js mcp/github_production_promote.js public/docs/github-production-promotion.md lib/regression-suite-registry.js
+git add migrations/052_github_production_promotion_receipts.sql lib/github-production-promotion.js lib/github-production-promotion.test.js api/github-production-promote.js mcp/github_production_promote.js public/docs/github-production-promotion.md lib/regression-suite-registry.js lib/github-app-auth.js public/docs/github-capabilities.md
 git commit -m "feat: add exact-sha production promotion"
 ```
 
@@ -399,9 +378,9 @@ git commit -m "feat: add exact-sha production promotion"
 
 **Interfaces:**
 - Produces `assertProductionSourceCoordinates(input, roles)`.
-- Production callers cannot select a branch independently of branch-role configuration.
+- Production branch is derived; caller branch override is rejected.
 
-- [ ] **Step 1: Add failing role-binding tests**
+- [ ] **Step 1: Add failing role-binding test**
 
 ```js
 const coordinate = assertProductionSourceCoordinates({
@@ -415,17 +394,17 @@ const coordinate = assertProductionSourceCoordinates({
 assert(coordinate.github_branch === 'main', 'production branch not derived');
 ```
 
-A conflicting caller `github_branch:'dev'` must return `SOURCE_SYNC_BRANCH_OVERRIDE_REJECTED`.
+Conflicting caller `github_branch:'dev'` returns `SOURCE_SYNC_BRANCH_OVERRIDE_REJECTED`.
 
 - [ ] **Step 2: Lock the v351 stale-receipt regression**
 
-A manifest whose live files contain newer code but whose embedded receipt targets the previous Hatchable version/SHA remains `ok:false`. Sampling equality never upgrades provenance.
+Newer live bytes plus a receipt targeting an older deployment/SHA must remain `ok:false`. Sampling equality never upgrades provenance.
 
-- [ ] **Step 3: Commit RED role-binding test and verify RED with the exact-revision loop**
+- [ ] **Step 3: Commit RED role-binding test and run exact-revision verification**
 
-The stale-receipt test may already be GREEN; keep it as a regression rather than weakening it.
+The stale-receipt regression may already pass; preserve it as locked behavior.
 
-- [ ] **Step 4: Implement the production coordinate wrapper**
+- [ ] **Step 4: Implement the production wrapper**
 
 ```js
 export function assertProductionSourceCoordinates(input, roles) {
@@ -437,16 +416,16 @@ export function assertProductionSourceCoordinates(input, roles) {
 }
 ```
 
-- [ ] **Step 5: Document candidate vs verified receipt semantics**
+- [ ] **Step 5: Document candidate vs verified receipts**
 
 ```text
 mutable draft receipt = candidate evidence
 immutable deployment + exact target version + exact production SHA = verified materialization
 ```
 
-- [ ] **Step 6: Verify GREEN with the exact-revision loop**
+- [ ] **Step 6: Run exact-revision verification and require GREEN**
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Commit implementation**
 
 ```bash
 git add lib/source-sync.js lib/source-sync.test.js public/docs/source-sync.md
@@ -455,32 +434,30 @@ git commit -m "fix: bind production source sync to branch roles"
 
 ---
 
-### Task 6: Protect default/development policy without confusing it with production
+### Task 6: Keep default-branch policy attached to development
 
 **Files:**
 - Modify: `lib/github-required-checks.js`
 - Modify: `lib/github-branch-policy.test.js`
 - Modify: `public/docs/github-branch-policy.md`
-- Reuse: `lib/github-default-branch.js`
 
 **Interfaces:**
-- Existing branch-policy reconciliation continues using `~DEFAULT_BRANCH`.
-- After cutover that means `dev`.
-- Production remains separately enforced by semantic mutation gates and exact-SHA promotion.
+- Existing `~DEFAULT_BRANCH` ruleset continues to target the GitHub default branch.
+- After migration this means `dev`, not production.
 
-- [ ] **Step 1: Add regression proving branch policy follows default `dev`, not production `main`**
+- [ ] **Step 1: Add regression with roles `dev/main` and GitHub default `dev`**
 
-The test must construct a configured role binding with `dev/main` and a GitHub repository whose default branch is `dev`, then verify the managed ruleset target remains `~DEFAULT_BRANCH` and no code substitutes the production role.
+Assert the managed policy still targets `~DEFAULT_BRANCH` and no branch-policy code substitutes the production branch.
 
-- [ ] **Step 2: Verify the test is meaningful**
+- [ ] **Step 2: Run registry/static checks**
 
-Run registry/static checks. If existing code already satisfies it, record it as a locked regression; otherwise use the exact-revision RED/GREEN loop.
+If existing behavior already passes, keep the test as a locked regression. Otherwise commit RED and use the exact-revision loop.
 
-- [ ] **Step 3: Update branch-policy docs**
+- [ ] **Step 3: Update docs to state default-branch policy protects development integration**
 
-State: default branch policy protects development integration. Production identity comes from repository branch roles, not `default_branch`.
+Production identity comes from branch-role configuration, never `default_branch`.
 
-- [ ] **Step 4: Verify exact-revision V8 GREEN**
+- [ ] **Step 4: Run exact-revision verification and require GREEN**
 
 - [ ] **Step 5: Commit**
 
@@ -500,49 +477,41 @@ git commit -m "docs: separate default and production branch policy"
 - Modify: `lib/regression-suite-registry.js`
 
 **Interfaces:**
-- Pure planner only. It recommends existing/new semantic operations; it does not become an all-powerful mutation endpoint.
-- Input includes current main/default coordinates, immutable Hatchable verification result, branch-role binding state, and `dev` state.
+- Pure planner only; no all-powerful cutover mutation endpoint.
+- Produces the next safe semantic action from observed GitHub/Hatchable state.
 
 - [ ] **Step 1: Add failing planner tests**
 
 Safe sequence:
 
 ```text
-verify current production branch head in immutable Hatchable
-→ persist dev/main branch roles (freezes ordinary main mutation)
-→ create dev + migrate default main→dev using github.default_branch.migrate
+verify current production head in immutable Hatchable
+→ persist dev/production roles, freezing ordinary production mutation
+→ github.default_branch.migrate production→dev at exact verified SHA
 → reconcile dev branch policy
-→ reread main unchanged
+→ reread production unchanged
 → cutover complete
 ```
 
-Reject: unverified live deployment, production head mismatch, conflicting existing `dev`, production movement during cutover, or open executable PRs targeting production at the cutover checkpoint.
+Reject unverified production, production-head mismatch, conflicting existing `dev`, production movement during cutover, and executable PRs still targeting production.
 
-- [ ] **Step 2: Register/commit RED tests and verify RED with exact-revision V8**
+- [ ] **Step 2: Register/commit RED and run exact-revision verification**
 
-- [ ] **Step 3: Implement pure next-action derivation**
+- [ ] **Step 3: Implement deterministic next-action derivation**
 
 If current production head is not immutably verified, return:
 
 ```js
-{
-  complete: false,
-  next_action: 'materialize_and_verify_current_production_head'
-}
+{ complete: false, next_action: 'materialize_and_verify_current_production_head' }
 ```
 
-Never recommend moving production backward to an older verified deployment.
+Never recommend moving production backward.
 
-- [ ] **Step 4: Document cutover choreography**
+- [ ] **Step 4: Document choreography using only existing/new narrow semantic operations**
 
-Use only:
-- current source-materialization + immutable verification;
-- `portfolio.repository.branch_roles.ensure`;
-- existing `github.default_branch.migrate` to create `dev` at exact production head and make it default;
-- `github.branch_policy.reconcile` on new default;
-- authoritative GitHub ref rereads.
+Use source materialization/verification, `portfolio.repository.branch_roles.ensure`, existing `github.default_branch.migrate`, `github.branch_policy.reconcile`, and authoritative rereads.
 
-- [ ] **Step 5: Verify GREEN with exact-revision V8**
+- [ ] **Step 5: Run exact-revision verification and require GREEN**
 
 - [ ] **Step 6: Commit**
 
@@ -556,26 +525,23 @@ git commit -m "feat: add fail-closed self-hosting branch cutover"
 ### Task 8: Cut Over Overcenter
 
 **Files:**
-- No source files expected. Operational migration only.
-
-**Interfaces:**
-- Produces final binding `{ development_branch:'dev', production_branch:'main' }` unless fresh authoritative source-binding evidence at execution time says Hatchable production follows a different GitHub branch.
+- No source changes expected; operational migration only.
 
 - [ ] **Step 1: Re-read fresh authoritative state**
 
-Read current production source branch from the latest source-materialization configuration/receipt, current branch head, current default branch, open PR bases, Hatchable live version, embedded receipt, and immutable deployment manifest. Do not reuse SHAs or versions from this design session.
+Read current production source branch from latest source-binding evidence, its GitHub head, GitHub default branch, open PR bases, Hatchable live version, embedded receipt, and immutable deployment manifest. Do not reuse SHAs/versions from this design session.
 
-- [ ] **Step 2: Converge current production source before cutover**
+- [ ] **Step 2: Converge production before cutover**
 
-If production Hatchable is not immutably verified for the current production-branch head, rematerialize that current head, deploy, and verify. Do not move the GitHub branch backward.
+If Hatchable production is not immutably verified for the current production-branch head, rematerialize that current head, deploy, and verify. Never move GitHub production backward.
 
-- [ ] **Step 3: Clear/retarget executable PRs aimed at production**
+- [ ] **Step 3: Remove the production-PR race**
 
-Do not begin the cutover while an ordinary executable PR can still merge into the production branch.
+Do not cut over while any ordinary executable PR can still merge into production. Finish, close, or deliberately retarget those PRs before proceeding.
 
 - [ ] **Step 4: Persist branch roles first**
 
-For current Overcenter evidence this should be:
+For current Overcenter evidence the request is:
 
 ```json
 {
@@ -586,33 +552,25 @@ For current Overcenter evidence this should be:
 }
 ```
 
-This intentionally causes a brief fail-closed period before `dev` exists: ordinary integration can no longer target `main`.
+This deliberately creates a brief fail-closed period where ordinary integration can no longer target production.
 
-- [ ] **Step 5: Migrate default branch `main` → `dev` at the exact verified production SHA**
+- [ ] **Step 5: Use `github.default_branch.migrate` to create `dev` at the exact verified production SHA and make it default**
 
-Use `github.default_branch.migrate`. It creates `dev` if absent and verifies the default-branch readback. Fail if an existing `dev` points anywhere else.
+Fail if existing `dev` points elsewhere.
 
 - [ ] **Step 6: Reconcile branch policy on `dev`**
 
-Require the exact `dev` head and current required checks.
+- [ ] **Step 7: Reread production and prove it remained pinned**
 
-- [ ] **Step 7: Prove production remained pinned**
+- [ ] **Step 8: Dogfood one low-risk work cycle into `dev`**
 
-Reread the production branch. It must still equal the immutable verified SHA from Step 2.
+Verify production remains unchanged.
 
-- [ ] **Step 8: Dogfood one low-risk development cycle**
+- [ ] **Step 9: Dispatch exact-revision V8 verification for the resulting `dev` head and record its successful run ID**
 
-Create/use a conforming work branch from `dev`, open a PR to `dev`, integrate it, and verify production remains unchanged.
+- [ ] **Step 10: Promote the exact `dev` head through `github.production.promote`**
 
-- [ ] **Step 9: Run exact-revision V8 verification for the resulting `dev` head**
-
-Record the successful workflow run ID.
-
-- [ ] **Step 10: Promote the exact `dev` SHA**
-
-Call `github.production.promote` with the fresh dev/prod heads and successful exact-revision workflow run ID.
-
-- [ ] **Step 11: Materialize the promoted production SHA to Hatchable and verify immutable deployment**
+- [ ] **Step 11: Materialize the promoted production SHA to Hatchable and require immutable production verification**
 
 Healthy final state:
 
@@ -628,13 +586,16 @@ Do not close #161.
 
 ---
 
-## Final verification
-
-Before claiming completion:
+## Final Verification
 
 ```bash
 node scripts/verify-regression-suite-registry.mjs
 find api lib mcp pages -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+SHA=$(git rev-parse HEAD)
+BRANCH=$(git branch --show-current)
+gh workflow run exact-revision-v8.yml --ref "$BRANCH" -f revision="$SHA"
+RUN_ID=$(gh run list --workflow exact-revision-v8.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$RUN_ID" --exit-status
 ```
 
-Then dispatch and require success from `exact-revision-v8.yml` for the final implementation SHA. After self-hosting cutover, independently reread GitHub `dev`, production branch, GitHub default branch, latest production workflow evidence, Hatchable live deployment, immutable deployment manifest, and source-materialization receipt. Claims are based on those fresh reads, not on mutation responses alone.
+After cutover, independently reread GitHub `dev`, production branch, GitHub default branch, the successful exact-revision workflow run, Hatchable live deployment, immutable deployment manifest, and source-materialization receipt. Completion claims use those fresh observations, not mutation responses alone.
