@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import './verify-release-command.test.mjs';
+import './verify-release-behavior.test.mjs';
 
 const libSource = await readFile('lib/portfolio-reconcile-work-surface.js', 'utf8');
 const mcpSource = await readFile('mcp/portfolio_reconcile_work_surface.js', 'utf8');
