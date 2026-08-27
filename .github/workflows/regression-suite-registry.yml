@@ -28,6 +28,8 @@ jobs:
         run: node --test scripts/verify-work-lease-config.test.mjs
       - name: Test project horizon semantics
         run: node --test scripts/verify-project-horizon.test.mjs
+      - name: Test project transition lease semantics
+        run: node --test scripts/verify-project-transition-leases.test.mjs
       - name: Test MCP admission contract
         run: node --test scripts/verify-mcp-admission-contract.test.mjs
       - name: Test repository metadata command contract
