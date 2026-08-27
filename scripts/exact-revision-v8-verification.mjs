@@ -216,15 +216,20 @@ export async function verifyExactRevisionV8(input, adapters) {
         .map(({ path, content }) => ({ path, content }))
         .sort((a, b) => a.path.localeCompare(b.path));
       const deletes = [...current.keys()].filter(path => !desiredRuntime.has(path)).sort();
-      await adapters.runtime.reconcile({ project, revision, expected_version: before.version, writes, deletes });
-      const deployed = await adapters.runtime.deploy({ project, revision, expected_version: before.version });
-      if (Number(deployed?.version) !== Number(before.version) + 1) reject('DEPLOYMENT_VERSION_MISMATCH', 'verification deployment must be the immediate next version');
-      const deployment = await adapters.runtime.inspectDeployment({ project, version: deployed.version });
+      let deployment;
+      if (writes.length === 0 && deletes.length === 0) {
+        deployment = await adapters.runtime.inspectDeployment({ project, version: before.version });
+      } else {
+        await adapters.runtime.reconcile({ project, revision, expected_version: before.version, writes, deletes });
+        const deployed = await adapters.runtime.deploy({ project, revision, expected_version: before.version });
+        if (Number(deployed?.version) !== Number(before.version) + 1) reject('DEPLOYMENT_VERSION_MISMATCH', 'verification deployment must be the immediate next version');
+        deployment = await adapters.runtime.inspectDeployment({ project, version: deployed.version });
+      }
       const materialized = new Map(deployment.files.map(file => [file.path, file]));
       if (materialized.size !== desiredRuntime.size || [...desiredRuntime].some(([path, file]) => materialized.get(path)?.sha256 !== file.sha256)) {
         reject('SOURCE_MATERIALIZATION_MISMATCH', 'verification deployment source differs from the deterministic Hatchable runtime form of the requested revision');
       }
-      const regression = await adapters.runtime.runRegressions({ project, deployment_version: deployed.version, revision });
+      const regression = await adapters.runtime.runRegressions({ project, deployment_version: deployment.version, revision });
       if (!regression || regression.schema !== 'regression-verification-v1') reject('VERIFICATION_RUNTIME_INVALID_REGRESSION', 'canonical Hatchable V8 regressions returned an invalid schema');
       if (regression.ok !== true || Number(regression.failed || 0) !== 0) reject('V8_REGRESSION_FAILED', 'canonical Hatchable V8 regressions did not pass');
       return {
