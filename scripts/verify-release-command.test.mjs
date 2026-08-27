@@ -33,6 +33,8 @@ test('release command is narrow, command-owned, and wired end to end', async () 
   ]);
 
   assert.ok(runtime.includes('createGithubReleaseWithGitHubApp'));
+  assert.ok(runtime.includes("key !== 'run_id'"), 'runtime must strip correlation-only run_id before domain normalization');
+  assert.ok(runtime.includes('normalizeGithubReleaseRequest(semanticInput)'), 'runtime must normalize only semantic release fields');
   assert.ok(domain.includes('createGithubRelease'));
   assert.ok(auth.includes('release: Object.freeze({ permissions: Object.freeze({ contents: "write" })'));
   assert.ok(response.includes('github.release.create'));
