@@ -1,7 +1,6 @@
 name: Exact revision V8 verification
 
 on:
-  pull_request:
   push:
     branches: [dev]
   workflow_dispatch:
@@ -22,7 +21,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     env:
-      TARGET_REVISION: ${{ github.event.inputs.revision || github.event.pull_request.head.sha || github.sha }}
+      TARGET_REVISION: ${{ github.event.inputs.revision || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
