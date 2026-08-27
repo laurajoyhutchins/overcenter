@@ -1,0 +1,70 @@
+name: Apply remote MCP transport patch
+
+on:
+  push:
+    branches:
+      - fix/exact-revision-remote-mcp
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply remote MCP transport patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/exact-revision-remote-mcp
+      - name: Replace unpublished stdio shim with remote MCP transport
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/exact-revision-v8-verification.mjs')
+          text = p.read_text()
+          old = """export async function connectHatchableMcp({ token, command = 'npx', args = ['-y', 'hatchable-mcp@latest'] } = {}) {
+  if (!token) reject('HATCHABLE_TOKEN_REQUIRED', 'HATCHABLE_TOKEN is required for Hatchable MCP');
+  const [{ Client }, { StdioClientTransport }] = await Promise.all([
+    import('@modelcontextprotocol/client'),
+    import('@modelcontextprotocol/client/stdio'),
+  ]);
+  const client = new Client({ name: 'overcenter-exact-revision-verifier', version: '1.0.0' });
+  const transport = new StdioClientTransport({ command, args, env: { ...process.env, HATCHABLE_TOKEN: token }, stderr: 'inherit' });
+  await client.connect(transport);
+  return {
+    callTool: async (name, toolArgs) => normalizeMcpToolResult(await client.callTool({ name, arguments: toolArgs })),
+    close: async () => client.close(),
+  };
+}
+"""
+          new = """export function hatchableMcpTransportConfig(token) {
+  if (!token) reject('HATCHABLE_TOKEN_REQUIRED', 'HATCHABLE_TOKEN is required for Hatchable MCP');
+  return {
+    url: 'https://hatchable.com/mcp',
+    requestInit: { headers: { Authorization: `Bearer ${token}` } },
+  };
+}
+
+export async function connectHatchableMcp({ token } = {}) {
+  const config = hatchableMcpTransportConfig(token);
+  const { Client, StreamableHTTPClientTransport } = await import('@modelcontextprotocol/client');
+  const client = new Client({ name: 'overcenter-exact-revision-verifier', version: '1.0.0' });
+  const transport = new StreamableHTTPClientTransport(new URL(config.url), { requestInit: config.requestInit });
+  await client.connect(transport);
+  return {
+    callTool: async (name, toolArgs) => normalizeMcpToolResult(await client.callTool({ name, arguments: toolArgs })),
+    close: async () => client.close(),
+  };
+}
+"""
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one transport block, found {text.count(old)}')
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit transport fix
+        run: |
+          git config user.name 'overcenter-bootstrap'
+          git config user.email 'overcenter-bootstrap@users.noreply.github.com'
+          git add scripts/exact-revision-v8-verification.mjs
+          git commit -m 'Use remote Hatchable MCP transport'
+          git push origin HEAD:fix/exact-revision-remote-mcp
