@@ -18,6 +18,16 @@ export function hatchableMcpTransportConfig(token) {
   };
 }
 
+export function normalizeRemoteMcpToolResult(result) {
+  let normalized = normalizeMcpToolResult(result);
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (!normalized || typeof normalized !== 'object' || typeof normalized.text !== 'string') break;
+    try { normalized = JSON.parse(normalized.text); }
+    catch { break; }
+  }
+  return normalized;
+}
+
 export async function connectHatchableRemoteMcp({ token } = {}) {
   const config = hatchableMcpTransportConfig(token);
   const { Client, StreamableHTTPClientTransport } = await import('@modelcontextprotocol/client');
@@ -25,7 +35,7 @@ export async function connectHatchableRemoteMcp({ token } = {}) {
   const transport = new StreamableHTTPClientTransport(new URL(config.url), { requestInit: config.requestInit });
   await client.connect(transport);
   return {
-    callTool: async (name, toolArgs) => normalizeMcpToolResult(await client.callTool({ name, arguments: toolArgs })),
+    callTool: async (name, toolArgs) => normalizeRemoteMcpToolResult(await client.callTool({ name, arguments: toolArgs })),
     close: async () => client.close(),
   };
 }
