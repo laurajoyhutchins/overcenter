@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { createCheckoutSourceAdapter, createHatchableRuntimeAdapter, normalizeMcpToolResult, verificationInputFromEnv } from './exact-revision-v8-verification.mjs';
+import { normalizeRemoteMcpToolResult } from './exact-revision-v8-verification-http.mjs';
 
 const revision='a'.repeat(40);
 
@@ -55,7 +56,7 @@ test('Hatchable adapter rejects a verifier project that changed before deploymen
 test('normalizes structured and JSON-text MCP results and rejects tool errors',()=>{
   assert.deepEqual(normalizeMcpToolResult({structuredContent:{current_version:7},content:[]}),{current_version:7});
   const remoteStructured={structuredContent:{text:JSON.stringify({files:[{path:'api/a.js'}]})},content:[]};
-  assert.deepEqual(normalizeMcpToolResult(remoteStructured),{files:[{path:'api/a.js'}]});
+  assert.deepEqual(normalizeRemoteMcpToolResult(remoteStructured),{files:[{path:'api/a.js'}]});
   const wrapped={content:[{type:'text',text:JSON.stringify({text:JSON.stringify({files:[{path:'api/a.js'}]})})}]};
   assert.deepEqual(normalizeMcpToolResult(wrapped),{files:[{path:'api/a.js'}]});
   assert.throws(()=>normalizeMcpToolResult({isError:true,content:[{type:'text',text:'boom'}]}),e=>e?.code==='HATCHABLE_MCP_TOOL_ERROR');
