@@ -1,0 +1,26 @@
+import { db } from 'hatchable';
+import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
+import { promoteGithubProductionWithGitHubApp } from 'lib/github-production-promotion-runtime.js';
+
+export const access = 'admin';
+export const methods = ['POST'];
+
+function statusFor(result) {
+  if (result?.ok) return 200;
+  if (result?.error === 'GITHUB_APP_PERMISSION_DENIED') return 403;
+  if (result?.error === 'GITHUB_NOT_FOUND') return 404;
+  if (result?.error === 'IDEMPOTENCY_IN_PROGRESS' || result?.error === 'IDEMPOTENCY_CONFLICT'
+      || String(result?.error || '').startsWith('GITHUB_PRODUCTION_PROMOTION_')) return 409;
+  if (String(result?.error || '').startsWith('INVALID_')) return 422;
+  return 502;
+}
+
+export default async function (req, res) {
+  const response = await executeCorrelatedCommand(
+    'github.production.promote',
+    req.body || {},
+    (input) => promoteGithubProductionWithGitHubApp(input, { db }),
+    { statusForFailure: statusFor, flattenDetails: true, db },
+  );
+  return res.status(response.status).json(response.body);
+}
