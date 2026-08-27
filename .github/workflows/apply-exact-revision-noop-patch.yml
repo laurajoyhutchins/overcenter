@@ -1,0 +1,52 @@
+name: Apply exact-revision no-op patch
+
+on:
+  push:
+    branches:
+      - fix/exact-revision-noop-verification
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply exact-revision no-op patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/exact-revision-noop-verification
+      - name: Reuse an identical immutable verifier deployment
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/exact-revision-v8-verification.mjs')
+          text = p.read_text()
+          old = """      const deletes = [...current.keys()].filter(path => !desiredRuntime.has(path)).sort();
+      await adapters.runtime.reconcile({ project, revision, expected_version: before.version, writes, deletes });
+      const deployed = await adapters.runtime.deploy({ project, revision, expected_version: before.version });
+      if (Number(deployed?.version) !== Number(before.version) + 1) reject('DEPLOYMENT_VERSION_MISMATCH', 'verification deployment must be the immediate next version');
+      const deployment = await adapters.runtime.inspectDeployment({ project, version: deployed.version });
+"""
+          new = """      const deletes = [...current.keys()].filter(path => !desiredRuntime.has(path)).sort();
+      let deployment;
+      if (writes.length === 0 && deletes.length === 0) {
+        deployment = await adapters.runtime.inspectDeployment({ project, version: before.version });
+      } else {
+        await adapters.runtime.reconcile({ project, revision, expected_version: before.version, writes, deletes });
+        const deployed = await adapters.runtime.deploy({ project, revision, expected_version: before.version });
+        if (Number(deployed?.version) !== Number(before.version) + 1) reject('DEPLOYMENT_VERSION_MISMATCH', 'verification deployment must be the immediate next version');
+        deployment = await adapters.runtime.inspectDeployment({ project, version: deployed.version });
+      }
+"""
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one verification deployment block, found {text.count(old)}')
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit implementation
+        run: |
+          git config user.name 'overcenter-bootstrap'
+          git config user.email 'overcenter-bootstrap@users.noreply.github.com'
+          git add scripts/exact-revision-v8-verification.mjs
+          git commit -m 'Reuse identical exact-revision verification deployment'
+          git push origin HEAD:fix/exact-revision-noop-verification
