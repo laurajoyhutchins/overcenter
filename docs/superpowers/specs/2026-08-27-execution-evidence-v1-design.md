@@ -33,7 +33,9 @@ Overcenter is authoritative for the execution facts it creates and durably recor
 - durable mutation receipts and invocation-resolution evidence;
 - settlement state and settlement receipts;
 - deterministic recovery decisions and recorded recovery resolutions;
-- Overcenter verification receipts and evidence-integrity results.
+- Overcenter verification receipts.
+
+Overcenter also owns the semantics of deterministic evidence-integrity classification. Integrity results are derived from durable evidence and are not a second durable authority unless a future design explicitly requires a receipt for a particular verification boundary.
 
 ### 2.2 Externally observed facts
 
@@ -60,7 +62,7 @@ The first implementation should require no new persistence table. Existing durab
 | Semantic entity | Primary durable source | Notes |
 | --- | --- | --- |
 | Run | `orchestration_runs` | Run identity, bounds, scope, status, disposition, terminal reason, timestamps |
-| Run target | `orchestration_run_target` | Immutable targeted-run identity where present |
+| Run target | `orchestration_runs.target`, `target_sha256`, `base_start_request_sha256` | Immutable targeted-run identity where present |
 | WorkObservation | lease claim/settlement projections, run target/horizon evidence, bounded journal projections | Never a shadow Linear issue |
 | Lease | `work_leases` | Project only non-secret authority evidence; never expose `lease_token` or token hash |
 | Checkpoint | `work_lease_checkpoints` | Durable resumable progress, ordered deterministically |
@@ -287,6 +289,83 @@ The projection must preserve:
 - recovery result/resolution;
 - durable evidence reference;
 - whether the original outcome remains historically indeterminate even though its effect certainty was later resolved.
+
+### 5.10 Example projection excerpts
+
+The examples are intentionally partial. They show semantic distinctions, not every optional field.
+
+#### Clean verified success
+
+```json
+{
+  "schema": "execution-evidence-v1",
+  "run": {"run_id": "run-success", "status": "finished", "disposition": "completed"},
+  "leases": [{"lease_id": "lease-1", "work_ref": "WORK-1", "status": "settled"}],
+  "commands": [{
+    "invocation_id": "inv-1",
+    "command": "github.apply_changeset",
+    "outcome": "succeeded",
+    "may_have_mutated": true,
+    "effect": {"mutation_certainty": "confirmed_present"},
+    "resolution_refs": []
+  }],
+  "settlements": [{"lease_id": "lease-1", "settlement_disposition": "completed"}],
+  "verifications": [{"status": "verified", "source_ref": "verification:work:WORK-1"}],
+  "integrity": {"status": "complete", "violations": []}
+}
+```
+
+The command effect and the resulting-state verification are separate facts even though both are resolved positively.
+
+#### Pre-mutation rejection
+
+```json
+{
+  "schema": "execution-evidence-v1",
+  "run": {"run_id": "run-blocked", "status": "finished", "disposition": "blocked"},
+  "leases": [],
+  "commands": [{
+    "invocation_id": "inv-2",
+    "command": "work.claim",
+    "outcome": "failed",
+    "error": {"code": "REQUEST_INVALID", "class": "validation", "retryable": false, "rejection": false},
+    "may_have_mutated": false,
+    "effect": {"mutation_certainty": "definitively_absent"},
+    "resolution_refs": []
+  }],
+  "settlements": [],
+  "verifications": [],
+  "integrity": {"status": "complete", "violations": []}
+}
+```
+
+A blocked run can have a complete evidence story. No lease, external effect, or settlement is fabricated.
+
+#### Indeterminate effect later resolved by authority
+
+```json
+{
+  "schema": "execution-evidence-v1",
+  "run": {"run_id": "run-recovered", "status": "active", "disposition": null},
+  "commands": [{
+    "invocation_id": "inv-3",
+    "command": "github.apply_changeset",
+    "outcome": "indeterminate",
+    "may_have_mutated": true,
+    "effect": {"mutation_certainty": "confirmed_present"},
+    "resolution_refs": ["resolution:inv-3:1"]
+  }],
+  "recoveries": [{
+    "recovery_ref": "resolution:inv-3:1",
+    "invocation_id": "inv-3",
+    "resolution_kind": "externally_confirmed"
+  }],
+  "verifications": [{"status": "unknown"}],
+  "integrity": {"status": "not_evaluated", "violations": []}
+}
+```
+
+The original command remains historically `indeterminate`; later authoritative evidence resolves mutation certainty without rewriting the original invocation outcome. Resulting-state verification remains independent.
 
 ## 6. Evidence completeness and integrity
 
