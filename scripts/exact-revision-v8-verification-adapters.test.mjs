@@ -54,6 +54,8 @@ test('Hatchable adapter rejects a verifier project that changed before deploymen
 
 test('normalizes structured and JSON-text MCP results and rejects tool errors',()=>{
   assert.deepEqual(normalizeMcpToolResult({structuredContent:{current_version:7},content:[]}),{current_version:7});
+  const remoteStructured={structuredContent:{text:JSON.stringify({files:[{path:'api/a.js'}]})},content:[]};
+  assert.deepEqual(normalizeMcpToolResult(remoteStructured),{files:[{path:'api/a.js'}]});
   const wrapped={content:[{type:'text',text:JSON.stringify({text:JSON.stringify({files:[{path:'api/a.js'}]})})}]};
   assert.deepEqual(normalizeMcpToolResult(wrapped),{files:[{path:'api/a.js'}]});
   assert.throws(()=>normalizeMcpToolResult({isError:true,content:[{type:'text',text:'boom'}]}),e=>e?.code==='HATCHABLE_MCP_TOOL_ERROR');
