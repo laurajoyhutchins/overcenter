@@ -47,6 +47,26 @@ test('returns canonical exact-revision evidence with isolated runtime attributio
   assert.notEqual(result.regression.execution.source_manifest_sha256,result.regression.execution.runtime_manifest_sha256);
 });
 
+test('reuses an identical immutable verification deployment without requiring a version bump', async()=>{
+  let reconcileCalls=0;
+  let deployCalls=0;
+  let inspectedVersion=null;
+  const result=await verifyExactRevisionV8(input,{
+    source:{observe:async()=>({repository,revision,files:[{path:'api/example.js',content,sha256:hash}]})},
+    runtime:{
+      inspect:async()=>({project:verification_project,version:11,files:[{path:'api/example.js',sha256:runtimeHash}]}),
+      reconcile:async()=>{reconcileCalls+=1;},
+      deploy:async()=>{deployCalls+=1;return {version:11};},
+      inspectDeployment:async({version})=>{inspectedVersion=version;return {version,files:[{path:'api/example.js',sha256:runtimeHash}]};},
+      runRegressions:async()=>green,
+    },
+  });
+  assert.equal(reconcileCalls,0);
+  assert.equal(deployCalls,0);
+  assert.equal(inspectedVersion,11);
+  assert.equal(result.regression.execution.deployment_version,11);
+});
+
 test('rejects post-deploy source mismatch', async()=>{
   const base=adapters();
   base.runtime.inspectDeployment=async()=>({version:8,files:[{path:'api/example.js',sha256:'c'.repeat(64)}]});
