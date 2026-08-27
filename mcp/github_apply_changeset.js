@@ -1,11 +1,11 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { applyGithubChangesetWithGitHubApp } from 'lib/github-apply-changeset.js';
+import { applyGithubChangesetRoleAware } from 'lib/github-branch-role-runtime.js';
 
 export const access = 'admin';
 
 export default {
   name: 'github_apply_changeset',
-  description: 'Atomically apply a declared multi-file UTF-8 repository changeset as one Git commit under an active Overcenter work lease. Supports create/update/delete, optimistic expected_head checks, non-force branch updates, and exact idempotent replay. This MCP tool exposes the conceptual github.apply_changeset command using an underscore-safe transport name.',
+  description: 'Atomically apply a declared multi-file UTF-8 repository changeset as one Git commit under an active Overcenter work lease. Supports create/update/delete, optimistic expected_head checks, non-force branch updates, exact idempotent replay, and managed branch-role enforcement. This MCP tool exposes the conceptual github.apply_changeset command using an underscore-safe transport name.',
   inputSchema: {
     type: 'object',
     required: ['repo', 'branch', 'changes', 'commit_message', 'lease_token'],
@@ -37,7 +37,7 @@ export default {
         type: 'string',
         minLength: 1,
         maxLength: 255,
-        description: 'Target branch to create or fast-forward.',
+        description: 'Target work branch to create or fast-forward. Managed development and production branches reject ordinary changesets.',
       },
       expected_head: {
         type: 'string',
@@ -111,7 +111,7 @@ export default {
     const response = await executeCorrelatedCommand(
       'github.apply_changeset',
       args || {},
-      (input) => applyGithubChangesetWithGitHubApp(input, { db: ctx.db }),
+      (input) => applyGithubChangesetRoleAware(input, { db: ctx.db }),
       { flattenDetails: true, db: ctx.db },
     );
     return response.body;
