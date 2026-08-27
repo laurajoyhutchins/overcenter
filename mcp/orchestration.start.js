@@ -1,5 +1,5 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { createPostgresOrchestrationRunService, statusForOrchestrationRunError } from 'lib/orchestration-runs.js';
+import { createPostgresTargetAwareOrchestrationRunService, statusForTargetAwareOrchestrationError } from 'lib/orchestration-run-target-runtime.js';
 
 export const access = 'admin';
 
@@ -14,9 +14,27 @@ const contractRefSchema = {
   additionalProperties: false,
 };
 
+const targetSchema = {
+  type: 'object',
+  required: ['project_ref', 'horizon'],
+  properties: {
+    project_ref: { type: 'string', minLength: 1, maxLength: 512 },
+    horizon: {
+      type: 'object',
+      required: ['kind', 'ref'],
+      properties: {
+        kind: { type: 'string', enum: ['transition', 'milestone', 'project', 'release', 'portfolio'] },
+        ref: { type: 'string', minLength: 1, maxLength: 512 },
+      },
+      additionalProperties: false,
+    },
+  },
+  additionalProperties: false,
+};
+
 export default {
   name: 'orchestration.start',
-  description: 'Start or idempotently recover one durable orchestration run with a bounded budget, compatible predecessor pointer, and optional immutable worker-contract provenance.',
+  description: 'Start or idempotently recover one durable orchestration run with a bounded budget, compatible predecessor pointer, optional immutable worker-contract provenance, and optional immutable authority-bound project horizon target.',
   inputSchema: {
     type: 'object',
     required: ['run_id', 'worker', 'mode', 'continuation_key', 'scope'],
@@ -37,6 +55,7 @@ export default {
         },
         additionalProperties: false,
       },
+      target: targetSchema,
       budget_seconds: { type: 'integer' },
       settlement_reserve_seconds: { type: 'integer' },
       minimum_new_gate_seconds: { type: 'integer' },
@@ -57,9 +76,9 @@ export default {
     const response = await executeCorrelatedCommand(
       'orchestration.start',
       args || {},
-      (input) => createPostgresOrchestrationRunService({ db: ctx?.db }).start(input),
+      (input) => createPostgresTargetAwareOrchestrationRunService({ db:ctx?.db }).start(input),
       {
-        statusForFailure: statusForOrchestrationRunError,
+        statusForFailure: statusForTargetAwareOrchestrationError,
         defaultError: 'ORCHESTRATION_START_ERROR',
         defaultMessage: 'orchestration.start failed',
         flattenDetails: true,

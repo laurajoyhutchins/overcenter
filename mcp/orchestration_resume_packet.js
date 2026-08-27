@@ -1,11 +1,11 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { orchestrationResumePacket } from 'lib/orchestration-recovery.js';
+import { orchestrationTargetResumePacket } from 'lib/orchestration-run-target-runtime.js';
 
 export const access = 'admin';
 
 export default {
   name: 'orchestration_resume_packet',
-  description: 'Reconstruct the smallest mechanically safe continuation state for one prior orchestration run. Read-only: it does not select or execute work.',
+  description: 'Reconstruct the smallest mechanically safe continuation state for one prior orchestration run, including its immutable target and current target evaluation when available. Read-only: it does not select or execute work.',
   inputSchema: {
     type: 'object',
     required: ['run_id'],
@@ -17,7 +17,7 @@ export default {
     const response = await executeCorrelatedCommand(
       'orchestration.resume_packet',
       args || {},
-      (input) => orchestrationResumePacket(input),
+      (input) => orchestrationTargetResumePacket(input, { db:ctx?.db }),
       { flattenDetails: true, db: ctx?.db },
     );
     return response.body;
