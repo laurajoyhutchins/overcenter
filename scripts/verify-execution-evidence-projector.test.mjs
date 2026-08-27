@@ -15,14 +15,15 @@ test('bounded execution evidence projection drops secret-bearing and body/conten
 });
 
 test('bounded execution evidence projection enforces string array object and depth bounds', () => {
-  const projected = boundedEvidenceProjection({
-    long: 'x'.repeat(5000),
-    list: Array.from({ length: 40 }, (_, index) => index),
-    ...Object.fromEntries(Array.from({ length: 40 }, (_, index) => [`k${String(index).padStart(2, '0')}`, index])),
-  });
-  assert.equal(projected.long.length, 1024);
-  assert.equal(projected.list.length, 25);
-  assert.ok(Object.keys(projected).length <= 30);
+  const projectedLong = boundedEvidenceProjection({ long: 'x'.repeat(5000) });
+  assert.equal(projectedLong.long.length, 1024);
+
+  const projectedList = boundedEvidenceProjection({ list: Array.from({ length: 40 }, (_, index) => index) });
+  assert.equal(projectedList.list.length, 25);
+
+  const projectedMany = boundedEvidenceProjection(Object.fromEntries(Array.from({ length: 40 }, (_, index) => [`k${String(index).padStart(2, '0')}`, index])));
+  assert.ok(Object.keys(projectedMany).length <= 30);
+
   const deep = boundedEvidenceProjection({ a: { b: { c: { d: { e: 'value' } } } } });
   assert.equal(typeof deep.a.b.c.d, 'string');
 });
