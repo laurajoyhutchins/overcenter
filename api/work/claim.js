@@ -1,21 +1,9 @@
-import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { createPostgresWorkLeaseService, statusForWorkLeaseError } from 'lib/work-leases.js';
-import { workerBoundaryFailureOptions } from 'lib/worker-boundary-errors.js';
+import { executeWorkClaimBoundary } from 'lib/work-claim-boundary.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
 
 export default async function (req, res) {
-  const response = await executeCorrelatedCommand(
-    'work.claim',
-    req.body || {},
-    (input) => createPostgresWorkLeaseService().claim(input),
-    workerBoundaryFailureOptions('work.claim', {
-      statusForFailure: statusForWorkLeaseError,
-      defaultError: 'WORK_CLAIM_ERROR',
-      defaultMessage: 'work.claim failed',
-      flattenDetails: true,
-    }),
-  );
+  const response = await executeWorkClaimBoundary(req.body || {});
   return res.status(response.status).json(response.body);
 }
