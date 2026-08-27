@@ -25,7 +25,7 @@ Introduce repository branch roles and an exact-SHA promotion path so development
 
 GitHub remains authoritative for repository content, commit identity, refs, pull requests, checks, and branch ancestry.
 
-Overcenter is authoritative for orchestration state, promotion receipts, exact-revision evidence, idempotency, recovery, and the configured semantic role of a repository branch within the portfolio.
+Overcenter is authoritative for orchestration state, promotion receipts, exact-revision evidence, idempotency, recovery, and the configured semantic role of a repository branch within the portfolio. Branch-role configuration is explicit portfolio configuration; it must not be re-inferred from GitHub's default branch after a repository is migrated.
 
 Hatchable remains a derived runtime projection. A Hatchable deployment is trusted only after immutable post-deploy verification binds it to the promoted production commit.
 
@@ -37,7 +37,7 @@ Each managed repository may declare:
 - `production`: the branch whose exact head is eligible for production materialization.
 - `work`: branches matching the existing branch-policy-v1 work-branch convention.
 
-For the initial Overcenter migration, `main` remains the development role. A new long-lived production-role branch is created from the currently verified production commit. The role model must not hardcode these literal names for other repositories.
+For the initial Overcenter migration, `main` remains the development role and `production` is the production-role branch. The role model must not hardcode these literal names for other repositories.
 
 A branch cannot hold both development and production roles.
 
@@ -45,7 +45,7 @@ A branch cannot hold both development and production roles.
 
 Ordinary `github.apply_changeset` mutations may target conforming work branches. They must reject direct content mutation of branches assigned the development or production role.
 
-Development advances only through the existing integration path after required review/check evidence succeeds.
+Development advances only through the existing integration path after required review/check evidence succeeds. That integration path must resolve the configured development role instead of assuming the repository default branch is the integration target.
 
 Production advances only through a narrow semantic promotion command. No ordinary changeset, ad hoc ref update, or integration command may advance it.
 
@@ -87,7 +87,7 @@ A production materialization receipt must bind:
 
 If the immutable live deployment contains a receipt targeting a different Hatchable version or different production SHA, the deployment state is `UNVERIFIED` even when sampled files appear to match.
 
-The v351 condition observed on 2026-08-27 is the regression example: live code contained the current `main` change while the embedded receipt still targeted v350 and its parent GitHub commit. That state must never be treated as verified production provenance.
+The v351 condition observed on 2026-08-27 is the regression example: live code contained a newer `main` change while the embedded receipt still targeted v350 and its parent GitHub commit. That state must never be treated as verified production provenance.
 
 ## Self-hosting safety
 
@@ -141,8 +141,10 @@ This design removes the moving-GitHub-source side of the source-materialization 
 2. Teach mutation/integration commands to enforce role boundaries while preserving existing work-branch behavior.
 3. Add exact-SHA production promotion with idempotent receipts and readback.
 4. Bind production source-sync to the production role and strengthen stale-receipt verification.
-5. Migrate Overcenter itself: keep `main` as development, create the production-role branch at the currently verified production commit, then require promotion for subsequent production changes.
-6. Only after the self-hosting path is verified should the policy be rolled out portfolio-wide.
+5. Bootstrap Overcenter itself by finding the newest immutable Hatchable deployment whose materialization receipt fully verifies against that deployment manifest and its GitHub commit. If no such deployment exists, stop the migration rather than infer production from the current live draft/deployment.
+6. Keep `main` as Overcenter's development role and create `production` at that last fully verified GitHub commit.
+7. Promote the desired newer verified `main` commit through the new semantic operation, materialize it, and require immutable post-deploy verification before advancing the verified-production coordinate.
+8. Only after the self-hosting path is verified should the policy be rolled out portfolio-wide.
 
 Migration must not rewrite repository history or infer a production commit from an uncertified Hatchable deployment.
 
@@ -153,6 +155,7 @@ Add deterministic regressions for:
 - direct changeset mutation of development rejected;
 - direct changeset mutation of production rejected;
 - work-branch mutation remains allowed;
+- integration resolves the configured development role rather than the default branch;
 - promotion succeeds only for exact verified development SHA;
 - stale observed development or production head rejects before mutation;
 - non-ancestor candidate rejects;
@@ -162,6 +165,8 @@ Add deterministic regressions for:
 - caller cannot override production branch;
 - wrong-version receipt is unverified;
 - wrong-SHA receipt is unverified;
+- bootstrap selects only a fully verified immutable deployment coordinate;
+- bootstrap fails closed when no verified coordinate exists;
 - immutable deployment verification is still authoritative after promotion;
 - #161 residual Hatchable race remains fail-closed rather than being falsely declared solved.
 
