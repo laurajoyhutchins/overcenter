@@ -1,5 +1,6 @@
 import { commandSuccess } from '../lib/command-response.js';
 
+// Temporary bootstrap probe. Permanent coverage lives in command-response.test.js.
 const commands = [
   'portfolio.repository.branch_roles.ensure',
   'github.production_branch_policy.reconcile',
