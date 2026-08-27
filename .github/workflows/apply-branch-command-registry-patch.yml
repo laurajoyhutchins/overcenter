@@ -1,0 +1,86 @@
+name: Apply branch command registry patch
+
+on:
+  push:
+    branches:
+      - fix/register-branch-role-commands
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply branch command registry patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/register-branch-role-commands
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch canonical command boundary and projections
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_one(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # Canonical command registry and failure semantics.
+          replace_one('lib/command-response.js',
+              "  'github.branch_policy.reconcile',\n  'github.capabilities',",
+              "  'github.branch_policy.reconcile',\n  'github.production_branch_policy.reconcile',\n  'github.production.promote',\n  'github.capabilities',")
+          replace_one('lib/command-response.js',
+              "  'portfolio.repository_register',\n  'portfolio.dispose_repository',",
+              "  'portfolio.repository_register',\n  'portfolio.repository.branch_roles.ensure',\n  'portfolio.dispose_repository',")
+          replace_one('lib/command-response.js',
+              "register(['GITHUB_REPOSITORY_TEMPLATE_CREATE_REJECTED'], 'validation', false, 422, true);",
+              "register(['GITHUB_REPOSITORY_TEMPLATE_CREATE_REJECTED'], 'validation', false, 422, true);\nregister(['REPOSITORY_BRANCH_ROLE_INVALID'], 'validation', false, 422, true);")
+          replace_one('lib/command-response.js',
+              "  'GITHUB_DEFAULT_BRANCH_CHANGED',\n  'HATCHABLE_VERSION_MISMATCH',",
+              "  'GITHUB_DEFAULT_BRANCH_CHANGED',\n  'GITHUB_BRANCH_ROLE_VIOLATION',\n  'SOURCE_SYNC_BRANCH_ROLES_REQUIRED',\n  'SOURCE_SYNC_BRANCH_ROLE_VIOLATION',\n  'GITHUB_PRODUCTION_BRANCH_POLICY_ROLES_REQUIRED',\n  'GITHUB_PRODUCTION_PROMOTION_BRANCH_ROLES_REQUIRED',\n  'GITHUB_PRODUCTION_PROMOTION_STATE_CHANGED',\n  'GITHUB_PRODUCTION_PROMOTION_CANDIDATE_CHANGED',\n  'GITHUB_PRODUCTION_PROMOTION_VERIFICATION_REQUIRED',\n  'GITHUB_PRODUCTION_PROMOTION_NON_FAST_FORWARD',\n  'HATCHABLE_VERSION_MISMATCH',")
+          replace_one('lib/command-response.js',
+              "  'GITHUB_RELEASE_STATE_CONFLICT',\n  'IDEMPOTENCY_CONFLICT',",
+              "  'GITHUB_RELEASE_STATE_CONFLICT',\n  'REPOSITORY_BRANCH_ROLE_CONFLICT',\n  'REPOSITORY_BRANCH_ROLE_CHANGED',\n  'GITHUB_PRODUCTION_BRANCH_POLICY_CONFLICT',\n  'IDEMPOTENCY_CONFLICT',")
+          replace_one('lib/command-response.js',
+              "register(['HATCHABLE_MCP_TRANSPORT_ERROR'], 'upstream', true, 503);",
+              "register(['HATCHABLE_MCP_TRANSPORT_ERROR'], 'upstream', true, 503);\nregister(['GITHUB_PRODUCTION_BRANCH_POLICY_TRANSPORT_UNAVAILABLE','GITHUB_PRODUCTION_PROMOTION_TRANSPORT_UNAVAILABLE'], 'upstream', true, 503);\nregister(['GITHUB_PRODUCTION_BRANCH_POLICY_INDETERMINATE','GITHUB_PRODUCTION_PROMOTION_INDETERMINATE'], 'upstream', true, 502);\nregister(['GITHUB_PRODUCTION_PROMOTION_STATE_UNAVAILABLE','GITHUB_PRODUCTION_BRANCH_POLICY_ERROR'], 'upstream', false, 502);")
+          replace_one('lib/command-response.js',
+              "'GITHUB_RELEASE_STATE_CHANGED', 'GITHUB_DEFAULT_BRANCH_CHANGED', 'GITHUB_INTEGRATION_RECOMPUTE_REQUIRED',",
+              "'GITHUB_RELEASE_STATE_CHANGED', 'GITHUB_DEFAULT_BRANCH_CHANGED', 'GITHUB_PRODUCTION_PROMOTION_STATE_CHANGED', 'GITHUB_PRODUCTION_PROMOTION_CANDIDATE_CHANGED', 'GITHUB_INTEGRATION_RECOMPUTE_REQUIRED',")
+
+          # Permanent command-envelope regression coverage.
+          replace_one('lib/command-response.test.js',
+              "  'github.branch_policy.reconcile',\n  'github.capabilities',",
+              "  'github.branch_policy.reconcile',\n  'github.production_branch_policy.reconcile',\n  'github.production.promote',\n  'github.capabilities',")
+          replace_one('lib/command-response.test.js',
+              "  'portfolio.reconcile_work_surface',\n  'portfolio.dispose_repository',",
+              "  'portfolio.reconcile_work_surface',\n  'portfolio.repository.branch_roles.ensure',\n  'portfolio.dispose_repository',")
+          replace_one('lib/command-response.test.js',
+              "    ['setup-required failure', 'GITHUB_APP_SETUP_REQUIRED', 'setup', false, false],",
+              "    ['setup-required failure', 'GITHUB_APP_SETUP_REQUIRED', 'setup', false, false],\n    ['branch-role rewrite is an expected conflict', 'REPOSITORY_BRANCH_ROLE_CHANGED', 'conflict', false, true],\n    ['production candidate drift is an expected precondition rejection', 'GITHUB_PRODUCTION_PROMOTION_CANDIDATE_CHANGED', 'precondition', false, true],\n    ['production verification is an expected precondition rejection', 'GITHUB_PRODUCTION_PROMOTION_VERIFICATION_REQUIRED', 'precondition', false, true],\n    ['production policy transport absence is retryable upstream', 'GITHUB_PRODUCTION_BRANCH_POLICY_TRANSPORT_UNAVAILABLE', 'upstream', true, false],")
+
+          # Bounded, non-secret orchestration projections for the new semantics.
+          replace_one('lib/orchestration-journal.js',
+              "  if (command === 'github.repository_from_template.create') return { target_kind: 'github_repository', target_ref: request.destination_repo || null };\n  if (command.startsWith('github.'))",
+              "  if (command === 'github.repository_from_template.create') return { target_kind: 'github_repository', target_ref: request.destination_repo || null };\n  if (command === 'portfolio.repository.branch_roles.ensure') return { target_kind: 'github_repository', target_ref: request.repository || null };\n  if (command.startsWith('github.'))")
+          replace_one('lib/orchestration-journal.js',
+              "  if (command === 'github.integration.reconcile') return pick(body, ['repo', 'pull_request', 'expected_head', 'apply', 'merge_request_uuid']);\n  if (command === 'linear.archive')",
+              "  if (command === 'github.integration.reconcile') return pick(body, ['repo', 'pull_request', 'expected_head', 'apply', 'merge_request_uuid']);\n  if (command === 'github.production_branch_policy.reconcile') return pick(body, ['repo', 'expected_head']);\n  if (command === 'github.production.promote') return pick(body, ['repo', 'candidate_sha', 'observed_development_head', 'observed_production_head', 'verification_run_id', 'idempotency_key']);\n  if (command === 'portfolio.repository.branch_roles.ensure') return pick(body, ['repository', 'development_branch', 'production_branch', 'production_source_ref']);\n  if (command === 'linear.archive')")
+          replace_one('lib/orchestration-journal.js',
+              "  if (command === 'github.integration.reconcile') return pick(body, ['repo', 'pull_request', 'expected_head', 'outcome', 'merge_request_uuid', 'merge_commit_sha', 'stack_atomic', 'integration_method', 'merge_method', 'merge_action', 'existing_request', 'may_have_mutated']);\n  if (command === 'linear.archive')",
+              "  if (command === 'github.integration.reconcile') return pick(body, ['repo', 'pull_request', 'expected_head', 'outcome', 'merge_request_uuid', 'merge_commit_sha', 'stack_atomic', 'integration_method', 'merge_method', 'merge_action', 'existing_request', 'may_have_mutated']);\n  if (command === 'github.production_branch_policy.reconcile') return { ...pick(body, ['repo', 'branch', 'expected_head', 'observed_head', 'changed', 'verified', 'ruleset_id', 'may_have_mutated']), rules: boundedStrings(body.rules, 16) };\n  if (command === 'github.production.promote') return pick(body, ['repo', 'development_branch', 'production_branch', 'development_head', 'old_production_head', 'new_production_head', 'verification_run_id', 'verification_workflow', 'changed', 'verified', 'idempotency_key', 'idempotent_replay', 'recovered_after_uncertain_mutation', 'may_have_mutated']);\n  if (command === 'portfolio.repository.branch_roles.ensure') return pick(body, ['repository', 'development_branch', 'production_branch', 'production_source_ref', 'changed']);\n  if (command === 'linear.archive')")
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name 'overcenter-bootstrap'
+          git config user.email 'overcenter-bootstrap@users.noreply.github.com'
+          git add lib/command-response.js lib/command-response.test.js lib/orchestration-journal.js
+          git commit -m 'Register branch-role semantic commands [bootstrap-patched]'
+          git push origin HEAD:fix/register-branch-role-commands
