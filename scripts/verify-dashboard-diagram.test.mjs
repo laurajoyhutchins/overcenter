@@ -49,3 +49,14 @@ test('diagram exposes real orchestration operations and failure semantics', () =
     'portfolio_reconcile_indeterminate',
   ]) assert.match(client, new RegExp(condition));
 });
+
+test('schematic control panel fits desktop and keeps mobile connectors compact', () => {
+  const desktop = css.split('@media (max-width: 820px)')[0];
+  assert.doesNotMatch(desktop, /\.flow-sequence[\s\S]*?overflow-x:\s*auto/);
+  assert.match(desktop, /\.flow-edge\s*\{[\s\S]*?min-width:\s*0/);
+
+  const mobile = css.split('@media (max-width: 820px)')[1] || '';
+  const match = mobile.match(/\.flow-edge\s*\{[\s\S]*?min-height:\s*(\d+)px/);
+  assert.ok(match, 'mobile flow edge needs an explicit compact min-height');
+  assert.ok(Number(match[1]) <= 64, `expected mobile connector <=64px, got ${match[1]}px`);
+});
