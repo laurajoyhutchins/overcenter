@@ -6,6 +6,7 @@ import { verifyExactRevision } from '../lib/exact-revision-verification.js';
 
 const execFile = promisify(execFileCallback);
 const SOURCE_MATERIALIZATION_RECEIPT_PATH = 'public/.overcenter/source-materialization.json';
+export const HATCHABLE_TEXT_NORMALIZATION = 'hatchable-v8-text-v1';
 
 function reject(code, message) { throw Object.assign(new Error(message), { code }); }
 
@@ -21,6 +22,19 @@ function isSyncableSourcePath(pathInput) {
 function utf8Text(buffer, path) {
   try { return new TextDecoder('utf-8', { fatal: true }).decode(buffer); }
   catch { reject('SOURCE_UTF8_REQUIRED', `verification source must be UTF-8 text: ${path}`); }
+}
+
+export function canonicalizeHatchableText(contentInput) {
+  return String(contentInput).replace(/[ \t\r\n\v\f]+$/u, '');
+}
+
+function sha256Text(content) {
+  return createHash('sha256').update(content).digest('hex');
+}
+
+function runtimeSourceFile(file) {
+  const content = canonicalizeHatchableText(file.content);
+  return Object.freeze({ path:file.path, content, sha256:sha256Text(content) });
 }
 
 export function createCheckoutSourceAdapter(options = {}) {
@@ -109,7 +123,7 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
     async deploy({ project, revision, expected_version }) {
       const before = await callTool('get_project', { project_id: project });
       if (Number(before?.current_version) !== Number(expected_version)) reject('VERIFICATION_RUNTIME_VERSION_MISMATCH', 'verification runtime changed before deployment');
-      await callTool('deploy', { project_id: project, intent: `Verify exact GitHub revision ${revision}`, summary: `Materialized exact GitHub revision ${revision} into the isolated V8 verification runtime and prepared canonical regressions.` });
+      await callTool('deploy', { project_id: project, intent: `Verify exact GitHub revision ${revision}`, summary: `Materialized exact GitHub revision ${revision} through ${HATCHABLE_TEXT_NORMALIZATION} into the isolated V8 verification runtime and prepared canonical regressions.` });
       const after = await callTool('get_project', { project_id: project });
       const version = Number(after?.current_version);
       if (version !== Number(expected_version) + 1) reject('DEPLOYMENT_VERSION_MISMATCH', 'verification deployment was not the immediate next version');
@@ -183,27 +197,32 @@ export async function verifyExactRevisionV8(input, adapters) {
   if (project === productionProject) reject('VERIFICATION_RUNTIME_NOT_ISOLATED', 'verification runtime must not be the production project');
 
   let desired = null;
+  let desiredRuntime = null;
   return verifyExactRevision({ repository, revision }, {
     resolveRevision: async coordinate => {
       const observed = await adapters.source.observe(coordinate);
       desired = new Map((observed?.files || []).map(file => [file.path, file]));
+      desiredRuntime = new Map([...desired.values()].map(file => {
+        const runtimeFile = runtimeSourceFile(file);
+        return [runtimeFile.path, runtimeFile];
+      }));
       return { repository: observed?.repository || repository, revision: observed?.revision };
     },
     executeRevisionRegression: async coordinate => {
       const before = await adapters.runtime.inspect(project);
       const current = new Map(before.files.map(file => [file.path, file]));
-      const writes = [...desired.values()]
+      const writes = [...desiredRuntime.values()]
         .filter(file => current.get(file.path)?.sha256 !== file.sha256)
         .map(({ path, content }) => ({ path, content }))
         .sort((a, b) => a.path.localeCompare(b.path));
-      const deletes = [...current.keys()].filter(path => !desired.has(path)).sort();
+      const deletes = [...current.keys()].filter(path => !desiredRuntime.has(path)).sort();
       await adapters.runtime.reconcile({ project, revision, expected_version: before.version, writes, deletes });
       const deployed = await adapters.runtime.deploy({ project, revision, expected_version: before.version });
       if (Number(deployed?.version) !== Number(before.version) + 1) reject('DEPLOYMENT_VERSION_MISMATCH', 'verification deployment must be the immediate next version');
       const deployment = await adapters.runtime.inspectDeployment({ project, version: deployed.version });
       const materialized = new Map(deployment.files.map(file => [file.path, file]));
-      if (materialized.size !== desired.size || [...desired].some(([path, file]) => materialized.get(path)?.sha256 !== file.sha256)) {
-        reject('SOURCE_MATERIALIZATION_MISMATCH', 'verification deployment source differs from requested revision');
+      if (materialized.size !== desiredRuntime.size || [...desiredRuntime].some(([path, file]) => materialized.get(path)?.sha256 !== file.sha256)) {
+        reject('SOURCE_MATERIALIZATION_MISMATCH', 'verification deployment source differs from the deterministic Hatchable runtime form of the requested revision');
       }
       const regression = await adapters.runtime.runRegressions({ project, deployment_version: deployed.version, revision });
       if (!regression || regression.schema !== 'regression-verification-v1') reject('VERIFICATION_RUNTIME_INVALID_REGRESSION', 'canonical Hatchable V8 regressions returned an invalid schema');
@@ -216,7 +235,9 @@ export async function verifyExactRevisionV8(input, adapters) {
             runtime: 'hatchable-v8',
             project,
             deployment_version: deployment.version,
+            source_normalization: HATCHABLE_TEXT_NORMALIZATION,
             source_manifest_sha256: manifestHash(desired),
+            runtime_manifest_sha256: manifestHash(desiredRuntime),
           },
         },
       };
