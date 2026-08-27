@@ -138,6 +138,7 @@ test('execution evidence store fences every durable source to the exact run', as
     async query(sql, params) {
       calls.push({ sql, params });
       if (/FROM orchestration_runs/i.test(sql)) return { rows: [{ run_id: 'run-1', status: 'finished' }] };
+      if (/FROM orchestration_horizons/i.test(sql)) return { rows: [{ horizon_id: 'h-1', run_id: 'run-1', generation: 1, candidates: [] }] };
       if (/FROM work_leases WHERE run_id/i.test(sql)) return { rows: [{ lease_id: 'lease-1', run_id: 'run-1', work_ref: 'WORK-1' }] };
       if (/work_lease_checkpoints/i.test(sql)) return { rows: [{ checkpoint_id: 'cp-1', lease_id: 'lease-1' }] };
       if (/work_lease_heartbeats/i.test(sql)) return { rows: [{ heartbeat_id: 'hb-1', lease_id: 'lease-1' }] };
@@ -150,6 +151,7 @@ test('execution evidence store fences every durable source to the exact run', as
   const store = createPostgresExecutionEvidenceStore(db);
   const source = await store.loadRunEvidence('run-1');
   assert.equal(source.run.run_id, 'run-1');
+  assert.equal(source.horizons.length, 1);
   assert.equal(source.leases.length, 1);
   assert.equal(source.checkpoints.length, 1);
   assert.equal(source.heartbeats.length, 1);
@@ -157,10 +159,11 @@ test('execution evidence store fences every durable source to the exact run', as
   assert.equal(source.resolutions.length, 1);
   assert.equal(source.verifications.length, 1);
 
+  const horizonCall = calls.find((call) => /orchestration_horizons/i.test(call.sql));
   const checkpointCall = calls.find((call) => /work_lease_checkpoints/i.test(call.sql));
   const heartbeatCall = calls.find((call) => /work_lease_heartbeats/i.test(call.sql));
   const resolutionCall = calls.find((call) => /orchestration_invocation_resolutions/i.test(call.sql));
-  for (const call of [checkpointCall, heartbeatCall, resolutionCall]) {
+  for (const call of [horizonCall, checkpointCall, heartbeatCall, resolutionCall]) {
     assert.match(call.sql, /run_id\s*=\s*\$1/i);
     assert.equal(call.params[0], 'run-1');
   }
@@ -172,6 +175,7 @@ test('verification receipts require exact execution attribution, never work-ref 
     async query(sql, params) {
       calls.push({ sql, params });
       if (/FROM orchestration_runs/i.test(sql)) return { rows: [{ run_id: 'run-verify' }] };
+      if (/FROM orchestration_horizons/i.test(sql)) return { rows: [] };
       if (/FROM work_leases WHERE run_id/i.test(sql)) return { rows: [{ lease_id: 'lease-v', run_id: 'run-verify', work_ref: 'WORK-SHARED' }] };
       if (/work_lease_checkpoints|work_lease_heartbeats|orchestration_invocation_resolutions/i.test(sql)) return { rows: [] };
       if (/FROM orchestration_command_invocations WHERE run_id/i.test(sql)) return { rows: [{ invocation_id: 'inv-v', run_id: 'run-verify', sequence: 1 }] };
