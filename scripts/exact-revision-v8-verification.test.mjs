@@ -72,3 +72,24 @@ test('refuses a verification project equal to production before source access', 
   await assert.rejects(verifyExactRevisionV8({...input,verification_project:'same',production_project:'same'},{source:{observe:async()=>{touched=true;return {}}},runtime:{}}),e=>e?.code==='VERIFICATION_RUNTIME_NOT_ISOLATED');
   assert.equal(touched,false);
 });
+
+test('attributes exact GitHub bytes while verifying Hatchable-stable trailing-whitespace normalization', async()=>{
+  const raw='x \n';
+  const rawHash=createHash('sha256').update(raw).digest('hex');
+  const runtimeContent='x';
+  const runtimeHash=createHash('sha256').update(runtimeContent).digest('hex');
+  let writes=null;
+  const result=await verifyExactRevisionV8(input,{
+    source:{observe:async()=>({repository,revision,files:[{path:'lib/example.js',content:raw,sha256:rawHash}]})},
+    runtime:{
+      inspect:async()=>({project:verification_project,version:7,files:[]}),
+      reconcile:async request=>{writes=request.writes;},
+      deploy:async()=>({version:8}),
+      inspectDeployment:async()=>({version:8,files:[{path:'lib/example.js',sha256:runtimeHash}]}),
+      runRegressions:async()=>green,
+    },
+  });
+  assert.deepEqual(writes,[{path:'lib/example.js',content:runtimeContent}]);
+  assert.equal(result.regression.execution.source_normalization,'hatchable-v8-text-v1');
+  assert.notEqual(result.regression.execution.source_manifest_sha256,result.regression.execution.runtime_manifest_sha256);
+});
