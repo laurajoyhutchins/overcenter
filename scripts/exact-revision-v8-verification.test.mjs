@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { hatchableMcpTransportConfig, verifyExactRevisionV8 } from './exact-revision-v8-verification.mjs';
+import { verifyExactRevisionV8 } from './exact-revision-v8-verification.mjs';
+import { hatchableMcpTransportConfig } from './exact-revision-v8-verification-http.mjs';
 
 const repository='laurajoyhutchins/overcenter';
 const revision='a'.repeat(40);
