@@ -40,4 +40,4 @@ jobs:
           HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
           OVERCENTER_HATCHABLE_VERIFICATION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_VERIFICATION_PROJECT }}
           OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
-        run: node scripts/exact-revision-v8-verification.mjs
+        run: node scripts/exact-revision-v8-verification-http.mjs
