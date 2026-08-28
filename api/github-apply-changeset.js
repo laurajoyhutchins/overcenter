@@ -2,6 +2,7 @@ import { db, storage } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { applyGithubChangesetRoleAware } from 'lib/github-branch-role-runtime.js';
 import { createPostgresExecutionAuthorityService } from 'lib/execution-authority.js';
+import { GitHubContentTransportError, expandGithubContentReferences, githubContentTransportErrorResult } from 'lib/github-content-transport.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
@@ -78,8 +79,12 @@ async function applyAuthorityAwareChangeset(commandInput) {
 export default async function (req, res) {
   let input;
   try {
-    input = await expandStagedContent(req.body || {});
+    const referenced = await expandGithubContentReferences(req.body || {}, { storage });
+    input = await expandStagedContent(referenced);
   } catch (error) {
+    if (error instanceof GitHubContentTransportError) {
+      return res.status(error.httpStatus || 422).json(githubContentTransportErrorResult(error));
+    }
     return res.status(422).json({ ok: false, error: error?.code || 'INVALID_REQUEST', message: String(error?.message || error) });
   }
   const response = await executeCorrelatedCommand(

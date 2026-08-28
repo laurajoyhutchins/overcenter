@@ -1,5 +1,7 @@
+import { storage } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { applyGithubChangesetRoleAware } from 'lib/github-branch-role-runtime.js';
+import { GitHubContentTransportError, expandGithubContentReferences, githubContentTransportErrorResult } from 'lib/github-content-transport.js';
 
 export const access = 'admin';
 
@@ -56,8 +58,9 @@ export default {
               if: { properties: { operation: { enum: ['create', 'update'] } }, required: ['operation'] },
               then: {
                 oneOf: [
-                  { required: ['content'], not: { required: ['content_gzip_base64'] } },
-                  { required: ['content_gzip_base64'], not: { required: ['content'] } },
+                  { required: ['content'], not: { anyOf: [{ required: ['content_ref'] }, { required: ['content_gzip_base64'] }] } },
+                  { required: ['content_ref'], not: { anyOf: [{ required: ['content'] }, { required: ['content_gzip_base64'] }] } },
+                  { required: ['content_gzip_base64'], not: { anyOf: [{ required: ['content'] }, { required: ['content_ref'] }] } },
                 ],
               },
             },
@@ -67,6 +70,7 @@ export default {
                 not: {
                   anyOf: [
                     { required: ['content'] },
+                    { required: ['content_ref'] },
                     { required: ['content_gzip_base64'] },
                     { required: ['ensure_final_newline'] },
                   ],
@@ -77,8 +81,9 @@ export default {
           properties: {
             path: { type: 'string', minLength: 1, maxLength: 4096 },
             operation: { type: 'string', enum: ['create', 'update', 'delete'] },
-            content: { type: 'string', description: 'Complete UTF-8 text. Provide exactly one of content or content_gzip_base64 for create/update; forbidden for delete.' },
-            content_gzip_base64: { type: 'string', description: 'Base64-encoded gzip containing complete UTF-8 text. Expanded before semantic normalization and idempotency hashing. Provide exactly one content transport for create/update; forbidden for delete.' },
+            content: { type: 'string', description: 'Complete canonical UTF-8 text. Preferred ordinary path. Overcenter owns any transport adaptation below this semantic boundary.' },
+            content_ref: { type: 'string', pattern: '^gct1_[A-Za-z0-9-]{8,64}$', description: 'Opaque temporary reference returned by github_prepare_changeset_content. Resolved to canonical UTF-8 before journaling, semantic normalization, and idempotency hashing.' },
+            content_gzip_base64: { type: 'string', description: 'Legacy compatibility transport for existing callers. Expanded before semantic normalization and idempotency hashing. New callers should provide content directly or use an opaque content_ref rather than manufacturing gzip/base64.' },
             ensure_final_newline: {
               type: 'boolean',
               description: 'For create/update, append a final LF only when content does not already end in LF. Use when an upstream text transport cannot preserve terminal newlines.',
@@ -108,10 +113,17 @@ export default {
     },
   },
   async handler(args, ctx) {
+    let input;
+    try {
+      input = await expandGithubContentReferences(args || {}, { storage });
+    } catch (error) {
+      if (error instanceof GitHubContentTransportError) return githubContentTransportErrorResult(error);
+      throw error;
+    }
     const response = await executeCorrelatedCommand(
       'github.apply_changeset',
-      args || {},
-      (input) => applyGithubChangesetRoleAware(input, { db: ctx.db }),
+      input,
+      (request) => applyGithubChangesetRoleAware(request, { db: ctx.db }),
       { flattenDetails: true, db: ctx.db },
     );
     return response.body;
