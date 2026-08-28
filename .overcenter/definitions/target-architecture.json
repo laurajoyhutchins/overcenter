@@ -1,0 +1,102 @@
+{
+  "schema": "overcenter-project-definition-v1",
+  "project_ref": "github:laurajoyhutchins/overcenter",
+  "transitions": [
+    {
+      "id": "define-project-definition-facts",
+      "priority": 120,
+      "requires": [],
+      "source": { "kind": "github_issue", "number": 61 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 61 }
+    },
+    {
+      "id": "register-project-graph-deriver",
+      "priority": 115,
+      "requires": ["define-project-definition-facts"],
+      "source": { "kind": "github_issue", "number": 60 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 60 }
+    },
+    {
+      "id": "bind-graph-mutation-authority",
+      "priority": 110,
+      "requires": ["register-project-graph-deriver"],
+      "source": { "kind": "github_issue", "number": 157 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 157 }
+    },
+    {
+      "id": "bind-targeted-execution",
+      "priority": 105,
+      "requires": ["register-project-graph-deriver", "bind-graph-mutation-authority"],
+      "source": { "kind": "github_issue", "number": 130 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 130 }
+    },
+    {
+      "id": "expose-orchestration-advance",
+      "priority": 100,
+      "requires": ["bind-targeted-execution"],
+      "source": { "kind": "github_issue", "number": 136 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 136 }
+    },
+    {
+      "id": "add-targeted-project-driver",
+      "priority": 95,
+      "requires": ["expose-orchestration-advance"],
+      "source": { "kind": "github_issue", "number": 137 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 137 }
+    },
+    {
+      "id": "add-semantic-project-authoring",
+      "priority": 90,
+      "requires": ["register-project-graph-deriver", "bind-graph-mutation-authority"],
+      "source": { "kind": "github_issue", "number": 220 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 220 }
+    },
+    {
+      "id": "generate-semantic-command-descriptor",
+      "priority": 85,
+      "requires": ["expose-orchestration-advance"],
+      "source": { "kind": "github_issue", "number": 204 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 204 }
+    },
+    {
+      "id": "retire-stage-lane-semantics",
+      "priority": 80,
+      "requires": ["add-targeted-project-driver"],
+      "source": { "kind": "github_issue", "number": 205 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 205 }
+    },
+    {
+      "id": "show-transition-first-status",
+      "priority": 75,
+      "requires": ["expose-orchestration-advance"],
+      "source": { "kind": "github_issue", "number": 206 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 206 }
+    },
+    {
+      "id": "reconcile-live-graph-revisions",
+      "priority": 70,
+      "requires": ["add-targeted-project-driver", "add-semantic-project-authoring"],
+      "source": { "kind": "github_issue", "number": 221 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 221 }
+    },
+    {
+      "id": "compact-agent-semantic-surface",
+      "priority": 65,
+      "requires": ["generate-semantic-command-descriptor", "retire-stage-lane-semantics", "show-transition-first-status"],
+      "source": { "kind": "github_issue", "number": 208 },
+      "executor": { "kind": "agent", "role": "implementation", "skill": "test-driven-development" },
+      "proof": { "kind": "github_issue_closed", "number": 208 }
+    }
+  ]
+}
