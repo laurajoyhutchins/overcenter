@@ -54,7 +54,7 @@ function normalizeRuntimeFiles(filesInput) {
     .map(file => ({
       path: String(file.path),
       hash: String(file.hash || file.sha256 || '').toLowerCase(),
-      size: Number(file.size),
+      size: file?.size === undefined || file?.size === null ? null : Number(file.size),
     }))
     .sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -95,7 +95,7 @@ function materializationReceipt({ project, repository, branch, revision, baseVer
   };
 }
 
-function verifyObservedMaterialization(filesInput, records, receiptContent) {
+function verifyObservedMaterialization(filesInput, records, receiptContent, { requireSize = true } = {}) {
   const files = normalizeRuntimeFiles(filesInput);
   const observed = new Map(files.map(file => [file.path, file]));
   const expectedPaths = new Set(records.map(record => record.path));
@@ -104,7 +104,7 @@ function verifyObservedMaterialization(filesInput, records, receiptContent) {
   for (const record of records) {
     const file = observed.get(record.path);
     if (!file) differences.push({ path: record.path, kind: 'missing_source_path' });
-    else if (file.hash !== record.hash || file.size !== record.size) differences.push({ path: record.path, kind: 'source_content_mismatch' });
+    else if (file.hash !== record.hash || (requireSize && file.size !== record.size)) differences.push({ path: record.path, kind: 'source_content_mismatch' });
   }
   for (const file of files) {
     if (isSyncableSourcePath(file.path) && !expectedPaths.has(file.path)) differences.push({ path: file.path, kind: 'unexpected_source_path' });
@@ -114,7 +114,7 @@ function verifyObservedMaterialization(filesInput, records, receiptContent) {
   const expectedReceiptHash = sha256(receiptContent);
   const expectedReceiptSize = byteSize(receiptContent);
   if (!receipt) differences.push({ path: SOURCE_MATERIALIZATION_RECEIPT_PATH, kind: 'receipt_missing' });
-  else if (receipt.hash !== expectedReceiptHash || receipt.size !== expectedReceiptSize) differences.push({ path: SOURCE_MATERIALIZATION_RECEIPT_PATH, kind: 'receipt_content_mismatch' });
+  else if (receipt.hash !== expectedReceiptHash || (requireSize && receipt.size !== expectedReceiptSize)) differences.push({ path: SOURCE_MATERIALIZATION_RECEIPT_PATH, kind: 'receipt_content_mismatch' });
 
   if (differences.length) reject('PRODUCTION_MATERIALIZATION_MISMATCH', 'production runtime source does not match the staged exact revision');
   return { source_manifest_sha256: sourceManifestSha256(records) };
@@ -149,14 +149,14 @@ export async function materializeProductionRevision(input = {}, adapters = {}) {
   await adapters.runtime.stage({ project, revision, expected_version: baseVersion, writes, deletes, receipt });
   const draft = await adapters.runtime.inspectDraft(project);
   if (normalizeVersion(draft?.version, 'draft version') !== baseVersion) reject('PRODUCTION_RUNTIME_VERSION_MISMATCH', 'production runtime version changed while staging');
-  verifyObservedMaterialization(draft.files, records, receiptContent);
+  verifyObservedMaterialization(draft.files, records, receiptContent, { requireSize: false });
 
   const deployed = await adapters.runtime.deploy({ project, revision, expected_version: baseVersion });
   const deployedVersion = normalizeVersion(deployed?.version, 'deployed version');
   if (deployedVersion !== baseVersion + 1) reject('PRODUCTION_DEPLOYMENT_VERSION_MISMATCH', 'production deployment must be the immediate successor');
   const immutable = await adapters.runtime.inspectDeployment({ project, version: deployedVersion });
   if (normalizeVersion(immutable?.version, 'immutable deployment version') !== deployedVersion) reject('PRODUCTION_DEPLOYMENT_VERSION_MISMATCH', 'immutable deployment observation returned the wrong version');
-  verifyObservedMaterialization(immutable.files, records, receiptContent);
+  verifyObservedMaterialization(immutable.files, records, receiptContent, { requireSize: true });
 
   const regression = await adapters.runtime.runRegressions({ project, deployment_version: deployedVersion, revision });
   if (!regression || regression.schema !== 'regression-verification-v1') reject('PRODUCTION_REGRESSION_INVALID', 'production regressions returned an invalid schema');
