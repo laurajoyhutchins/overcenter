@@ -1,0 +1,35 @@
+name: Production materialization
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: overcenter-production-materialization
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install MCP client for this run
+        run: npm install --no-save --package-lock=false @modelcontextprotocol/client@2
+      - name: Materialize exact production revision
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          EXACT_REVISION: ${{ github.sha }}
+          PRODUCTION_BRANCH: main
+          HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
+          OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
+        run: node scripts/production-materialization-http.mjs
