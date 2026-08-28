@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const revision = 'a'.repeat(40);
@@ -64,4 +65,14 @@ test('materializes the exact production revision and proves the immutable deploy
   assert.equal(receipt.base_hatchable_version, 12);
   assert.equal(receipt.target_hatchable_version, 13);
   assert.equal(receipt.source_path_count, 1);
+});
+
+test('production branch updates are serialized into the production materialization driver', () => {
+  const workflowUrl = new URL('../.github/workflows/production-materialization.yml', import.meta.url);
+  assert.equal(existsSync(workflowUrl), true, 'production materialization workflow is missing');
+  const workflow = readFileSync(workflowUrl, 'utf8');
+  assert.match(workflow, /branches:\s*\[main\]/);
+  assert.match(workflow, /group:\s*overcenter-production-materialization/);
+  assert.match(workflow, /cancel-in-progress:\s*false/);
+  assert.match(workflow, /node scripts\/production-materialization-http\.mjs/);
 });
