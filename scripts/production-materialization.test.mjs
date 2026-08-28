@@ -118,3 +118,43 @@ test('remote production adapter fences, stages, deploys, and reads immutable fil
     'get_deployment', 'run_function',
   ]);
 });
+
+test('rejects a non-production branch before source access', async () => {
+  const { materializeProductionRevision } = await import('./production-materialization.mjs');
+  let touched = false;
+  await assert.rejects(
+    materializeProductionRevision(
+      { repository, revision, branch: 'dev', production_project: 'production-slot' },
+      { source: { observe: async () => { touched = true; return {}; } }, runtime: {} },
+    ),
+    error => error?.code === 'INVALID_PRODUCTION_BRANCH',
+  );
+  assert.equal(touched, false);
+});
+
+test('rejects immutable deployment drift before production regression certification', async () => {
+  const { materializeProductionRevision } = await import('./production-materialization.mjs');
+  let staged = null;
+  let regressionsRan = false;
+  const adapters = {
+    source: {
+      observe: async () => ({ repository, revision, files: [{ path: 'api/example.js', content: 'x\n' }] }),
+    },
+    runtime: {
+      inspect: async () => ({ project: 'production-slot', version: 20, files: [] }),
+      stage: async request => { staged = manifestFromWrites(request.writes); },
+      inspectDraft: async () => ({ project: 'production-slot', version: 20, files: staged }),
+      deploy: async () => ({ version: 21 }),
+      inspectDeployment: async () => ({
+        version: 21,
+        files: staged.map(file => file.path === 'api/example.js' ? { ...file, hash: 'f'.repeat(64) } : file),
+      }),
+      runRegressions: async () => { regressionsRan = true; return { ok: true, schema: 'regression-verification-v1', failed: 0 }; },
+    },
+  };
+  await assert.rejects(
+    materializeProductionRevision({ repository, revision, branch: 'main', production_project: 'production-slot' }, adapters),
+    error => error?.code === 'PRODUCTION_MATERIALIZATION_MISMATCH',
+  );
+  assert.equal(regressionsRan, false);
+});
