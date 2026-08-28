@@ -1,698 +1,787 @@
-# Overcenter Recovery Kernel Implementation Plan
+# Overcenter Recovery Kernel and Self-Healing Architecture
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
+**Status:** Approved design  
+**Date:** 2026-08-27  
+**Authority:** GitHub issue #193  
+**Scope:** Recovery, diagnosis, health, and bounded automated healing for Overcenter itself
 
-**Goal:** Turn Overcenter's existing recovery evidence and deterministic maintenance machinery into a bounded recovery kernel that can package novel faults, mechanically heal known-safe faults, evaluate explicit health invariants, and quarantine only affected mutation domains.
+## Summary
 
-**Architecture:** Extend the existing orchestration journal with execution-time runtime provenance. Build a read-only fault-packet assembler over `orchestration.diagnose`, `orchestration.resume_packet`, the journal, leases/checkpoints, receipts, and fresh authority reads. Add a recovery executor whose server-owned registry can invoke only existing approved semantic recovery operations and must prove healing by readback. Add a three-valued health invariant registry, then fault-domain quarantine and scheduled deterministic healing.
+Overcenter already preserves much of the evidence needed to recover safely from faults: correlated command invocations, bounded request/result projections, idempotency identities, mutation-certainty flags, work leases, durable checkpoints, run receipts, typed failure classification, resume packets, deterministic maintenance, and domain-specific reconciliation receipts.
 
-**Tech Stack:** JavaScript ES modules in Hatchable V8 runtime, PostgreSQL migrations and `db` binding, existing command-response/orchestration journal framework, Overcenter MCP/API semantic surfaces, GitHub App adapters, Node `assert`-style repository regression suites.
+The remaining problem is compositional. Known coordination failures are often mechanically recoverable, but a fresh agent encountering a novel fault still has to reconstruct the causal chain across multiple surfaces. The system is recoverable, but debugging still consumes too much agent context and judgment.
 
-**Spec:** `docs/superpowers/specs/2026-08-27-overcenter-recovery-kernel-design.md`
+This design adds a thin **recovery kernel** over existing primitives. It does not create a second incident authority and it does not replace `orchestration.diagnose`, `orchestration.resume_packet`, `orchestration.maintain`, the command journal, or domain reconcilers.
 
-**Global Constraints:**
-- GitHub remains source authority; Hatchable remains runtime authority; Overcenter owns orchestration/recovery evidence; Linear remains projection only.
-- Do not create a second incident authority or generic logging framework.
-- Do not persist lease tokens, credentials, raw prompts, arbitrary provider objects, or source blobs in fault evidence.
-- `unknown` is distinct from `satisfied` and `violated`.
-- Never blindly retry an invocation with `may_have_mutated:true`.
-- Automatic recovery cannot choose semantic dispositions or resolve authority conflicts.
-- Automatic recovery is bounded by the existing maximum recovery-attempt policy.
-- A recovery command succeeding is insufficient for `HEALED`; fresh authoritative readback must prove the affected invariant.
-- Reuse `orchestration.diagnose`, `orchestration.resume_packet`, `orchestration.maintain`, domain receipts, branch roles, and production reconciliation primitives instead of replacing them.
-- Keep the implementation slices independently reviewable and mergeable.
+The recovery kernel has four responsibilities:
 
----
+1. preserve exact runtime/software provenance with each command invocation;
+2. assemble deterministic fault packets from existing evidence;
+3. execute only pre-authorized deterministic recovery operations within a bounded budget;
+4. evaluate explicit health invariants and quarantine only the affected fault domain when automated recovery cannot safely converge.
 
-## Task 1: Persist execution-time runtime provenance on journal invocations
-
-**Files:**
-- Create: `migrations/053_orchestration_invocation_runtime_provenance.sql`
-- Create: `lib/orchestration-runtime-provenance.js`
-- Create: `lib/orchestration-runtime-provenance.test.js`
-- Modify: `lib/orchestration-journal.js`
-- Modify: `lib/regression-suite-registry.js`
-
-### Behavior
-
-`orchestration_command_invocations` gains a nullable `runtime_provenance jsonb` column. New invocations capture a bounded provenance projection before the semantic operation executes.
-
-The service must expose a shape equivalent to:
-
-```js
-{
-  source_commit: string | null,
-  production_version: string | null,
-  runtime_integrity: 'verified' | 'unverified' | 'indeterminate' | 'unknown',
-  worker_transport_revision: string | null,
-  contract_revisions: {
-    project_instructions: string | null,
-    fast_forward_skill: string | null,
-    execution_ownership_skill: string | null,
-  },
-}
-```
-
-Historical rows without the column value read as `{ status: 'historical_unknown' }` at projection time.
-
-### Steps
-
-- [ ] **Write failing provenance regression**
-
-In `lib/orchestration-runtime-provenance.test.js`, create a deterministic fake provenance provider and assert:
-
-```js
-const projection = normalizeRuntimeProvenance({
-  source_commit: 'a'.repeat(40),
-  production_version: '356',
-  runtime_integrity: 'verified',
-  worker_transport_revision: 'worker-transport-v2',
-  contract_revisions: { project_instructions:'p1', fast_forward_skill:'f1', execution_ownership_skill:'e1' },
-  lease_token: 'must-not-survive',
-  authorization: 'must-not-survive',
-});
-
-assert.deepEqual(projection, {
-  source_commit: 'a'.repeat(40),
-  production_version: '356',
-  runtime_integrity: 'verified',
-  worker_transport_revision: 'worker-transport-v2',
-  contract_revisions: { project_instructions:'p1', fast_forward_skill:'f1', execution_ownership_skill:'e1' },
-});
-```
-
-Also assert invalid SHAs, oversized strings, and unknown integrity states fail closed or normalize to explicit `unknown` according to the helper contract.
-
-- [ ] **Add migration**
-
-`migrations/053_orchestration_invocation_runtime_provenance.sql`:
-
-```sql
-ALTER TABLE orchestration_command_invocations
-ADD COLUMN IF NOT EXISTS runtime_provenance jsonb;
-```
-
-Do not backfill historical rows.
-
-- [ ] **Implement provenance helper**
-
-`lib/orchestration-runtime-provenance.js` should:
-- use an explicit allowlist;
-- derive contract revisions from stored run provenance when a `run_id` exists;
-- obtain production/source identity from the existing verified runtime-source/materialization evidence surface;
-- return explicit unknowns if the identity cannot be proven;
-- never read current `dev` and pretend it is execution provenance.
-
-Dependency injection should allow tests to supply runtime/source observations without external calls.
-
-- [ ] **Capture provenance in the journal**
-
-In `lib/orchestration-journal.js`, extend `journal.start(...)` to accept `runtime_provenance`.
-
-In `executeCorrelatedCommand(...)`, resolve provenance before `journal.start(...)`, then persist it with the invocation. Provenance lookup failure must not fabricate a value. If the command is effecting and existing runtime-source integrity policy requires verified source, preserve that existing fail-closed behavior.
-
-- [ ] **Add journal read projection**
-
-When journal invocations are exposed through recovery services, include only the safe bounded runtime provenance projection.
-
-- [ ] **Run focused regression**
-
-Run the repository regression entry for runtime provenance plus the existing orchestration journal suite. Expected: all pass.
-
-- [ ] **Run canonical regression suite**
-
-Expected: no existing command-response, journal, lease, or evidence regressions change semantics.
-
----
-
-## Task 2: Add deterministic `orchestration.fault_packet`
-
-**Files:**
-- Create: `lib/orchestration-fault-packet.js`
-- Create: `lib/orchestration-fault-packet.test.js`
-- Create: `mcp/orchestration.fault_packet.js`
-- Create: `api/orchestration/fault-packet.js`
-- Modify: `lib/orchestration-recovery.js`
-- Modify: `lib/orchestration-journal.js`
-- Modify: `lib/regression-suite-registry.js`
-
-### Behavior
-
-Input:
-
-```json
-{ "run_id": "run-123", "invocation_id": "optional-uuid" }
-```
-
-Output schema: `orchestration-fault-packet-v1`.
-
-The service is read-only and composes current recovery evidence. It does not create an incident row and does not call AI.
-
-### Steps
-
-- [ ] **Write failing packet assembly test**
-
-Create fixtures with:
-- one successful command;
-- one failed command with `REQUEST_INVALID`;
-- captured runtime provenance;
-- no active lease;
-- current authoritative work observation.
-
-Assert packet includes:
-- stable faulting invocation identity;
-- preceding successful invocation;
-- failure state and mutation certainty;
-- exact captured runtime provenance;
-- authority observations;
-- `safe_to_execute:false` for unknown failure;
-- `requires_reasoning:true`;
-- no invented root cause.
-
-- [ ] **Write stable identity test**
-
-Call the assembler twice with different `observed_at` timestamps and assert `fault_id` is unchanged.
-
-Derive the identity from canonical durable fields such as:
-
-```js
-{
-  run_id,
-  invocation_id,
-  result_sha256,
-  outcome,
-  runtime_provenance,
-}
-```
-
-Do not include observation time.
-
-- [ ] **Write read-only recursion test**
-
-Ensure fault-packet inspection does not journal itself into the run being inspected. Extend the existing journal exclusion currently used for `orchestration.diagnose` and `orchestration.resume_packet`.
-
-- [ ] **Implement assembler**
-
-`lib/orchestration-fault-packet.js` should depend on narrow readers/services:
-- diagnosis service;
-- resume-packet service;
-- journal invocation reader;
-- lease/checkpoint reader;
-- domain receipt readers;
-- authoritative readers selected by the classified failure.
-
-Reuse the public bounded projections already exposed by recovery code rather than hydrating raw database/provider rows.
-
-- [ ] **Add MCP command**
-
-`mcp/orchestration.fault_packet.js`:
-- `access = 'admin'`;
-- required `run_id`;
-- optional `invocation_id`;
-- `additionalProperties:false`;
-- command response envelope consistent with other orchestration reads.
-
-- [ ] **Add HTTP compatibility endpoint**
-
-`api/orchestration/fault-packet.js` should route through the same semantic implementation, not duplicate packet logic.
-
-- [ ] **Register and run regressions**
-
-Add `orchestration_fault_packet` to `lib/regression-suite-registry.js`, run focused suite, then canonical suite.
-
----
-
-## Task 3: Add bounded `orchestration.recover`
-
-**Files:**
-- Create: `lib/orchestration-recovery-operations.js`
-- Create: `lib/orchestration-recover.js`
-- Create: `lib/orchestration-recover.test.js`
-- Create: `mcp/orchestration.recover.js`
-- Create: `api/orchestration/recover.js`
-- Modify: `lib/orchestration-failures.js`
-- Modify: `lib/regression-suite-registry.js`
-
-### Behavior
-
-Input:
-
-```json
-{ "run_id": "run-123" }
-```
-
-The caller does not provide a recovery recipe.
-
-Return one of:
+The intended operator and agent experience is:
 
 ```text
-HEALED
-ESCALATION_REQUIRED
-RECOVERY_FAILED
-NO_ACTIVE_FAULT
+normal execution
+      |
+      v
+    fault
+      |
+      v
+orchestration.recover
+      |
+      +--> known + safe --> recover --> authoritative readback --> healed
+      |
+      +--> ambiguous/new --> fault packet --> narrow quarantine --> reasoning
 ```
 
-with a bounded attempt trace and a fault packet when recovery stops.
+A fresh agent should not need to know which database table contains a lease receipt, which retry identity was used, which Hatchable deployment executed the command, or which authority must be reread. Overcenter should package those facts and exhaust deterministic recovery before asking an agent to reason.
 
-### Steps
+## Goals
 
-- [ ] **Write registry test for allowed operations**
+- Make recovery from known faults mechanical and bounded.
+- Give novel faults enough causal context for a fresh agent to investigate without reconstructing the system from scratch.
+- Preserve evidence before claims: every `healed` result must be proven by fresh authoritative readback.
+- Keep `unknown` distinct from both healthy and failed.
+- Preserve exact mutation certainty. An indeterminate external effect must never be blindly retried.
+- Capture the runtime/source revision that executed a command at execution time, rather than reconstructing it from current state later.
+- Isolate faults by domain so a narrow failure does not disable unrelated work.
+- Reuse existing diagnosis, resume, maintenance, receipts, branch roles, production promotion/materialization, and scheduled reconciliation machinery.
+- Keep deterministic software responsible for repeated recovery choreography. Use reasoning only where facts do not determine a safe action.
 
-Initial registry entries:
-- `STALE_LEASE` -> `orchestration.maintain`;
-- safe `TRANSPORT_UNAVAILABLE` with `may_have_mutated:false` -> exact same semantic request, bounded by classifier budget;
-- `HEARTBEAT_BUDGET_EXHAUSTED` only when durable checkpoint + lease reference already permit canonical `work.settle` requeue;
-- `INDETERMINATE_EXTERNAL_EFFECT` -> reconciliation operation only, never mutation replay.
+## Non-goals
 
-Assert unknown failure has no automatic executor.
+- A generic incident-management platform.
+- A second log store containing copies of GitHub, Linear, or Hatchable state.
+- Automatic semantic decisions such as choosing `completed` versus `requeue` versus `blocked`.
+- Automatic rollback of source or external authority.
+- Unlimited retries.
+- AI-generated root-cause claims inside the recovery kernel.
+- Treating current repository source as evidence of what code executed in a historical fault.
+- Hiding unresolved authority conflicts behind a green health status.
 
-- [ ] **Write semantic-decision stop test**
+## Authority boundaries
 
-Fixture: `ACTIVE_LEASE_REMAINS` where `orchestration.finish` requires `active_lease_settlement.disposition`.
+The recovery kernel does not change Overcenter's existing authority model.
 
-Assert:
+| Concern | Authority |
+| --- | --- |
+| Repository contents, refs, commits, pull requests, releases | GitHub |
+| Orchestration runs, leases, journals, checkpoints, recovery receipts | Overcenter |
+| Runtime/deployment state | Hatchable |
+| Executable work projection | Linear, while that projection remains configured |
+| Runtime source identity | Exact GitHub revision bound to verified Hatchable deployment evidence |
+| Recovery decisions | Deterministic Overcenter policy when facts fully determine a safe action; reasoning/operator otherwise |
 
-```js
-result.status === 'ESCALATION_REQUIRED'
-result.required_decisions.includes('active_lease_settlement.disposition')
+Derived recovery data is evidence, not a competing authority.
+
+## Existing substrate
+
+The design is intentionally additive.
+
+### `orchestration.diagnose`
+
+`orchestration.diagnose` already combines durable run state, recent failures, lease/checkpoint state, current authoritative work state, repeated recovery count, typed failure classification, recovery operation, worker state, and escalation boundary.
+
+It remains the canonical **failure classifier**.
+
+### `orchestration.resume_packet`
+
+`orchestration.resume_packet` already reconstructs the smallest mechanically safe continuation state and distinguishes continuations including:
+
+- `recover_active_lease`
+- `retry_same_request`
+- `reconcile_authority`
+- `recompute_frontier`
+- `owner_action_required`
+- `terminal_or_quiescent`
+
+It remains the canonical **continuation reconstruction** surface.
+
+### `orchestration.maintain`
+
+`orchestration.maintain` already performs bounded deterministic cleanup of expired/stuck coordination state and resolvable journal residue without selecting or semantically editing work.
+
+It remains a narrow **coordination janitor**, not a general healer.
+
+### Command journal and receipts
+
+The command journal already records correlated command identity, bounded request/result projections, outcome, error code, retryability, rejection, idempotency identity, target, and `may_have_mutated`. Domain receipts preserve stronger mutation-specific evidence where required.
+
+They remain the canonical evidence substrate.
+
+## Architecture
+
+```text
+                 authoritative systems
+             GitHub / Hatchable / Linear
+                       ^       |
+                       | reads |
+                       |       v
++------------------------------------------------------+
+|                  Recovery kernel                     |
+|                                                      |
+|  runtime provenance                                  |
+|         |                                            |
+|         v                                            |
+|  fault packet <--- diagnose + resume + journal       |
+|         |                 + receipts + readback      |
+|         v                                            |
+|  recover executor ---> approved recovery registry    |
+|         |                       |                    |
+|         v                       v                    |
+|  fresh diagnosis/readback     domain reconcilers     |
+|         |                                            |
+|         v                                            |
+|  health invariants ---> quarantine / healed          |
++------------------------------------------------------+
+             ^                         |
+             |                         v
+         agents/operators        scheduled healing
 ```
 
-and no settlement command was invoked.
+The layer is intentionally asymmetric:
 
-- [ ] **Write indeterminate-effect test**
+- evidence may flow into the kernel from many authoritative sources;
+- the kernel may mutate only through existing semantic/domain operations;
+- a fault packet itself is read-only;
+- a recovery executor cannot invent a semantic decision.
 
-Fixture `may_have_mutated:true`.
+## 1. Runtime provenance on command invocations
 
-Assert exact retry executor invocation count is zero until an authoritative reconciler proves the effect absent.
+### Problem
 
-- [ ] **Write bounded retry test**
+A fault packet must identify the software that actually executed the faulting command. Looking at current `dev`, current `main`, or the current Hatchable deployment later is insufficient because those coordinates can move after the fault.
 
-Return the same recoverable transport failure repeatedly. Assert at most `MAX_AUTOMATIC_RECOVERY_ATTEMPTS` are executed and the final state is `RECOVERY_FAILED`.
+### Required provenance
 
-- [ ] **Write healing readback test**
+Every journaled command invocation must capture a bounded immutable projection such as:
 
-Make the operation return success but leave diagnosis/invariant state violated. Assert the result is not `HEALED`.
-
-Then make the post-operation authority read converge and assert `HEALED`.
-
-- [ ] **Implement server-owned operation registry**
-
-`lib/orchestration-recovery-operations.js` maps typed failure states to internal executors. The registry receives canonical recovery details from classification/resume evidence. It must not accept arbitrary command names from the caller.
-
-- [ ] **Implement recover loop**
-
-`lib/orchestration-recover.js`:
-1. diagnose;
-2. return `NO_ACTIVE_FAULT` if none;
-3. resolve registry operation;
-4. stop if automatic recovery is disallowed;
-5. execute one attempt;
-6. re-diagnose and perform required readback;
-7. repeat only while same safe class remains and budget remains;
-8. return fault packet on stop.
-
-- [ ] **Add MCP and HTTP surfaces**
-
-Follow existing command-response and admin access patterns.
-
-- [ ] **Register and run regressions**
-
-Focused recovery suite first, then canonical regressions.
-
----
-
-## Task 4: Introduce the three-valued health invariant registry
-
-**Files:**
-- Create: `lib/overcenter-health.js`
-- Create: `lib/overcenter-health.test.js`
-- Create: `mcp/overcenter.health.js`
-- Create: `api/overcenter/health.js`
-- Modify: `lib/orchestration-runs.js`
-- Modify: `lib/scheduled-cycle-completeness.js`
-- Modify: `lib/regression-suite-registry.js`
-
-### Behavior
-
-Every evaluator returns:
-
-```js
+```json
 {
-  key,
-  status: 'satisfied' | 'violated' | 'unknown',
-  fault_domain,
-  severity: 'info' | 'degraded' | 'blocked',
-  observed_at,
-  evidence,
-  automatic_recovery_allowed,
-  recovery_operation,
+  "source_commit": "40-char Git SHA or null",
+  "production_version": "immutable Hatchable deployment version or null",
+  "runtime_integrity": "verified | unverified | indeterminate",
+  "worker_transport_revision": "worker-transport-v2",
+  "contract_revisions": {
+    "project_instructions": "revision or null",
+    "fast_forward_skill": "revision or null",
+    "execution_ownership_skill": "revision or null"
+  }
 }
 ```
 
-Initial invariants should reuse existing queries rather than introduce duplicate scans.
+The exact field names may follow existing runtime-source integrity terminology, but the semantics are fixed:
 
-### Steps
+- provenance is captured when the invocation begins;
+- historical invocation provenance is never rewritten to current values;
+- unknown provenance is represented explicitly as `null`/`unknown`;
+- secrets, lease capability material, raw prompts, source blobs, and arbitrary provider objects are excluded;
+- the projection is bounded and deterministic.
 
-- [ ] **Write three-valued state tests**
+### Storage
 
-Assert:
-- positive proof -> `satisfied`;
-- positive contradiction -> `violated`;
-- authority/read failure -> `unknown`.
+Add runtime provenance to `orchestration_command_invocations` rather than creating a parallel fault log.
 
-Assert aggregate cannot be `healthy` if any required invariant is `unknown`.
+Historical rows remain valid and read as `historical_unknown` when the new field is absent.
 
-- [ ] **Implement coordination evaluators**
+### Relationship to runtime-source integrity
 
-Reuse the data behind `orchestration.status` for:
-- expired active slots;
-- stuck claiming leases;
-- stuck settling leases;
-- unresolved indeterminate effects;
-- overdue active runs.
+Runtime provenance does not itself prove that mutable Hatchable workspace state is safe. It records the integrity state observed by the executing boundary. Where runtime-source integrity is not proven, effecting semantic commands should continue to fail closed under the runtime-source integrity work.
 
-Refactor shared query/read logic out of `lib/orchestration-runs.js` only as needed; keep `orchestration.status` backward-compatible.
+## 2. Deterministic fault packets
 
-- [ ] **Implement scheduled execution evaluators**
+### Command
 
-Reuse `lib/scheduled-cycle-completeness.js` projections for scheduler/cycle recency. Missing scheduler evidence must return `unknown` when the platform cannot be read, not `violated`.
+```text
+orchestration.fault_packet({
+  run_id,
+  invocation_id?   // optional exact fault coordinate
+})
+```
 
-- [ ] **Implement aggregate**
+This command is read-only.
 
-Suggested aggregate:
-- `healthy`: all required invariants satisfied;
-- `degraded`: at least one required invariant unknown, or non-blocking invariant violated;
-- `blocked`: blocking invariant violated/quarantined.
+### Purpose
 
-Return the complete invariant list with evidence.
+A fault packet is the smallest bounded causal object a fresh agent needs to troubleshoot a fault.
 
-- [ ] **Add MCP and HTTP reads**
+It is assembled from current durable evidence. It does not contain an AI-generated diagnosis.
 
-Both are read-only. Ensure they do not recursively alter the run/journal being diagnosed.
+### Inputs
 
-- [ ] **Register and run regressions**
+- `run_id` is required.
+- `invocation_id` is optional. If omitted, use the currently active/latest relevant failure selected using the same evidence ordering used by diagnosis.
 
-Focused health suite and existing orchestration status/scheduled-cycle suites, then canonical regressions.
+### Output shape
 
----
+```json
+{
+  "ok": true,
+  "schema": "orchestration-fault-packet-v1",
+  "fault_id": "sha256 of canonical packet identity",
+  "run_id": "...",
+  "observed_at": "...",
 
-## Task 5: Add GitHub and production convergence invariants
+  "classification": {
+    "failure_state": "STALE_LEASE",
+    "error_code": "LEASE_EXPIRED",
+    "may_have_mutated": false,
+    "automatic_recovery_allowed": true,
+    "escalation_required": false
+  },
 
-**Files:**
-- Create: `lib/production-convergence.js`
-- Create: `lib/production-convergence.test.js`
-- Modify: `lib/overcenter-health.js`
-- Modify: `lib/repository-branch-roles.js`
-- Modify: `lib/github-production-promotion.js`
-- Modify: `lib/source-materialization.js` or the current production source-materialization module identified by repository search before editing
-- Modify: `lib/regression-suite-registry.js`
+  "software": {
+    "source_commit": "...",
+    "production_version": "...",
+    "runtime_integrity": "verified",
+    "worker_transport_revision": "..."
+  },
 
-### Behavior
+  "causal_chain": {
+    "last_successful_command": {},
+    "faulting_command": {},
+    "recovery_failure_count": 0
+  },
 
-Add invariants:
+  "execution": {
+    "run": {},
+    "active_lease": null,
+    "latest_lease": {},
+    "checkpoint": {}
+  },
+
+  "authority": {
+    "observations": []
+  },
+
+  "recovery": {
+    "operation": {},
+    "safe_to_execute": true,
+    "requires_reasoning": false,
+    "required_decisions": []
+  },
+
+  "evidence": []
+}
+```
+
+### Assembly rules
+
+The fault packet service composes, rather than duplicates:
+
+1. `orchestration.diagnose`;
+2. `orchestration.resume_packet`;
+3. the exact journal invocation and preceding success;
+4. latest lease/checkpoint state;
+5. command/domain receipts keyed by invocation/idempotency identity when relevant;
+6. runtime provenance captured on the invocation;
+7. fresh authoritative observations required by the failure class.
+
+The packet must never read a current source coordinate and present it as historical execution provenance.
+
+### Identity
+
+`fault_id` is derived from a canonical bounded identity including at least:
+
+- run ID;
+- faulting invocation ID;
+- faulting invocation result hash/outcome;
+- captured runtime provenance identity.
+
+Repeated inspection of the same durable fault returns the same fault identity even when `observed_at` changes.
+
+No persistent `faults` table is required initially.
+
+## 3. Bounded recovery executor
+
+### Command
+
+```text
+orchestration.recover({ run_id })
+```
+
+The caller expresses only recovery intent. It does not provide retry identities, lease tokens, observed branch heads, or a handwritten recovery recipe.
+
+### Core loop
+
+```text
+diagnose
+   |
+   v
+known deterministic recovery?
+   | no
+   +------> fault_packet --> stop
+   |
+  yes
+   v
+execute registered semantic recovery
+   |
+   v
+fresh diagnosis + authoritative readback
+   |
+   +--> invariant restored --> HEALED
+   |
+   +--> still same fault and budget remains --> repeat
+   |
+   +--> changed/ambiguous/exhausted --> fault_packet --> stop
+```
+
+### Recovery registry
+
+The executor uses an explicit server-owned registry mapping typed recovery classes to narrow operations.
+
+Initial safe cases should reuse current classifier semantics:
+
+| Failure | Deterministic recovery |
+| --- | --- |
+| stale/orphaned/expired lease | `orchestration.maintain` |
+| transport unavailable with `may_have_mutated:false` | exact bounded retry of original semantic request |
+| claim authority revision changed | re-observe authority and retry canonical `work.claim` when the classifier proves this is safe |
+| heartbeat budget exhausted with durable checkpoint and lease reference | canonical `work.settle` requeue using `resume_progress` |
+| unresolved effect with known domain reconciler | reconcile authoritative effect; do not replay mutation first |
+
+### Hard stop cases
+
+Recovery must stop and emit a fault packet when:
+
+- `may_have_mutated:true` and the authoritative effect is not reconciled;
+- the operation requires a semantic decision;
+- authority reads conflict;
+- required evidence is absent;
+- the fault class is unknown;
+- recovery attempts reach the configured maximum;
+- the failure changes into a class that is not registered for automatic recovery;
+- runtime source integrity is not verified for an effecting operation.
+
+### Semantic decisions are never guessed
+
+Examples:
+
+- An active lease preventing run finish may require a settlement disposition. The recovery kernel may identify the required field, but cannot choose `completed`, `requeue`, or `blocked`.
+- An authority conflict may identify both observed states, but cannot decide which authority should be edited.
+- A policy rejection is not turned into a policy override.
+
+### Recovery budget
+
+The existing bounded automatic recovery policy remains authoritative. The initial maximum is three attempts for a repeated recoverable class.
+
+Recovery attempts are correlated in the command journal and visible in the final fault packet.
+
+### Proof of healing
+
+A recovery operation succeeding is not enough.
+
+`HEALED` requires:
+
+1. fresh diagnosis no longer reports the original active failure;
+2. all directly affected health invariants evaluate `satisfied`;
+3. required external authority is reread at a post-recovery revision;
+4. no unresolved journal effect remains for the recovery operation.
+
+## 4. Explicit health invariants
+
+### Command
+
+```text
+overcenter.health({
+  scope?  // optional bounded repository/domain scope
+})
+```
+
+This is read-only.
+
+The existing `orchestration.status` remains useful operational telemetry. `overcenter.health` adds semantic invariant evaluation rather than replacing the status surface.
+
+### Invariant result contract
+
+Every health evaluator returns the same bounded shape:
+
+```json
+{
+  "key": "coordination.no_stale_leases",
+  "status": "satisfied | violated | unknown",
+  "fault_domain": "work-acquisition",
+  "severity": "info | degraded | blocked",
+  "observed_at": "...",
+  "evidence": [],
+  "automatic_recovery_allowed": true,
+  "recovery_operation": {}
+}
+```
+
+### Three-valued state is mandatory
+
+`unknown` is not a softer `violated`, and it is never treated as `satisfied`.
+
+Examples:
+
+- GitHub unavailable while checking `production.main_is_verified` -> `unknown`.
+- Main known not to equal the verified production coordinate -> `violated`.
+- Exact readback proves equality -> `satisfied`.
+
+### Initial invariant families
+
+#### Coordination
+
+- `coordination.no_expired_active_slots`
+- `coordination.no_stuck_claiming_leases`
+- `coordination.no_stuck_settling_leases`
+- `coordination.no_unresolved_indeterminate_effects`
+- `coordination.no_overdue_active_runs`
+
+These should reuse existing `orchestration.status`/maintenance queries where possible.
+
+#### Scheduled execution
+
+- `workers.scheduler_firing`
+- `workers.cycle_reconciliation_current`
+
+Use Hatchable scheduling evidence and scheduled-cycle receipts, not agent memory.
+
+#### Repository integration
+
 - `github.branch_roles_valid`
 - `github.development_policy_valid`
 - `github.production_policy_valid`
+
+Use GitHub as authority.
+
+#### Production convergence
+
 - `production.candidate_verified`
 - `production.main_matches_verified_candidate`
 - `production.runtime_matches_main`
 - `production.runtime_regression_verified`
 
-### Steps
+These are described below.
 
-- [ ] **Locate the current production materialization implementation**
+### Aggregate health
 
-Before editing, search the exact current `dev` revision for the module that owns production source-materialization receipts. Use that actual module in place of the descriptive `lib/source-materialization.js` path above if the name differs. Do not create a parallel materialization service.
+Overall health is derived mechanically:
 
-- [ ] **Write exact-coordinate convergence fixture**
+- `healthy` only when all required invariants are `satisfied`;
+- `degraded` when at least one required invariant is `unknown` or a non-blocking invariant is violated;
+- `blocked` when a blocking invariant is violated or quarantined.
 
-Fixture:
-- stored development branch `dev`;
-- stored production branch `main`;
-- verified candidate SHA `a...`;
-- GitHub main SHA `a...`;
-- materialization receipt SHA `a...`;
-- immutable Hatchable deployment receipt SHA `a...`;
-- canonical regression success.
+The aggregate must retain per-invariant evidence. It may not collapse an unknown authority read into a green boolean.
 
-Assert all production invariants are satisfied.
+## 5. Production convergence as a recoverable invariant
 
-- [ ] **Write drift fixture**
+Overcenter's current source/runtime path is:
 
-Change runtime receipt SHA only. Assert:
-- `production.runtime_matches_main` is violated;
-- other proven coordinates remain satisfied;
-- recovery operation identifies the existing production materialization/reconciliation path.
-
-- [ ] **Write authority-unavailable fixture**
-
-Make GitHub/Hatchable observation throw. Assert affected invariant is `unknown`, not violated.
-
-- [ ] **Implement convergence reader**
-
-`lib/production-convergence.js` reads:
-- repository branch-role binding;
-- exact GitHub heads;
-- existing promotion receipt;
-- existing materialization/deployment receipt;
-- immutable deployment verification/regression receipt.
-
-It must not infer deployment identity from mutable Hatchable workspace state.
-
-- [ ] **Integrate with health**
-
-Map each failed/unknown observation to a narrow `production:<repo>` or `github-mutation:<repo>` fault domain.
-
-- [ ] **Run production regression suites**
-
-Run promotion/materialization exact-revision regressions plus health suite and canonical regressions.
-
----
-
-## Task 6: Add fault-domain quarantine
-
-**Files:**
-- Create: `migrations/054_fault_domain_quarantine.sql`
-- Create: `lib/fault-domain-quarantine.js`
-- Create: `lib/fault-domain-quarantine.test.js`
-- Modify: `lib/orchestration-journal.js`
-- Modify: `lib/orchestration-recover.js`
-- Modify: `lib/regression-suite-registry.js`
-
-### Data model
-
-Use one current-state table with durable audit fields, for example:
-
-```sql
-CREATE TABLE IF NOT EXISTS orchestration_fault_domains (
-  domain text PRIMARY KEY,
-  state text NOT NULL,
-  source_fault_id text,
-  reason_code text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  last_observed_at timestamptz NOT NULL DEFAULT now(),
-  cleared_at timestamptz
-);
+```text
+work branch
+   |
+   v
+  dev
+   |
+exact revision verification
+   |
+   v
+ main
+   |
+production materialization
+   |
+   v
+Hatchable runtime
 ```
 
-Add a CHECK constraint limiting state to `degraded` and `quarantined` for active rows, or use an equivalent explicit state model. Healthy need not occupy a row.
+The recovery kernel treats this as a convergence problem rather than a sequence an agent memorizes.
 
-### Steps
+### Desired invariant
 
-- [ ] **Write domain mapping tests**
+For the production coordinate being claimed healthy:
 
-Examples:
-- `work.claim` -> `work-acquisition`;
-- `work.settle` -> `work-settlement`;
-- GitHub mutation for repo -> `github-mutation:<repo>`;
-- production promotion/materialization -> `production:<repo>`;
-- read-only `orchestration.diagnose`, `orchestration.fault_packet`, `overcenter.health` -> no blocked mutation domain.
+```text
+verified candidate SHA
+    ==
+GitHub production branch SHA
+    ==
+materialized source receipt SHA
+    ==
+immutable Hatchable deployment source SHA
+```
 
-Keep this mapping small and command-owned.
+plus the canonical production regression result for that exact deployment.
 
-- [ ] **Write quarantine block test**
+### Recovery
 
-Insert quarantine for `github-mutation:owner/repo`. Attempt an effecting GitHub command for that repo.
+A future narrow `production.reconcile(repo)` should:
 
-Assert failure occurs before external adapter call with:
-- `FAULT_DOMAIN_QUARANTINED`;
-- `may_have_mutated:false`;
-- domain/reason evidence.
+1. observe stored repository branch roles;
+2. observe exact development and production heads;
+3. locate valid verification evidence for the candidate;
+4. determine the first unmet convergence step;
+5. execute only the required deterministic step;
+6. preserve exact fences and non-force semantics;
+7. verify immutable Hatchable deployment evidence;
+8. reread all affected coordinates.
 
-Assert an unrelated repo mutation is not blocked.
+This consolidates existing promotion/materialization mechanics. It does not create a second production authority.
 
-- [ ] **Write recovery-access test**
+An indeterminate production mutation remains a hard reconciliation boundary.
 
-Diagnosis, health, fault packet, and registered authoritative reconciliation remain readable/executable while the affected domain is quarantined.
+## 6. Fault-domain quarantine
 
-Do not expose a caller boolean such as `bypass_quarantine`.
+### Why quarantine
 
-- [ ] **Implement persistence service**
+The current system can degrade or disable workers, but a fault often has a narrower blast radius.
 
-`lib/fault-domain-quarantine.js` owns:
-- `observe(domain)`;
-- `quarantine(domain, fault)`;
-- `degrade(domain, fault)`;
-- `clearIfSatisfied(domain, invariantEvidence)`;
-- command-to-domain mapping.
+A production promotion defect should not necessarily stop read-only research or work in another repository. A lease ownership invariant violation may justify stopping all new work acquisition.
 
-Clearing must require a fresh satisfied invariant result.
+### Domain model
 
-- [ ] **Add central pre-effect guard**
+Quarantine state is Overcenter-owned coordination state:
 
-Integrate the guard at the semantic execution boundary shared by effecting correlated commands. Preserve read-only commands and the server-owned recovery reconciliation path.
+```text
+domain
+state: healthy | degraded | quarantined
+source_fault_id
+reason_code
+created_at
+last_observed_at
+cleared_at
+```
 
-If a command does not pass through that boundary, add the same narrow guard to its existing canonical effecting boundary rather than introducing a second command dispatcher.
+Example domains:
 
-- [ ] **Run regressions**
+- `work-acquisition`
+- `work-settlement`
+- `github-mutation:laurajoyhutchins/overcenter`
+- `production:laurajoyhutchins/overcenter`
+- `portfolio-projection:Overcenter`
 
-Focused quarantine tests, semantic worker command tests, GitHub mutation tests, then canonical regressions.
+### Rules
 
----
+- Quarantine never edits GitHub/Linear/Hatchable authority by itself.
+- Quarantine is created only from a typed fault or violated invariant with an explicit quarantine policy.
+- Effecting commands mapped to a quarantined domain fail before mutation with a typed `FAULT_DOMAIN_QUARANTINED`, `may_have_mutated:false`.
+- Read-only diagnosis, health, fault-packet inspection, and authority reconciliation remain available.
+- Clearing quarantine requires fresh invariant evaluation proving the fault condition is no longer active.
+- A caller cannot bypass quarantine with a boolean request flag.
+- Recovery internals can invoke only registered reconciliation operations needed to clear the domain. This capability is server-owned, not caller-supplied.
 
-## Task 7: Add scheduled deterministic healing
+## 7. Scheduled deterministic healing
 
-**Files:**
-- Create: `api/orchestration/recover-scheduled.js`
-- Create: `lib/orchestration-recover-scheduled.test.js`
-- Modify: `lib/orchestration-recover.js`
-- Modify: `lib/overcenter-health.js`
-- Modify: `lib/regression-suite-registry.js`
+Scheduled healing sits above, not inside, `orchestration.maintain`.
 
-### Behavior
+The existing hourly maintenance task keeps its narrow coordination responsibilities.
 
-The schedule is separate from `api/orchestration/maintain-scheduled.js`.
+A separate scheduled recovery pass:
 
-Use a declared hourly schedule at a minute that does not collide with existing scheduled reconcilers after checking current `list_cron_jobs`.
-
-The scheduler:
-1. reads bounded health;
-2. selects only invariants with `status:'violated'` and `automatic_recovery_allowed:true`;
-3. performs the registered deterministic recovery;
+1. evaluates bounded health invariants;
+2. selects only violated invariants that explicitly permit automatic recovery;
+3. invokes the registered recovery operation;
 4. rereads the invariant;
-5. records healed/still-violated/unknown;
-6. quarantines when policy requires;
-7. never selects, creates, prioritizes, or semantically edits portfolio work.
+5. records healed / still-violated / unknown;
+6. quarantines when policy requires it;
+7. never creates or prioritizes portfolio work.
 
-### Steps
+No reasoning model is called by the scheduled healer.
 
-- [ ] **Write no-work-selection test**
+If deterministic recovery stops, the durable fault packet is sufficient for a later reasoning agent.
 
-Inject fake portfolio/work selectors that throw if called. Scheduled recovery must complete without touching them.
+## Error handling model
 
-- [ ] **Write allowlist test**
+### Known safe transient
 
-Give one auto-recoverable stale-lease invariant and one authority-conflict invariant. Assert only the stale-lease recovery executes.
+Example: transport unavailable, mutation impossible.
 
-- [ ] **Write anti-thrash test**
+```text
+fault -> bounded exact retry -> readback -> healed
+```
 
-Repeated failed recovery reaches bounded failure/quarantine and is not attempted indefinitely each scheduler tick without a changed authoritative observation.
+### Known stale coordination
 
-- [ ] **Implement scheduled handler**
+Example: expired lease slot.
 
-`api/orchestration/recover-scheduled.js`:
-- `access = 'scheduler'`;
-- `methods = ['POST']`;
-- declared hourly `schedule`;
-- invokes the same recovery services used by the semantic command.
+```text
+fault -> orchestration.maintain -> reread slot/lease -> healed
+```
 
-No AI call.
+### Indeterminate external effect
 
-- [ ] **Verify scheduler registration**
+```text
+fault (may_have_mutated=true)
+   |
+   v
+NO RETRY
+   |
+authoritative/domain reconciliation
+   |
+   +--> effect proven --> continue from proven state
+   |
+   +--> effect absent --> registered operation may retry with same semantic identity
+   |
+   +--> cannot prove --> quarantine + fault packet
+```
 
-After deployment, use Hatchable function/cron introspection to prove the route is registered, active, and firing.
+### Unknown fault
 
-- [ ] **Run regressions**
+```text
+fault -> fault packet -> quarantine if blast-radius policy requires -> reasoning
+```
 
-Scheduled recovery suite plus existing maintenance and scheduled-cycle suites, then canonical regressions.
+### Semantic decision required
 
----
+```text
+fault -> fault packet(required_decisions=[...]) -> reasoning/operator
+```
 
-## Task 8: Add end-to-end recovery acceptance scenarios
+## Privacy and evidence minimization
 
-**Files:**
-- Create: `lib/recovery-kernel-acceptance.test.js`
-- Modify: `lib/regression-suite-registry.js`
-- Modify: `docs/superpowers/specs/2026-08-27-overcenter-recovery-kernel-design.md` only if implementation discoveries require a factual correction
+The recovery kernel increases useful correlation without broadening durable data capture.
 
-### Scenarios
+- Reuse command-owned safe request/result projections.
+- Do not add raw request bodies to fault packets.
+- Do not store lease tokens in runtime provenance or fault packets.
+- Do not persist arbitrary GitHub/Hatchable provider responses.
+- Evidence refs should identify authoritative objects/revisions, not copy their full contents.
+- Unknown new command fields are omitted from durable recovery evidence unless explicitly admitted by the command owner.
+- Packet size must be bounded by explicit list/count limits.
 
-- [ ] **Novel semantic-boundary defect**
+This design should align with the command-owned projection hardening tracked separately in GitHub #177.
 
-Model the GitHub #135 shape:
-- valid semantic caller input;
-- internal `REQUEST_INVALID`;
-- `may_have_mutated:false`.
+## Data model changes
 
-Assert fault packet contains exact runtime provenance and causal context but does not invent an automatic fix.
+### Invocation runtime provenance
 
-- [ ] **Stale lease self-heal**
+Add a nullable bounded JSON projection to `orchestration_command_invocations`, for example:
 
-Create expired slot/lease state. Run `orchestration.recover`. Assert:
-- maintenance executes;
-- slot is released;
-- fresh diagnosis is clear;
-- affected coordination invariant is satisfied;
-- result is `HEALED`.
+```sql
+runtime_provenance jsonb
+```
 
-- [ ] **Transport retry**
+No historical rewrite is required.
 
-Fail twice with safe no-mutation transport errors, succeed on third attempt. Assert exact semantic request identity is preserved and attempt count is three.
+### Quarantine state
 
-- [ ] **Indeterminate external effect**
+Add a small Overcenter-owned table for active/cleared fault domains. It stores coordination decisions, not copies of external authority.
 
-Return `may_have_mutated:true`. Assert:
-- mutation replay count remains zero;
-- authoritative reconciliation runs;
-- inability to prove effect yields escalation/quarantine.
+Fault packets themselves remain derived in the first version.
 
-- [ ] **Semantic decision boundary**
+## Public semantic surfaces
 
-Require a lease settlement disposition. Assert recovery returns required decision and does not choose one.
+Initial new semantic surfaces:
 
-- [ ] **Production drift**
+```text
+orchestration.fault_packet
+orchestration.recover
+overcenter.health
+```
 
-Create exact GitHub/Hatchable mismatch. Assert health reports the one violated convergence invariant and a bounded production recovery target.
+A later production slice may add:
 
-- [ ] **Authority outage**
+```text
+production.reconcile
+```
 
-Make GitHub/Hatchable read unavailable. Assert relevant health state is `unknown`, aggregate is not healthy, and no speculative repair executes.
+Each command must use the existing command-response envelope and orchestration journal conventions where applicable.
 
-- [ ] **Quarantine isolation**
+Read-only inspection commands must not create recursive journal noise that changes the fault they are inspecting. Follow the existing `diagnose`/`resume_packet` journal-exclusion pattern.
 
-Quarantine production for repository A. Assert unrelated repository B and read-only inspection remain available.
+## Rollout
 
-- [ ] **Canonical suite**
+### Slice 1: Provenance and fault packet
 
-Run all registered regressions. No recovery feature may weaken existing exact-revision, idempotency, lease, evidence, or authority tests.
+Land runtime provenance and `orchestration.fault_packet`.
 
----
+Success criterion: reproduce a novel semantic-boundary failure similar to GitHub #135 and produce a packet that identifies the faulting command, exact runtime/source provenance, mutation certainty, causal predecessor, authority observation, and the fact that reasoning is required.
 
-## Task 9: Live dogfood verification and lifecycle completion
+No automatic recovery is added in this slice.
 
-**Files:** No new architecture files. Use the deployed semantic surfaces and exact GitHub/Hatchable authorities.
+### Slice 2: Recovery executor
 
-- [ ] Deploy the exact integrated `dev` revision through the normal Overcenter production promotion/materialization path.
-- [ ] Verify immutable Hatchable deployment evidence binds the runtime to the exact promoted SHA.
-- [ ] Invoke `overcenter.health` and retain the invariant evidence.
-- [ ] Create a bounded disposable/reproducible stale coordination fault in a test-safe fixture path, then invoke `orchestration.recover`.
-- [ ] Prove the fault is healed by authoritative readback, not merely command success.
-- [ ] Exercise an unknown/non-auto-recoverable fault fixture and prove a deterministic fault packet is returned.
-- [ ] Verify an indeterminate-effect fixture does not blind-retry.
-- [ ] Inspect scheduled task registration and prove deterministic recovery scheduling is active.
-- [ ] Record exact evidence coordinates in the owning GitHub issues and Overcenter work settlements.
-- [ ] Close implementation issues only after GitHub source, deployed runtime, and recovery acceptance evidence agree.
+Land `orchestration.recover` for a deliberately small allowlist of already-encoded safe cases.
 
-## Completion criteria
+Success criterion: stale lease and safe transport retry recover mechanically; indeterminate external effect refuses blind retry.
 
-Do not call the recovery kernel complete until:
-- provenance is captured at execution time;
-- fault packets are bounded and read-only;
-- recovery is server-registered and cannot execute arbitrary caller recipes;
-- semantic decisions stop for reasoning;
-- indeterminate effects reconcile before retry;
-- health is three-valued;
-- quarantine is fault-domain scoped;
-- scheduled healing is bounded and deterministic;
-- all healing claims are backed by fresh authoritative readback;
-- canonical regressions and live dogfood verification both pass.
+### Slice 3: Health invariant registry
+
+Land `overcenter.health` first for coordination and scheduled execution, then GitHub and production convergence.
+
+Success criterion: authority unavailability returns `unknown`, not an inferred status.
+
+### Slice 4: Quarantine and scheduled healing
+
+Only after the previous slices demonstrate stable classification and readback.
+
+Success criterion: a narrow fault blocks only its domain; deterministic scheduled recovery can clear quarantine only after invariant readback proves convergence.
+
+## Testing strategy
+
+Every recovery claim requires negative tests, not only happy paths.
+
+### Provenance
+
+- Invocation captures the executing source/deployment coordinate.
+- Later source movement does not change historical provenance.
+- Missing provenance returns explicit historical/unknown state.
+- Secrets and capability material cannot enter the provenance projection.
+
+### Fault packets
+
+- Packet for a known failure contains causal predecessor, faulting invocation, lease/checkpoint evidence, runtime provenance, and recovery classification.
+- Packet for an unknown `REQUEST_INVALID` does not invent a root cause.
+- Packet identity is stable for the same durable fault.
+- Read-only packet inspection does not change the inspected journal state.
+
+### Recovery
+
+- Stale lease self-heals and proves slot release.
+- Retryable transport failure retries no more than the configured maximum.
+- `may_have_mutated:true` never takes the exact-retry path before reconciliation.
+- Settlement requiring disposition returns a required-decision boundary.
+- Repeated recovery failure becomes `RECOVERY_FAILED`.
+- Success without authoritative readback cannot return `HEALED`.
+
+### Health
+
+- Satisfied, violated, and unknown are independently tested.
+- External authority read failure maps to unknown.
+- Aggregate health cannot be healthy with required unknown invariants.
+- Existing orchestration status telemetry remains available.
+
+### Quarantine
+
+- Quarantined domain blocks mapped mutation before external effect.
+- Unrelated domain remains executable.
+- Read-only diagnosis/reconciliation remains available.
+- Caller cannot bypass quarantine.
+- Clear requires fresh satisfied invariant evidence.
+
+### Scheduled healing
+
+- Only explicitly auto-recoverable invariants are attempted.
+- No portfolio work is selected or created.
+- Recovery budget is bounded.
+- Failure leaves durable fault evidence and does not thrash.
+
+## Acceptance criteria
+
+The architecture is implemented when all of the following are true:
+
+1. A command fault can be tied to the exact runtime/source provenance that executed it.
+2. `orchestration.fault_packet` gives a fresh agent enough bounded evidence to begin investigation without reconstructing the run manually.
+3. `orchestration.recover` exhausts deterministic safe recovery before escalating.
+4. It is impossible for the recovery executor to choose a semantic disposition on behalf of an agent/operator.
+5. Indeterminate external effects are reconciled before any retry.
+6. `overcenter.health` represents required invariants with three-valued state.
+7. Every `HEALED` result includes fresh authoritative readback proving convergence.
+8. Fault-domain quarantine isolates the affected mutation surface without unnecessary worker-wide shutdown.
+9. Scheduled healing performs only deterministic bounded operations.
+10. Existing diagnosis, resume, maintenance, receipts, and authority boundaries remain canonical rather than being replaced by parallel state.
+
+## Agent-facing operating model
+
+Once these slices land, the expected debugging path becomes:
+
+```text
+1. overcenter.health
+2. orchestration.recover(run_id) when a run is implicated
+3. inspect the returned fault packet only if deterministic recovery stops
+```
+
+Protocol internals remain available for deep investigation, but they are no longer the entry fee for operating Overcenter.
