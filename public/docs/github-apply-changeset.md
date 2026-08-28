@@ -43,7 +43,15 @@ Provide exactly one of `base_ref` or `base_sha`.
 
 Root fields: `repo`, exactly one of `base_ref`/`base_sha`, `branch`, optional `expected_head`, required `lease_token`, non-empty `changes`, `commit_message`, optional `idempotency_key`. Unknown fields are rejected.
 
-Each change has a repository-relative `path` and `operation` of `create`, `update`, or `delete`. `create` and `update` require complete text `content`; `delete` forbids `content`. Duplicate paths and traversal-like paths are rejected. This version is text-only and updates/deletes regular files (`100644`/`100755`) only.
+Each change has a repository-relative `path` and `operation` of `create`, `update`, or `delete`. For `create` and `update`, the ordinary path is complete canonical UTF-8 `content`. When content needs an opaque temporary handle across requests, call `github_prepare_changeset_content` and provide the returned `content_ref` instead. Existing `content_gzip_base64` callers remain supported as a compatibility transport, but new callers should not manufacture gzip, base64, chunk numbers, checksums, or staging descriptors. `delete` forbids all content transports. Duplicate paths and traversal-like paths are rejected. This version is text-only and updates/deletes regular files (`100644`/`100755`) only.
+
+### Mechanical content transport
+
+`github_prepare_changeset_content` accepts only complete canonical UTF-8 text and returns an opaque temporary reference plus the canonical content SHA-256, byte count, and expiry time. Overcenter deterministically chooses raw inline storage, gzip inline storage, or bounded staged storage according to explicit transport limits and compression benefit. Compression mode, chunk sizing, ordering, checksums, reconstruction, and cleanup are implementation details and are not caller-owned protocol fields.
+
+A `content_ref` is resolved back to canonical UTF-8 before the `github.apply_changeset` command is journaled, normalized, or idempotency-hashed. Preparing the same canonical content twice may produce different temporary references, but after resolution both requests have the same semantic identity. Temporary references expire one hour after preparation. Staged chunks and manifests live under Hatchable temporary storage; the manifest is written last so an interrupted preparation never publishes a usable partial reference. Resolution verifies the manifest, every staged chunk, reconstructed payload, final canonical content hash, UTF-8 validity, and the 2 MB expanded-content bound. Missing, reordered, duplicated, corrupted, or expired staging state fails closed.
+
+Expiry does not create a new repository mutation identity. If a reference expires before use, prepare the same canonical content again and retry the same semantic changeset and idempotency key. Temporary content storage is transport state only and is never orchestration authority.
 
 ## Branch and concurrency semantics
 
@@ -70,6 +78,8 @@ The command creates Git objects before it mutates the branch ref: one tree carry
 Reusing a key with different semantic changeset input returns `IDEMPOTENCY_CONFLICT`. The lease token is intentionally excluded from that semantic identity so a legitimate successor authority can recover the same prepared logical request. Reusing a key after success returns the exact stored receipt with `idempotent_replay: true` without another authority check or GitHub effect. Processing receipts are heartbeated after authoritative preflight so a slow live changeset is not mistaken for an abandoned attempt. The commit SHA is checkpointed before the ref mutation; if a transport failure happens after GitHub moved the ref but before the caller receives a response, a retry recognizes that exact prepared commit and completes the receipt without creating another logical commit after re-proving live authority.
 
 ## Transport behavior
+
+Repository-content transport is resolved before command semantics. Direct UTF-8 `content` is already canonical. Opaque `content_ref` values are resolved and verified to canonical UTF-8 before journaling and request hashing. Legacy gzip and legacy staged HTTP descriptors are also expanded before normalization for compatibility. No compression or staging representation becomes a second semantic identity.
 
 Read-only GitHub calls use a bounded retry policy for HTTP 429 and transient 5xx responses, honoring `Retry-After` when present. Mutation calls are never automatically replayed by the transport layer. Ambiguous writes instead rely on the command's existing idempotency checkpoint and authoritative ref readback.
 
