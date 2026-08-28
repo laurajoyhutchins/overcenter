@@ -76,3 +76,45 @@ test('production branch updates are serialized into the production materializati
   assert.match(workflow, /cancel-in-progress:\s*false/);
   assert.match(workflow, /node scripts\/production-materialization-http\.mjs/);
 });
+
+test('remote production adapter fences, stages, deploys, and reads immutable file_manifest', async () => {
+  const http = await import('./production-materialization-http.mjs');
+  const calls = [];
+  const responses = [
+    { current_version: 5 }, { files: [{ path: 'api/old.js', hash: 'a'.repeat(64), size: 4 }] },
+    { current_version: 5 }, { ok: true }, { ok: true },
+    { current_version: 5 }, { files: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }] },
+    { current_version: 5 }, { errors: [], would_deploy: {} }, { version: 6 }, { current_version: 6 },
+    { version: 6, file_manifest: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }] },
+    { status: 200, body: { ok: true, schema: 'regression-verification-v1', passed: 700, failed: 0 } },
+  ];
+  const runtime = http.createProductionRuntimeAdapter?.({
+    callTool: async (name, args) => {
+      calls.push([name, args]);
+      return responses.shift();
+    },
+  });
+
+  assert.deepEqual(await runtime?.inspect('prod'), {
+    project: 'prod', version: 5, files: [{ path: 'api/old.js', hash: 'a'.repeat(64), size: 4 }],
+  });
+  await runtime.stage({
+    project: 'prod', revision, expected_version: 5,
+    writes: [{ path: 'api/new.js', content: 'new' }], deletes: ['api/old.js'],
+  });
+  assert.deepEqual(await runtime.inspectDraft('prod'), {
+    project: 'prod', version: 5, files: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }],
+  });
+  assert.deepEqual(await runtime.deploy({ project: 'prod', revision, expected_version: 5 }), { version: 6 });
+  assert.deepEqual(await runtime.inspectDeployment({ project: 'prod', version: 6 }), {
+    version: 6, files: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }],
+  });
+  assert.equal((await runtime.runRegressions({ project: 'prod' })).failed, 0);
+  assert.deepEqual(calls.map(([name]) => name), [
+    'get_project', 'list_files',
+    'get_project', 'delete_file', 'write_files',
+    'get_project', 'list_files',
+    'get_project', 'dry_run_deploy', 'deploy', 'get_project',
+    'get_deployment', 'run_function',
+  ]);
+});
