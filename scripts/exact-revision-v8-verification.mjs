@@ -132,7 +132,7 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
     async inspectDeployment({ project, version }) {
       const deployment = await callTool('get_deployment', { project_id: project, version });
       if (Number(deployment?.version) !== Number(version)) reject('DEPLOYMENT_VERSION_MISMATCH', 'immutable deployment observation returned the wrong version');
-      return { version: Number(version), files: normalizeRuntimeFiles(deployment?.files) };
+      return { version: Number(version), files: normalizeRuntimeFiles(deployment?.files ?? deployment?.file_manifest) };
     },
     async runRegressions({ project }) {
       const response = await callTool('run_function', { project_id: project, path: '/api/verification/regressions', method: 'POST', body: {} });

@@ -36,7 +36,7 @@ test('Hatchable adapter normalizes, reconciles, version-fences, and runs canonic
   const responses=[
     {current_version:5},{files:[{path:'api/a.js',hash:'a'.repeat(64)},{path:'AGENTS.md',virtual:true,hash:null}]},
     {ok:true},{ok:true},{current_version:5},{version:6},{current_version:6},
-    {version:6,files:[{path:'api/a.js',hash:'b'.repeat(64)}]},
+    {version:6,file_manifest:[{path:'api/a.js',hash:'b'.repeat(64)}]},
     {status:200,body:{ok:true,schema:'regression-verification-v1',passed:683,failed:0}},
   ];
   const runtime=createHatchableRuntimeAdapter({callTool:async(name,args)=>{calls.push([name,args]);return responses.shift();}});
