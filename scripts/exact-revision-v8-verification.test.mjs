@@ -14,6 +14,14 @@ const hash=createHash('sha256').update(content).digest('hex');
 const runtimeContent=content.replace(/[ \t\r\n\v\f]+$/u,'');
 const runtimeHash=createHash('sha256').update(runtimeContent).digest('hex');
 const green={ok:true,schema:'regression-verification-v1',passed:683,failed:0};
+const reachability={
+  schema:'production-reachability-evidence-v1',
+  entrypoint:'/api/orchestration/horizon-resolve',
+  runtime_project:verification_project,
+  runtime_revision:revision,
+  graph_authority:{kind:'github',repository,revision:'c'.repeat(40),derivation:'overcenter-project-graph-v1'},
+  target:{project_ref:'github:laurajoyhutchins/overcenter',horizon:{kind:'transition',ref:'require-production-reachability'}},
+};
 
 function adapters(overrides={}) {
   return {
@@ -23,6 +31,7 @@ function adapters(overrides={}) {
       reconcile:async()=>{}, deploy:async()=>({version:8}),
       inspectDeployment:async()=>({version:8,files:[{path:'api/example.js',sha256:runtimeHash}]}),
       runRegressions:async()=>green,
+      runProductionReachability:async()=>reachability,
     },
     ...overrides,
   };
@@ -45,6 +54,7 @@ test('returns canonical exact-revision evidence with isolated runtime attributio
   assert.equal(result.regression.execution.deployment_version,8);
   assert.equal(result.regression.execution.source_normalization,'hatchable-v8-text-v1');
   assert.notEqual(result.regression.execution.source_manifest_sha256,result.regression.execution.runtime_manifest_sha256);
+  assert.deepEqual(result.regression.execution.production_reachability,reachability);
 });
 
 test('reuses an identical immutable verification deployment without requiring a version bump', async()=>{
@@ -59,6 +69,7 @@ test('reuses an identical immutable verification deployment without requiring a 
       deploy:async()=>{deployCalls+=1;return {version:11};},
       inspectDeployment:async({version})=>{inspectedVersion=version;return {version,files:[{path:'api/example.js',sha256:runtimeHash}]};},
       runRegressions:async()=>green,
+      runProductionReachability:async()=>reachability,
     },
   });
   assert.equal(reconcileCalls,0);
@@ -98,6 +109,16 @@ test('rejects non-green canonical V8 regressions', async()=>{
   await assert.rejects(verifyExactRevisionV8(input,bad),e=>e?.code==='V8_REGRESSION_FAILED');
 });
 
+test('rejects missing or incompatible production reachability evidence', async()=>{
+  const missing=adapters();
+  delete missing.runtime.runProductionReachability;
+  await assert.rejects(verifyExactRevisionV8(input,missing),e=>e?.code==='VERIFICATION_RUNTIME_REACHABILITY_UNAVAILABLE');
+
+  const invalid=adapters();
+  invalid.runtime.runProductionReachability=async()=>({...reachability,runtime_revision:'d'.repeat(40)});
+  await assert.rejects(verifyExactRevisionV8(input,invalid),e=>e?.code==='VERIFICATION_RUNTIME_REACHABILITY_INVALID');
+});
+
 test('refuses a verification project equal to production before source access', async()=>{
   let touched=false;
   await assert.rejects(verifyExactRevisionV8({...input,verification_project:'same',production_project:'same'},{source:{observe:async()=>{touched=true;return {}}},runtime:{}}),e=>e?.code==='VERIFICATION_RUNTIME_NOT_ISOLATED');
@@ -118,6 +139,7 @@ test('attributes exact GitHub bytes while verifying Hatchable-stable trailing-wh
       deploy:async()=>({version:8}),
       inspectDeployment:async()=>({version:8,files:[{path:'lib/example.js',sha256:canonicalHash}]}),
       runRegressions:async()=>green,
+      runProductionReachability:async()=>reachability,
     },
   });
   assert.deepEqual(writes,[{path:'lib/example.js',content:canonical}]);

@@ -140,6 +140,123 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
       if (Number(response?.status ?? 200) !== 200 || !body || body.schema !== 'regression-verification-v1') reject('VERIFICATION_RUNTIME_INVALID_REGRESSION', 'canonical V8 regression endpoint returned an invalid result');
       return body;
     },
+    async runProductionReachability({ project, repository, revision }) {
+      const projectRef = `github:${repository}`;
+      const transitionRef = 'require-production-reachability';
+      const requestedTarget = Object.freeze({
+        project_ref: projectRef,
+        horizon: Object.freeze({ kind: 'transition', ref: transitionRef }),
+      });
+      const runId = `exact-revision-reachability-${revision}`;
+      const startResponse = await callTool('run_function', {
+        project_id: project,
+        path: '/api/orchestration/start',
+        method: 'POST',
+        body: {
+          run_id: runId,
+          worker: 'exact-revision-verifier',
+          mode: 'interactive',
+          continuation_key: `exact-revision-reachability:${revision}`,
+          scope: {
+            project: 'Overcenter',
+            repositories: [repository],
+            direction: 'Verify graph reachability through real orchestration API entrypoints.',
+          },
+          target: requestedTarget,
+          budget_seconds: 900,
+          settlement_reserve_seconds: 60,
+          minimum_new_gate_seconds: 60,
+        },
+      });
+      const startBody = startResponse?.body ?? startResponse?.result?.body ?? startResponse;
+      if (Number(startResponse?.status ?? startResponse?.result?.status ?? 200) !== 200 || startBody?.ok !== true) {
+        reject('VERIFICATION_RUNTIME_REACHABILITY_FAILED', 'production reachability start entrypoint failed');
+      }
+
+      let horizonResponse;
+      try {
+        horizonResponse = await callTool('run_function', {
+          project_id: project,
+          path: '/api/orchestration/horizon-resolve',
+          method: 'POST',
+          body: { run_id: runId },
+        });
+      } finally {
+        const finishResponse = await callTool('run_function', {
+          project_id: project,
+          path: '/api/orchestration/finish',
+          method: 'POST',
+          body: {
+            run_id: runId,
+            disposition: 'clean-stop',
+            last_gate: 'ENABLE',
+            stop_reason: 'Exact-revision production reachability probe completed.',
+          },
+        });
+        const finishBody = finishResponse?.body ?? finishResponse?.result?.body ?? finishResponse;
+        if (Number(finishResponse?.status ?? finishResponse?.result?.status ?? 200) !== 200 || finishBody?.ok !== true) {
+          reject('VERIFICATION_RUNTIME_REACHABILITY_CLEANUP_FAILED', 'production reachability probe could not be terminalized');
+        }
+      }
+
+      const status = Number(horizonResponse?.status ?? horizonResponse?.result?.status ?? 200);
+      const body = horizonResponse?.body ?? horizonResponse?.result?.body ?? horizonResponse;
+      const authority = body?.horizon?.authority;
+      const target = body?.target;
+      if (status === 200 && body?.ok === true && body?.schema === 'project-horizon-evaluation-v1') {
+        if (
+          authority?.kind !== 'github'
+          || authority?.repository !== repository
+          || typeof authority?.revision !== 'string'
+          || !authority.revision
+          || authority?.derivation !== 'overcenter-project-graph-v1'
+          || target?.project_ref !== projectRef
+          || target?.horizon?.kind !== 'transition'
+          || target?.horizon?.ref !== transitionRef
+        ) {
+          reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID', 'production reachability entrypoint returned incompatible graph evidence');
+        }
+        return Object.freeze({
+          schema: 'production-reachability-evidence-v1',
+          entrypoint: '/api/orchestration/horizon-resolve',
+          runtime_project: project,
+          runtime_revision: revision,
+          graph_authority: Object.freeze({
+            kind: authority.kind,
+            repository: authority.repository,
+            revision: authority.revision,
+            derivation: authority.derivation,
+          }),
+          target: Object.freeze({
+            project_ref: target.project_ref,
+            horizon: Object.freeze({ kind: target.horizon.kind, ref: target.horizon.ref }),
+          }),
+        });
+      }
+
+      const message = String(body?.message || '');
+      if (
+        status === 500
+        && body?.ok === false
+        && body?.error === 'ORCHESTRATION_HORIZON_ERROR'
+        && message.includes("Configuration value 'GITHUB_APP_ID' is declared as required but not set")
+      ) {
+        return Object.freeze({
+          schema: 'production-reachability-evidence-v1',
+          entrypoint: '/api/orchestration/horizon-resolve',
+          runtime_project: project,
+          runtime_revision: revision,
+          boundary: Object.freeze({
+            kind: 'external_dependency',
+            dependency: 'github_app',
+            configuration_key: 'GITHUB_APP_ID',
+          }),
+          target: requestedTarget,
+        });
+      }
+
+      reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID', 'production reachability entrypoint did not reach a recognized production graph boundary');
+    },
   };
 }
 
@@ -232,6 +349,39 @@ export async function verifyExactRevisionV8(input, adapters) {
       const regression = await adapters.runtime.runRegressions({ project, deployment_version: deployment.version, revision });
       if (!regression || regression.schema !== 'regression-verification-v1') reject('VERIFICATION_RUNTIME_INVALID_REGRESSION', 'canonical Hatchable V8 regressions returned an invalid schema');
       if (regression.ok !== true || Number(regression.failed || 0) !== 0) reject('V8_REGRESSION_FAILED', 'canonical Hatchable V8 regressions did not pass');
+      if (typeof adapters.runtime.runProductionReachability !== 'function') {
+        reject('VERIFICATION_RUNTIME_REACHABILITY_UNAVAILABLE', 'production reachability verifier is unavailable');
+      }
+      const productionReachability = await adapters.runtime.runProductionReachability({
+        project,
+        repository,
+        revision,
+        deployment_version: deployment.version,
+      });
+      const baseReachabilityValid = (
+        productionReachability?.schema === 'production-reachability-evidence-v1'
+        && productionReachability?.entrypoint === '/api/orchestration/horizon-resolve'
+        && productionReachability?.runtime_project === project
+        && productionReachability?.runtime_revision === revision
+        && productionReachability?.target?.project_ref === `github:${repository}`
+        && productionReachability?.target?.horizon?.kind === 'transition'
+        && productionReachability?.target?.horizon?.ref === 'require-production-reachability'
+      );
+      const graphAuthorityValid = (
+        productionReachability?.graph_authority?.kind === 'github'
+        && productionReachability?.graph_authority?.repository === repository
+        && typeof productionReachability?.graph_authority?.revision === 'string'
+        && productionReachability.graph_authority.revision.length > 0
+        && productionReachability?.graph_authority?.derivation === 'overcenter-project-graph-v1'
+      );
+      const externalBoundaryValid = (
+        productionReachability?.boundary?.kind === 'external_dependency'
+        && productionReachability?.boundary?.dependency === 'github_app'
+        && productionReachability?.boundary?.configuration_key === 'GITHUB_APP_ID'
+      );
+      if (!baseReachabilityValid || (!graphAuthorityValid && !externalBoundaryValid)) {
+        reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID', 'production reachability verifier returned invalid evidence');
+      }
       return {
         ...coordinate,
         result: {
@@ -243,6 +393,7 @@ export async function verifyExactRevisionV8(input, adapters) {
             source_normalization: HATCHABLE_TEXT_NORMALIZATION,
             source_manifest_sha256: manifestHash(desired),
             runtime_manifest_sha256: manifestHash(desiredRuntime),
+            production_reachability: productionReachability,
           },
         },
       };
