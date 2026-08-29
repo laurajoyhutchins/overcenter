@@ -1,13 +1,16 @@
 import { canonicalJson, sha256Text } from './canonical-json.js';
 import { repositoryIdentity } from './work-identity.js';
 import {
-  isExecutionGate,
-  normalizeAllowedExecutionGates,
   normalizeExecutionAuthorityLocator,
   type ExecutionAuthority,
   type ExecutionAuthorityStore,
-  type ExecutionGate,
+  type StoredExecutionLease,
 } from './execution-authority-contracts.js';
+import {
+  isLegacyWorkExecutionGate,
+  normalizeAllowedLegacyWorkExecutionGates,
+  type LegacyWorkExecutionGate,
+} from './legacy-work-execution-authority-contracts.js';
 import type { LeaseId, RunId, WorkRef } from './semantic-identities.js';
 
 type JsonObject = Record<string, unknown>;
@@ -92,39 +95,46 @@ function projectionDiff(expected: JsonObject, current: JsonObject): string[] {
   return keys.filter(key => canonicalJson(expected[key]) !== canonicalJson(current[key]));
 }
 
-function requiredLeaseIdentity(lease: {
-  lease_id: string | null;
-  work_ref: string | null;
-  run_id: string | null;
-  gate: string | null;
-}): Readonly<{ leaseId: LeaseId; workRef: WorkRef; runId: RunId; gate: ExecutionGate }> {
+function requiredLeaseIdentity(lease: StoredExecutionLease): Readonly<{ leaseId: LeaseId; runId: RunId }> {
   const leaseId = typeof lease.lease_id === 'string' ? lease.lease_id.trim() : '';
-  const workRef = typeof lease.work_ref === 'string' ? lease.work_ref.trim() : '';
   const runId = typeof lease.run_id === 'string' ? lease.run_id.trim() : '';
-  if (!leaseId || !workRef || !runId || !isExecutionGate(lease.gate)) {
+  if (!leaseId || !runId) {
     return fail('EXECUTION_AUTHORITY_INVALID', 'execution authority lease is missing durable identity', {
       lease_id: lease.lease_id || null,
-      work_ref: lease.work_ref || null,
       run_id: lease.run_id || null,
+    });
+  }
+  return { leaseId: leaseId as LeaseId, runId: runId as RunId };
+}
+
+function requiredLegacyWorkIdentity(lease: StoredExecutionLease): Readonly<{
+  workRef: WorkRef;
+  gate: LegacyWorkExecutionGate;
+}> {
+  const workRef = typeof lease.work_ref === 'string' ? lease.work_ref.trim() : '';
+  if (!workRef || !isLegacyWorkExecutionGate(lease.gate)) {
+    return fail('EXECUTION_AUTHORITY_INVALID', 'legacy work execution authority is missing durable work identity', {
+      work_ref: lease.work_ref || null,
       gate: lease.gate || null,
     });
   }
-  return {
-    leaseId: leaseId as LeaseId,
-    workRef: workRef as WorkRef,
-    runId: runId as RunId,
-    gate: executionGate(lease.gate),
-  };
-}
-
-function executionGate(value: string): ExecutionGate {
-  if (!isExecutionGate(value)) throw new Error(`invalid execution gate ${value}`);
-  return value;
+  return { workRef: workRef as WorkRef, gate: lease.gate };
 }
 
 function nonEmptyText(value: unknown): string | null {
   const text = typeof value === 'string' ? value.trim() : '';
   return text || null;
+}
+
+function requireActiveLease(lease: StoredExecutionLease, observedNow: number, leaseId: LeaseId): void {
+  const leaseExpiry = instant(lease.expires_at);
+  const hardExpiry = lease.hard_expires_at ? instant(lease.hard_expires_at) : null;
+  if (lease.status !== 'active' || leaseExpiry === null || leaseExpiry <= observedNow || (hardExpiry !== null && hardExpiry <= observedNow)) {
+    fail('EXECUTION_AUTHORITY_STALE', 'execution authority lease is not active', {
+      lease_id: leaseId,
+      reason: lease.status !== 'active' ? 'lease_status' : 'lease_expired',
+    });
+  }
 }
 
 export function createExecutionAuthorityService({
@@ -134,14 +144,8 @@ export function createExecutionAuthorityService({
   projectTransitions = null,
   now = () => new Date().toISOString(),
 }: ExecutionAuthorityServiceOptions = {}): ExecutionAuthorityService {
-  if (!store || typeof store.getLeaseByTokenHash !== 'function' || typeof store.getSlot !== 'function' || typeof store.getRun !== 'function') {
-    throw new Error('execution authority store must provide lease, slot, and run reads');
-  }
-  if (!authoritative || typeof authoritative.getIssue !== 'function') {
-    throw new Error('execution authority requires authoritative work reads');
-  }
-  if (typeof executionProjection !== 'function') {
-    throw new Error('execution authority requires an execution projection function');
+  if (!store || typeof store.getLeaseByTokenHash !== 'function') {
+    throw new Error('execution authority store must provide lease reads');
   }
 
   return {
@@ -151,8 +155,8 @@ export function createExecutionAuthorityService({
         () => repositoryIdentity(input.repository) || null,
         fail,
       );
-      const leaseToken = 'lease_token' in locator ? locator.lease_token : '';
-      const leaseRef = 'lease_ref' in locator ? locator.lease_ref : '';
+      const leaseToken = 'lease_token' in locator ? locator.lease_token || '' : '';
+      const leaseRef = 'lease_ref' in locator ? locator.lease_ref || '' : '';
       const getLeaseById = store.getLeaseById;
       if (leaseRef && typeof getLeaseById !== 'function') {
         fail('EXECUTION_AUTHORITY_UNAVAILABLE', 'Overcenter could not read execution authority by lease reference', {
@@ -160,9 +164,7 @@ export function createExecutionAuthorityService({
         }, 503);
       }
 
-      const allowedGates = normalizeAllowedExecutionGates(input.allowed_gates);
-
-      let lease;
+      let lease: StoredExecutionLease | null;
       try {
         lease = leaseRef
           ? await getLeaseById!(leaseRef)
@@ -175,62 +177,10 @@ export function createExecutionAuthorityService({
       }
       if (!lease) fail('EXECUTION_AUTHORITY_INVALID', 'execution authority locator is unknown');
 
+      const { leaseId, runId } = requiredLeaseIdentity(lease);
       const observedNow = instant(now());
       if (observedNow === null) throw new Error('execution authority clock returned an invalid instant');
-      const leaseExpiry = instant(lease.expires_at);
-      const hardExpiry = lease.hard_expires_at ? instant(lease.hard_expires_at) : null;
-      if (lease.status !== 'active' || leaseExpiry === null || leaseExpiry <= observedNow || (hardExpiry !== null && hardExpiry <= observedNow)) {
-        fail('EXECUTION_AUTHORITY_STALE', 'execution authority lease is not active', {
-          work_ref: lease.work_ref || null,
-          lease_id: lease.lease_id || null,
-          gate: lease.gate || null,
-          reason: lease.status !== 'active' ? 'lease_status' : 'lease_expired',
-        });
-      }
-
-      const { leaseId, workRef, runId, gate } = requiredLeaseIdentity(lease);
-      if (!allowedGates.has(gate)) {
-        fail('EXECUTION_AUTHORITY_SCOPE_MISMATCH', 'execution authority does not cover this mutation gate', {
-          work_ref: workRef,
-          lease_id: leaseId,
-          gate,
-          allowed_gates: [...allowedGates].sort(),
-        });
-      }
-
-      let slot;
-      let run;
-      try {
-        [slot, run] = await Promise.all([
-          store.getSlot(workRef, gate),
-          store.getRun(runId),
-        ]);
-      } catch (error) {
-        fail('EXECUTION_AUTHORITY_UNAVAILABLE', 'Overcenter could not confirm current execution ownership', {
-          phase: 'ownership_read',
-          upstream_code: errorCode(error),
-        }, 503);
-      }
-      const slotExpiry = instant(slot?.expires_at);
-      if (!slot || slot.lease_id !== leaseId || slotExpiry === null || slotExpiry <= observedNow) {
-        fail('EXECUTION_AUTHORITY_STALE', 'execution authority no longer owns the active work slot', {
-          work_ref: workRef,
-          lease_id: leaseId,
-          gate,
-          reason: 'slot_not_owned',
-        });
-      }
-
-      const runDeadline = instant(run?.deadline_at);
-      if (!run || run.status !== 'active' || runDeadline === null || runDeadline <= observedNow) {
-        fail('EXECUTION_AUTHORITY_STALE', 'execution authority run is no longer active', {
-          work_ref: workRef,
-          lease_id: leaseId,
-          run_id: runId,
-          gate,
-          reason: 'run_not_active',
-        });
-      }
+      requireActiveLease(lease, observedNow, leaseId);
 
       const parsedReceipt = parseJson(lease.claim_receipt);
       const claimReceipt = isRecord(parsedReceipt) ? parsedReceipt : null;
@@ -240,6 +190,8 @@ export function createExecutionAuthorityService({
         const subjectRepository = repositoryIdentity(subject?.repository);
         const subjectProjectRef = nonEmptyText(subject?.project_ref);
         const subjectTransitionId = nonEmptyText(subject?.transition_id);
+        const subjectGraphFingerprint = nonEmptyText(subject?.graph_fingerprint);
+        const subjectTransitionFingerprint = nonEmptyText(subject?.transition_definition_fingerprint);
         if (!subject || !subjectProjectRef || !subjectTransitionId || !requestedRepository || !subjectRepository) {
           fail('EXECUTION_AUTHORITY_INVALID', 'project transition execution authority is missing durable subject identity', {
             lease_id: leaseId,
@@ -278,32 +230,101 @@ export function createExecutionAuthorityService({
           throw error;
         }
         const verifiedRecord = isRecord(verified) ? verified : null;
+        const verifiedLeaseRef = nonEmptyText(verifiedRecord?.lease_ref);
+        const verifiedRunId = nonEmptyText(verifiedRecord?.run_id);
         const verifiedRepository = repositoryIdentity(verifiedRecord?.repository);
         const verifiedProjectRef = nonEmptyText(verifiedRecord?.project_ref);
         const verifiedTransitionId = nonEmptyText(verifiedRecord?.transition_id);
-        if (!verifiedRecord || verifiedRecord.subject !== 'project_transition' || verifiedRepository !== subjectRepository || !verifiedProjectRef || !verifiedTransitionId) {
+        const verifiedGraphFingerprint = nonEmptyText(verifiedRecord?.graph_fingerprint);
+        const verifiedTransitionFingerprint = nonEmptyText(verifiedRecord?.transition_definition_fingerprint);
+        if (!verifiedRecord
+            || verifiedRecord.subject !== 'project_transition'
+            || verifiedLeaseRef !== leaseId
+            || verifiedRunId !== runId
+            || verifiedRepository !== subjectRepository
+            || verifiedProjectRef !== subjectProjectRef
+            || verifiedTransitionId !== subjectTransitionId
+            || (subjectGraphFingerprint !== null && verifiedGraphFingerprint !== subjectGraphFingerprint)
+            || (subjectTransitionFingerprint !== null && verifiedTransitionFingerprint !== subjectTransitionFingerprint)) {
           fail('EXECUTION_AUTHORITY_INVALID', 'project transition authority validator returned inconsistent subject evidence', {
             lease_id: leaseId,
           });
         }
         return {
           subject: 'project_transition',
-          work_ref: workRef,
           lease_id: leaseId,
           lease_ref: leaseId,
           run_id: runId,
-          gate,
           repository: subjectRepository,
-          project_ref: verifiedProjectRef,
-          transition_id: verifiedTransitionId,
+          project_ref: subjectProjectRef,
+          transition_id: subjectTransitionId,
           authority: verifiedRecord.authority || null,
-          graph_fingerprint: nonEmptyText(verifiedRecord.graph_fingerprint),
+          graph_fingerprint: verifiedGraphFingerprint,
+          transition_definition_fingerprint: verifiedTransitionFingerprint,
         };
+      }
+
+      if (!authoritative || typeof authoritative.getIssue !== 'function' || typeof executionProjection !== 'function') {
+        fail('EXECUTION_AUTHORITY_UNAVAILABLE', 'legacy work execution authority adapter is unavailable', {
+          phase: 'legacy_work_authority_read',
+        }, 503);
+      }
+      const getSlot = store.getSlot;
+      const getRun = store.getRun;
+      if (typeof getSlot !== 'function' || typeof getRun !== 'function') {
+        fail('EXECUTION_AUTHORITY_UNAVAILABLE', 'legacy work execution authority store is unavailable', {
+          phase: 'legacy_work_ownership_read',
+        }, 503);
+      }
+
+      const { workRef, gate } = requiredLegacyWorkIdentity(lease);
+      const allowedGates = normalizeAllowedLegacyWorkExecutionGates(input.allowed_gates);
+      if (!allowedGates.has(gate)) {
+        fail('EXECUTION_AUTHORITY_SCOPE_MISMATCH', 'legacy work execution authority does not cover this mutation gate', {
+          work_ref: workRef,
+          lease_id: leaseId,
+          gate,
+          allowed_gates: [...allowedGates].sort(),
+        });
+      }
+
+      let slot;
+      let run;
+      try {
+        [slot, run] = await Promise.all([
+          getSlot(workRef, gate),
+          getRun(runId),
+        ]);
+      } catch (error) {
+        fail('EXECUTION_AUTHORITY_UNAVAILABLE', 'Overcenter could not confirm current legacy work execution ownership', {
+          phase: 'legacy_work_ownership_read',
+          upstream_code: errorCode(error),
+        }, 503);
+      }
+      const slotExpiry = instant(slot?.expires_at);
+      if (!slot || slot.lease_id !== leaseId || slotExpiry === null || slotExpiry <= observedNow) {
+        fail('EXECUTION_AUTHORITY_STALE', 'legacy work execution authority no longer owns the active work slot', {
+          work_ref: workRef,
+          lease_id: leaseId,
+          gate,
+          reason: 'slot_not_owned',
+        });
+      }
+
+      const runDeadline = instant(run?.deadline_at);
+      if (!run || run.status !== 'active' || runDeadline === null || runDeadline <= observedNow) {
+        fail('EXECUTION_AUTHORITY_STALE', 'legacy work execution authority run is no longer active', {
+          work_ref: workRef,
+          lease_id: leaseId,
+          run_id: runId,
+          gate,
+          reason: 'run_not_active',
+        });
       }
 
       const claimProjection = claimReceipt?.execution_projection;
       if (!isRecord(claimProjection)) {
-        fail('EXECUTION_AUTHORITY_INVALID', 'execution authority lacks a durable execution projection', {
+        fail('EXECUTION_AUTHORITY_INVALID', 'legacy work execution authority lacks a durable execution projection', {
           work_ref: workRef,
           lease_id: leaseId,
         });
@@ -312,7 +333,7 @@ export function createExecutionAuthorityService({
       const requestedRepository = repositoryIdentity(input.repository);
       const leaseRepository = repositoryIdentity(claimProjection.repository);
       if (!requestedRepository || !leaseRepository || requestedRepository !== leaseRepository) {
-        fail('EXECUTION_AUTHORITY_SCOPE_MISMATCH', 'execution authority does not cover the requested repository', {
+        fail('EXECUTION_AUTHORITY_SCOPE_MISMATCH', 'legacy work execution authority does not cover the requested repository', {
           work_ref: workRef,
           lease_id: leaseId,
           gate,
@@ -325,16 +346,16 @@ export function createExecutionAuthorityService({
       try {
         issue = await authoritative.getIssue(workRef);
       } catch (error) {
-        fail('EXECUTION_AUTHORITY_UNAVAILABLE', 'Overcenter could not re-read authoritative work state', {
+        fail('EXECUTION_AUTHORITY_UNAVAILABLE', 'Overcenter could not re-read authoritative legacy work state', {
           work_ref: workRef,
           lease_id: leaseId,
-          phase: 'authoritative_work_read',
+          phase: 'legacy_work_authority_read',
           upstream_code: errorCode(error),
         }, 503);
       }
       const currentProjection = executionProjection(issue);
       if (!projectionMatchesExpected(currentProjection, claimProjection)) {
-        fail('EXECUTION_AUTHORITY_STALE', 'authoritative work state changed after the lease was claimed', {
+        fail('EXECUTION_AUTHORITY_STALE', 'authoritative legacy work state changed after the lease was claimed', {
           work_ref: workRef,
           lease_id: leaseId,
           gate,
