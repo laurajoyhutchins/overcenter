@@ -34,5 +34,6 @@ jobs:
           diff -u lib/execution-lifecycle-contracts.js .semantic-build/execution-lifecycle-contracts.js
           diff -u lib/orchestration-drive.js .semantic-build/orchestration-drive.js
           diff -u lib/project-graph-contracts.js .semantic-build/project-graph-contracts.js
+          diff -u lib/project-transition-status.js .semantic-build/project-transition-status.js
           diff -u lib/semantic-command-descriptors.js .semantic-build/semantic-command-descriptors.js
           diff -u lib/work-settle-contract.js .semantic-build/work-settle-contract.js
