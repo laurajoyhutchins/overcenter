@@ -59,3 +59,29 @@ test('confirmed transition meaning cannot be silently rewritten', () => {
     ],
   }), /confirmed transition/);
 });
+
+test('project authoring runtime rejects stale authority before requesting a repository mutation', async () => {
+  const runtime = await import('../lib/project-authoring-runtime.js').catch(() => null);
+  assert.ok(runtime, 'project authoring runtime boundary must exist');
+
+  let mutations = 0;
+  await assert.rejects(
+    () => runtime.amendProjectDefinition({
+      project_ref:'github:example/project',
+      expected_revision:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      amendment:{ upsert_transitions:[] },
+    }, {
+      resolveAuthority:async () => ({
+        project_ref:'github:example/project',
+        repository:'example/project',
+        revision:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        derivation:'overcenter-project-graph-v1',
+      }),
+      readDefinition:async () => base,
+      mutateDefinition:async () => { mutations += 1; return { revision:'cccccccccccccccccccccccccccccccccccccccc' }; },
+      deriveProjectGraph:async () => ({ project_ref:'github:example/project' }),
+    }),
+    (error) => error?.code === 'PROJECT_AUTHORING_AUTHORITY_STALE',
+  );
+  assert.equal(mutations, 0);
+});
