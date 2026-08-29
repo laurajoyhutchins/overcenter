@@ -1,3 +1,5 @@
+import type { CanonicalCommand } from './canonical-commands.js';
+
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
@@ -6,7 +8,7 @@ export type ProjectBindingPhase = 'ACQUIRE' | 'COMMIT' | 'CONFIRM';
 
 export type OperatorExecutor = {
   readonly kind: 'operator';
-  readonly command: string;
+  readonly command: CanonicalCommand;
   readonly role?: never;
   readonly skill?: never;
 };
@@ -33,7 +35,7 @@ export type LiteralPhaseInputSource = {
 export type PhaseInputSource = FromPhaseInputSource | LiteralPhaseInputSource;
 
 export type PhaseBinding = {
-  readonly primitive: string;
+  readonly primitive: CanonicalCommand;
   readonly evidence: readonly string[];
   readonly input: Readonly<Record<string, PhaseInputSource>>;
 };

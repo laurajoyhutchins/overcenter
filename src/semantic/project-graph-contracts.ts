@@ -1,3 +1,5 @@
+import { CANONICAL_COMMANDS } from './canonical-commands.js';
+import type { CanonicalCommand } from './canonical-commands.js';
 import type {
   Executor,
   JsonValue,
@@ -9,6 +11,8 @@ import type {
 
 export type ProjectGraphFail = (code: string, message: string, details?: unknown) => never;
 
+const CANONICAL_COMMAND_SET: ReadonlySet<string> = new Set(CANONICAL_COMMANDS);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -19,11 +23,19 @@ function requiredText(value: unknown, field: string, fail: ProjectGraphFail): st
   return normalized;
 }
 
+function canonicalCommand(value: unknown, field: string, fail: ProjectGraphFail): CanonicalCommand {
+  const command = requiredText(value, field, fail);
+  if (!CANONICAL_COMMAND_SET.has(command)) {
+    fail('INVALID_PROJECT_GRAPH', `${field} must name a canonical Overcenter command`, { field, command });
+  }
+  return command as CanonicalCommand;
+}
+
 export function normalizeProjectExecutor(raw: unknown, nodeId: string, fail: ProjectGraphFail): Executor {
   if (!isRecord(raw)) fail('INVALID_PROJECT_GRAPH', 'executor must be an object', { node_id: nodeId });
   const kind = requiredText(raw.kind, 'executor.kind', fail).toLowerCase();
   if (kind === 'operator') {
-    return Object.freeze({ kind, command: requiredText(raw.command, 'executor.command', fail) });
+    return Object.freeze({ kind, command: canonicalCommand(raw.command, 'executor.command', fail) });
   }
   if (kind === 'agent') {
     return Object.freeze({
@@ -131,7 +143,7 @@ export function normalizeProjectPhaseBindings(raw: unknown, nodeId: string, fail
       fail('INVALID_PROJECT_GRAPH', 'phase binding evidence contains duplicates', { node_id: nodeId, phase });
     }
     normalized[phase] = Object.freeze({
-      primitive: requiredText(rawBinding.primitive, `phase_bindings.${phase}.primitive`, fail),
+      primitive: canonicalCommand(rawBinding.primitive, `phase_bindings.${phase}.primitive`, fail),
       evidence: Object.freeze([...evidence]),
       input: normalizeProjectPhaseInput(rawBinding.input, nodeId, phase, fail),
     });
