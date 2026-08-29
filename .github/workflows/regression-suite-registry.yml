@@ -36,6 +36,8 @@ jobs:
         run: node --test scripts/verify-project-transition-leases.test.mjs
       - name: Test MCP admission contract
         run: node --test scripts/verify-mcp-admission-contract.test.mjs
+      - name: Test graph-native GitHub mutation authority
+        run: node --test scripts/verify-github-graph-authority.test.mjs
       - name: Test repository metadata command contract
         run: node --test scripts/verify-repository-metadata-command.test.mjs
       - name: Test repository registration command admission
