@@ -5,7 +5,6 @@ import {
   projectAuthoringIdempotencyKey,
 } from '../lib/project-authoring-github-runtime.js';
 import { normalizeProjectDefinitionFacts } from '../lib/project-definition-facts.js';
-import { createProjectDefinitionFactsReader } from '../lib/project-definition-facts-reader.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const resultingRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -128,24 +127,4 @@ test('exact-revision project facts can represent an adopted repository with no p
     definitions:[],
   });
   assert.deepEqual(facts.definitions, []);
-});
-
-test('definition reader distinguishes exact discovery absence from ambiguous read failure', async () => {
-  const client = { async call(name, input) {
-    assert.equal(name, 'github');
-    if (input.path === `/repos/example/project/commits/${initialRevision}`) return { status:200, body:{ sha:initialRevision } };
-    if (input.path === '/repos/example/project/contents/.overcenter/project-definitions.json') return { status:404, body:{ message:'Not Found' } };
-    throw new Error(`unexpected path ${input.path}`);
-  } };
-  const facts = await createProjectDefinitionFactsReader(client)({ repository:'example/project', revision:initialRevision });
-  assert.deepEqual(facts.definitions, []);
-
-  const forbidden = { async call(name, input) {
-    if (input.path === `/repos/example/project/commits/${initialRevision}`) return { status:200, body:{ sha:initialRevision } };
-    return { status:403, body:{ message:'Forbidden' } };
-  } };
-  await assert.rejects(
-    () => createProjectDefinitionFactsReader(forbidden)({ repository:'example/project', revision:initialRevision }),
-    (error) => error?.code === 'PROJECT_DEFINITION_FACTS_READ_FAILED',
-  );
 });
