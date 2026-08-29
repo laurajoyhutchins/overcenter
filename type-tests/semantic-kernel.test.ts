@@ -1,3 +1,4 @@
+import { parseCanonicalCommand } from '../lib/command-contracts.js';
 import type { CanonicalCommand } from '../lib/command-contracts.js';
 import type { GitSha, IdempotencyKey, LeaseId, RunId, WorkRef } from '../lib/semantic-identities.js';
 import type { Executor, PhaseInputSource, ProjectNodeState } from '../lib/project-graph-types.js';
@@ -25,9 +26,9 @@ acceptRunId(leaseId);
 // @ts-expect-error WorkRef must not be accepted where GitSha is required.
 acceptGitSha(workRef);
 
-const claimCommand: CanonicalCommand = 'work.claim';
+const claimCommand: CanonicalCommand = parseCanonicalCommand('work.claim');
 void claimCommand;
-// @ts-expect-error Unknown command names must not enter the semantic command surface.
+// @ts-expect-error Unvalidated strings must not enter the typed semantic command surface.
 const invalidCommand: CanonicalCommand = 'work.claim.extra';
 void invalidCommand;
 
