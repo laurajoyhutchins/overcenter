@@ -12,6 +12,12 @@ async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 }
 
+function literalProperty(text, property) {
+  const match = text.match(new RegExp(`${property}\\s*:\\s*(['\"])(.*?)\\1`, 's'));
+  assert.ok(match, `missing static ${property}`);
+  return match[2];
+}
+
 test('representative commands have one authoritative semantic descriptor', () => {
   assert.deepEqual([...MIGRATED_SEMANTIC_COMMANDS].sort(), expected);
 
@@ -47,20 +53,33 @@ test('migrated worker validation is descriptor-derived rather than separately li
   assert.doesNotMatch(worker, /WORK_SETTLE_(?:SEMANTIC|REQUIRED)_FIELDS/);
 });
 
-test('representative MCP adapters consume descriptor schema and metadata', async () => {
+test('MCP metadata stays statically parseable and mechanically matches descriptors', async () => {
   const adapters = [
-    ['work.settle', 'mcp/work.settle.js'],
-    ['github.release.create', 'mcp/github_release_create.js'],
-    ['orchestration.diagnose', 'mcp/orchestration.diagnose.js'],
+    ['work.settle', 'mcp/work.settle.js', 'WORK_SETTLE_INPUT_SCHEMA'],
+    ['github.release.create', 'mcp/github_release_create.js', 'GITHUB_RELEASE_INPUT_SCHEMA'],
+    ['orchestration.diagnose', 'mcp/orchestration.diagnose.js', 'ORCHESTRATION_DIAGNOSE_INPUT_SCHEMA'],
   ];
 
-  for (const [command, path] of adapters) {
+  for (const [command, path, schemaName] of adapters) {
+    const descriptor = semanticCommandDescriptor(command);
+    const text = await source(path);
+    assert.equal(literalProperty(text, 'name'), descriptor.mcp_name, `${command} MCP name drifted`);
+    assert.equal(literalProperty(text, 'description'), descriptor.description, `${command} MCP description drifted`);
+    assert.match(text, new RegExp(`inputSchema\\s*:\\s*${schemaName}`));
+  }
+});
+
+test('MCP schema compatibility projections derive from the authoritative descriptor', async () => {
+  const projections = [
+    ['work.settle', 'lib/work-settle-contract.js'],
+    ['github.release.create', 'lib/github-release-contract.js'],
+    ['orchestration.diagnose', 'lib/orchestration-diagnose-contract.js'],
+  ];
+  for (const [command, path] of projections) {
     const text = await source(path);
     assert.match(text, /semanticCommandDescriptor/);
     assert.match(text, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
-    assert.match(text, /inputSchema:\s*descriptor\.input_schema/);
-    assert.match(text, /description:\s*descriptor\.description/);
-    assert.match(text, /name:\s*descriptor\.mcp_name/);
+    assert.match(text, /descriptor\.input_schema/);
   }
 });
 
