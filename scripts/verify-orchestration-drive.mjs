@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
 import { createOrchestrationDriveService } from '../lib/orchestration-drive.js';
+
+assert.ok(CANONICAL_COMMANDS.includes('orchestration.drive'), 'orchestration.drive must be registered as a canonical command');
 
 const deterministic = [];
 const service = createOrchestrationDriveService({
