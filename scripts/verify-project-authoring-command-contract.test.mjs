@@ -22,12 +22,12 @@ test('project.define exposes semantic intent without repository layout or transp
     definition,
   });
   assert.deepEqual(normalized, { project_ref:projectRef, expected_revision:revision, definition });
-  for (const forbidden of ['branch','path','idempotency_key','commit_message','base_sha']) {
+  for (const forbidden of ['branch','path','idempotency_key','commit_message','base_sha','lease_ref','run_id']) {
     assert.throws(() => normalizeProjectDefineRequest({ project_ref:projectRef, expected_revision:revision, definition, [forbidden]:'caller-owned' }), /unsupported field/);
   }
 });
 
-test('project.amend exposes bounded semantic edits plus execution authority reference only', () => {
+test('project.amend exposes semantic intent without orchestration bookkeeping', () => {
   const amendment = {
     upsert_transitions:[
       { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } },
@@ -37,16 +37,14 @@ test('project.amend exposes bounded semantic edits plus execution authority refe
     project_ref:projectRef,
     expected_revision:revision,
     amendment,
-    lease_ref:'lease-ref',
-    run_id:'run-id',
   });
-  assert.deepEqual(normalized, { project_ref:projectRef, expected_revision:revision, amendment, lease_ref:'lease-ref', run_id:'run-id' });
-  for (const forbidden of ['branch','path','idempotency_key','commit_message','base_sha']) {
-    assert.throws(() => normalizeProjectAmendRequest({ project_ref:projectRef, expected_revision:revision, amendment, lease_ref:'lease-ref', [forbidden]:'caller-owned' }), /unsupported field/);
+  assert.deepEqual(normalized, { project_ref:projectRef, expected_revision:revision, amendment });
+  for (const forbidden of ['branch','path','idempotency_key','commit_message','base_sha','lease_ref','run_id']) {
+    assert.throws(() => normalizeProjectAmendRequest({ project_ref:projectRef, expected_revision:revision, amendment, [forbidden]:'caller-owned' }), /unsupported field/);
   }
 });
 
 test('project authoring command requests fail closed on inexact source authority', () => {
   assert.throws(() => normalizeProjectDefineRequest({ project_ref:projectRef, expected_revision:'dev', definition }), /40-character Git revision/);
-  assert.throws(() => normalizeProjectAmendRequest({ project_ref:projectRef, expected_revision:'dev', amendment:{}, lease_ref:'lease-ref' }), /40-character Git revision/);
+  assert.throws(() => normalizeProjectAmendRequest({ project_ref:projectRef, expected_revision:'dev', amendment:{} }), /40-character Git revision/);
 });
