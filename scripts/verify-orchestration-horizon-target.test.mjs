@@ -58,7 +58,7 @@ function graph(revision, done = false) {
     schema:'project-graph-authority-v1',
     project_ref:'portfolio:primary',
     authority:{ definition:{ kind:'github', repository:'laurajoyhutchins/overcenter', revision, derivation:'test-v1' }, observations:[] },
-    nodes:[{ id:'build', priority:1, requires:[], lifecycle:{ current_stage:done?'CONFIRM':'ENABLE', responsibilities:responsibilities(done) }, executor:{ kind:'operator', command:'test.noop' } }],
+    nodes:[{ id:'build', priority:1, requires:[], lifecycle:{ current_stage:done?'CONFIRM':'ENABLE', responsibilities:responsibilities(done) }, executor:{ kind:'operator', command:'github.review_packet' } }],
     horizons:[{ kind:'milestone', ref:'later', target_node_ids:['build'] }],
   };
 }
