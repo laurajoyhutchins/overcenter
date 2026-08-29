@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
 
 async function source(path) {
   return readFile(path, 'utf8');
@@ -16,7 +17,7 @@ test('repository metadata reconciliation is a command-owned fail-closed capabili
   ]);
 
   assert.match(auth, /repository_metadata[\s\S]{0,220}administration:\s*["']write["'][\s\S]{0,220}fail_closed/);
-  assert.match(commands, /['"]github\.repository_metadata\.ensure['"]/);
+  assert.equal(CANONICAL_COMMANDS.includes('github.repository_metadata.ensure'), true);
   assert.match(commands, /GITHUB_REPOSITORY_METADATA_STATE_CHANGED/);
   assert.match(commands, /GITHUB_REPOSITORY_METADATA_INDETERMINATE/);
   assert.match(core, /permissionProfile:\s*['"]repository_metadata['"]/);

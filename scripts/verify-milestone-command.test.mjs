@@ -1,17 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
 
 async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 }
 
 test('milestone ensure is a canonical command with narrow GitHub App permission', async () => {
-  const [commandResponse, auth] = await Promise.all([
-    source('lib/command-response.js'),
-    source('lib/github-app-auth.js'),
-  ]);
-  assert.match(commandResponse, /'github\.milestone\.ensure'/);
+  const auth = await source('lib/github-app-auth.js');
+  assert.equal(CANONICAL_COMMANDS.includes('github.milestone.ensure'), true);
   assert.match(auth, /milestone:\s*Object\.freeze\(\{\s*permissions:\s*Object\.freeze\(\{\s*pull_requests:\s*["']write["'],\s*metadata:\s*["']read["']/s);
 });
 
