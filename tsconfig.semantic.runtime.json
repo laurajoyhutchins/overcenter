@@ -10,9 +10,11 @@
     "src/semantic/canonical-commands.ts",
     "src/semantic/command-contracts.ts",
     "src/semantic/execution-authority-contracts.ts",
+    "src/semantic/execution-authority-core.ts",
     "src/semantic/execution-lifecycle-contracts.ts",
     "src/semantic/project-graph-contracts.ts",
     "src/semantic/project-graph-types.ts",
+    "src/semantic/runtime-boundaries.d.ts",
     "src/semantic/semantic-identities.ts"
   ],
   "exclude": []

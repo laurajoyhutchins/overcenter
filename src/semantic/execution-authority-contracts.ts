@@ -29,7 +29,7 @@ export type ExecutionAuthorityFail = (
 
 export function normalizeExecutionAuthorityLocator(
   input: unknown,
-  repository: string | null,
+  repositoryForFailure: () => string | null,
   fail: ExecutionAuthorityFail,
 ): ExecutionAuthorityLocator {
   const value = input && typeof input === 'object' && !Array.isArray(input)
@@ -39,7 +39,7 @@ export function normalizeExecutionAuthorityLocator(
   const leaseRef = typeof value.lease_ref === 'string' ? value.lease_ref.trim() : '';
   if (!leaseToken && !leaseRef) {
     return fail('EXECUTION_AUTHORITY_REQUIRED', 'an active Overcenter work lease is required for this mutation', {
-      repository,
+      repository: repositoryForFailure(),
     });
   }
   if (leaseToken && leaseRef) {
