@@ -27,25 +27,29 @@
 
 ### Task 2: Port command admission and semantic identities
 
-**Files:** `src/semantic/semantic-identities.ts`, `src/semantic/command-contracts.ts`, `src/semantic/runtime-modules.d.ts`, generated `lib/command-contracts.js`, `tsconfig.semantic.runtime.json`
+**Files:** `src/semantic/semantic-identities.ts`, `src/semantic/canonical-commands.ts`, `src/semantic/command-contracts.ts`, generated `lib/canonical-commands.js`, generated `lib/command-contracts.js`, `tsconfig.semantic.runtime.json`
 
 - [x] Add branded `RunId`, `LeaseId`, `WorkRef`, `GitSha`, and `IdempotencyKey`.
-- [x] Add typed canonical-command parse-then-trust admission without duplicating the existing registry.
-- [x] Confirm compile-time rejection of identity mixups and unvalidated command strings.
-- [ ] Confirm generated JS exactly matches TS emission.
-- [ ] Confirm exact-revision Hatchable verification passes with no TypeScript syntax in the synchronized runtime tree.
+- [x] Derive `CanonicalCommand` from one typed literal registry.
+- [x] Remove the duplicate command list from `lib/command-response.js`.
+- [x] Remove the duplicate canonical success-envelope list from `lib/command-response.test.js`.
+- [x] Confirm compile-time rejection of identity mixups and unknown command literals.
+- [x] Confirm generated JS exactly matches TypeScript emission.
+- [x] Confirm exact-revision Hatchable verification passes with no TypeScript syntax in the synchronized runtime tree.
 
 ### Task 3: Port project-graph structural types
 
-**Files:** `src/semantic/project-graph-types.ts`, selected project-graph runtime module(s) only after the generation boundary is green.
+**Files:** `src/semantic/project-graph-types.ts`, `src/semantic/project-graph-contracts.ts`, generated `lib/project-graph-contracts.js`, `lib/project-graph.js`
 
 - [x] Add discriminated executor and phase-input unions.
 - [x] Prove operator/agent field mixing and `from`+`literal` ambiguity are compile errors.
-- [ ] Make the existing project-graph implementation consume useful type declarations without weakening runtime validation.
-- [ ] Re-run type and runtime verification; require GREEN.
+- [x] Route existing project-graph executor and phase-binding normalization through the typed generated boundary without weakening runtime validation.
+- [x] Re-run type, repository, and exact Hatchable V8 verification; require GREEN.
 
 ### Task 4: Evaluate the proof slice
 
-- [ ] Record which invalid states the compiler now prevents.
-- [x] Record the Hatchable runtime constraint and the mechanically generated JS boundary.
-- [ ] Stop rather than expanding the migration if typing mostly produces casts, optional-property bags, or duplicate registries.
+- [x] Record the invalid states the compiler now prevents.
+- [x] Record the Hatchable runtime constraint and mechanically generated JS boundary.
+- [x] Confirm the approach removes duplication rather than creating another registry.
+- [x] Stop this proof slice before expanding into a third subsystem.
+- [x] Select execution authority, leases, and runs as the next typed semantic island.

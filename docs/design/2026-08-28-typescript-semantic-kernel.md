@@ -14,13 +14,30 @@ Therefore authoritative TypeScript source lives under `src/semantic/`, outside t
 
 This is a deployment materialization boundary, not a second hand-maintained implementation. Hatchable platform feedback #279 records the documentation/runtime mismatch.
 
-## First proof slice
+## Proven first slice
 
-1. Introduce branded semantic identities for values that must not be accidentally interchanged.
-2. Type canonical command admission with a parse-then-trust boundary without creating another command registry.
-3. Model project-graph executor and phase-input alternatives as discriminated unions.
-4. Keep existing runtime behavior and runtime validators intact.
-5. Prove generated JavaScript materialization passes the exact Hatchable V8 path before expanding the migration.
+The proof establishes the pattern on two high-value semantic islands:
+
+1. **Canonical commands and semantic identities.** `RunId`, `LeaseId`, `WorkRef`, `GitSha`, and `IdempotencyKey` are distinct branded types. The canonical command list is a typed literal tuple that generates the runtime registry, and command-response tests consume the same registry instead of maintaining a second list.
+2. **Project-graph structural normalization.** Executor alternatives, phase-input alternatives, node states, and phase-binding structures are statically modeled. Existing runtime normalization now passes through generated JavaScript emitted from the typed normalizers, preserving the original fail-closed validation behavior.
+
+The compiler now rejects identity interchange, unknown canonical command literals, operator/agent field mixing, ambiguous `from`+`literal` phase inputs, and unknown project node states.
+
+## Verification
+
+The proof requires all three gates on the same exact branch head:
+
+- strict semantic TypeScript verification plus byte-for-byte generated-JavaScript comparison;
+- the repository regression/public-release verification suite;
+- exact-revision Hatchable V8 verification.
+
+This combination proved that types add static guarantees without introducing an unverified source/runtime split.
+
+## Decision after proof
+
+**GO.** The pattern removed concrete invalid states and manual registry duplication without requiring broad casts, optional-property bags, a generic schema framework, or a blanket migration.
+
+The next highest-value semantic island is execution authority, leases, and runs. That port should reuse the same parse-then-trust boundary, branded identities, generated-runtime materialization, and three-gate verification pattern before evidence/receipts are considered.
 
 ## Non-goals
 
