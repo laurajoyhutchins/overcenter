@@ -12,6 +12,7 @@
     "src/semantic/execution-authority-contracts.ts",
     "src/semantic/execution-authority-core.ts",
     "src/semantic/execution-evidence-contracts.ts",
+    "src/semantic/execution-evidence.ts",
     "src/semantic/execution-lifecycle-contracts.ts",
     "src/semantic/project-graph-contracts.ts",
     "src/semantic/project-graph-types.ts",
