@@ -3,7 +3,7 @@ import {
   normalizeProjectPhaseBindings,
   normalizeProjectPhaseInput,
 } from '../src/semantic/project-graph-contracts.js';
-import type { Executor, PhaseBindings, PhaseInputSource } from '../src/semantic/project-graph-types.js';
+import type { Executor, PhaseBinding, PhaseBindings, PhaseInputSource } from '../src/semantic/project-graph-types.js';
 
 type Fail = (code: string, message: string, details?: unknown) => never;
 declare const fail: Fail;
@@ -20,6 +20,10 @@ const agent: Executor = normalizeProjectExecutor(
 );
 void operator;
 void agent;
+
+// @ts-expect-error Project-graph operators must name canonical Overcenter commands.
+const unknownOperator: Executor = { kind: 'operator', command: 'github.do_whatever' };
+void unknownOperator;
 
 const phaseInput: Readonly<Record<string, PhaseInputSource>> = normalizeProjectPhaseInput(
   {
@@ -44,3 +48,11 @@ const phaseBindings: PhaseBindings = normalizeProjectPhaseBindings(
   fail,
 );
 void phaseBindings;
+
+// @ts-expect-error Lifecycle phase primitives must name canonical Overcenter commands.
+const unknownPrimitive: PhaseBinding = {
+  primitive: 'github.do_whatever',
+  evidence: ['result'],
+  input: {},
+};
+void unknownPrimitive;
