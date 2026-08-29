@@ -3,6 +3,7 @@ export const CANONICAL_COMMANDS = Object.freeze([
   'work.checkpoint',
   'work.heartbeat',
   'work.settle',
+  'project.bootstrap_confirm_graph_deriver',
   'skill.activate',
   'skill.complete',
   'github.apply_changeset',
