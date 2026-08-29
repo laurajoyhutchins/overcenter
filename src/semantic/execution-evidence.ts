@@ -1,6 +1,6 @@
 import { boundedEvidenceProjection, boundedEvidenceText } from './bounded-evidence.js';
 import {
-  EXECUTION_EVIDENCE_SCHEMA,
+  EXECUTION_EVIDENCE_SCHEMA as EXECUTION_EVIDENCE_SCHEMA_CONTRACT,
   NO_EXTERNAL_MUTATION_COMMANDS,
   VERIFIED_EXTERNAL_EFFECT_COMMANDS,
   type ExecutionEvidence,
@@ -8,7 +8,7 @@ import {
   type SettlementEvidence,
 } from './execution-evidence-contracts.js';
 
-export { EXECUTION_EVIDENCE_SCHEMA } from './execution-evidence-contracts.js';
+export const EXECUTION_EVIDENCE_SCHEMA = EXECUTION_EVIDENCE_SCHEMA_CONTRACT;
 
 type Row = Record<string, unknown>;
 
