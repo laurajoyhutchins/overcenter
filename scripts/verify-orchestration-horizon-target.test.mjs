@@ -127,10 +127,21 @@ test('untargeted runs preserve the legacy advisory horizon path and cannot inher
   assert.equal(resolved.schema, 'orchestration-horizon-v1');
 });
 
+
 test('postgres target store isolates predecessor identity and preserves journal reconciliation hash', async()=>{
-  const queries = [];
-  const db = { async query(sql, params = []) { queries.push({ sql, params }); if (sql.includes('FROM orchestration_runs') && sql.includes('run_id = $1')) return { rows:[] }; if (sql.includes('INSERT INTO orchestration_runs')) return { rows:[{ run_id:'stored' }] }; return { rows:[] }; } };
-  const store = createPostgresOrchestrationRunTargetStore(db);
-  assert.equal(typeof store.insertRunWithTarget, 'function');
-  assert.equal(typeof store.findPredecessorByTarget, 'function');
+  const calls = [];
+  const db = { async query(sql, params) { calls.push({sql, params}); return { rows:[{ run_id:'saved' }] }; } };
+  const baseStore = { async getRun(){ return null; } };
+  const store = createPostgresOrchestrationRunTargetStore(db, baseStore);
+  await store.findPredecessorByTarget('continuation', 'scope', 'a'.repeat(64), 'run-x');
+  assert.match(calls[0].sql, /target_sha256 IS NOT DISTINCT FROM \$3/);
+  assert.deepEqual(calls[0].params, ['continuation', 'scope', 'a'.repeat(64), 'run-x']);
+  await store.insertRunWithTarget({
+    run_id:'run-x', worker:'worker', mode:'interactive', continuation_key:'continuation', scope:{project:'x'}, scope_sha256:'scope',
+    start_request_sha256:'b'.repeat(64), started_at:'2026-08-26T20:00:00.000Z', deadline_at:'2026-08-26T21:00:00.000Z',
+    settlement_reserve_seconds:300, minimum_new_gate_seconds:600, predecessor_run_id:null, status:'active', contract_provenance:{}, skill_policy:{},
+  }, TARGET_A, 'c'.repeat(64), 'd'.repeat(64));
+  assert.equal(calls[1].params[6], 'd'.repeat(64));
+  assert.equal(calls[1].params[7], 'b'.repeat(64));
+  assert.equal(calls[1].params[17], 'c'.repeat(64));
 });
