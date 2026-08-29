@@ -1,4 +1,4 @@
-import { applyProjectDefinitionAmendment } from './project-authoring.js';
+import { applyProjectDefinitionAmendment, canonicalProjectDefinition } from './project-authoring.js';
 import type { CanonicalProjectDefinition, ProjectDefinitionDiff } from './project-authoring.js';
 
 export type ProjectAuthoringAuthority = Readonly<{
@@ -30,6 +30,12 @@ export type ProjectAmendRequest = Readonly<{
   amendment: Readonly<Record<string, unknown>>;
 }>;
 
+export type ProjectDefineRequest = Readonly<{
+  project_ref: string;
+  expected_revision: string;
+  definition: Readonly<Record<string, unknown>>;
+}>;
+
 const SHA40 = /^[0-9a-f]{40}$/;
 
 function fail(code: string, message: string, details: Readonly<Record<string, unknown>> | null = null): never {
@@ -47,6 +53,12 @@ function exactRevision(value: unknown, field = 'expected_revision'): string {
   return revision;
 }
 
+function projectRefOf(input: { project_ref?: unknown }): string {
+  const projectRef = typeof input?.project_ref === 'string' ? input.project_ref.trim() : '';
+  if (!projectRef) fail('PROJECT_AUTHORING_REQUEST_INVALID', 'project_ref is required');
+  return projectRef;
+}
+
 function requireDependencies(dependencies: ProjectAuthoringRuntimeDependencies): void {
   for (const name of ['resolveAuthority','readDefinition','mutateDefinition','deriveProjectGraph'] as const) {
     if (!dependencies || typeof dependencies[name] !== 'function') {
@@ -55,14 +67,7 @@ function requireDependencies(dependencies: ProjectAuthoringRuntimeDependencies):
   }
 }
 
-export async function amendProjectDefinition(
-  input: ProjectAmendRequest,
-  dependencies: ProjectAuthoringRuntimeDependencies,
-) {
-  const projectRef = typeof input?.project_ref === 'string' ? input.project_ref.trim() : '';
-  if (!projectRef) fail('PROJECT_AUTHORING_REQUEST_INVALID', 'project_ref is required');
-  requireDependencies(dependencies);
-  const expectedRevision = exactRevision(input.expected_revision);
+async function fencedAuthority(projectRef: string, expectedRevision: string, dependencies: ProjectAuthoringRuntimeDependencies) {
   const authority = await dependencies.resolveAuthority({ project_ref: projectRef });
   const observedRevision = exactRevision(authority?.revision, 'authority.revision');
   if (authority?.project_ref !== projectRef || observedRevision !== expectedRevision) {
@@ -72,7 +77,61 @@ export async function amendProjectDefinition(
       observed_revision: observedRevision,
     });
   }
+  return authority;
+}
 
+async function resultAfterMutation(authority: ProjectAuthoringAuthority, mutation: Readonly<{ revision: string }>, diff: ProjectDefinitionDiff, dependencies: ProjectAuthoringRuntimeDependencies) {
+  const resultingRevision = exactRevision(mutation?.revision, 'mutation.revision');
+  const resultingAuthority = Object.freeze({ ...authority, revision: resultingRevision });
+  const graph = await dependencies.deriveProjectGraph(resultingAuthority);
+  return Object.freeze({
+    schema:'project-authoring-result-v1' as const,
+    authority:resultingAuthority,
+    diff,
+    graph,
+  });
+}
+
+export async function defineProjectDefinition(
+  input: ProjectDefineRequest,
+  dependencies: ProjectAuthoringRuntimeDependencies,
+) {
+  const projectRef = projectRefOf(input);
+  requireDependencies(dependencies);
+  const expectedRevision = exactRevision(input.expected_revision);
+  const authority = await fencedAuthority(projectRef, expectedRevision, dependencies);
+  const existingDefinition = await dependencies.readDefinition(authority);
+  if (existingDefinition != null) {
+    fail('PROJECT_AUTHORING_ALREADY_DEFINED', 'project.define requires an authority with no existing project definition', { project_ref:projectRef });
+  }
+  const definition = canonicalProjectDefinition(input.definition);
+  if (definition.project_ref !== projectRef) {
+    fail('PROJECT_AUTHORING_REQUEST_INVALID', 'definition.project_ref must match project_ref', { project_ref:projectRef, definition_project_ref:definition.project_ref });
+  }
+  const diff: ProjectDefinitionDiff = Object.freeze({
+    added:Object.freeze(definition.transitions.map((transition) => transition.id).sort()),
+    changed:Object.freeze([]),
+    removed:Object.freeze([]),
+  });
+  const mutation = await dependencies.mutateDefinition({
+    project_ref:projectRef,
+    repository:authority.repository,
+    expected_revision:expectedRevision,
+    derivation:authority.derivation,
+    definition,
+    diff,
+  });
+  return resultAfterMutation(authority, mutation, diff, dependencies);
+}
+
+export async function amendProjectDefinition(
+  input: ProjectAmendRequest,
+  dependencies: ProjectAuthoringRuntimeDependencies,
+) {
+  const projectRef = projectRefOf(input);
+  requireDependencies(dependencies);
+  const expectedRevision = exactRevision(input.expected_revision);
+  const authority = await fencedAuthority(projectRef, expectedRevision, dependencies);
   const currentDefinition = await dependencies.readDefinition(authority);
   const amendment = applyProjectDefinitionAmendment(currentDefinition, input.amendment);
   const mutation = await dependencies.mutateDefinition({
@@ -83,13 +142,5 @@ export async function amendProjectDefinition(
     definition: amendment.definition,
     diff: amendment.diff,
   });
-  const resultingRevision = exactRevision(mutation?.revision, 'mutation.revision');
-  const resultingAuthority = Object.freeze({ ...authority, revision: resultingRevision });
-  const graph = await dependencies.deriveProjectGraph(resultingAuthority);
-  return Object.freeze({
-    schema:'project-authoring-result-v1' as const,
-    authority:resultingAuthority,
-    diff:amendment.diff,
-    graph,
-  });
+  return resultAfterMutation(authority, mutation, amendment.diff, dependencies);
 }
