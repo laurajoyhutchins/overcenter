@@ -19,6 +19,7 @@
     "src/semantic/orchestration-drive.ts",
     "src/semantic/project-graph-contracts.ts",
     "src/semantic/project-graph-types.ts",
+    "src/semantic/semantic-command-descriptors.ts",
     "src/semantic/semantic-identities.ts",
     "src/semantic/work-settle-contract.ts"
   ],
