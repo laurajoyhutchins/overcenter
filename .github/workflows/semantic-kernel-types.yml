@@ -25,4 +25,6 @@ jobs:
           npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.runtime.json
           diff -u lib/canonical-commands.js .semantic-build/canonical-commands.js
           diff -u lib/command-contracts.js .semantic-build/command-contracts.js
+          diff -u lib/execution-authority-contracts.js .semantic-build/execution-authority-contracts.js
+          diff -u lib/execution-lifecycle-contracts.js .semantic-build/execution-lifecycle-contracts.js
           diff -u lib/project-graph-contracts.js .semantic-build/project-graph-contracts.js

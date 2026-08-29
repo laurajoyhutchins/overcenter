@@ -2,16 +2,18 @@
   "extends": "./tsconfig.semantic.json",
   "compilerOptions": {
     "noEmit": false,
-    "rootDir": "src/semantic",
-    "outDir": ".semantic-build",
     "declaration": false,
-    "sourceMap": false
+    "outDir": ".semantic-build",
+    "rootDir": "src/semantic"
   },
   "include": [
     "src/semantic/canonical-commands.ts",
     "src/semantic/command-contracts.ts",
+    "src/semantic/execution-authority-contracts.ts",
+    "src/semantic/execution-lifecycle-contracts.ts",
     "src/semantic/project-graph-contracts.ts",
     "src/semantic/project-graph-types.ts",
     "src/semantic/semantic-identities.ts"
-  ]
+  ],
+  "exclude": []
 }
