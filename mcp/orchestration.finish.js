@@ -1,12 +1,13 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { createPostgresOrchestrationRunService, statusForOrchestrationRunError } from 'lib/orchestration-runs.js';
+import { createPostgresSubjectAwareOrchestrationRunService } from 'lib/orchestration-finish-runtime.js';
+import { statusForOrchestrationRunError } from 'lib/orchestration-runs.js';
 import { canonicalFinishCommand } from 'lib/operator-commands.js';
 
 export const access = 'admin';
 
 export default {
   name: 'orchestration.finish',
-  description: 'Terminalize one orchestration run. If the run still owns a live lease, supply explicit active_lease_settlement semantics and the control plane will settle that exact lease through the canonical safe path before finishing. The control plane never guesses completed, requeue, or blocked.',
+  description: 'Terminalize one orchestration run. If the run still owns a live lease, supply explicit active_lease_settlement semantics and the control plane will settle that exact lease through its authoritative subject-specific path before finishing. The control plane never guesses completed, requeue, or blocked.',
   inputSchema: {
     type: 'object',
     required: ['run_id','disposition'],
@@ -39,7 +40,7 @@ export default {
     const response = await executeCorrelatedCommand(
       'orchestration.finish',
       input,
-      (request) => createPostgresOrchestrationRunService({ db: ctx?.db }).finish(request),
+      (request) => createPostgresSubjectAwareOrchestrationRunService({ db:ctx?.db }).finish(request),
       {
         statusForFailure: statusForOrchestrationRunError,
         defaultError: 'ORCHESTRATION_FINISH_ERROR',
