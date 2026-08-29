@@ -34,6 +34,8 @@ jobs:
         run: node --test scripts/verify-project-horizon.test.mjs
       - name: Test project transition lease semantics
         run: node --test scripts/verify-project-transition-leases.test.mjs
+      - name: Test compatibility transition confirmation bridge
+        run: node --test scripts/verify-compatibility-transition-confirmation.test.mjs
       - name: Test MCP admission contract
         run: node --test scripts/verify-mcp-admission-contract.test.mjs
       - name: Test repository metadata command contract
