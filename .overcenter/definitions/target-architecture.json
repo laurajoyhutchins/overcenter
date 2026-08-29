@@ -12,6 +12,7 @@
     {"id":"generate-semantic-command-descriptor","priority":90,"requires":["add-targeted-project-driver"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
     {"id":"retire-stage-lane-semantics","priority":85,"requires":["add-targeted-project-driver"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
     {"id":"show-transition-first-status","priority":80,"requires":["add-targeted-project-driver"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
+    {"id":"make-runtime-host-replaceable","priority":78,"requires":["retire-stage-lane-semantics"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
     {"id":"reconcile-live-graph-revisions","priority":75,"requires":["add-targeted-project-driver","add-semantic-project-authoring"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
     {"id":"compact-agent-semantic-surface","priority":70,"requires":["generate-semantic-command-descriptor","retire-stage-lane-semantics","show-transition-first-status"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}}
   ]
