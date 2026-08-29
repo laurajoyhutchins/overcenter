@@ -1,21 +1,16 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { createPostgresOrchestrationDiagnosisService } from 'lib/orchestration-recovery.js';
 import { statusForOrchestrationRunError } from 'lib/orchestration-runs.js';
+import { semanticCommandDescriptor } from 'lib/semantic-command-descriptors.js';
+
+const descriptor = semanticCommandDescriptor('orchestration.diagnose');
 
 export const access = 'admin';
 
 export default {
-  name: 'orchestration.diagnose',
-  description: 'Read current durable orchestration state and return the typed failure class, exact deterministic recovery operation, and escalation boundary. This is state inspection and recovery classification only; it does not plan or select work.',
-  inputSchema: {
-    type: 'object',
-    required: ['run_id'],
-    properties: {
-      run_id: { type: 'string', minLength: 1, maxLength: 512 },
-      work_ref: { type: 'string', minLength: 1, maxLength: 128 },
-    },
-    additionalProperties: false,
-  },
+  name: descriptor.mcp_name,
+  description: descriptor.description,
+  inputSchema: descriptor.input_schema,
   async handler(args, ctx) {
     const response = await executeCorrelatedCommand(
       'orchestration.diagnose',
