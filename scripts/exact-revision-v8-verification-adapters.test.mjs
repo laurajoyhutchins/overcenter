@@ -48,6 +48,40 @@ test('Hatchable adapter normalizes, reconciles, version-fences, and runs canonic
   assert.deepEqual(calls.map(([name])=>name),['get_project','list_files','write_files','delete_file','get_project','deploy','get_project','get_deployment','run_function']);
 });
 
+test('production reachability evidence traverses real orchestration API entrypoints and terminalizes its probe', async()=>{
+  const calls=[];
+  const repository='laurajoyhutchins/overcenter';
+  const graphRevision='c'.repeat(40);
+  const responses=[
+    {status:200,body:{ok:true,schema:'orchestration-run-v1'}},
+    {status:200,body:{
+      ok:true,
+      schema:'project-horizon-evaluation-v1',
+      horizon:{authority:{kind:'github',repository,revision:graphRevision,derivation:'overcenter-project-graph-v1'}},
+      target:{project_ref:`github:${repository}`,horizon:{kind:'transition',ref:'require-production-reachability'}},
+    }},
+    {status:200,body:{ok:true}},
+  ];
+  const runtime=createHatchableRuntimeAdapter({callTool:async(name,args)=>{calls.push([name,args]);return responses.shift();}});
+  const evidence=await runtime.runProductionReachability({project:'verify',repository,revision});
+  assert.deepEqual(calls.map(([,args])=>args.path),[
+    '/api/orchestration/start',
+    '/api/orchestration/horizon-resolve',
+    '/api/orchestration/finish',
+  ]);
+  assert.equal(calls[0][1].body.target.project_ref,`github:${repository}`);
+  assert.equal(calls[0][1].body.target.horizon.ref,'require-production-reachability');
+  assert.equal(calls[2][1].body.disposition,'clean-stop');
+  assert.deepEqual(evidence,{
+    schema:'production-reachability-evidence-v1',
+    entrypoint:'/api/orchestration/horizon-resolve',
+    runtime_project:'verify',
+    runtime_revision:revision,
+    graph_authority:{kind:'github',repository,revision:graphRevision,derivation:'overcenter-project-graph-v1'},
+    target:{project_ref:`github:${repository}`,horizon:{kind:'transition',ref:'require-production-reachability'}},
+  });
+});
+
 test('Hatchable adapter rejects a verifier project that changed before deployment', async()=>{
   const runtime=createHatchableRuntimeAdapter({callTool:async()=>({current_version:8})});
   await assert.rejects(runtime.deploy({project:'verify',revision:'c'.repeat(40),expected_version:7}),e=>e?.code==='VERIFICATION_RUNTIME_VERSION_MISMATCH');
