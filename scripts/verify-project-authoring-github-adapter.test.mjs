@@ -41,9 +41,9 @@ test('GitHub-backed authoring discovers definition path internally, fences mutat
         : baseDefinition;
       return facts(revision, definition);
     },
-    resolveMutationBranch:async () => ({ branch:'work/project-amend', expected_head:initialRevision }),
     applyChangeset:async (request) => {
       calls.push(['mutate', request.repo, request.base_sha, request.expected_head, request.changes[0].path, request.idempotency_key]);
+      assert.match(request.branch, /^overcenter\/project-authoring\/amend\/[0-9a-f]{24}$/);
       assert.equal(request.changes[0].content.endsWith('\n'), true);
       assert.deepEqual(JSON.parse(request.changes[0].content).transitions.map((item) => item.id), ['foundation', 'second']);
       return { ok:true, new_head:resultingRevision };
