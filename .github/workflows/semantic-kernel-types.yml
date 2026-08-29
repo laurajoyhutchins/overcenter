@@ -33,6 +33,7 @@ jobs:
           diff -u lib/execution-evidence.js .semantic-build/execution-evidence.js
           diff -u lib/execution-lifecycle-contracts.js .semantic-build/execution-lifecycle-contracts.js
           diff -u lib/orchestration-drive.js .semantic-build/orchestration-drive.js
+          diff -u lib/project-definition-changeset-writer.js .semantic-build/project-definition-changeset-writer.js
           diff -u lib/project-definition-mutation-authority.js .semantic-build/project-definition-mutation-authority.js
           diff -u lib/project-graph-contracts.js .semantic-build/project-graph-contracts.js
           diff -u lib/semantic-command-descriptors.js .semantic-build/semantic-command-descriptors.js
