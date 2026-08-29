@@ -24,6 +24,8 @@ jobs:
         run: node scripts/verify-regression-suite-registry.mjs
       - name: Syntax-check runtime modules
         run: find api lib mcp pages -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Test semantic provider boundary
+        run: node --test scripts/verify-semantic-provider-boundary.test.mjs
       - name: Test targeted project driver contract
         run: node scripts/verify-orchestration-drive.mjs
       - name: Test legacy lane compatibility isolation
