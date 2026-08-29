@@ -1,16 +1,17 @@
 import { storage } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { applyGithubChangesetRoleAware } from 'lib/github-branch-role-runtime.js';
+import { createPostgresExecutionAuthorityService } from 'lib/execution-authority.js';
 import { GitHubContentTransportError, expandGithubContentReferences, githubContentTransportErrorResult } from 'lib/github-content-transport.js';
 
 export const access = 'admin';
 
 export default {
   name: 'github_apply_changeset',
-  description: 'Atomically apply a declared multi-file UTF-8 repository changeset as one Git commit under an active Overcenter work lease. Supports create/update/delete, optimistic expected_head checks, non-force branch updates, exact idempotent replay, and managed branch-role enforcement. This MCP tool exposes the conceptual github.apply_changeset command using an underscore-safe transport name.',
+  description: 'Atomically apply a declared multi-file UTF-8 repository changeset as one Git commit under one non-secret Overcenter execution lease reference. The lease_ref may identify legacy work or a graph-native project transition; Overcenter resolves and revalidates authority internally before mutation. Supports create/update/delete, optimistic expected_head checks, non-force branch updates, exact idempotent replay, and managed branch-role enforcement. This MCP tool exposes the conceptual github.apply_changeset command using an underscore-safe transport name.',
   inputSchema: {
     type: 'object',
-    required: ['repo', 'branch', 'changes', 'commit_message', 'lease_token'],
+    required: ['repo', 'branch', 'changes', 'commit_message', 'lease_ref'],
     additionalProperties: false,
     oneOf: [
       { required: ['base_ref'], not: { required: ['base_sha'] } },
@@ -92,11 +93,11 @@ export default {
         },
       },
       commit_message: { type: 'string', minLength: 1, maxLength: 10000 },
-      lease_token: {
+      lease_ref: {
         type: 'string',
         minLength: 1,
-        maxLength: 256,
-        description: 'Opaque token from the active Overcenter work.claim lease that authorizes this repository mutation. Capability material; never persist or log it.',
+        maxLength: 128,
+        description: 'Non-secret reference to one active Overcenter execution lease. May identify legacy work or a graph-native project transition. Overcenter resolves and revalidates the durable authority internally.',
       },
       idempotency_key: {
         type: 'string',
@@ -123,7 +124,16 @@ export default {
     const response = await executeCorrelatedCommand(
       'github.apply_changeset',
       input,
-      (request) => applyGithubChangesetRoleAware(request, { db: ctx.db }),
+      (request) => {
+        const { lease_ref: leaseRef, ...changesetInput } = request;
+        const authority = createPostgresExecutionAuthorityService({ db: ctx.db });
+        const executionAuthority = {
+          require(authorityRequest) {
+            return authority.require({ ...authorityRequest, lease_ref: leaseRef });
+          },
+        };
+        return applyGithubChangesetRoleAware(changesetInput, { db: ctx.db, executionAuthority });
+      },
       { flattenDetails: true, db: ctx.db },
     );
     return response.body;
