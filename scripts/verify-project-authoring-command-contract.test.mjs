@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   normalizeProjectDefineRequest,
   normalizeProjectAmendRequest,
@@ -66,4 +67,15 @@ test('project authoring is exposed through canonical semantic descriptors', () =
       assert.equal(Object.hasOwn(descriptor.input_schema.properties, forbidden), false, `${descriptor.command} leaked ${forbidden}`);
     }
   }
+});
+
+test('worker transport binds project authoring commands to semantic normalizers and an injected authoring service', async () => {
+  const source = await readFile(new URL('../lib/worker-transport.js', import.meta.url), 'utf8');
+  for (const command of ['project.define','project.amend']) {
+    assert.match(source, new RegExp(`['\"]${command.replace('.', '\\.') }['\"]\\s*:`), `${command} is not admitted by worker transport`);
+  }
+  assert.match(source, /normalizeProjectDefineRequest/);
+  assert.match(source, /normalizeProjectAmendRequest/);
+  assert.match(source, /projectAuthoringFor\(runtime\)\.define\(request\)/);
+  assert.match(source, /projectAuthoringFor\(runtime\)\.amend\(request\)/);
 });
