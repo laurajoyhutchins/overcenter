@@ -1,7 +1,7 @@
-import { CANONICAL_COMMANDS } from 'lib/command-response.js';
-import type { SemanticIdentity } from './semantic-identities.js';
+import { CANONICAL_COMMANDS } from './canonical-commands.js';
+import type { CanonicalCommand } from './canonical-commands.js';
 
-export type CanonicalCommand = SemanticIdentity<'CanonicalCommand'>;
+export type { CanonicalCommand } from './canonical-commands.js';
 
 const COMMAND_SET = new Set<string>(CANONICAL_COMMANDS);
 

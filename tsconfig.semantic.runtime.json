@@ -8,10 +8,10 @@
     "sourceMap": false
   },
   "include": [
+    "src/semantic/canonical-commands.ts",
     "src/semantic/command-contracts.ts",
     "src/semantic/project-graph-contracts.ts",
     "src/semantic/project-graph-types.ts",
-    "src/semantic/semantic-identities.ts",
-    "src/semantic/runtime-modules.d.ts"
+    "src/semantic/semantic-identities.ts"
   ]
 }
