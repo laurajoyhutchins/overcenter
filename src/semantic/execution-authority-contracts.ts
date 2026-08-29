@@ -1,20 +1,5 @@
-import type { LeaseId, RunId, WorkRef } from './semantic-identities.js';
-
-export const EXECUTION_GATES = [
-  'lane:enable',
-  'lane:source-implementation',
-  'lane:repo-implementation',
-  'lane:integration',
-  'lane:verification',
-] as const;
-
-export type ExecutionGate = (typeof EXECUTION_GATES)[number];
-
-const EXECUTION_GATE_SET = new Set<string>(EXECUTION_GATES);
-
-export function isExecutionGate(value: unknown): value is ExecutionGate {
-  return typeof value === 'string' && EXECUTION_GATE_SET.has(value);
-}
+import type { LegacyWorkExecutionAuthority } from './legacy-work-execution-authority-contracts.js';
+import type { LeaseId, RunId } from './semantic-identities.js';
 
 export type ExecutionAuthorityLocator =
   | Readonly<{ lease_token: string; lease_ref?: never }>
@@ -38,7 +23,7 @@ export function normalizeExecutionAuthorityLocator(
   const leaseToken = typeof value.lease_token === 'string' ? value.lease_token.trim() : '';
   const leaseRef = typeof value.lease_ref === 'string' ? value.lease_ref.trim() : '';
   if (!leaseToken && !leaseRef) {
-    return fail('EXECUTION_AUTHORITY_REQUIRED', 'an active Overcenter work lease is required for this mutation', {
+    return fail('EXECUTION_AUTHORITY_REQUIRED', 'an active Overcenter execution lease is required for this mutation', {
       repository: repositoryForFailure(),
     });
   }
@@ -54,12 +39,6 @@ export function normalizeExecutionAuthorityLocator(
   return leaseRef
     ? Object.freeze({ lease_ref: leaseRef })
     : Object.freeze({ lease_token: leaseToken });
-}
-
-export function normalizeAllowedExecutionGates(value: unknown): ReadonlySet<string> {
-  const allowedGates = new Set(Array.isArray(value) ? value.map(entry => String(entry)) : []);
-  if (allowedGates.size === 0) throw new Error('execution authority allowed_gates must be non-empty');
-  return allowedGates;
 }
 
 export interface StoredExecutionLease {
@@ -89,32 +68,21 @@ export interface StoredExecutionRun {
 export interface ExecutionAuthorityStore {
   getLeaseByTokenHash(tokenHash: string): Promise<StoredExecutionLease | null>;
   getLeaseById?(leaseId: string): Promise<StoredExecutionLease | null>;
-  getSlot(workRef: string, gate: string): Promise<StoredExecutionSlot | null>;
-  getRun(runId: string): Promise<StoredExecutionRun | null>;
-}
-
-export interface WorkExecutionAuthority {
-  readonly subject?: undefined;
-  readonly work_ref: WorkRef;
-  readonly lease_id: LeaseId;
-  readonly run_id: RunId;
-  readonly gate: ExecutionGate;
-  readonly repository: string;
-  readonly execution_fingerprint: string | null;
+  getSlot?(workRef: string, gate: string): Promise<StoredExecutionSlot | null>;
+  getRun?(runId: string): Promise<StoredExecutionRun | null>;
 }
 
 export interface ProjectTransitionExecutionAuthority {
   readonly subject: 'project_transition';
-  readonly work_ref: WorkRef;
   readonly lease_id: LeaseId;
   readonly lease_ref: LeaseId;
   readonly run_id: RunId;
-  readonly gate: ExecutionGate;
   readonly repository: string;
   readonly project_ref: string;
   readonly transition_id: string;
   readonly authority: unknown | null;
   readonly graph_fingerprint: string | null;
+  readonly transition_definition_fingerprint: string | null;
 }
 
-export type ExecutionAuthority = WorkExecutionAuthority | ProjectTransitionExecutionAuthority;
+export type ExecutionAuthority = LegacyWorkExecutionAuthority | ProjectTransitionExecutionAuthority;

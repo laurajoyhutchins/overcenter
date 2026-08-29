@@ -7,7 +7,7 @@ test('expired project-transition ownership is recovered without Linear reconcili
   let linearCalls = 0;
   let graphCalls = 0;
   const result = await reconcileExpiredLeaseItem(
-    { work_ref:'project_transition:project:revision:node', gate:'lane:repo-implementation', lease_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', subject:'project_transition' },
+    { work_ref:'project_transition:project:revision:node', gate:'project_transition', lease_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', subject:'project_transition' },
     {
       workLeases:{ async reconcileExpired(){ linearCalls += 1; throw new Error('Linear recovery must not run'); } },
       projectTransitions:{ async reconcileExpired(slotKey, leaseId, observedAt){ graphCalls += 1; return { slot_key:slotKey, lease_ref:leaseId, observed_at:observedAt, released_without_linear_mutation:true }; } },
@@ -32,6 +32,7 @@ test('postgres graph expiry is subject-scoped and deletes only the exact slot', 
   const sql = tx.statements.map(statement => statement.sql).join('\n');
   assert.match(sql, /claim_receipt->>'subject' = 'project_transition'/);
   assert.match(sql, /DELETE FROM work_lease_slots/);
-  assert.ok(tx.statements.some(statement => statement.params?.includes('lane:repo-implementation')), 'mutation gate was not exact');
+  assert.ok(tx.statements.some(statement => statement.params?.includes('project_transition')), 'project-transition storage scope was not exact');
+  assert.ok(!tx.statements.some(statement => statement.params?.some(value => String(value).startsWith('lane:'))), 'graph expiry recovery consulted a legacy lane value');
   assert.equal(result.released_without_linear_mutation, true);
 });

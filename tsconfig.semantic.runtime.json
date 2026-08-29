@@ -11,6 +11,7 @@
     "src/semantic/command-contracts.ts",
     "src/semantic/execution-authority-contracts.ts",
     "src/semantic/execution-authority-core.ts",
+    "src/semantic/legacy-work-execution-authority-contracts.ts",
     "src/semantic/execution-evidence-contracts.ts",
     "src/semantic/execution-evidence.ts",
     "src/semantic/execution-lifecycle-contracts.ts",
