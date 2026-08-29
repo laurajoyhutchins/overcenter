@@ -23,11 +23,10 @@ test('legacy lifecycle-to-lane projection is isolated behind compatibility code'
 test('graph-native runtime does not import legacy lane compatibility', async () => {
   const graphNativePaths = [
     'lib/project-graph.js',
-    'lib/project-controller.js',
-    'lib/project-controller-runtime.js',
     'lib/project-transition-leases.js',
     'lib/orchestration-advance.js',
     'lib/orchestration-drive.js',
+    'lib/orchestration-run-target-runtime.js',
   ];
   for (const path of graphNativePaths) {
     const source = await read(path);
