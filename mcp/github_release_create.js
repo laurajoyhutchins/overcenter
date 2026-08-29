@@ -1,8 +1,5 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
+import { GITHUB_RELEASE_INPUT_SCHEMA } from 'lib/github-release-contract.js';
 import { createGithubReleaseWithGitHubApp } from 'lib/github-release-runtime.js';
-import { semanticCommandDescriptor } from 'lib/semantic-command-descriptors.js';
-
-const descriptor = semanticCommandDescriptor('github.release.create');
-
 export const access='admin';
-export default { name:descriptor.mcp_name, description:descriptor.description, inputSchema:descriptor.input_schema, async handler(args,ctx){ const response=await executeCorrelatedCommand('github.release.create',args||{},request=>createGithubReleaseWithGitHubApp(request,{db:ctx?.db}),{defaultError:'GITHUB_RELEASE_ERROR',defaultMessage:'github.release.create failed',flattenDetails:true,db:ctx?.db}); return response.body; } };
+export default { name:'github_release_create', description:'Create an immutable lightweight Git tag at an exact observed Git commit and a GitHub Release for that tag. Fail closed on expected-state drift or conflicting existing state. Exact replay converges through durable idempotency evidence; no tag retargeting, release editing, deletion, asset upload, note generation, or commit inference is performed. This MCP tool exposes conceptual github.release.create using the underscore-safe transport name.', inputSchema:GITHUB_RELEASE_INPUT_SCHEMA, async handler(args,ctx){ const response=await executeCorrelatedCommand('github.release.create',args||{},request=>createGithubReleaseWithGitHubApp(request,{db:ctx?.db}),{defaultError:'GITHUB_RELEASE_ERROR',defaultMessage:'github.release.create failed',flattenDetails:true,db:ctx?.db}); return response.body; } };
