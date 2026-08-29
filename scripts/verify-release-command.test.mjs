@@ -8,18 +8,20 @@ const source = (path) => readFile(new URL('../' + path, import.meta.url), 'utf8'
 
 test('release command has one semantic contract across MCP and worker transport', async () => {
   const descriptor = semanticCommandDescriptor('github.release.create');
-  const [mcp, worker, docs] = await Promise.all([
+  const [mcp, worker, contract, docs] = await Promise.all([
     source('mcp/github_release_create.js'),
     source('lib/worker-transport.js'),
+    source('lib/github-release-contract.js'),
     source('public/docs/github-release.md'),
   ]);
 
   assert.deepEqual(GITHUB_RELEASE_REQUIRED_FIELDS, descriptor.required_fields);
   assert.deepEqual(GITHUB_RELEASE_SEMANTIC_FIELDS, descriptor.semantic_fields);
   for (const field of descriptor.semantic_fields) assert.ok(docs.includes(field), `docs omit ${field}`);
-  assert.ok(mcp.includes('semanticCommandDescriptor'));
-  assert.ok(mcp.includes("semanticCommandDescriptor('github.release.create')"));
-  assert.ok(mcp.includes('inputSchema:descriptor.input_schema'));
+  assert.ok(contract.includes("semanticCommandDescriptor('github.release.create')"));
+  assert.ok(mcp.includes('GITHUB_RELEASE_INPUT_SCHEMA'));
+  assert.ok(mcp.includes("name:'github_release_create'") || mcp.includes("name: 'github_release_create'"));
+  assert.ok(mcp.includes('github.release.create'));
   assert.ok(worker.includes("semanticCommandDescriptor('github.release.create')"));
   assert.ok(worker.includes('new Set(githubReleaseDescriptor.semantic_fields)'));
   assert.ok(worker.includes('new Set(githubReleaseDescriptor.required_fields)'));
