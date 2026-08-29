@@ -21,7 +21,7 @@ test('typed semantic binding pins the exact completed reachability unit to one t
   assert.equal(resolveCompatibilityTransitionBinding('LJH-518'), null);
 });
 
-test('compatibility bridge emits one ordinary project-transition settlement and requires DONE readback', async () => {
+test('compatibility bridge consumes an existing orchestration.advance lease and requires DONE readback', async () => {
   const calls=[];
   const readyNode={id:'require-production-reachability',priority:110,requires:[],lifecycle:lifecycle(false),executor:{kind:'agent',role:'implementation',skill:'test-driven-development'},phase_bindings:{}};
   const doneNode={...readyNode,lifecycle:lifecycle(true)};
@@ -31,31 +31,33 @@ test('compatibility bridge emits one ordinary project-transition settlement and 
     bindings:{async resolve(input){assert.equal(input.work_ref,'LJH-522');return resolveCompatibilityTransitionBinding(input.work_ref);}},
     compatibilityWork:{async requireCompleted(input){calls.push(['work',input]);return{ok:true,confirm_complete:true,settlement_ref:'941980fd-d310-4920-8e3f-1a29db47673a',evidence:[{kind:'github_actions',ref:'exact-revision-v8:33256739256:success'}]};}},
     readProjectGraph:async()=>{reads+=1;return graph(reads===1?readyNode:doneNode);},
-    projectTransitions:{async acquire(input){calls.push(['acquire',input]);return{ok:true,lease_ref:'lease-1',transition_definition_fingerprint:fingerprint};},async settle(input){calls.push(['settle',input]);return{ok:true,schema:'project-transition-lease-settlement-v1',subject:'project_transition',disposition:'completed',lease_ref:'lease-1',settled_at:'2026-08-29T19:00:00Z'};}},
+    projectTransitions:{async require(input){calls.push(['require',input]);return{ok:true,lease_ref:'lease-1',transition_definition_fingerprint:fingerprint};},async settle(input){calls.push(['settle',input]);return{ok:true,schema:'project-transition-lease-settlement-v1',subject:'project_transition',disposition:'completed',lease_ref:'lease-1',settled_at:'2026-08-29T19:00:00Z'};}},
   });
-  const result=await service.confirm({run_id:'run-bridge',work_ref:'LJH-522'});
+  const result=await service.confirm({run_id:'run-bridge',work_ref:'LJH-522',lease_ref:'lease-1'});
   assert.equal(result.ok,true);
   assert.equal(result.outcome,'confirmed');
-  assert.equal(calls.filter(([kind])=>kind==='acquire').length,1);
+  assert.equal(calls.filter(([kind])=>kind==='require').length,1);
   assert.equal(calls.filter(([kind])=>kind==='settle').length,1);
-  assert.equal(calls.find(([kind])=>kind==='acquire')[1].transition_id,'require-production-reachability');
+  const required=calls.find(([kind])=>kind==='require')[1];
+  assert.equal(required.transition_id,'require-production-reachability');
+  assert.equal(required.project_ref,'github:laurajoyhutchins/overcenter');
   assert.equal(reads,2);
 });
 
-test('compatibility bridge fails closed before acquisition when CONFIRM completion is absent', async () => {
-  let acquired=false;
+test('compatibility bridge fails closed before transition settlement when CONFIRM completion is absent', async () => {
+  let required=false;
   const node={id:'require-production-reachability',priority:110,requires:[],lifecycle:lifecycle(false),executor:{kind:'agent',role:'implementation',skill:'test-driven-development'},phase_bindings:{}};
   const service=createCompatibilityTransitionConfirmationService({
     bindings:{async resolve(){return resolveCompatibilityTransitionBinding('LJH-522');}},
     compatibilityWork:{async requireCompleted(){return{ok:true,confirm_complete:false,settlement_ref:'not-complete',evidence:[]};}},
     readProjectGraph:async()=>graph(node),
-    projectTransitions:{async acquire(){acquired=true;throw new Error('must not acquire');},async settle(){throw new Error('must not settle');}},
+    projectTransitions:{async require(){required=true;throw new Error('must not require');},async settle(){throw new Error('must not settle');}},
   });
-  await assert.rejects(()=>service.confirm({run_id:'run-bridge',work_ref:'LJH-522'}),error=>error?.code==='COMPATIBILITY_WORK_NOT_CONFIRMED');
-  assert.equal(acquired,false);
+  await assert.rejects(()=>service.confirm({run_id:'run-bridge',work_ref:'LJH-522',lease_ref:'lease-1'}),error=>error?.code==='COMPATIBILITY_WORK_NOT_CONFIRMED');
+  assert.equal(required,false);
 });
 
 test('caller cannot select an arbitrary READY transition', async () => {
-  const service=createCompatibilityTransitionConfirmationService({bindings:{async resolve(){throw new Error('must reject before binding');}},compatibilityWork:{async requireCompleted(){throw new Error('must not read work');}},readProjectGraph:async()=>({}),projectTransitions:{async acquire(){throw new Error('must not acquire');},async settle(){throw new Error('must not settle');}}});
-  await assert.rejects(()=>service.confirm({run_id:'run-bridge',work_ref:'LJH-522',transition_id:'arbitrary'}),error=>error?.code==='COMPATIBILITY_TRANSITION_CONFIRMATION_INVALID');
+  const service=createCompatibilityTransitionConfirmationService({bindings:{async resolve(){throw new Error('must reject before binding');}},compatibilityWork:{async requireCompleted(){throw new Error('must not read work');}},readProjectGraph:async()=>({}),projectTransitions:{async settle(){throw new Error('must not settle');}}});
+  await assert.rejects(()=>service.confirm({run_id:'run-bridge',work_ref:'LJH-522',lease_ref:'lease-1',transition_id:'arbitrary'}),error=>error?.code==='COMPATIBILITY_TRANSITION_CONFIRMATION_INVALID');
 });

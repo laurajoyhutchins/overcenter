@@ -36,6 +36,8 @@ export const CANONICAL_COMMANDS = Object.freeze([
   'orchestration.start',
   'orchestration.horizon_checkpoint',
   'orchestration.horizon_resolve',
+  'orchestration.advance',
+  'orchestration.compatibility_confirm_transition',
   'orchestration.finish',
   'orchestration.maintain',
   'orchestration.resume_packet',
