@@ -15,7 +15,18 @@ function facts(revision, definitions) {
   return { schema:'project-definition-facts-v1', repository:'example/project', revision, definitions };
 }
 
-test('project.define resolves bootstrap mutation authority internally before GitHub mutation', async () => {
+function sourceAuthority(operation) {
+  return {
+    schema:'project-definition-mutation-authority-v1',
+    subject:'project_definition',
+    operation,
+    project_ref:projectRef,
+    repository:'example/project',
+    authority_revision:initialRevision,
+  };
+}
+
+test('project.define resolves bootstrap source mutation authority internally before GitHub mutation', async () => {
   const authorityCalls = [];
   const adapter = createProjectAuthoringGithubAdapter({
     resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' }),
@@ -25,11 +36,12 @@ test('project.define resolves bootstrap mutation authority internally before Git
     resolveMutationBranch:async () => ({ branch:'work/project-define', expected_head:initialRevision }),
     resolveMutationAuthority:async (request) => {
       authorityCalls.push(request);
-      return { lease_ref:'bootstrap-authority', run_id:'authoring-run' };
+      return sourceAuthority('define');
     },
     applyChangeset:async (request) => {
-      assert.equal(request.lease_ref, 'bootstrap-authority');
-      assert.equal(request.run_id, 'authoring-run');
+      assert.equal(request.lease_ref, undefined);
+      assert.equal(request.run_id, undefined);
+      assert.deepEqual(request.mutation_authority, sourceAuthority('define'));
       return { ok:true, new_head:resultingRevision };
     },
     deriveProjectGraph:async ({ authority }) => ({ schema:'overcenter-project-graph-v1', revision:authority.revision }),
@@ -45,7 +57,7 @@ test('project.define resolves bootstrap mutation authority internally before Git
   }]);
 });
 
-test('project.amend resolves execution mutation authority internally instead of accepting caller lease bookkeeping', async () => {
+test('project.amend resolves source mutation authority internally instead of accepting caller lease bookkeeping', async () => {
   const amended = { ...definition, transitions:[...definition.transitions, { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] };
   const authorityCalls = [];
   const adapter = createProjectAuthoringGithubAdapter({
@@ -54,11 +66,12 @@ test('project.amend resolves execution mutation authority internally instead of 
     resolveMutationBranch:async () => ({ branch:'work/project-amend', expected_head:initialRevision }),
     resolveMutationAuthority:async (request) => {
       authorityCalls.push(request);
-      return { lease_ref:'transition-authority', run_id:'authoring-run' };
+      return sourceAuthority('amend');
     },
     applyChangeset:async (request) => {
-      assert.equal(request.lease_ref, 'transition-authority');
-      assert.equal(request.run_id, 'authoring-run');
+      assert.equal(request.lease_ref, undefined);
+      assert.equal(request.run_id, undefined);
+      assert.deepEqual(request.mutation_authority, sourceAuthority('amend'));
       return { ok:true, new_head:resultingRevision };
     },
     deriveProjectGraph:async ({ authority }) => ({ schema:'overcenter-project-graph-v1', revision:authority.revision }),

@@ -54,6 +54,8 @@ jobs:
         run: node --test scripts/verify-project-authoring-mutation-authority.test.mjs
       - name: Test project definition mutation authority policy
         run: node --test scripts/verify-project-definition-mutation-authority.test.mjs
+      - name: Test project definition changeset authority writer
+        run: node --test scripts/verify-project-definition-changeset-writer.test.mjs
       - name: Test semantic project authoring command contract
         run: node --test scripts/verify-project-authoring-command-contract.test.mjs
       - name: Test graph-native GitHub mutation authority
