@@ -75,3 +75,45 @@ test('semantic idempotency is internal, stable for replay, and separates materia
   assert.equal(first, replay);
   assert.notEqual(first, different);
 });
+
+test('project.define bootstraps discovery plus canonical definition without caller-authored paths', async () => {
+  const calls = [];
+  const adapter = createProjectAuthoringGithubAdapter({
+    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' }),
+    readDefinitionFacts:async ({ revision }) => {
+      calls.push(['read', revision]);
+      if (revision === initialRevision) return { schema:'project-definition-facts-v1', repository:'example/project', revision, definitions:[] };
+      return facts(revision, baseDefinition);
+    },
+    resolveMutationBranch:async () => ({ branch:'work/project-define', expected_head:initialRevision }),
+    applyChangeset:async (request) => {
+      calls.push(['mutate', request]);
+      assert.equal(request.changes.length, 2);
+      const discovery = request.changes.find((change) => change.path === '.overcenter/project-definitions.json');
+      const definition = request.changes.find((change) => change.path === '.overcenter/definitions/project.json');
+      assert.equal(discovery.operation, 'create');
+      assert.equal(definition.operation, 'create');
+      assert.deepEqual(JSON.parse(discovery.content), {
+        schema:'project-definition-discovery-v1',
+        definitions:['.overcenter/definitions/project.json'],
+      });
+      assert.deepEqual(JSON.parse(definition.content), baseDefinition);
+      assert.match(request.idempotency_key, /^project-define-v1:[0-9a-f]{64}$/);
+      return { ok:true, new_head:resultingRevision };
+    },
+    deriveProjectGraph:async ({ authority }) => {
+      calls.push(['derive', authority.revision]);
+      return { schema:'overcenter-project-graph-v1', revision:authority.revision };
+    },
+  });
+
+  const result = await adapter.define({
+    project_ref:projectRef,
+    expected_revision:initialRevision,
+    definition:baseDefinition,
+  });
+
+  assert.equal(result.authority.revision, resultingRevision);
+  assert.deepEqual(result.diff, { added:['foundation'], changed:[], removed:[] });
+  assert.deepEqual(calls.map((call) => call[0]), ['read', 'mutate', 'read', 'derive']);
+});
