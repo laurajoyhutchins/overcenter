@@ -1,3 +1,9 @@
+export const PRODUCTIVE_STAGES = ['ENABLE', 'ACQUIRE', 'EXECUTE', 'COMMIT', 'CONFIRM'] as const;
+export type ProductiveStage = (typeof PRODUCTIVE_STAGES)[number];
+
+export const OPERATING_CONDITIONS = ['NOMINAL', 'HOLD', 'FAULT', 'INDETERMINATE', 'OPERATOR_HOLD'] as const;
+export type OperatingCondition = (typeof OPERATING_CONDITIONS)[number];
+
 export const WORK_SETTLEMENT_DISPOSITIONS = ['completed', 'requeue', 'blocked'] as const;
 export type WorkSettlementDisposition = (typeof WORK_SETTLEMENT_DISPOSITIONS)[number];
 
