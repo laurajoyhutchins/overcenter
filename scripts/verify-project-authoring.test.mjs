@@ -85,3 +85,48 @@ test('project authoring runtime rejects stale authority before requesting a repo
   );
   assert.equal(mutations, 0);
 });
+
+test('project amendment persists the validated definition then derives the graph at the resulting revision', async () => {
+  const { amendProjectDefinition } = await import('../lib/project-authoring-runtime.js');
+  const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const resultingRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const calls = [];
+
+  const result = await amendProjectDefinition({
+    project_ref:'github:example/project',
+    expected_revision:initialRevision,
+    amendment:{
+      upsert_transitions:[
+        { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } },
+      ],
+    },
+  }, {
+    resolveAuthority:async () => ({
+      project_ref:'github:example/project',
+      repository:'example/project',
+      revision:initialRevision,
+      derivation:'overcenter-project-graph-v1',
+    }),
+    readDefinition:async (authority) => {
+      calls.push(['read', authority.revision]);
+      return base;
+    },
+    mutateDefinition:async (request) => {
+      calls.push(['mutate', request.expected_revision, request.definition.transitions.map((transition) => transition.id)]);
+      return { revision:resultingRevision };
+    },
+    deriveProjectGraph:async (authority) => {
+      calls.push(['derive', authority.revision]);
+      return { schema:'overcenter-project-graph-v1', project_ref:'github:example/project', revision:authority.revision };
+    },
+  });
+
+  assert.deepEqual(calls, [
+    ['read', initialRevision],
+    ['mutate', initialRevision, ['foundation', 'second']],
+    ['derive', resultingRevision],
+  ]);
+  assert.equal(result.authority.revision, resultingRevision);
+  assert.deepEqual(result.diff, { added:['second'], changed:[], removed:[] });
+  assert.equal(result.graph.revision, resultingRevision);
+});
