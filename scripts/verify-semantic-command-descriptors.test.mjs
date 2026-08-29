@@ -5,6 +5,7 @@ import {
   MIGRATED_SEMANTIC_COMMANDS,
   semanticCommandDescriptor,
 } from '../lib/semantic-command-descriptors.js';
+import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
 const expected = ['github.release.create', 'orchestration.diagnose', 'work.settle'];
 
@@ -81,6 +82,10 @@ test('MCP schema compatibility projections derive from the authoritative descrip
     assert.match(text, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
     assert.match(text, /descriptor\.input_schema/);
   }
+});
+
+test('generated command reference exactly matches descriptor source', async () => {
+  assert.equal(await source('public/docs/semantic-command-descriptors.md'), renderSemanticCommandReference());
 });
 
 test('unknown command descriptors fail closed', () => {
