@@ -13,8 +13,6 @@ export type ProjectAmendRequest = Readonly<{
   project_ref: string;
   expected_revision: string;
   amendment: Readonly<Record<string, unknown>>;
-  lease_ref: string;
-  run_id?: string;
 }>;
 
 function fail(message: string, details: unknown = null): never {
@@ -70,14 +68,11 @@ export function normalizeProjectDefineRequest(raw: unknown): ProjectDefineReques
 
 export function normalizeProjectAmendRequest(raw: unknown): ProjectAmendRequest {
   const input = record(raw, 'project.amend request');
-  exactKeys(input, ['project_ref','expected_revision','amendment','lease_ref','run_id'], 'project.amend request');
+  exactKeys(input, ['project_ref','expected_revision','amendment'], 'project.amend request');
   const amendment = record(input.amendment, 'amendment');
-  const normalized: ProjectAmendRequest = {
+  return Object.freeze({
     project_ref:projectRef(input.project_ref),
     expected_revision:revision(input.expected_revision),
     amendment:Object.freeze({ ...amendment }),
-    lease_ref:text(input.lease_ref, 'lease_ref'),
-    ...(input.run_id === undefined ? {} : { run_id:text(input.run_id, 'run_id') }),
-  };
-  return Object.freeze(normalized);
+  });
 }
