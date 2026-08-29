@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.semantic.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src/semantic",
+    "outDir": ".semantic-build",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": [
+    "src/semantic/command-contracts.ts",
+    "src/semantic/semantic-identities.ts",
+    "src/semantic/runtime-modules.d.ts"
+  ]
+}

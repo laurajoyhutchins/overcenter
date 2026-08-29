@@ -19,3 +19,8 @@ jobs:
           node-version: 22
       - name: Type-check semantic kernel contracts
         run: npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
+      - name: Verify runtime materialization is generated from TypeScript source
+        run: |
+          rm -rf .semantic-build
+          npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.runtime.json
+          diff -u lib/command-contracts.js .semantic-build/command-contracts.js

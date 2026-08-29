@@ -4,7 +4,7 @@
 
 **Goal:** Prove TypeScript removes concrete invalid-state and contract-drift classes in Overcenter's command and project-graph semantic core without changing external runtime contracts.
 
-**Architecture:** Keep JavaScript API/MCP shells stable. Introduce typed shared semantic modules under `lib/`, make the canonical command registry single-source, and use compile-only contract tests to prove branded identities and discriminated unions. Runtime validation remains in the existing JavaScript boundaries.
+**Architecture:** Author typed semantic source under `src/semantic/`. Hatchable currently does not transpile TypeScript syntax in synchronized runtime files, so only runtime-bearing modules are mechanically emitted to plain JavaScript under `lib/`, and CI rejects drift between TS source and emitted JS. Type-only semantic declarations have no runtime mirror. API/MCP shells remain JavaScript and runtime validation remains authoritative.
 
 **Tech Stack:** Node.js 22, TypeScript 5.9, GitHub Actions, Hatchable V8 verification.
 
@@ -13,7 +13,8 @@
 ## Global Constraints
 
 - Do not create a second canonical-command registry.
-- Do not add a build artifact or checked-in generated JavaScript mirror.
+- Do not hand-maintain generated runtime JavaScript; generation drift must fail CI.
+- Do not generate runtime files for type-only modules.
 - Do not change runtime validation semantics in this slice.
 - Keep routed `api/` and `mcp/` entrypoints JavaScript.
 - Require red-green evidence for each semantic type boundary.
@@ -23,59 +24,42 @@
 ### Task 1: Establish the type-checking proof harness
 
 **Files:**
-- Create: `tsconfig.semantic.json`
-- Create: `type-tests/semantic-kernel.test.ts`
-- Create: `.github/workflows/semantic-kernel-types.yml`
+- `tsconfig.semantic.json`
+- `type-tests/semantic-kernel.test.ts`
+- `.github/workflows/semantic-kernel-types.yml`
 
-**Interfaces:**
-- Consumes: the intended semantic type module names.
-- Produces: a strict compile-only check that fails until those modules exist and later rejects identity mixups and invalid union states.
+- [x] Write the compile-only contract test referencing command, identity, and project-graph semantic types.
+- [x] Confirm RED before semantic modules exist.
+- [x] Preserve the failing GitHub Actions run as evidence.
 
-- [ ] Write the compile-only contract test referencing `command-contracts`, `semantic-identities`, and `project-graph-types`.
-- [ ] Run the GitHub Actions type job and confirm RED because the semantic modules do not yet exist.
-- [ ] Preserve the failing run as evidence before implementing production semantic types.
-
-### Task 2: Port canonical commands and semantic identities
+### Task 2: Port command admission and semantic identities
 
 **Files:**
-- Create: `lib/semantic-identities.ts`
-- Create: `lib/command-contracts.ts`
-- Create: `lib/command-contracts.js`
-- Modify: `lib/command-response.js`
+- `src/semantic/semantic-identities.ts`
+- `src/semantic/command-contracts.ts`
+- `src/semantic/runtime-modules.d.ts`
+- generated `lib/command-contracts.js`
+- `tsconfig.semantic.runtime.json`
 
-**Interfaces:**
-- Produces: `CanonicalCommand`, `CANONICAL_COMMANDS`, branded `RunId`, `LeaseId`, `WorkRef`, `GitSha`, and `IdempotencyKey`.
-- `command-response.js` consumes the canonical command array from the typed module through the thin JS compatibility shell.
-
-- [ ] Add the minimal typed modules that satisfy the compile contract.
-- [ ] Remove the duplicate command array from `command-response.js` and import the single typed source.
-- [ ] Re-run the type job and existing repository verification; require GREEN.
-- [ ] Run exact-revision Hatchable verification to prove the TypeScript-backed shared module loads in the deployed V8 path.
+- [x] Add branded `RunId`, `LeaseId`, `WorkRef`, `GitSha`, and `IdempotencyKey`.
+- [x] Add typed canonical-command parse-then-trust admission without duplicating the existing registry.
+- [x] Confirm compile-time rejection of identity mixups and unvalidated command strings.
+- [ ] Confirm generated JS exactly matches TS emission.
+- [ ] Confirm exact-revision Hatchable verification passes with no TypeScript syntax in the synchronized runtime tree.
 
 ### Task 3: Port project-graph structural types
 
 **Files:**
-- Create: `lib/project-graph-types.ts`
-- Modify: `lib/project-graph.js` only where type annotations can be added without changing runtime validation.
+- `src/semantic/project-graph-types.ts`
+- selected project-graph runtime module(s) only after the generation boundary is green.
 
-**Interfaces:**
-- Produces: `Executor`, `PhaseInputSource`, `ProjectNodeState`, phase names, and JSON-compatible literal types.
-- Existing project-graph runtime validators remain the authority for untrusted graph data.
-
-- [ ] Add discriminated executor and phase-input unions.
-- [ ] Prove operator/agent field mixing and `from`+`literal` ambiguity are compile errors.
-- [ ] Add only useful JS type annotations; do not suppress compiler friction with broad `any` casts.
+- [x] Add discriminated executor and phase-input unions.
+- [x] Prove operator/agent field mixing and `from`+`literal` ambiguity are compile errors.
+- [ ] Make the existing project-graph implementation consume useful type declarations without weakening runtime validation.
 - [ ] Re-run type and runtime verification; require GREEN.
 
 ### Task 4: Evaluate the proof slice
 
-**Files:**
-- Modify: `docs/superpowers/specs/2026-08-28-typescript-semantic-kernel-design.md` only if findings refine the boundary.
-- Update: GitHub issue #236 with evidence.
-
-**Interfaces:**
-- Produces: a go/no-go decision for the next typed semantic island.
-
 - [ ] Record which invalid states the compiler now prevents.
-- [ ] Record any Hatchable/runtime constraints discovered.
+- [x] Record the Hatchable runtime constraint and the mechanically generated JS boundary.
 - [ ] Stop rather than expanding the migration if typing mostly produces casts, optional-property bags, or duplicate registries.

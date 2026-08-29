@@ -1,4 +1,4 @@
-import { CANONICAL_COMMANDS } from './command-response.js';
+import { CANONICAL_COMMANDS } from 'lib/command-response.js';
 import type { SemanticIdentity } from './semantic-identities.js';
 
 export type CanonicalCommand = SemanticIdentity<'CanonicalCommand'>;

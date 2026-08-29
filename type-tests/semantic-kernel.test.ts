@@ -1,7 +1,7 @@
-import { parseCanonicalCommand } from '../lib/command-contracts.js';
-import type { CanonicalCommand } from '../lib/command-contracts.js';
-import type { GitSha, IdempotencyKey, LeaseId, RunId, WorkRef } from '../lib/semantic-identities.js';
-import type { Executor, PhaseInputSource, ProjectNodeState } from '../lib/project-graph-types.js';
+import { parseCanonicalCommand } from '../src/semantic/command-contracts.js';
+import type { CanonicalCommand } from '../src/semantic/command-contracts.js';
+import type { GitSha, IdempotencyKey, LeaseId, RunId, WorkRef } from '../src/semantic/semantic-identities.js';
+import type { Executor, PhaseInputSource, ProjectNodeState } from '../src/semantic/project-graph-types.js';
 
 declare const runId: RunId;
 declare const leaseId: LeaseId;
