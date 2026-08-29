@@ -49,8 +49,8 @@ const phaseBindings: PhaseBindings = normalizeProjectPhaseBindings(
 );
 void phaseBindings;
 
-// @ts-expect-error Lifecycle phase primitives must name canonical Overcenter commands.
 const unknownPrimitive: PhaseBinding = {
+  // @ts-expect-error Lifecycle phase primitives must name canonical Overcenter commands.
   primitive: 'github.do_whatever',
   evidence: ['result'],
   input: {},
