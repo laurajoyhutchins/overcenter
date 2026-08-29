@@ -1,0 +1,93 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import {
+  MIGRATED_SEMANTIC_COMMANDS,
+  semanticCommandDescriptor,
+} from '../lib/semantic-command-descriptors.js';
+import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
+
+const expected = ['github.release.create', 'orchestration.diagnose', 'work.settle'];
+
+async function source(path) {
+  return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+}
+
+function literalProperty(text, property) {
+  const match = text.match(new RegExp(`${property}\\s*:\\s*(['\"])(.*?)\\1`, 's'));
+  assert.ok(match, `missing static ${property}`);
+  return match[2];
+}
+
+test('representative commands have one authoritative semantic descriptor', () => {
+  assert.deepEqual([...MIGRATED_SEMANTIC_COMMANDS].sort(), expected);
+
+  for (const command of expected) {
+    const descriptor = semanticCommandDescriptor(command);
+    assert.equal(descriptor.command, command);
+    assert.ok(descriptor.description.length > 20);
+    assert.equal(descriptor.input_schema.type, 'object');
+    assert.equal(descriptor.input_schema.additionalProperties, false);
+    assert.deepEqual(
+      [...descriptor.semantic_fields].sort(),
+      Object.keys(descriptor.input_schema.properties).sort(),
+      `${command} semantic fields drifted from its schema`,
+    );
+    assert.deepEqual(
+      [...descriptor.required_fields].sort(),
+      [...(descriptor.input_schema.required || [])].sort(),
+      `${command} required fields drifted from its schema`,
+    );
+    assert.equal(descriptor.exposure.worker, true);
+    assert.equal(descriptor.exposure.mcp, true);
+    assert.ok(descriptor.mcp_name.length > 0);
+  }
+});
+
+test('migrated worker validation is descriptor-derived rather than separately listed', async () => {
+  const worker = await source('lib/worker-transport.js');
+  assert.match(worker, /semanticCommandDescriptor/);
+  for (const command of expected) {
+    assert.match(worker, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
+  }
+  assert.doesNotMatch(worker, /GITHUB_RELEASE_(?:SEMANTIC|REQUIRED)_FIELDS/);
+  assert.doesNotMatch(worker, /WORK_SETTLE_(?:SEMANTIC|REQUIRED)_FIELDS/);
+});
+
+test('MCP metadata stays statically parseable and mechanically matches descriptors', async () => {
+  const adapters = [
+    ['work.settle', 'mcp/work.settle.js', 'WORK_SETTLE_INPUT_SCHEMA'],
+    ['github.release.create', 'mcp/github_release_create.js', 'GITHUB_RELEASE_INPUT_SCHEMA'],
+    ['orchestration.diagnose', 'mcp/orchestration.diagnose.js', 'ORCHESTRATION_DIAGNOSE_INPUT_SCHEMA'],
+  ];
+
+  for (const [command, path, schemaName] of adapters) {
+    const descriptor = semanticCommandDescriptor(command);
+    const text = await source(path);
+    assert.equal(literalProperty(text, 'name'), descriptor.mcp_name, `${command} MCP name drifted`);
+    assert.equal(literalProperty(text, 'description'), descriptor.description, `${command} MCP description drifted`);
+    assert.match(text, new RegExp(`inputSchema\\s*:\\s*${schemaName}`));
+  }
+});
+
+test('MCP schema compatibility projections derive from the authoritative descriptor', async () => {
+  const projections = [
+    ['work.settle', 'lib/work-settle-contract.js'],
+    ['github.release.create', 'lib/github-release-contract.js'],
+    ['orchestration.diagnose', 'lib/orchestration-diagnose-contract.js'],
+  ];
+  for (const [command, path] of projections) {
+    const text = await source(path);
+    assert.match(text, /semanticCommandDescriptor/);
+    assert.match(text, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
+    assert.match(text, /descriptor\.input_schema/);
+  }
+});
+
+test('generated command reference exactly matches descriptor source', async () => {
+  assert.equal(await source('public/docs/semantic-command-descriptors.md'), renderSemanticCommandReference());
+});
+
+test('unknown command descriptors fail closed', () => {
+  assert.throws(() => semanticCommandDescriptor('work.not-real'), /not migrated/);
+});
