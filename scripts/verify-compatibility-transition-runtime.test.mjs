@@ -1,3 +1,4 @@
+// Regression uses the real legacy receipt shape: verification evidence lives in the exact run journal.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
