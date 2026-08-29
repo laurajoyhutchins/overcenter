@@ -5,6 +5,7 @@ import {
   type ExecutionAuthorityLocator,
   type ExecutionAuthorityStore,
   type ExecutionGate,
+  type ProjectTransitionExecutionAuthority,
 } from '../src/semantic/execution-authority-contracts.js';
 import {
   LIVE_LEASE_STATUSES,
@@ -44,6 +45,24 @@ declare const runId: RunId;
 const wrongRun: RunId = leaseId;
 void wrongRun;
 void runId;
+
+const graphNativeAuthority: ProjectTransitionExecutionAuthority = {
+  subject: 'project_transition',
+  lease_id: leaseId,
+  lease_ref: leaseId,
+  run_id: runId,
+  repository: 'laurajoyhutchins/overcenter',
+  project_ref: 'github:laurajoyhutchins/overcenter',
+  transition_id: 'graph-native-transition',
+  authority: { kind: 'github', revision: '1111111111111111111111111111111111111111' },
+  graph_fingerprint: 'graph-fingerprint',
+};
+void graphNativeAuthority;
+
+// @ts-expect-error graph-native project transition authority must not expose a legacy lane gate
+graphNativeAuthority.gate;
+// @ts-expect-error graph-native project transition authority must not expose a legacy Linear work identity
+graphNativeAuthority.work_ref;
 
 const interactive: OrchestrationRunMode = RUN_MODES[1];
 const completed: WorkSettlementDisposition = WORK_SETTLEMENT_DISPOSITIONS[0];
