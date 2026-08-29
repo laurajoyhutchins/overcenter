@@ -48,6 +48,8 @@ jobs:
         run: node --test scripts/verify-semantic-command-descriptors.test.mjs
       - name: Test semantic project authoring kernel
         run: node --test scripts/verify-project-authoring.test.mjs
+      - name: Test GitHub-backed project authoring adapter
+        run: node --test scripts/verify-project-authoring-github-adapter.test.mjs
       - name: Test graph-native GitHub mutation authority
         run: node --test scripts/verify-github-graph-authority.test.mjs
       - name: Test repository metadata command contract
