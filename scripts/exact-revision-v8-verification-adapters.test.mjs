@@ -82,6 +82,34 @@ test('production reachability evidence traverses real orchestration API entrypoi
   });
 });
 
+test('production reachability can stop at the isolated runtime external GitHub configuration boundary', async()=>{
+  const calls=[];
+  const repository='laurajoyhutchins/overcenter';
+  const responses=[
+    {status:200,body:{ok:true,schema:'orchestration-run-v1'}},
+    {status:500,body:{
+      ok:false,
+      error:'ORCHESTRATION_HORIZON_ERROR',
+      message:"gateway internal/config/get 412: Configuration value 'GITHUB_APP_ID' is declared as required but not set.",
+    }},
+    {status:200,body:{ok:true}},
+  ];
+  const runtime=createHatchableRuntimeAdapter({callTool:async(name,args)=>{calls.push([name,args]);return responses.shift();}});
+  const evidence=await runtime.runProductionReachability({project:'verify',repository,revision});
+  assert.deepEqual(calls.map(([,args])=>args.path),[
+    '/api/orchestration/start',
+    '/api/orchestration/horizon-resolve',
+    '/api/orchestration/finish',
+  ]);
+  assert.deepEqual(evidence.boundary,{
+    kind:'external_dependency',
+    dependency:'github_app',
+    configuration_key:'GITHUB_APP_ID',
+  });
+  assert.equal('graph_authority' in evidence,false);
+  assert.deepEqual(evidence.target,{project_ref:`github:${repository}`,horizon:{kind:'transition',ref:'require-production-reachability'}});
+});
+
 test('Hatchable adapter rejects a verifier project that changed before deployment', async()=>{
   const runtime=createHatchableRuntimeAdapter({callTool:async()=>({current_version:8})});
   await assert.rejects(runtime.deploy({project:'verify',revision:'c'.repeat(40),expected_version:7}),e=>e?.code==='VERIFICATION_RUNTIME_VERSION_MISMATCH');

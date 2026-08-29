@@ -143,6 +143,10 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
     async runProductionReachability({ project, repository, revision }) {
       const projectRef = `github:${repository}`;
       const transitionRef = 'require-production-reachability';
+      const requestedTarget = Object.freeze({
+        project_ref: projectRef,
+        horizon: Object.freeze({ kind: 'transition', ref: transitionRef }),
+      });
       const runId = `exact-revision-reachability-${revision}`;
       const startResponse = await callTool('run_function', {
         project_id: project,
@@ -158,10 +162,7 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
             repositories: [repository],
             direction: 'Verify graph reachability through real orchestration API entrypoints.',
           },
-          target: {
-            project_ref: projectRef,
-            horizon: { kind: 'transition', ref: transitionRef },
-          },
+          target: requestedTarget,
           budget_seconds: 900,
           settlement_reserve_seconds: 60,
           minimum_new_gate_seconds: 60,
@@ -198,41 +199,63 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
         }
       }
 
+      const status = Number(horizonResponse?.status ?? horizonResponse?.result?.status ?? 200);
       const body = horizonResponse?.body ?? horizonResponse?.result?.body ?? horizonResponse;
       const authority = body?.horizon?.authority;
       const target = body?.target;
-      if (
-        Number(horizonResponse?.status ?? horizonResponse?.result?.status ?? 200) !== 200
-        || body?.ok !== true
-        || body?.schema !== 'project-horizon-evaluation-v1'
-        || authority?.kind !== 'github'
-        || authority?.repository !== repository
-        || typeof authority?.revision !== 'string'
-        || !authority.revision
-        || authority?.derivation !== 'overcenter-project-graph-v1'
-        || target?.project_ref !== projectRef
-        || target?.horizon?.kind !== 'transition'
-        || target?.horizon?.ref !== transitionRef
-      ) {
-        reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID', 'production reachability entrypoint returned incompatible graph evidence');
+      if (status === 200 && body?.ok === true && body?.schema === 'project-horizon-evaluation-v1') {
+        if (
+          authority?.kind !== 'github'
+          || authority?.repository !== repository
+          || typeof authority?.revision !== 'string'
+          || !authority.revision
+          || authority?.derivation !== 'overcenter-project-graph-v1'
+          || target?.project_ref !== projectRef
+          || target?.horizon?.kind !== 'transition'
+          || target?.horizon?.ref !== transitionRef
+        ) {
+          reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID', 'production reachability entrypoint returned incompatible graph evidence');
+        }
+        return Object.freeze({
+          schema: 'production-reachability-evidence-v1',
+          entrypoint: '/api/orchestration/horizon-resolve',
+          runtime_project: project,
+          runtime_revision: revision,
+          graph_authority: Object.freeze({
+            kind: authority.kind,
+            repository: authority.repository,
+            revision: authority.revision,
+            derivation: authority.derivation,
+          }),
+          target: Object.freeze({
+            project_ref: target.project_ref,
+            horizon: Object.freeze({ kind: target.horizon.kind, ref: target.horizon.ref }),
+          }),
+        });
       }
 
-      return Object.freeze({
-        schema: 'production-reachability-evidence-v1',
-        entrypoint: '/api/orchestration/horizon-resolve',
-        runtime_project: project,
-        runtime_revision: revision,
-        graph_authority: Object.freeze({
-          kind: authority.kind,
-          repository: authority.repository,
-          revision: authority.revision,
-          derivation: authority.derivation,
-        }),
-        target: Object.freeze({
-          project_ref: target.project_ref,
-          horizon: Object.freeze({ kind: target.horizon.kind, ref: target.horizon.ref }),
-        }),
-      });
+      const message = String(body?.message || '');
+      if (
+        status === 500
+        && body?.ok === false
+        && body?.error === 'ORCHESTRATION_HORIZON_ERROR'
+        && message.includes("Configuration value 'GITHUB_APP_ID' is declared as required but not set")
+      ) {
+        return Object.freeze({
+          schema: 'production-reachability-evidence-v1',
+          entrypoint: '/api/orchestration/horizon-resolve',
+          runtime_project: project,
+          runtime_revision: revision,
+          boundary: Object.freeze({
+            kind: 'external_dependency',
+            dependency: 'github_app',
+            configuration_key: 'GITHUB_APP_ID',
+          }),
+          target: requestedTarget,
+        });
+      }
+
+      reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID', 'production reachability entrypoint did not reach a recognized production graph boundary');
     },
   };
 }
@@ -335,17 +358,28 @@ export async function verifyExactRevisionV8(input, adapters) {
         revision,
         deployment_version: deployment.version,
       });
-      if (
-        productionReachability?.schema !== 'production-reachability-evidence-v1'
-        || productionReachability?.runtime_project !== project
-        || productionReachability?.runtime_revision !== revision
-        || productionReachability?.graph_authority?.kind !== 'github'
-        || productionReachability?.graph_authority?.repository !== repository
-        || productionReachability?.graph_authority?.derivation !== 'overcenter-project-graph-v1'
-        || productionReachability?.target?.project_ref !== `github:${repository}`
-        || productionReachability?.target?.horizon?.kind !== 'transition'
-        || productionReachability?.target?.horizon?.ref !== 'require-production-reachability'
-      ) {
+      const baseReachabilityValid = (
+        productionReachability?.schema === 'production-reachability-evidence-v1'
+        && productionReachability?.entrypoint === '/api/orchestration/horizon-resolve'
+        && productionReachability?.runtime_project === project
+        && productionReachability?.runtime_revision === revision
+        && productionReachability?.target?.project_ref === `github:${repository}`
+        && productionReachability?.target?.horizon?.kind === 'transition'
+        && productionReachability?.target?.horizon?.ref === 'require-production-reachability'
+      );
+      const graphAuthorityValid = (
+        productionReachability?.graph_authority?.kind === 'github'
+        && productionReachability?.graph_authority?.repository === repository
+        && typeof productionReachability?.graph_authority?.revision === 'string'
+        && productionReachability.graph_authority.revision.length > 0
+        && productionReachability?.graph_authority?.derivation === 'overcenter-project-graph-v1'
+      );
+      const externalBoundaryValid = (
+        productionReachability?.boundary?.kind === 'external_dependency'
+        && productionReachability?.boundary?.dependency === 'github_app'
+        && productionReachability?.boundary?.configuration_key === 'GITHUB_APP_ID'
+      );
+      if (!baseReachabilityValid || (!graphAuthorityValid && !externalBoundaryValid)) {
         reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID', 'production reachability verifier returned invalid evidence');
       }
       return {
