@@ -11,10 +11,14 @@
     "src/semantic/command-contracts.ts",
     "src/semantic/execution-authority-contracts.ts",
     "src/semantic/execution-authority-core.ts",
+    "src/semantic/legacy-work-execution-authority-contracts.ts",
+    "src/semantic/execution-evidence-contracts.ts",
+    "src/semantic/execution-evidence.ts",
     "src/semantic/execution-lifecycle-contracts.ts",
     "src/semantic/project-graph-contracts.ts",
     "src/semantic/project-graph-types.ts",
-    "src/semantic/semantic-identities.ts"
+    "src/semantic/semantic-identities.ts",
+    "src/semantic/work-settle-contract.ts"
   ],
   "exclude": []
 }

@@ -1,12 +1,15 @@
-import type { LeaseId, RunId } from '../src/semantic/semantic-identities.js';
+import type { LeaseId, RunId, WorkRef } from '../src/semantic/semantic-identities.js';
 import {
-  EXECUTION_GATES,
   type ExecutionAuthority,
   type ExecutionAuthorityLocator,
   type ExecutionAuthorityStore,
-  type ExecutionGate,
   type ProjectTransitionExecutionAuthority,
 } from '../src/semantic/execution-authority-contracts.js';
+import {
+  LEGACY_WORK_EXECUTION_GATES,
+  type LegacyWorkExecutionAuthority,
+  type LegacyWorkExecutionGate,
+} from '../src/semantic/legacy-work-execution-authority-contracts.js';
 import {
   LIVE_LEASE_STATUSES,
   RUN_FINISH_DISPOSITIONS,
@@ -17,13 +20,13 @@ import {
   type WorkSettlementDisposition,
 } from '../src/semantic/execution-lifecycle-contracts.js';
 
-const implementationGate: ExecutionGate = 'lane:repo-implementation';
-const verificationGate: ExecutionGate = EXECUTION_GATES[4];
+const implementationGate: LegacyWorkExecutionGate = 'lane:repo-implementation';
+const verificationGate: LegacyWorkExecutionGate = LEGACY_WORK_EXECUTION_GATES[4];
 void implementationGate;
 void verificationGate;
 
-// @ts-expect-error execution gates are a closed vocabulary
-const impossibleGate: ExecutionGate = 'lane:imaginary';
+// @ts-expect-error legacy work gates remain a closed compatibility-only vocabulary
+const impossibleGate: LegacyWorkExecutionGate = 'lane:imaginary';
 void impossibleGate;
 
 const byToken: ExecutionAuthorityLocator = { lease_token: 'opaque-capability' };
@@ -41,6 +44,7 @@ void missingLocator;
 
 declare const leaseId: LeaseId;
 declare const runId: RunId;
+declare const workRef: WorkRef;
 // @ts-expect-error lease and run identities are not interchangeable
 const wrongRun: RunId = leaseId;
 void wrongRun;
@@ -56,6 +60,7 @@ const graphNativeAuthority: ProjectTransitionExecutionAuthority = {
   transition_id: 'graph-native-transition',
   authority: { kind: 'github', revision: '1111111111111111111111111111111111111111' },
   graph_fingerprint: 'graph-fingerprint',
+  transition_definition_fingerprint: 'transition-fingerprint',
 };
 void graphNativeAuthority;
 
@@ -63,6 +68,16 @@ void graphNativeAuthority;
 graphNativeAuthority.gate;
 // @ts-expect-error graph-native project transition authority must not expose a legacy Linear work identity
 graphNativeAuthority.work_ref;
+
+const legacyWorkAuthority: LegacyWorkExecutionAuthority = {
+  work_ref: workRef,
+  lease_id: leaseId,
+  run_id: runId,
+  gate: 'lane:repo-implementation',
+  repository: 'laurajoyhutchins/overcenter',
+  execution_fingerprint: 'legacy-work-fingerprint',
+};
+void legacyWorkAuthority;
 
 const interactive: OrchestrationRunMode = RUN_MODES[1];
 const completed: WorkSettlementDisposition = WORK_SETTLEMENT_DISPOSITIONS[0];
@@ -84,8 +99,6 @@ void WORK_REQUEUE_CLASSES;
 const store: ExecutionAuthorityStore = {
   async getLeaseByTokenHash() { return null; },
   async getLeaseById() { return null; },
-  async getSlot() { return null; },
-  async getRun() { return null; },
 };
 void store;
 
@@ -98,6 +111,6 @@ if (authority.subject === 'project_transition') {
 } else {
   const fingerprint: string | null = authority.execution_fingerprint;
   void fingerprint;
-  // @ts-expect-error ordinary work authority has no project transition id
+  // @ts-expect-error legacy work authority has no project transition id
   authority.transition_id;
 }

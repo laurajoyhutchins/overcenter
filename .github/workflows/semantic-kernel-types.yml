@@ -27,5 +27,9 @@ jobs:
           diff -u lib/command-contracts.js .semantic-build/command-contracts.js
           diff -u lib/execution-authority-contracts.js .semantic-build/execution-authority-contracts.js
           diff -u lib/execution-authority-core.js .semantic-build/execution-authority-core.js
+          diff -u lib/legacy-work-execution-authority-contracts.js .semantic-build/legacy-work-execution-authority-contracts.js
+          diff -u lib/execution-evidence-contracts.js .semantic-build/execution-evidence-contracts.js
+          diff -u lib/execution-evidence.js .semantic-build/execution-evidence.js
           diff -u lib/execution-lifecycle-contracts.js .semantic-build/execution-lifecycle-contracts.js
           diff -u lib/project-graph-contracts.js .semantic-build/project-graph-contracts.js
+          diff -u lib/work-settle-contract.js .semantic-build/work-settle-contract.js
