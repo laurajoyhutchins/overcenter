@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProjectAuthoringProductionRuntime, createProjectAuthoringProductionRuntimeFromHost } from '../lib/project-authoring-production-runtime.js';
-import { createHatchableProjectAuthoringRuntime } from '../lib/project-authoring-hatchable-runtime.js';
+import { createProjectAuthoringHostRuntime } from '../lib/project-authoring-host-runtime.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const resultingRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -104,7 +104,7 @@ test('runtime host binding can re-read source authority through projectAuthority
   assert.deepEqual(authorityReads, [projectRef, projectRef]);
 });
 
-test('Hatchable host adapter binds existing source authority, facts, disposition, changeset, and graph capabilities', async () => {
+test('host adapter binds existing source authority, facts, disposition, changeset, and graph capabilities without importing the runtime host', async () => {
   const calls = [];
   const graphRuntime = {
     resolveProjectAuthority:async ({ project_ref }) => ({ project_ref, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' }),
@@ -112,9 +112,9 @@ test('Hatchable host adapter binds existing source authority, facts, disposition
       ? facts(revision, { ...baseDefinition, transitions:[...baseDefinition.transitions, { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] })
       : facts(revision) } }),
   };
-  const runtime = createHatchableProjectAuthoringRuntime({
+  const runtime = createProjectAuthoringHostRuntime({
     graphRuntime,
-    repositoryLifecycle:{ observe:async (repository) => ({ repository, disposition:'ACTIVE' }) },
+    readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
     applyGithubChangeset:async (request, options) => {
       const authority = await options.executionAuthority.require({ repository:request.repo });
       calls.push({ request, authority });
