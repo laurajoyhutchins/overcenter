@@ -24,6 +24,13 @@ export type SemanticCommandDescriptor = Readonly<{
   surface: SemanticCommandSurface;
 }>;
 
+export type SemanticMcpDiscoveryEntry = Readonly<{
+  command: string;
+  name: string;
+  description: string;
+  input_schema: Readonly<Record<string, unknown>>;
+}>;
+
 const responsibility = Object.freeze({
   type:'object',
   required:['applicable','satisfied'],
@@ -190,5 +197,16 @@ export function semanticCommandDescriptorsForSurface(surface: SemanticCommandSur
     MIGRATED_SEMANTIC_COMMANDS
       .map((command) => semanticCommandDescriptor(command))
       .filter((descriptor) => descriptor.surface === surface && descriptor.exposure.mcp),
+  );
+}
+
+export function semanticMcpDiscoveryForSurface(surface: SemanticCommandSurface): readonly SemanticMcpDiscoveryEntry[] {
+  return Object.freeze(
+    semanticCommandDescriptorsForSurface(surface).map((descriptor) => Object.freeze({
+      command: descriptor.command,
+      name: descriptor.mcp_name,
+      description: descriptor.description,
+      input_schema: descriptor.input_schema,
+    })),
   );
 }
