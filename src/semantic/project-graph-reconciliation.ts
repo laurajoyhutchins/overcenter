@@ -34,6 +34,12 @@ export type ProjectTransitionDependencyIdentity = Readonly<{
   dependency_fingerprint: string;
 }>;
 
+export type ProjectTransitionGraphRevisionIdentity = Readonly<{
+  transition_id: string;
+  definition_fingerprint: string;
+  dependency_fingerprint: string;
+}>;
+
 export type DependencyChangedProjectTransitionRevision = Readonly<{
   kind: 'dependency-changed';
   transition_id: string;
@@ -84,6 +90,10 @@ export type ProjectTransitionRevisionReconciliation =
   | UnchangedProjectTransitionRevision
   | AuthorityInvalidatedProjectTransitionRevision
   | RedefinedProjectTransitionRevision;
+
+export type ProjectTransitionChangeReconciliation =
+  | ProjectTransitionRevisionReconciliation
+  | DependencyChangedProjectTransitionRevision;
 
 function requireSemanticText(value: string, field: string): string {
   const normalized = typeof value === 'string' ? value.trim() : '';
@@ -213,4 +223,18 @@ export function reconcileProjectTransitionRevision(
     may_continue_existing_authority: true,
     may_preserve_confirmation: true,
   });
+}
+
+export function reconcileProjectTransitionChange(
+  previous: ProjectTransitionGraphRevisionIdentity,
+  current: ProjectTransitionGraphRevisionIdentity,
+  continuation: ProjectTransitionContinuationEvidence,
+): ProjectTransitionChangeReconciliation {
+  const revision = reconcileProjectTransitionRevision(previous, current, continuation);
+  if (revision.kind === 'redefined') return revision;
+
+  const dependencies = reconcileProjectTransitionDependencies(previous, current);
+  if (dependencies.kind === 'dependency-changed') return dependencies;
+
+  return revision;
 }
