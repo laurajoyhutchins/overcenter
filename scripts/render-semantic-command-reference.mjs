@@ -24,6 +24,7 @@ export function renderSemanticCommandReference() {
       descriptor.description,
       '',
       `- MCP name: \`${descriptor.mcp_name}\``,
+      `- Agent surface: \`${descriptor.surface}\``,
       `- Required fields: ${codeList(descriptor.required_fields)}`,
       `- Semantic fields: ${codeList(descriptor.semantic_fields)}`,
       `- Exposure: worker=${descriptor.exposure.worker ? 'yes' : 'no'}, MCP=${descriptor.exposure.mcp ? 'yes' : 'no'}`,
