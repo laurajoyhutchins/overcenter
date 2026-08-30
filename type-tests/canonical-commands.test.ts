@@ -3,8 +3,10 @@ import type { CanonicalCommand } from '../src/semantic/command-contracts.js';
 
 const claimCommand: CanonicalCommand = 'work.claim';
 const applyChangesetCommand: CanonicalCommand = 'github.apply_changeset';
+const projectAdvanceCommand: CanonicalCommand = 'project.advance';
 void claimCommand;
 void applyChangesetCommand;
+void projectAdvanceCommand;
 
 const canonicalCommands: readonly CanonicalCommand[] = CANONICAL_COMMANDS;
 void canonicalCommands;
