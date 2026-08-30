@@ -234,6 +234,25 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
         });
       }
 
+      if (
+        status === 412
+        && body?.ok === false
+        && body?.error === 'GITHUB_APP_SETUP_REQUIRED'
+      ) {
+        return Object.freeze({
+          schema: 'production-reachability-evidence-v1',
+          entrypoint: '/api/orchestration/horizon-resolve',
+          runtime_project: project,
+          runtime_revision: revision,
+          boundary: Object.freeze({
+            kind: 'external_dependency',
+            dependency: 'github_app',
+            configuration_key: 'GITHUB_APP_ID',
+          }),
+          target: requestedTarget,
+        });
+      }
+
       const message = String(body?.message || '');
       if (
         status === 500

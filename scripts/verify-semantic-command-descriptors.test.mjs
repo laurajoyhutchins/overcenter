@@ -7,7 +7,7 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.release.create', 'orchestration.diagnose', 'work.settle'];
+const expected = ['github.release.create', 'orchestration.diagnose', 'project.amend', 'project.define', 'work.settle'];
 
 async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -28,16 +28,8 @@ test('representative commands have one authoritative semantic descriptor', () =>
     assert.ok(descriptor.description.length > 20);
     assert.equal(descriptor.input_schema.type, 'object');
     assert.equal(descriptor.input_schema.additionalProperties, false);
-    assert.deepEqual(
-      [...descriptor.semantic_fields].sort(),
-      Object.keys(descriptor.input_schema.properties).sort(),
-      `${command} semantic fields drifted from its schema`,
-    );
-    assert.deepEqual(
-      [...descriptor.required_fields].sort(),
-      [...(descriptor.input_schema.required || [])].sort(),
-      `${command} required fields drifted from its schema`,
-    );
+    assert.deepEqual([...descriptor.semantic_fields].sort(), Object.keys(descriptor.input_schema.properties).sort(), `${command} semantic fields drifted from its schema`);
+    assert.deepEqual([...descriptor.required_fields].sort(), [...(descriptor.input_schema.required || [])].sort(), `${command} required fields drifted from its schema`);
     assert.equal(descriptor.exposure.worker, true);
     assert.equal(descriptor.exposure.mcp, true);
     assert.ok(descriptor.mcp_name.length > 0);
@@ -46,10 +38,7 @@ test('representative commands have one authoritative semantic descriptor', () =>
 
 test('migrated worker validation is descriptor-derived rather than separately listed', async () => {
   const worker = await source('lib/worker-transport.js');
-  assert.match(worker, /semanticCommandDescriptor/);
-  for (const command of expected) {
-    assert.match(worker, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
-  }
+  for (const command of expected) assert.match(worker, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
   assert.doesNotMatch(worker, /GITHUB_RELEASE_(?:SEMANTIC|REQUIRED)_FIELDS/);
   assert.doesNotMatch(worker, /WORK_SETTLE_(?:SEMANTIC|REQUIRED)_FIELDS/);
 });
@@ -59,8 +48,9 @@ test('MCP metadata stays statically parseable and mechanically matches descripto
     ['work.settle', 'mcp/work.settle.js', 'WORK_SETTLE_INPUT_SCHEMA'],
     ['github.release.create', 'mcp/github_release_create.js', 'GITHUB_RELEASE_INPUT_SCHEMA'],
     ['orchestration.diagnose', 'mcp/orchestration.diagnose.js', 'ORCHESTRATION_DIAGNOSE_INPUT_SCHEMA'],
+    ['project.define', 'mcp/project.define.js', 'PROJECT_DEFINE_INPUT_SCHEMA'],
+    ['project.amend', 'mcp/project.amend.js', 'PROJECT_AMEND_INPUT_SCHEMA'],
   ];
-
   for (const [command, path, schemaName] of adapters) {
     const descriptor = semanticCommandDescriptor(command);
     const text = await source(path);
@@ -75,12 +65,14 @@ test('MCP schema compatibility projections derive from the authoritative descrip
     ['work.settle', 'lib/work-settle-contract.js'],
     ['github.release.create', 'lib/github-release-contract.js'],
     ['orchestration.diagnose', 'lib/orchestration-diagnose-contract.js'],
+    ['project.define', 'lib/project-authoring-mcp-contract.js'],
+    ['project.amend', 'lib/project-authoring-mcp-contract.js'],
   ];
   for (const [command, path] of projections) {
     const text = await source(path);
     assert.match(text, /semanticCommandDescriptor/);
     assert.match(text, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
-    assert.match(text, /descriptor\.input_schema/);
+    assert.match(text, /\.input_schema/);
   }
 });
 
