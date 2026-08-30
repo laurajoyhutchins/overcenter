@@ -87,6 +87,14 @@ test('migrated worker validation is descriptor-derived rather than separately li
   assert.doesNotMatch(worker, /WORK_SETTLE_(?:SEMANTIC|REQUIRED)_FIELDS/);
 });
 
+test('project inspect primary MCP transport derives from descriptor and host adapter', async () => {
+  const text = await source('mcp/project.inspect.js');
+  assert.match(text, /semanticCommandDescriptor\(['"]project\.inspect['"]\)/);
+  assert.match(text, /projectInspectFor/);
+  assert.match(text, /executeCorrelatedCommand/);
+  assert.match(text, /\.inspect\(input\)/);
+});
+
 test('MCP metadata stays statically parseable and mechanically matches descriptors', async () => {
   const adapters = [
     ['work.settle', 'mcp/work.settle.js', 'WORK_SETTLE_INPUT_SCHEMA'],
