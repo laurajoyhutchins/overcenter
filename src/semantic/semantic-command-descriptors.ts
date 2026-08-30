@@ -105,6 +105,15 @@ const productionPromoteSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const projectAdvanceSchema = Object.freeze({
+  type:'object',
+  required:['project_ref'],
+  properties:{
+    project_ref:{type:'string',pattern:'^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
+  },
+  additionalProperties:false,
+});
+
 const projectDefineSchema = Object.freeze({
   type:'object',
   required:['project_ref','expected_revision','definition'],
@@ -167,6 +176,14 @@ const DESCRIPTORS = Object.freeze({
     'production.promote',
     'Express intent to promote the current verified development revision by repository identity only. Provider-specific branch heads, exact verification evidence, retry identity, and production readback remain mechanically derived by the runtime adapter; MCP exposure stays disabled until that adapter exists.',
     productionPromoteSchema,
+    'primary',
+    Object.freeze({ worker:true, mcp:false }),
+  ),
+  'project.advance':descriptor(
+    'project.advance',
+    'project.advance',
+    'Advance an authoritative project graph by repository-owned project identity only. Run creation or resumption, horizon selection, lease acquisition, settlement choreography, and continuation remain mechanically owned behind the semantic boundary; MCP exposure stays disabled until a runtime adapter can preserve those invariants.',
+    projectAdvanceSchema,
     'primary',
     Object.freeze({ worker:true, mcp:false }),
   ),
