@@ -137,8 +137,8 @@ test('stale project-definition authority remains a typed worker precondition rej
 
 test('durable orchestration journal projects bounded project authoring source coordinates', async () => {
   const journalSource = await readFile(new URL('../lib/orchestration-journal.js', import.meta.url), 'utf8');
-  assert.match(journalSource, /command === 'project\\.define'/);
-  assert.match(journalSource, /command === 'project\\.amend'/);
+  assert.match(journalSource, /command === 'project\.define'/);
+  assert.match(journalSource, /command === 'project\.amend'/);
   assert.match(journalSource, /project_ref/);
   assert.match(journalSource, /expected_revision/);
   assert.match(journalSource, /transition_count|add_transition_count|remove_transition_count/);
