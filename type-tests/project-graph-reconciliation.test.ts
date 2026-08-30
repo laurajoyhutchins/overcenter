@@ -1,4 +1,5 @@
 import {
+  reconcileProjectTransitionPresence,
   reconcileProjectTransitionRevision,
   type ProjectTransitionContinuationEvidence,
   type ProjectTransitionRevisionIdentity,
@@ -20,6 +21,22 @@ const validAuthority: ProjectTransitionContinuationEvidence = {
   mutation_scope_unchanged: true,
   required_authority_valid: true,
 };
+
+const introduced = reconcileProjectTransitionPresence(null, same);
+if (introduced.kind === 'introduced') {
+  const mayContinue: false = introduced.may_continue_existing_authority;
+  const preservesConfirmation: false = introduced.may_preserve_confirmation;
+  void mayContinue;
+  void preservesConfirmation;
+}
+
+const removed = reconcileProjectTransitionPresence(previous, null);
+if (removed.kind === 'removed') {
+  const synthesizesCompletion: false = removed.synthesizes_completion;
+  const mayContinue: false = removed.may_continue_existing_authority;
+  void synthesizesCompletion;
+  void mayContinue;
+}
 
 const unchanged = reconcileProjectTransitionRevision(previous, same, validAuthority);
 if (unchanged.kind === 'unchanged') {

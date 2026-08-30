@@ -8,6 +8,27 @@ export type ProjectTransitionContinuationEvidence = Readonly<{
   required_authority_valid: boolean;
 }>;
 
+export type IntroducedProjectTransitionRevision = Readonly<{
+  kind: 'introduced';
+  transition_id: string;
+  definition_fingerprint: string;
+  may_continue_existing_authority: false;
+  may_preserve_confirmation: false;
+}>;
+
+export type RemovedProjectTransitionRevision = Readonly<{
+  kind: 'removed';
+  transition_id: string;
+  previous_definition_fingerprint: string;
+  may_continue_existing_authority: false;
+  may_preserve_confirmation: false;
+  synthesizes_completion: false;
+}>;
+
+export type ProjectTransitionPresenceReconciliation =
+  | IntroducedProjectTransitionRevision
+  | RemovedProjectTransitionRevision;
+
 export type UnchangedProjectTransitionRevision = Readonly<{
   kind: 'unchanged';
   transition_id: string;
@@ -46,6 +67,37 @@ function requireSemanticText(value: string, field: string): string {
     throw new TypeError(`${field} must be a non-empty string`);
   }
   return normalized;
+}
+
+export function reconcileProjectTransitionPresence(
+  previous: ProjectTransitionRevisionIdentity | null,
+  current: ProjectTransitionRevisionIdentity | null,
+): ProjectTransitionPresenceReconciliation {
+  if (previous === null && current !== null) {
+    return Object.freeze({
+      kind: 'introduced',
+      transition_id: requireSemanticText(current.transition_id, 'current.transition_id'),
+      definition_fingerprint: requireSemanticText(current.definition_fingerprint, 'current.definition_fingerprint'),
+      may_continue_existing_authority: false,
+      may_preserve_confirmation: false,
+    });
+  }
+
+  if (previous !== null && current === null) {
+    return Object.freeze({
+      kind: 'removed',
+      transition_id: requireSemanticText(previous.transition_id, 'previous.transition_id'),
+      previous_definition_fingerprint: requireSemanticText(
+        previous.definition_fingerprint,
+        'previous.definition_fingerprint',
+      ),
+      may_continue_existing_authority: false,
+      may_preserve_confirmation: false,
+      synthesizes_completion: false,
+    });
+  }
+
+  throw new TypeError('project transition presence reconciliation requires exactly one revision to be absent');
 }
 
 export function reconcileProjectTransitionRevision(
