@@ -2,7 +2,7 @@ import type {
   ExactRevisionVerification,
   ProductionBranchRoles,
   ProductionPromotionPorts,
-  ProductionPromotionResult,
+  ProductionPromotionWriteResult,
   VerifiedProductionPromotionRequest,
 } from '../semantic/production-promotion-operation';
 
@@ -25,7 +25,7 @@ export type ProductionPromotionRuntimeHost = Readonly<{
   verifyExactRevision(repo: string, revision: string): Promise<ExactRevisionVerification>;
   resolveVerificationEvidence(verificationRef: string): Promise<ProductionPromotionVerificationEvidence>;
   deriveIdempotencyKey(request: VerifiedProductionPromotionRequest): Promise<string>;
-  invokeStrictPromotion(request: StrictProductionPromotionRequest): Promise<ProductionPromotionResult>;
+  invokeStrictPromotion(request: StrictProductionPromotionRequest): Promise<ProductionPromotionWriteResult>;
 }>;
 
 export function createProductionPromotionPorts(
