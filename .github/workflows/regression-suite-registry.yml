@@ -28,6 +28,8 @@ jobs:
         run: node scripts/verify-orchestration-drive.mjs
       - name: Test legacy lane compatibility isolation
         run: node --test scripts/verify-legacy-lane-isolation.test.mjs
+      - name: Test transition-first operator dashboard
+        run: node --test scripts/verify-transition-first-dashboard.test.mjs
       - name: Test execution evidence projector
         run: node --test scripts/verify-execution-evidence-projector.test.mjs
       - name: Test execution evidence review invariants
