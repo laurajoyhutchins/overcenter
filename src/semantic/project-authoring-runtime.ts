@@ -36,10 +36,16 @@ export type ProjectDefineRequest = Readonly<{
   definition: Readonly<Record<string, unknown>>;
 }>;
 
+type ProjectAuthoringError = Error & {
+  code?: string;
+  details?: Readonly<Record<string, unknown>> | null;
+  may_have_mutated?: boolean;
+};
+
 const SHA40 = /^[0-9a-f]{40}$/;
 
 function fail(code: string, message: string, details: Readonly<Record<string, unknown>> | null = null): never {
-  const error = new Error(message) as Error & { code?: string; details?: Readonly<Record<string, unknown>> | null };
+  const error = new Error(message) as ProjectAuthoringError;
   error.code = code;
   error.details = details;
   throw error;
@@ -67,6 +73,18 @@ function requireDependencies(dependencies: ProjectAuthoringRuntimeDependencies):
   }
 }
 
+function confirmedMutationFailure(errorInput: unknown): ProjectAuthoringError {
+  const error = errorInput instanceof Error
+    ? errorInput as ProjectAuthoringError
+    : new Error(String(errorInput || 'project authoring readback failed')) as ProjectAuthoringError;
+  const details = error.details && typeof error.details === 'object' && !Array.isArray(error.details)
+    ? error.details
+    : {};
+  error.may_have_mutated = true;
+  error.details = Object.freeze({ ...details, may_have_mutated:true });
+  return error;
+}
+
 async function fencedAuthority(projectRef: string, expectedRevision: string, dependencies: ProjectAuthoringRuntimeDependencies) {
   const authority = await dependencies.resolveAuthority({ project_ref: projectRef });
   const observedRevision = exactRevision(authority?.revision, 'authority.revision');
@@ -80,24 +98,51 @@ async function fencedAuthority(projectRef: string, expectedRevision: string, dep
   return authority;
 }
 
-async function resultAfterMutation(authority: ProjectAuthoringAuthority, mutation: Readonly<{ revision: string }>, diff: ProjectDefinitionDiff, dependencies: ProjectAuthoringRuntimeDependencies) {
-  const resultingRevision = exactRevision(mutation?.revision, 'mutation.revision');
-  const resultingAuthority = Object.freeze({ ...authority, revision: resultingRevision });
-  const graph = await dependencies.deriveProjectGraph(resultingAuthority) as { revision?: unknown };
-  const graphRevision = exactRevision(graph?.revision, 'graph.revision');
-  if (graphRevision !== resultingRevision) {
+function graphAtRevision(graphInput: unknown, authority: ProjectAuthoringAuthority) {
+  if (!graphInput || typeof graphInput !== 'object' || Array.isArray(graphInput)) {
+    fail('PROJECT_AUTHORING_READBACK_MISMATCH', 'derived project graph readback is invalid', {
+      project_ref:authority.project_ref,
+      expected_revision:authority.revision,
+    });
+  }
+  const graph = graphInput as Readonly<Record<string, unknown>>;
+  if (graph.revision == null) {
+    return Object.freeze({ ...graph, revision:authority.revision });
+  }
+  const graphRevision = exactRevision(graph.revision, 'graph.revision');
+  if (graphRevision !== authority.revision) {
     fail('PROJECT_AUTHORING_READBACK_MISMATCH', 'derived project graph does not match confirmed source revision', {
       project_ref:authority.project_ref,
-      expected_revision:resultingRevision,
+      expected_revision:authority.revision,
       observed_revision:graphRevision,
     });
   }
+  return graph;
+}
+
+async function resultAfterMutation(authority: ProjectAuthoringAuthority, mutation: Readonly<{ revision: string }>, diff: ProjectDefinitionDiff, dependencies: ProjectAuthoringRuntimeDependencies) {
+  const resultingRevision = exactRevision(mutation?.revision, 'mutation.revision');
+  const resultingAuthority = Object.freeze({ ...authority, revision: resultingRevision });
+  const graph = graphAtRevision(await dependencies.deriveProjectGraph(resultingAuthority), resultingAuthority);
   return Object.freeze({
     schema:'project-authoring-result-v1' as const,
     authority:resultingAuthority,
     diff,
     graph,
   });
+}
+
+async function confirmedResultAfterMutation(
+  authority: ProjectAuthoringAuthority,
+  mutation: Readonly<{ revision: string }>,
+  diff: ProjectDefinitionDiff,
+  dependencies: ProjectAuthoringRuntimeDependencies,
+) {
+  try {
+    return await resultAfterMutation(authority, mutation, diff, dependencies);
+  } catch (error) {
+    throw confirmedMutationFailure(error);
+  }
 }
 
 export async function defineProjectDefinition(
@@ -129,7 +174,7 @@ export async function defineProjectDefinition(
     definition,
     diff,
   });
-  return resultAfterMutation(authority, mutation, diff, dependencies);
+  return confirmedResultAfterMutation(authority, mutation, diff, dependencies);
 }
 
 export async function amendProjectDefinition(
@@ -150,5 +195,5 @@ export async function amendProjectDefinition(
     definition: amendment.definition,
     diff: amendment.diff,
   });
-  return resultAfterMutation(authority, mutation, amendment.diff, dependencies);
+  return confirmedResultAfterMutation(authority, mutation, amendment.diff, dependencies);
 }
