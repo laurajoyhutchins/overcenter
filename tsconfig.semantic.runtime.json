@@ -21,6 +21,7 @@
     "src/semantic/project-definition-changeset-writer.ts",
     "src/semantic/project-definition-mutation-authority.ts",
     "src/semantic/project-graph-contracts.ts",
+    "src/semantic/project-graph-reconciliation.ts",
     "src/semantic/project-graph-types.ts",
     "src/semantic/runtime-provenance.ts",
     "src/semantic/semantic-command-descriptors.ts",
