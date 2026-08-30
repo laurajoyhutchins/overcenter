@@ -7,7 +7,7 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.release.create', 'orchestration.diagnose', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'work.settle'];
+const expected = ['github.release.create', 'orchestration.diagnose', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'work.settle'];
 const expectedSurface = new Map([
   ['github.release.create', 'advanced'],
   ['orchestration.diagnose', 'operator'],
@@ -15,10 +15,12 @@ const expectedSurface = new Map([
   ['project.advance', 'primary'],
   ['project.amend', 'primary'],
   ['project.define', 'primary'],
+  ['project.inspect', 'primary'],
   ['work.settle', 'compatibility'],
 ]);
 const expectedExposure = new Map([
   ['production.promote', { worker: true, mcp: false }],
+  ['project.inspect', { worker: true, mcp: false }],
 ]);
 
 async function source(path) {
@@ -50,7 +52,7 @@ test('representative commands have one authoritative semantic descriptor', () =>
 
 test('primary semantic surface is mechanically identifiable from descriptors', () => {
   const primary = expected.filter((command) => semanticCommandDescriptor(command).surface === 'primary');
-  assert.deepEqual(primary, ['production.promote', 'project.advance', 'project.amend', 'project.define']);
+  assert.deepEqual(primary, ['production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect']);
 });
 
 test('production promotion intent is typed before provider adapter exposure', () => {
@@ -67,6 +69,14 @@ test('project advance intent hides run choreography behind runtime adapter expos
   assert.deepEqual(descriptor.semantic_fields, ['project_ref']);
   assert.deepEqual(descriptor.required_fields, ['project_ref']);
   assert.deepEqual(descriptor.exposure, { worker: true, mcp: true });
+});
+
+test('project inspect intent is primary before host adapter exposure', () => {
+  const descriptor = semanticCommandDescriptor('project.inspect');
+  assert.equal(descriptor.surface, 'primary');
+  assert.deepEqual(descriptor.semantic_fields, ['project_ref']);
+  assert.deepEqual(descriptor.required_fields, ['project_ref']);
+  assert.deepEqual(descriptor.exposure, { worker: true, mcp: false });
 });
 
 test('migrated worker validation is descriptor-derived rather than separately listed', async () => {
