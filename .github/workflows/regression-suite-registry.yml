@@ -38,6 +38,8 @@ jobs:
         run: node --test scripts/verify-work-lease-config.test.mjs
       - name: Test project horizon semantics
         run: node --test scripts/verify-project-horizon.test.mjs
+      - name: Test project inspect runtime host
+        run: node --input-type=module -e "import { runProjectInspectOvercenterHostTests } from './lib/project-inspect-overcenter-host.test.js'; await runProjectInspectOvercenterHostTests();"
       - name: Test project transition lease semantics
         run: node --test scripts/verify-project-transition-leases.test.mjs
       - name: Test compatibility transition confirmation bridge
