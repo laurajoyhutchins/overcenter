@@ -31,6 +31,12 @@ Overcenter exists to move repeated orchestration ceremony out of prompts and int
 - Prefer one authoritative path over duplicated state, compatibility layers, or agent-maintained projections.
 - Fail closed when authority is stale, a mutation may be ambiguous, or required evidence is missing.
 
+## Primary agent surface
+
+Agents doing ordinary graph authoring should begin with [`public/docs/primary-semantic-surface.md`](public/docs/primary-semantic-surface.md). That entry surface is generated from authoritative semantic command metadata so advanced, operator, and compatibility primitives do not become accidental prerequisites merely because they exist internally.
+
+The primary surface is intentionally narrower than the complete command inventory. If an ordinary operation still requires run, horizon, lease, settlement, recovery, or provider choreography, keep that machinery behind an advanced/operator boundary until Overcenter can derive it safely.
+
 ## Core surfaces
 
 The repository contains:
