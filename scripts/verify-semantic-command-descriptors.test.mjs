@@ -7,17 +7,19 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.release.create', 'orchestration.diagnose', 'production.promote', 'project.amend', 'project.define', 'work.settle'];
+const expected = ['github.release.create', 'orchestration.diagnose', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'work.settle'];
 const expectedSurface = new Map([
   ['github.release.create', 'advanced'],
   ['orchestration.diagnose', 'operator'],
   ['production.promote', 'primary'],
+  ['project.advance', 'primary'],
   ['project.amend', 'primary'],
   ['project.define', 'primary'],
   ['work.settle', 'compatibility'],
 ]);
 const expectedExposure = new Map([
   ['production.promote', { worker: true, mcp: false }],
+  ['project.advance', { worker: true, mcp: false }],
 ]);
 
 async function source(path) {
@@ -49,7 +51,7 @@ test('representative commands have one authoritative semantic descriptor', () =>
 
 test('primary semantic surface is mechanically identifiable from descriptors', () => {
   const primary = expected.filter((command) => semanticCommandDescriptor(command).surface === 'primary');
-  assert.deepEqual(primary, ['production.promote', 'project.amend', 'project.define']);
+  assert.deepEqual(primary, ['production.promote', 'project.advance', 'project.amend', 'project.define']);
 });
 
 test('production promotion intent is typed before provider adapter exposure', () => {
@@ -57,6 +59,14 @@ test('production promotion intent is typed before provider adapter exposure', ()
   assert.equal(descriptor.surface, 'primary');
   assert.deepEqual(descriptor.semantic_fields, ['repo']);
   assert.deepEqual(descriptor.required_fields, ['repo']);
+  assert.deepEqual(descriptor.exposure, { worker: true, mcp: false });
+});
+
+test('project advance intent hides run choreography before runtime adapter exposure', () => {
+  const descriptor = semanticCommandDescriptor('project.advance');
+  assert.equal(descriptor.surface, 'primary');
+  assert.deepEqual(descriptor.semantic_fields, ['project_ref']);
+  assert.deepEqual(descriptor.required_fields, ['project_ref']);
   assert.deepEqual(descriptor.exposure, { worker: true, mcp: false });
 });
 
