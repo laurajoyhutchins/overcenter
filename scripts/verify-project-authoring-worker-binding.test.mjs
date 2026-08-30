@@ -22,17 +22,20 @@ test('worker binding preserves explicit injection and otherwise composes bounded
   assert.equal(typeof composed.amend, 'function');
 });
 
-test('default worker API composes project authoring while semantic transport remains host-neutral', async () => {
-  const [apiSource, transportSource] = await Promise.all([
+test('default worker API consumes shared Overcenter host composition while semantic transport remains host-neutral', async () => {
+  const [apiSource, hostSource, transportSource] = await Promise.all([
     readFile(new URL('../api/worker-command.js', import.meta.url), 'utf8'),
+    readFile(new URL('../lib/project-authoring-overcenter-host.js', import.meta.url), 'utf8'),
     readFile(new URL('../lib/worker-transport.js', import.meta.url), 'utf8'),
   ]);
-  assert.match(apiSource, /createProjectAuthoringWorkerBinding/);
+  assert.match(apiSource, /projectAuthoringFor.*project-authoring-overcenter-host\.js/);
   assert.match(apiSource, /createWorkerCommandHandler/);
-  assert.match(apiSource, /createGitHubProjectGraphRuntime/);
-  assert.match(apiSource, /createPostgresRepositoryDispositionStore/);
-  assert.match(apiSource, /applyGithubChangesetRoleAware/);
-  assert.match(apiSource, /deriveOvercenterProjectGraph/);
+  assert.doesNotMatch(apiSource, /createGitHubProjectGraphRuntime|createPostgresRepositoryDispositionStore|applyGithubChangesetRoleAware|deriveOvercenterProjectGraph/);
+  assert.match(hostSource, /createProjectAuthoringWorkerBinding/);
+  assert.match(hostSource, /createGitHubProjectGraphRuntime/);
+  assert.match(hostSource, /createPostgresRepositoryDispositionStore/);
+  assert.match(hostSource, /applyGithubChangesetRoleAware/);
+  assert.match(hostSource, /deriveOvercenterProjectGraph/);
   assert.doesNotMatch(transportSource, /createPostgresRepositoryDispositionStore|applyGithubChangesetRoleAware|deriveOvercenterProjectGraph/);
 });
 
