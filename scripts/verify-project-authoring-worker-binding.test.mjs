@@ -115,7 +115,12 @@ test('ordinary non-authoring worker commands do not require project-authoring ho
 
 test('stale project-definition authority is registered as a worker precondition rejection without coupling the neutral handler to command-response runtime imports', async () => {
   const source = await readFile(new URL('../lib/command-response.js', import.meta.url), 'utf8');
-  const preconditionBlock = source.match(/register\\(\\[([\\s\\S]*?)\\], 'precondition', false, DEFAULT_STATUS\\.precondition, true\\);/)?.[1] || '';
+  const marker = "], 'precondition', false, DEFAULT_STATUS.precondition, true);";
+  const end = source.indexOf(marker);
+  assert.notEqual(end, -1);
+  const start = source.lastIndexOf('register([', end);
+  assert.notEqual(start, -1);
+  const preconditionBlock = source.slice(start, end);
   assert.match(preconditionBlock, /'PROJECT_DEFINITION_MUTATION_AUTHORITY_STALE'/);
 });
 
