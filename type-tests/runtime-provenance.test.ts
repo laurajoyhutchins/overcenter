@@ -1,10 +1,11 @@
-import type {
-  DeploymentRef,
-  RuntimeArtifact,
-  RuntimeArtifactDigest,
-  RuntimeFence,
-  RuntimeObservation,
-  VerifiedRuntime,
+import {
+  verifyRuntimeObservation,
+  type DeploymentRef,
+  type RuntimeArtifact,
+  type RuntimeArtifactDigest,
+  type RuntimeFence,
+  type RuntimeObservation,
+  type VerifiedRuntime,
 } from '../src/semantic/runtime-provenance.js';
 import type { GitSha } from '../src/semantic/semantic-identities.js';
 
@@ -25,11 +26,7 @@ const observation: RuntimeObservation = {
   fence,
 };
 
-const verified: VerifiedRuntime = {
-  artifact,
-  observation,
-};
-
+const verified: VerifiedRuntime = verifyRuntimeObservation(artifact, observation);
 void verified;
 
 // @ts-expect-error Provider deployment arithmetic must not enter semantic runtime provenance.

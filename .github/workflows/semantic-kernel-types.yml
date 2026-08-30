@@ -41,3 +41,5 @@ jobs:
           diff -u lib/project-graph-contracts.js .semantic-build/project-graph-contracts.js
           diff -u lib/semantic-command-descriptors.js .semantic-build/semantic-command-descriptors.js
           diff -u lib/work-settle-contract.js .semantic-build/work-settle-contract.js
+      - name: Test runtime provenance semantics
+        run: node --test scripts/runtime-provenance.test.mjs

@@ -24,3 +24,17 @@ export interface VerifiedRuntime {
   readonly artifact: RuntimeArtifact;
   readonly observation: RuntimeObservation;
 }
+
+export function verifyRuntimeObservation(
+  artifact: RuntimeArtifact,
+  observation: RuntimeObservation,
+): VerifiedRuntime {
+  if (artifact.artifactDigest !== observation.observedArtifactDigest) {
+    throw Object.assign(
+      new Error('Runtime observation does not match the intended immutable runtime artifact.'),
+      { code: 'RUNTIME_ARTIFACT_MISMATCH' as const },
+    );
+  }
+
+  return { artifact, observation };
+}
