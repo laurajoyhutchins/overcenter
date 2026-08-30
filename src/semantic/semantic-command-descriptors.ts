@@ -114,6 +114,15 @@ const projectAdvanceSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const projectInspectSchema = Object.freeze({
+  type:'object',
+  required:['project_ref'],
+  properties:{
+    project_ref:{type:'string',pattern:'^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
+  },
+  additionalProperties:false,
+});
+
 const projectDefineSchema = Object.freeze({
   type:'object',
   required:['project_ref','expected_revision','definition'],
@@ -186,6 +195,14 @@ const DESCRIPTORS = Object.freeze({
     projectAdvanceSchema,
     'primary',
     Object.freeze({ worker:true, mcp:true }),
+  ),
+  'project.inspect':descriptor(
+    'project.inspect',
+    'project.inspect',
+    'Inspect authoritative repository-owned project state by project identity only. The runtime adapter derives the exact GitHub authority revision and graph frontier while keeping repository layout and host-specific runtime coordinates outside the primary semantic intent.',
+    projectInspectSchema,
+    'primary',
+    Object.freeze({ worker:true, mcp:false }),
   ),
   'work.settle':descriptor(
     'work.settle',
