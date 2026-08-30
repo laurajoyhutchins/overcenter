@@ -8,12 +8,14 @@ export type ProductionBranchRoles = Readonly<{
 export type ExactRevisionVerification = Readonly<{
   revision: string;
   verified: boolean;
+  verification_ref: string;
 }>;
 
 export type VerifiedProductionPromotionRequest = Readonly<{
   repo: string;
   source_revision: string;
   production_revision: string;
+  verification_ref: string;
 }>;
 
 export type ProductionPromotionResult = Readonly<{
@@ -36,7 +38,11 @@ export async function promoteProduction(
   const productionRevision = await ports.readBranchHead(intent.repo, roles.production);
   const verification = await ports.verifyExactRevision(intent.repo, sourceRevision);
 
-  if (!verification.verified || verification.revision !== sourceRevision) {
+  if (
+    !verification.verified
+    || verification.revision !== sourceRevision
+    || verification.verification_ref.trim().length === 0
+  ) {
     throw new Error('PRODUCTION_PROMOTION_SOURCE_NOT_VERIFIED');
   }
 
@@ -44,5 +50,6 @@ export async function promoteProduction(
     repo: intent.repo,
     source_revision: sourceRevision,
     production_revision: productionRevision,
+    verification_ref: verification.verification_ref,
   });
 }
