@@ -104,12 +104,42 @@ export type ProjectGraphRevisionReconciliation = readonly (
   | ProjectTransitionChangeReconciliation
 )[];
 
+export type ProjectGraphAuthorityCoordinate = Readonly<{
+  repository: string;
+  revision: string;
+  derivation: string;
+}>;
+
+export type ProjectGraphRevisionChangeKind = Exclude<
+  ProjectGraphRevisionReconciliation[number]['kind'],
+  'unchanged'
+>;
+
+export type ProjectGraphRevisionChangeEvidence = Readonly<{
+  schema: 'project-graph-revision-change-v1';
+  previous_authority: ProjectGraphAuthorityCoordinate;
+  current_authority: ProjectGraphAuthorityCoordinate;
+  authority_changed: true;
+  changes: readonly Readonly<{
+    transition_id: string;
+    kind: ProjectGraphRevisionChangeKind;
+  }>[];
+}>;
+
 function requireSemanticText(value: string, field: string): string {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (!normalized) {
     throw new TypeError(`${field} must be a non-empty string`);
   }
   return normalized;
+}
+
+function requireGitRevision(value: string, field: string): string {
+  const revision = requireSemanticText(value, field).toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(revision)) {
+    throw new TypeError(`${field} must be an exact 40-character Git revision`);
+  }
+  return revision;
 }
 
 export function reconcileProjectTransitionPresence(
@@ -289,4 +319,43 @@ export function reconcileProjectGraphRevision(
       );
     }),
   );
+}
+
+export function buildProjectGraphRevisionEvidence(
+  previousAuthority: ProjectGraphAuthorityCoordinate,
+  currentAuthority: ProjectGraphAuthorityCoordinate,
+  reconciliation: ProjectGraphRevisionReconciliation,
+): ProjectGraphRevisionChangeEvidence {
+  const previous = Object.freeze({
+    repository: requireSemanticText(previousAuthority.repository, 'previous_authority.repository'),
+    revision: requireGitRevision(previousAuthority.revision, 'previous_authority.revision'),
+    derivation: requireSemanticText(previousAuthority.derivation, 'previous_authority.derivation'),
+  });
+  const current = Object.freeze({
+    repository: requireSemanticText(currentAuthority.repository, 'current_authority.repository'),
+    revision: requireGitRevision(currentAuthority.revision, 'current_authority.revision'),
+    derivation: requireSemanticText(currentAuthority.derivation, 'current_authority.derivation'),
+  });
+  if (previous.repository !== current.repository || previous.derivation !== current.derivation) {
+    throw new TypeError('graph revision evidence requires one stable authority source');
+  }
+  if (previous.revision === current.revision) {
+    throw new TypeError('graph revision evidence requires distinct authority revisions');
+  }
+
+  const changes = reconciliation
+    .filter((change) => change.kind !== 'unchanged')
+    .map((change) => Object.freeze({
+      transition_id: requireSemanticText(change.transition_id, 'reconciliation.transition_id'),
+      kind: change.kind as ProjectGraphRevisionChangeKind,
+    }))
+    .sort((left, right) => left.transition_id.localeCompare(right.transition_id));
+
+  return Object.freeze({
+    schema: 'project-graph-revision-change-v1',
+    previous_authority: previous,
+    current_authority: current,
+    authority_changed: true,
+    changes: Object.freeze(changes),
+  });
 }
