@@ -74,6 +74,38 @@ test('host-neutral worker handler composes project authoring without caller-supp
   assert.equal(Object.hasOwn(observed.input, 'lease_ref'), false);
 });
 
+test('ordinary non-authoring worker commands do not require project-authoring host composition', async () => {
+  const { createWorkerCommandHandler } = await import('../lib/worker-command-handler.js');
+  let authoringCompositions = 0;
+  let observedRuntime = null;
+  const handler = createWorkerCommandHandler({
+    db:{ marker:'worker-host-db' },
+    commandFailure:() => ({ status:400, body:{ ok:false } }),
+    projectAuthoringFor() {
+      authoringCompositions += 1;
+      throw new Error('project authoring should be lazy for unrelated commands');
+    },
+    async executeSemanticWorkerCommand(command, input, runtime) {
+      observedRuntime = runtime;
+      return { status:200, body:{ ok:true, command, input } };
+    },
+    logger:{ warn() {} },
+  });
+  const response = {
+    statusCode:null,
+    body:null,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return body; },
+  };
+
+  await handler({ body:{ command:'work.claim', input:{ work_ref:'LJH-1' } } }, response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(authoringCompositions, 0);
+  assert.equal(observedRuntime.db.marker, 'worker-host-db');
+  assert.equal(Object.hasOwn(observedRuntime, 'projectAuthoring'), false);
+});
+
 test('durable orchestration journal projects bounded project authoring source coordinates', async () => {
   const journalSource = await readFile(new URL('../lib/orchestration-journal.js', import.meta.url), 'utf8');
   assert.match(journalSource, /command === 'project\.define'/);
