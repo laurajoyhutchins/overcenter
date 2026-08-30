@@ -1,5 +1,6 @@
 import { db as hatchableDb } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
+import { createGitHubProjectGraphRuntime } from 'lib/project-graph-github-runtime.js';
 import { projectInspectForGitHub } from 'lib/project-inspect-github-runtime.js';
 import { semanticCommandDescriptor } from 'lib/semantic-command-descriptors.js';
 
@@ -15,7 +16,7 @@ export default {
     const response = await executeCorrelatedCommand(
       'project.inspect',
       args || {},
-      (input) => projectInspectForGitHub({ db }).inspect(input),
+      (input) => projectInspectForGitHub({ db, createGitHubProjectGraphRuntime }).inspect(input),
       {
         statusForFailure:() => null,
         defaultError:'PROJECT_INSPECT_ERROR',
