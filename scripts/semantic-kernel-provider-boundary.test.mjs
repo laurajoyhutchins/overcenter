@@ -1,7 +1,24 @@
 import assert from 'node:assert/strict';
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
 import test from 'node:test';
 
 import { findForbiddenProviderImports } from './semantic-kernel-provider-boundary.mjs';
+
+async function semanticSources(root = process.cwd()) {
+  const files = new Map();
+  async function walk(directory) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) await walk(absolute);
+      else if (entry.isFile() && entry.name.endsWith('.ts')) {
+        files.set(path.relative(root, absolute).split(path.sep).join('/'), await readFile(absolute, 'utf8'));
+      }
+    }
+  }
+  await walk(path.join(root, 'src', 'semantic'));
+  return files;
+}
 
 test('rejects Hatchable imports from semantic kernel source', () => {
   assert.deepEqual(
@@ -32,4 +49,8 @@ test('allows provider-neutral semantic imports', () => {
     ])),
     [],
   );
+});
+
+test('the checked-in semantic kernel contains no runtime provider imports', async () => {
+  assert.deepEqual(findForbiddenProviderImports(await semanticSources()), []);
 });
