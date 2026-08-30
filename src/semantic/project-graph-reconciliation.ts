@@ -3,12 +3,27 @@ export type ProjectTransitionRevisionIdentity = Readonly<{
   definition_fingerprint: string;
 }>;
 
+export type ProjectTransitionContinuationEvidence = Readonly<{
+  mutation_scope_unchanged: boolean;
+  required_authority_valid: boolean;
+}>;
+
 export type UnchangedProjectTransitionRevision = Readonly<{
   kind: 'unchanged';
   transition_id: string;
   definition_fingerprint: string;
   may_continue_existing_authority: true;
   may_preserve_confirmation: true;
+}>;
+
+export type AuthorityInvalidatedProjectTransitionRevision = Readonly<{
+  kind: 'authority-invalidated';
+  transition_id: string;
+  definition_fingerprint: string;
+  mutation_scope_unchanged: boolean;
+  required_authority_valid: boolean;
+  may_continue_existing_authority: false;
+  may_preserve_confirmation: false;
 }>;
 
 export type RedefinedProjectTransitionRevision = Readonly<{
@@ -22,6 +37,7 @@ export type RedefinedProjectTransitionRevision = Readonly<{
 
 export type ProjectTransitionRevisionReconciliation =
   | UnchangedProjectTransitionRevision
+  | AuthorityInvalidatedProjectTransitionRevision
   | RedefinedProjectTransitionRevision;
 
 function requireSemanticText(value: string, field: string): string {
@@ -35,6 +51,7 @@ function requireSemanticText(value: string, field: string): string {
 export function reconcileProjectTransitionRevision(
   previous: ProjectTransitionRevisionIdentity,
   current: ProjectTransitionRevisionIdentity,
+  continuation: ProjectTransitionContinuationEvidence,
 ): ProjectTransitionRevisionReconciliation {
   const previousTransitionId = requireSemanticText(previous.transition_id, 'previous.transition_id');
   const currentTransitionId = requireSemanticText(current.transition_id, 'current.transition_id');
@@ -51,22 +68,36 @@ export function reconcileProjectTransitionRevision(
     'current.definition_fingerprint',
   );
 
-  if (previousFingerprint === currentFingerprint) {
+  if (previousFingerprint !== currentFingerprint) {
     return Object.freeze({
-      kind: 'unchanged',
+      kind: 'redefined',
+      transition_id: currentTransitionId,
+      previous_definition_fingerprint: previousFingerprint,
+      current_definition_fingerprint: currentFingerprint,
+      may_continue_existing_authority: false,
+      may_preserve_confirmation: false,
+    });
+  }
+
+  const mutationScopeUnchanged = continuation?.mutation_scope_unchanged === true;
+  const requiredAuthorityValid = continuation?.required_authority_valid === true;
+  if (!mutationScopeUnchanged || !requiredAuthorityValid) {
+    return Object.freeze({
+      kind: 'authority-invalidated',
       transition_id: currentTransitionId,
       definition_fingerprint: currentFingerprint,
-      may_continue_existing_authority: true,
-      may_preserve_confirmation: true,
+      mutation_scope_unchanged: mutationScopeUnchanged,
+      required_authority_valid: requiredAuthorityValid,
+      may_continue_existing_authority: false,
+      may_preserve_confirmation: false,
     });
   }
 
   return Object.freeze({
-    kind: 'redefined',
+    kind: 'unchanged',
     transition_id: currentTransitionId,
-    previous_definition_fingerprint: previousFingerprint,
-    current_definition_fingerprint: currentFingerprint,
-    may_continue_existing_authority: false,
-    may_preserve_confirmation: false,
+    definition_fingerprint: currentFingerprint,
+    may_continue_existing_authority: true,
+    may_preserve_confirmation: true,
   });
 }
