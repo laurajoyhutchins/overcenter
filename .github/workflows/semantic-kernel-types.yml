@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Test semantic kernel provider boundary
+        run: node --test scripts/semantic-kernel-provider-boundary.test.mjs
       - name: Type-check semantic kernel contracts
         run: npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
       - name: Verify runtime materialization is generated from TypeScript source
