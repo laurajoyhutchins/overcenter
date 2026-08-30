@@ -134,3 +134,76 @@ test('host adapter binds existing source authority, facts, disposition, changese
   assert.equal(calls[0].authority.subject, 'project_definition');
   assert.equal(calls[0].authority.authority_revision, initialRevision);
 });
+
+test('host adapter rejects stale authoritative source before any GitHub mutation', async () => {
+  let mutations = 0;
+  const graphRuntime = {
+    resolveProjectAuthority:async ({ project_ref }) => ({ project_ref, kind:'github', repository:'example/project', revision:resultingRevision, derivation:'overcenter-project-graph-v1' }),
+    readProjectFacts:async () => { throw new Error('stale authority must fail before definition readback'); },
+  };
+  const runtime = createProjectAuthoringHostRuntime({
+    graphRuntime,
+    readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
+    applyGithubChangeset:async () => { mutations += 1; return { ok:true, new_head:'c'.repeat(40) }; },
+    deriveProjectGraph:async () => { throw new Error('stale authority must fail before graph derivation'); },
+  });
+
+  await assert.rejects(
+    () => runtime.amend({
+      project_ref:projectRef,
+      expected_revision:initialRevision,
+      amendment:{ upsert_transitions:[] },
+    }),
+    (error) => error?.code === 'PROJECT_AUTHORING_AUTHORITY_STALE',
+  );
+  assert.equal(mutations, 0);
+});
+
+test('hermetic GitHub capability replay converges on one physical source mutation', async () => {
+  const requests = [];
+  const committed = new Map();
+  let physicalMutations = 0;
+  const amendedDefinition = { ...baseDefinition, transitions:[...baseDefinition.transitions, { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] };
+  const graphRuntime = {
+    resolveProjectAuthority:async ({ project_ref }) => ({ project_ref, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' }),
+    readProjectFacts:async ({ revision }) => ({
+      schema:'project-authority-facts-v1',
+      repository:'example/project',
+      revision,
+      facts:{ definition_facts:revision === resultingRevision ? facts(revision, amendedDefinition) : facts(revision) },
+    }),
+  };
+  const runtime = createProjectAuthoringHostRuntime({
+    graphRuntime,
+    readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
+    applyGithubChangeset:async (request, options) => {
+      const authority = await options.executionAuthority.require({ repository:request.repo });
+      assert.equal(authority.authority_revision, initialRevision);
+      requests.push(request);
+      const replay = committed.get(request.idempotency_key);
+      if (replay) return replay;
+      physicalMutations += 1;
+      const result = { ok:true, new_head:resultingRevision };
+      committed.set(request.idempotency_key, result);
+      return result;
+    },
+    deriveProjectGraph:async ({ authority }) => ({ schema:'overcenter-project-graph-v1', revision:authority.revision }),
+  });
+  const input = {
+    project_ref:projectRef,
+    expected_revision:initialRevision,
+    amendment:{ upsert_transitions:[{ id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] },
+  };
+
+  const first = await runtime.amend(input);
+  const replay = await runtime.amend(input);
+
+  assert.equal(physicalMutations, 1);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].idempotency_key, requests[1].idempotency_key);
+  assert.equal(requests[0].branch, requests[1].branch);
+  assert.equal(first.authority.revision, resultingRevision);
+  assert.equal(replay.authority.revision, resultingRevision);
+  assert.equal(first.graph.revision, resultingRevision);
+  assert.equal(replay.graph.revision, resultingRevision);
+});
