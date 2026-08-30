@@ -83,7 +83,15 @@ async function fencedAuthority(projectRef: string, expectedRevision: string, dep
 async function resultAfterMutation(authority: ProjectAuthoringAuthority, mutation: Readonly<{ revision: string }>, diff: ProjectDefinitionDiff, dependencies: ProjectAuthoringRuntimeDependencies) {
   const resultingRevision = exactRevision(mutation?.revision, 'mutation.revision');
   const resultingAuthority = Object.freeze({ ...authority, revision: resultingRevision });
-  const graph = await dependencies.deriveProjectGraph(resultingAuthority);
+  const graph = await dependencies.deriveProjectGraph(resultingAuthority) as { revision?: unknown };
+  const graphRevision = exactRevision(graph?.revision, 'graph.revision');
+  if (graphRevision !== resultingRevision) {
+    fail('PROJECT_AUTHORING_READBACK_MISMATCH', 'derived project graph does not match confirmed source revision', {
+      project_ref:authority.project_ref,
+      expected_revision:resultingRevision,
+      observed_revision:graphRevision,
+    });
+  }
   return Object.freeze({
     schema:'project-authoring-result-v1' as const,
     authority:resultingAuthority,
