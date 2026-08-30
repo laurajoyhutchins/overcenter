@@ -5,6 +5,9 @@ import {
   WORK_SETTLEMENT_DISPOSITIONS,
 } from './execution-lifecycle-contracts.js';
 
+export const SEMANTIC_COMMAND_SURFACES = Object.freeze(['primary', 'advanced', 'operator', 'compatibility'] as const);
+export type SemanticCommandSurface = (typeof SEMANTIC_COMMAND_SURFACES)[number];
+
 export type SemanticCommandExposure = Readonly<{
   worker: boolean;
   mcp: boolean;
@@ -18,6 +21,7 @@ export type SemanticCommandDescriptor = Readonly<{
   semantic_fields: readonly string[];
   required_fields: readonly string[];
   exposure: SemanticCommandExposure;
+  surface: SemanticCommandSurface;
 }>;
 
 const responsibility = Object.freeze({
@@ -112,6 +116,7 @@ function descriptor(
   mcpName: string,
   description: string,
   inputSchema: { readonly properties: Readonly<Record<string, unknown>>; readonly required?: readonly string[] } & Readonly<Record<string, unknown>>,
+  surface: SemanticCommandSurface,
   exposure: SemanticCommandExposure = Object.freeze({ worker:true, mcp:true }),
 ): SemanticCommandDescriptor {
   return Object.freeze({
@@ -122,6 +127,7 @@ function descriptor(
     semantic_fields:Object.freeze(Object.keys(inputSchema.properties)),
     required_fields:Object.freeze([...(inputSchema.required || [])]),
     exposure,
+    surface,
   });
 }
 
@@ -131,18 +137,21 @@ const DESCRIPTORS = Object.freeze({
     'github_release_create',
     'Create an immutable lightweight Git tag at an exact observed Git commit and a GitHub Release for that tag. Fail closed on expected-state drift or conflicting existing state. Exact replay converges through durable idempotency evidence; no tag retargeting, release editing, deletion, asset upload, note generation, or commit inference is performed. This MCP tool exposes conceptual github.release.create using the underscore-safe transport name.',
     githubReleaseSchema,
+    'advanced',
   ),
   'orchestration.diagnose':descriptor(
     'orchestration.diagnose',
     'orchestration.diagnose',
     'Read current durable orchestration state and return the typed failure class, exact deterministic recovery operation, and escalation boundary. This is state inspection and recovery classification only; it does not plan or select work.',
     orchestrationDiagnoseSchema,
+    'operator',
   ),
   'work.settle':descriptor(
     'work.settle',
     'work.settle',
     'Truthfully consume one valid work lease as completed, requeue, or blocked. Supply the non-secret lease_ref plus settlement semantics; lease capability lookup, run correlation, and deterministic retry identity are derived internally.',
     workSettleSchema,
+    'compatibility',
   ),
 });
 
@@ -152,6 +161,7 @@ const PROJECT_AUTHORING_DESCRIPTORS = Object.freeze({
     'project.define',
     'Define canonical repository-owned project graph facts at an exact observed Git revision. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.',
     projectDefineSchema,
+    'primary',
     Object.freeze({ worker:true, mcp:true }),
   ),
   'project.amend':descriptor(
@@ -159,6 +169,7 @@ const PROJECT_AUTHORING_DESCRIPTORS = Object.freeze({
     'project.amend',
     'Amend canonical repository-owned project graph facts at an exact observed Git revision using semantic transition intent. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.',
     projectAmendSchema,
+    'primary',
     Object.freeze({ worker:true, mcp:true }),
   ),
 });
