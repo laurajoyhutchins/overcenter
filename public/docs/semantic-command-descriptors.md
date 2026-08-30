@@ -20,6 +20,24 @@ Read current durable orchestration state and return the typed failure class, exa
 - Semantic fields: `run_id`, `work_ref`
 - Exposure: worker=yes, MCP=yes
 
+## project.amend
+
+Amend canonical repository-owned project graph facts at an exact observed Git revision using semantic transition intent. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.
+
+- MCP name: `project.amend`
+- Required fields: `project_ref`, `expected_revision`, `amendment`
+- Semantic fields: `project_ref`, `expected_revision`, `amendment`
+- Exposure: worker=yes, MCP=yes
+
+## project.define
+
+Define canonical repository-owned project graph facts at an exact observed Git revision. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.
+
+- MCP name: `project.define`
+- Required fields: `project_ref`, `expected_revision`, `definition`
+- Semantic fields: `project_ref`, `expected_revision`, `definition`
+- Exposure: worker=yes, MCP=yes
+
 ## work.settle
 
 Truthfully consume one valid work lease as completed, requeue, or blocked. Supply the non-secret lease_ref plus settlement semantics; lease capability lookup, run correlation, and deterministic retry identity are derived internally.
@@ -28,4 +46,3 @@ Truthfully consume one valid work lease as completed, requeue, or blocked. Suppl
 - Required fields: `lease_ref`, `disposition`
 - Semantic fields: `lease_ref`, `disposition`, `evidence`, `reason`, `promotion_condition`, `requeue_class`, `operating_condition`, `continuation`, `lifecycle_facts`
 - Exposure: worker=yes, MCP=yes
-
