@@ -26,6 +26,12 @@ const ports: ProductionPromotionPorts = {
 };
 
 const result = await promoteProduction({ repo: 'laurajoyhutchins/overcenter' }, ports);
+const sourceRevision: string = result.source_revision;
+const previousProductionRevision: string = result.previous_production_revision;
 const productionRevision: string = result.production_revision;
+const verificationRef: string = result.verification_ref;
+void sourceRevision;
+void previousProductionRevision;
 void productionRevision;
+void verificationRef;
 void calls;
