@@ -1,5 +1,6 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { createPostgresWorkLeaseService, statusForWorkLeaseError } from 'lib/work-leases.js';
+import { createPostgresSubjectAwareLeaseCheckpointService } from 'lib/orchestration-finish-runtime.js';
+import { statusForWorkLeaseError } from 'lib/work-leases.js';
 import { canonicalCheckpointCommandByRef } from 'lib/operator-commands.js';
 import { WORK_CHECKPOINT_INPUT_SCHEMA } from 'lib/work-progress-contract.js';
 import { workerBoundaryCommandFailure, workerBoundaryFailureOptions } from 'lib/worker-boundary-errors.js';
@@ -15,7 +16,7 @@ export default {
     let input;
     try { input=await canonicalCheckpointCommandByRef(args||{},ctx?.db); }
     catch(error){ return workerBoundaryCommandFailure('work.checkpoint',error,failureOptions).body; }
-    const response=await executeCorrelatedCommand('work.checkpoint',input,request=>createPostgresWorkLeaseService({db:ctx?.db}).checkpointByRef(request),workerBoundaryFailureOptions('work.checkpoint',failureOptions));
+    const response=await executeCorrelatedCommand('work.checkpoint',input,request=>createPostgresSubjectAwareLeaseCheckpointService({db:ctx?.db}).checkpointByRef(request),workerBoundaryFailureOptions('work.checkpoint',failureOptions));
     return response.body;
   },
 };
