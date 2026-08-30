@@ -91,6 +91,21 @@ test('unchanged transition authority survives an unrelated authoritative graph r
   assert.equal(verified.transition_definition_fingerprint, acquired.transition_definition_fingerprint);
   assert.equal(verified.authority.revision, '2'.repeat(40));
   assert.equal(verified.graph_fingerprint.length, 64);
+  assert.deepEqual(verified.graph_revision_change, {
+    schema:'project-graph-revision-change-v1',
+    previous_authority:{
+      repository:'laurajoyhutchins/overcenter',
+      revision:'1'.repeat(40),
+      derivation:'overcenter-project-graph-v1',
+    },
+    current_authority:{
+      repository:'laurajoyhutchins/overcenter',
+      revision:'2'.repeat(40),
+      derivation:'overcenter-project-graph-v1',
+    },
+    authority_changed:true,
+    changes:[],
+  });
 });
 
 test('unchanged transition continuation keeps one semantic lease across graph revisions', async () => {
