@@ -52,6 +52,8 @@ jobs:
         run: node --test scripts/verify-project-authoring-github-adapter.test.mjs
       - name: Test project authoring production runtime composition
         run: node --test scripts/verify-project-authoring-production-runtime.test.mjs
+      - name: Test project authoring worker host binding
+        run: node --test scripts/verify-project-authoring-worker-binding.test.mjs
       - name: Test project authoring mutation authority
         run: node --test scripts/verify-project-authoring-mutation-authority.test.mjs
       - name: Test project definition mutation authority policy
