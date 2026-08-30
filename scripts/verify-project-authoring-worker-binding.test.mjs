@@ -32,3 +32,43 @@ test('default worker API composes project authoring while semantic transport rem
   assert.match(apiSource, /deriveOvercenterProjectGraph/);
   assert.doesNotMatch(transportSource, /createPostgresRepositoryDispositionStore|applyGithubChangesetRoleAware|deriveOvercenterProjectGraph/);
 });
+
+test('ordinary worker-command handler executes project authoring through its composed runtime service', async () => {
+  const workerApi = await import('../api/worker-command.js');
+  assert.equal(typeof workerApi.createWorkerCommandHandler, 'function');
+
+  let composedRuntime = null;
+  let observedRequest = null;
+  const handler = workerApi.createWorkerCommandHandler({
+    db:{ marker:'worker-host-db' },
+    projectAuthoringFor(runtime) {
+      composedRuntime = runtime;
+      return {
+        define:async () => ({ ok:true }),
+        amend:async (request) => {
+          observedRequest = request;
+          return { ok:true, authority:{ revision:'b'.repeat(40) } };
+        },
+      };
+    },
+    logger:{ warn() {} },
+  });
+  const response = {
+    statusCode:null,
+    body:null,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return body; },
+  };
+
+  await handler({ body:{ command:'project.amend', input:{
+    project_ref:'github:example/project',
+    expected_revision:initialRevision,
+    amendment:{ remove_transitions:[] },
+  } } }, response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(composedRuntime.db.marker, 'worker-host-db');
+  assert.equal(observedRequest.project_ref, 'github:example/project');
+  assert.equal(observedRequest.expected_revision, initialRevision);
+  assert.deepEqual(observedRequest.amendment, { remove_transitions:[] });
+});
