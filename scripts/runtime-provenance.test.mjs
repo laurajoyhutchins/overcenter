@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { verifyRuntimeObservation } from '../lib/runtime-provenance.js';
+import { verifyRuntimeObservation } from '../.semantic-build/runtime-provenance.js';
 
 test('verifies a runtime only when the observed immutable artifact matches the intended artifact', () => {
   const artifact = {
