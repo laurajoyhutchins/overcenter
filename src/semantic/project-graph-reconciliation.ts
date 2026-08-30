@@ -95,6 +95,15 @@ export type ProjectTransitionChangeReconciliation =
   | ProjectTransitionRevisionReconciliation
   | DependencyChangedProjectTransitionRevision;
 
+export type ProjectGraphRevisionContinuationEvidence = Readonly<
+  Partial<Record<string, ProjectTransitionContinuationEvidence>>
+>;
+
+export type ProjectGraphRevisionReconciliation = readonly (
+  | ProjectTransitionPresenceReconciliation
+  | ProjectTransitionChangeReconciliation
+)[];
+
 function requireSemanticText(value: string, field: string): string {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (!normalized) {
@@ -237,4 +246,47 @@ export function reconcileProjectTransitionChange(
   if (dependencies.kind === 'dependency-changed') return dependencies;
 
   return revision;
+}
+
+function indexProjectGraphTransitions(
+  transitions: readonly ProjectTransitionGraphRevisionIdentity[],
+  field: string,
+): ReadonlyMap<string, ProjectTransitionGraphRevisionIdentity> {
+  const byId = new Map<string, ProjectTransitionGraphRevisionIdentity>();
+  for (const transition of transitions) {
+    const transitionId = requireSemanticText(transition.transition_id, `${field}.transition_id`);
+    if (byId.has(transitionId)) {
+      throw new TypeError(`${field} contains duplicate transition identity ${transitionId}`);
+    }
+    byId.set(transitionId, transition);
+  }
+  return byId;
+}
+
+export function reconcileProjectGraphRevision(
+  previous: readonly ProjectTransitionGraphRevisionIdentity[],
+  current: readonly ProjectTransitionGraphRevisionIdentity[],
+  continuationByTransition: ProjectGraphRevisionContinuationEvidence = {},
+): ProjectGraphRevisionReconciliation {
+  const previousById = indexProjectGraphTransitions(previous, 'previous');
+  const currentById = indexProjectGraphTransitions(current, 'current');
+  const transitionIds = [...new Set([...previousById.keys(), ...currentById.keys()])].sort();
+
+  return Object.freeze(
+    transitionIds.map((transitionId) => {
+      const previousTransition = previousById.get(transitionId) ?? null;
+      const currentTransition = currentById.get(transitionId) ?? null;
+      if (previousTransition === null || currentTransition === null) {
+        return reconcileProjectTransitionPresence(previousTransition, currentTransition);
+      }
+      return reconcileProjectTransitionChange(
+        previousTransition,
+        currentTransition,
+        continuationByTransition[transitionId] ?? {
+          mutation_scope_unchanged: false,
+          required_authority_valid: false,
+        },
+      );
+    }),
+  );
 }
