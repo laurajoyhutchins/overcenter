@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
+import { classifyCommandError, commandFailure } from '../lib/command-response.js';
 import { createProjectAuthoringWorkerBinding } from '../lib/project-authoring-host-runtime.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -112,10 +113,32 @@ test('ordinary non-authoring worker commands do not require project-authoring ho
   assert.equal(Object.hasOwn(observedRuntime, 'projectAuthoring'), false);
 });
 
+test('stale project-definition authority remains a typed worker precondition rejection', () => {
+  const code = 'PROJECT_DEFINITION_MUTATION_AUTHORITY_STALE';
+  const classification = classifyCommandError(code);
+  assert.equal(classification.error_class, 'precondition');
+  assert.equal(classification.http_status, 409);
+  assert.equal(classification.retryable, false);
+  assert.equal(classification.rejection, true);
+
+  const response = commandFailure('project.amend', {
+    ok: false,
+    error: code,
+    message: 'project definition authority is stale',
+    may_have_mutated: false,
+  });
+  assert.equal(response.status, 409);
+  assert.equal(response.body.error, code);
+  assert.equal(response.body.error_code, code);
+  assert.equal(response.body.error_class, 'precondition');
+  assert.equal(response.body.rejection, true);
+  assert.equal(response.body.may_have_mutated, false);
+});
+
 test('durable orchestration journal projects bounded project authoring source coordinates', async () => {
   const journalSource = await readFile(new URL('../lib/orchestration-journal.js', import.meta.url), 'utf8');
-  assert.match(journalSource, /command === 'project\.define'/);
-  assert.match(journalSource, /command === 'project\.amend'/);
+  assert.match(journalSource, /command === 'project\\.define'/);
+  assert.match(journalSource, /command === 'project\\.amend'/);
   assert.match(journalSource, /project_ref/);
   assert.match(journalSource, /expected_revision/);
   assert.match(journalSource, /transition_count|add_transition_count|remove_transition_count/);
