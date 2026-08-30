@@ -184,3 +184,11 @@ export function semanticCommandDescriptor(command: string): SemanticCommandDescr
   }
   return ALL_DESCRIPTORS[command as keyof typeof ALL_DESCRIPTORS];
 }
+
+export function semanticCommandDescriptorsForSurface(surface: SemanticCommandSurface): readonly SemanticCommandDescriptor[] {
+  return Object.freeze(
+    MIGRATED_SEMANTIC_COMMANDS
+      .map((command) => semanticCommandDescriptor(command))
+      .filter((descriptor) => descriptor.surface === surface && descriptor.exposure.mcp),
+  );
+}
