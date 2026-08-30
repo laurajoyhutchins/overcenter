@@ -109,6 +109,40 @@ test('unchanged transition authority survives an unrelated authoritative graph r
   });
 });
 
+test('idempotent lease acquisition replay preserves graph revision evidence for targeted resume', async () => {
+  const f = fixture();
+  const request = {
+    run_id:'run-1',
+    project_ref:'github:laurajoyhutchins/overcenter',
+    transition_id:'transition-a',
+    lease_seconds:600,
+    idempotency_key:'revision-resume',
+  };
+  const acquired = await f.service.acquire(request);
+  f.setGraph(graph('2'.repeat(40)));
+
+  const replayed = await f.service.acquire(request);
+
+  assert.equal(replayed.lease_ref, acquired.lease_ref);
+  assert.equal(replayed.idempotent_replay, true);
+  assert.equal(replayed.authority.revision, '2'.repeat(40));
+  assert.deepEqual(replayed.graph_revision_change, {
+    schema:'project-graph-revision-change-v1',
+    previous_authority:{
+      repository:'laurajoyhutchins/overcenter',
+      revision:'1'.repeat(40),
+      derivation:'overcenter-project-graph-v1',
+    },
+    current_authority:{
+      repository:'laurajoyhutchins/overcenter',
+      revision:'2'.repeat(40),
+      derivation:'overcenter-project-graph-v1',
+    },
+    authority_changed:true,
+    changes:[],
+  });
+});
+
 test('unchanged transition continuation keeps one semantic lease across graph revisions', async () => {
   const f = fixture();
   await f.service.acquire({
