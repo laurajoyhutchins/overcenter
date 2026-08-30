@@ -1,5 +1,6 @@
 import {
   reconcileProjectTransitionRevision,
+  type ProjectTransitionContinuationEvidence,
   type ProjectTransitionRevisionIdentity,
 } from '../src/semantic/project-graph-reconciliation.js';
 
@@ -15,8 +16,12 @@ const changed: ProjectTransitionRevisionIdentity = {
   transition_id: 'transition-a',
   definition_fingerprint: 'fingerprint-b',
 };
+const validAuthority: ProjectTransitionContinuationEvidence = {
+  mutation_scope_unchanged: true,
+  required_authority_valid: true,
+};
 
-const unchanged = reconcileProjectTransitionRevision(previous, same);
+const unchanged = reconcileProjectTransitionRevision(previous, same, validAuthority);
 if (unchanged.kind === 'unchanged') {
   const mayContinue: true = unchanged.may_continue_existing_authority;
   const preservesConfirmation: true = unchanged.may_preserve_confirmation;
@@ -24,7 +29,18 @@ if (unchanged.kind === 'unchanged') {
   void preservesConfirmation;
 }
 
-const redefined = reconcileProjectTransitionRevision(previous, changed);
+const invalidated = reconcileProjectTransitionRevision(previous, same, {
+  mutation_scope_unchanged: false,
+  required_authority_valid: true,
+});
+if (invalidated.kind === 'authority-invalidated') {
+  const mayContinue: false = invalidated.may_continue_existing_authority;
+  const preservesConfirmation: false = invalidated.may_preserve_confirmation;
+  void mayContinue;
+  void preservesConfirmation;
+}
+
+const redefined = reconcileProjectTransitionRevision(previous, changed, validAuthority);
 if (redefined.kind === 'redefined') {
   const mayContinue: false = redefined.may_continue_existing_authority;
   const preservesConfirmation: false = redefined.may_preserve_confirmation;
