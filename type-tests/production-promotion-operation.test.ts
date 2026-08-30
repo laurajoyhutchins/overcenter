@@ -19,7 +19,8 @@ const ports: ProductionPromotionPorts = {
     return { revision, verified: true };
   },
   promoteVerifiedRevision: async (request) => {
-    calls.push(`promote:${request.repo}:${request.source_revision}:${request.production_revision}`);
+    const verificationRef: string = request.verification_ref;
+    calls.push(`promote:${request.repo}:${request.source_revision}:${request.production_revision}:${verificationRef}`);
     return { production_revision: request.source_revision };
   },
 };
