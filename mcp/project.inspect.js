@@ -1,5 +1,7 @@
 import { db as hatchableDb } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
+import { createAuthoritativeProjectGraphReader } from 'lib/project-graph-authority.js';
+import { createGitHubProjectGraphRuntime } from 'lib/project-graph-github-runtime.js';
 import { projectInspectFor } from 'lib/project-inspect-overcenter-host.js';
 import { semanticCommandDescriptor } from 'lib/semantic-command-descriptors.js';
 
@@ -12,10 +14,12 @@ export default {
   inputSchema:descriptor.input_schema,
   async handler(args,ctx) {
     const db = ctx?.db || hatchableDb;
+    const graphRuntime = createGitHubProjectGraphRuntime({ db });
+    const readProjectGraph = createAuthoritativeProjectGraphReader(graphRuntime);
     const response = await executeCorrelatedCommand(
       'project.inspect',
       args || {},
-      (input) => projectInspectFor({ db }).inspect(input),
+      (input) => projectInspectFor({ readProjectGraph }).inspect(input),
       {
         statusForFailure:() => null,
         defaultError:'PROJECT_INSPECT_ERROR',
