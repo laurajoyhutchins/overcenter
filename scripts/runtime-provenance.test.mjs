@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { verifyRuntimeObservation } from './runtime-provenance.js';
+import { verifyRuntimeObservation } from '../lib/runtime-provenance.js';
 
 test('verifies a runtime only when the observed immutable artifact matches the intended artifact', () => {
   const artifact = {
@@ -8,9 +8,9 @@ test('verifies a runtime only when the observed immutable artifact matches the i
     artifactDigest: 'sha256:1111111111111111111111111111111111111111111111111111111111111111',
   };
   const observation = {
-    deploymentRef: 'hatchable:proj:385',
+    deploymentRef: 'provider:deployment:385',
     observedArtifactDigest: artifact.artifactDigest,
-    fence: 'hatchable:proj:385',
+    fence: 'provider:fence:385',
   };
 
   assert.deepEqual(verifyRuntimeObservation(artifact, observation), { artifact, observation });
@@ -22,9 +22,9 @@ test('fails closed when runtime artifact identity does not match', () => {
     artifactDigest: 'sha256:1111111111111111111111111111111111111111111111111111111111111111',
   };
   const observation = {
-    deploymentRef: 'hatchable:proj:385',
+    deploymentRef: 'provider:deployment:385',
     observedArtifactDigest: 'sha256:2222222222222222222222222222222222222222222222222222222222222222',
-    fence: 'hatchable:proj:385',
+    fence: 'provider:fence:385',
   };
 
   assert.throws(
