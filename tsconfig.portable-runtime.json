@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.semantic.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": false,
+    "outDir": ".portable-build",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/semantic/runtime-provenance.ts",
+    "src/semantic/semantic-identities.ts",
+    "src/runtime/portable-runtime.ts",
+    "src/runtime/node-postgres-runtime.ts"
+  ],
+  "exclude": []
+}
