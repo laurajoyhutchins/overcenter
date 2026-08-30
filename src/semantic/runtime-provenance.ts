@@ -54,3 +54,22 @@ export function verifyRuntimeObservation(
 
   return { artifact, observation };
 }
+
+export async function publishAndVerifyRuntime(
+  artifact: RuntimeArtifact,
+  publisher: RuntimePublisher,
+  observer: RuntimeObserver,
+  expectedFence: RuntimeFence | null,
+): Promise<VerifiedRuntime> {
+  const deployment = await publisher.publish(artifact, expectedFence);
+  const observation = await observer.observe(deployment.deploymentRef);
+
+  if (observation.deploymentRef !== deployment.deploymentRef) {
+    throw Object.assign(
+      new Error('Runtime observation resolved a different deployment than the published deployment.'),
+      { code: 'RUNTIME_DEPLOYMENT_MISMATCH' as const },
+    );
+  }
+
+  return verifyRuntimeObservation(artifact, observation);
+}
