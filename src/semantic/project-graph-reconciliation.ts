@@ -29,6 +29,30 @@ export type ProjectTransitionPresenceReconciliation =
   | IntroducedProjectTransitionRevision
   | RemovedProjectTransitionRevision;
 
+export type ProjectTransitionDependencyIdentity = Readonly<{
+  transition_id: string;
+  dependency_fingerprint: string;
+}>;
+
+export type DependencyChangedProjectTransitionRevision = Readonly<{
+  kind: 'dependency-changed';
+  transition_id: string;
+  previous_dependency_fingerprint: string;
+  current_dependency_fingerprint: string;
+  may_continue_existing_authority: false;
+  may_preserve_confirmation: true;
+}>;
+
+export type DependencyUnchangedProjectTransitionRevision = Readonly<{
+  kind: 'dependency-unchanged';
+  transition_id: string;
+  dependency_fingerprint: string;
+}>;
+
+export type ProjectTransitionDependencyReconciliation =
+  | DependencyChangedProjectTransitionRevision
+  | DependencyUnchangedProjectTransitionRevision;
+
 export type UnchangedProjectTransitionRevision = Readonly<{
   kind: 'unchanged';
   transition_id: string;
@@ -98,6 +122,43 @@ export function reconcileProjectTransitionPresence(
   }
 
   throw new TypeError('project transition presence reconciliation requires exactly one revision to be absent');
+}
+
+export function reconcileProjectTransitionDependencies(
+  previous: ProjectTransitionDependencyIdentity,
+  current: ProjectTransitionDependencyIdentity,
+): ProjectTransitionDependencyReconciliation {
+  const previousTransitionId = requireSemanticText(previous.transition_id, 'previous.transition_id');
+  const currentTransitionId = requireSemanticText(current.transition_id, 'current.transition_id');
+  if (previousTransitionId !== currentTransitionId) {
+    throw new TypeError('project transition dependency reconciliation requires one stable transition identity');
+  }
+
+  const previousFingerprint = requireSemanticText(
+    previous.dependency_fingerprint,
+    'previous.dependency_fingerprint',
+  );
+  const currentFingerprint = requireSemanticText(
+    current.dependency_fingerprint,
+    'current.dependency_fingerprint',
+  );
+
+  if (previousFingerprint !== currentFingerprint) {
+    return Object.freeze({
+      kind: 'dependency-changed',
+      transition_id: currentTransitionId,
+      previous_dependency_fingerprint: previousFingerprint,
+      current_dependency_fingerprint: currentFingerprint,
+      may_continue_existing_authority: false,
+      may_preserve_confirmation: true,
+    });
+  }
+
+  return Object.freeze({
+    kind: 'dependency-unchanged',
+    transition_id: currentTransitionId,
+    dependency_fingerprint: currentFingerprint,
+  });
 }
 
 export function reconcileProjectTransitionRevision(
