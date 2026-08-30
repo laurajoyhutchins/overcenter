@@ -5,7 +5,7 @@ import {
   normalizeProjectDefineRequest,
   normalizeProjectAmendRequest,
 } from '../lib/project-authoring-command-contract.js';
-import { semanticCommandDescriptor } from '../lib/semantic-command-descriptors.js';
+import { MIGRATED_SEMANTIC_COMMANDS, semanticCommandDescriptor } from '../lib/semantic-command-descriptors.js';
 
 const revision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const projectRef = 'github:example/project';
@@ -63,6 +63,8 @@ test('project authoring is exposed through canonical semantic descriptors', () =
   assert.deepEqual([...amend.semantic_fields].sort(), ['amendment','expected_revision','project_ref']);
 
   for (const descriptor of [define, amend]) {
+    assert.deepEqual(descriptor.exposure, { worker:true, mcp:true });
+    assert.equal(MIGRATED_SEMANTIC_COMMANDS.includes(descriptor.command), true, `${descriptor.command} is not migrated`);
     for (const forbidden of ['branch','path','idempotency_key','commit_message','base_sha','lease_ref','run_id']) {
       assert.equal(Object.hasOwn(descriptor.input_schema.properties, forbidden), false, `${descriptor.command} leaked ${forbidden}`);
     }
