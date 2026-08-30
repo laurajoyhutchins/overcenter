@@ -202,7 +202,7 @@ const DESCRIPTORS = Object.freeze({
     'Inspect authoritative repository-owned project state by project identity only. The runtime adapter derives the exact GitHub authority revision and graph frontier while keeping repository layout and host-specific runtime coordinates outside the primary semantic intent.',
     projectInspectSchema,
     'primary',
-    Object.freeze({ worker:true, mcp:false }),
+    Object.freeze({ worker:true, mcp:true }),
   ),
   'work.settle':descriptor(
     'work.settle',
