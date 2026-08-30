@@ -4,6 +4,15 @@
 
 ## Primary surface
 
+### project.advance
+
+Advance an authoritative project graph by repository-owned project identity only. The runtime adapter owns run creation or resumption, horizon selection, lease acquisition, settlement choreography, and continuation behind this primary semantic boundary.
+
+- MCP name: `project.advance`
+- Required fields: `project_ref`
+- Semantic fields: `project_ref`
+- Exposure: worker=yes, MCP=yes
+
 ### project.amend
 
 Amend canonical repository-owned project graph facts at an exact observed Git revision using semantic transition intent. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.

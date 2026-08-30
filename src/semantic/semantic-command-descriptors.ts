@@ -182,10 +182,10 @@ const DESCRIPTORS = Object.freeze({
   'project.advance':descriptor(
     'project.advance',
     'project.advance',
-    'Advance an authoritative project graph by repository-owned project identity only. Run creation or resumption, horizon selection, lease acquisition, settlement choreography, and continuation remain mechanically owned behind the semantic boundary; MCP exposure stays disabled until a runtime adapter can preserve those invariants.',
+    'Advance an authoritative project graph by repository-owned project identity only. The runtime adapter owns run creation or resumption, horizon selection, lease acquisition, settlement choreography, and continuation behind this primary semantic boundary.',
     projectAdvanceSchema,
     'primary',
-    Object.freeze({ worker:true, mcp:false }),
+    Object.freeze({ worker:true, mcp:true }),
   ),
   'work.settle':descriptor(
     'work.settle',
