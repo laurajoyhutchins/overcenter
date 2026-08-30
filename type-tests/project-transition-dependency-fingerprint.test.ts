@@ -1,8 +1,8 @@
-import { projectTransitionDependencyFingerprint } from '../src/semantic/project-graph-reconciliation.js';
+import { projectTransitionDependencyFingerprint } from '../src/semantic/project-transition-dependency-fingerprint.js';
 
-const fingerprint = projectTransitionDependencyFingerprint({
+const fingerprint = await projectTransitionDependencyFingerprint({
   transition_id: 'transition-c',
-  requires: ['transition-a', 'transition-b'],
+  requires: ['transition-b', 'transition-a'],
 });
 
 const stableFingerprint: string = fingerprint;
