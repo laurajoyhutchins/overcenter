@@ -20,6 +20,22 @@ export interface RuntimeObservation {
   readonly fence: RuntimeFence;
 }
 
+export interface RuntimeDeployment {
+  readonly deploymentRef: DeploymentRef;
+  readonly fence: RuntimeFence;
+}
+
+export interface RuntimePublisher {
+  publish(
+    artifact: RuntimeArtifact,
+    expectedFence: RuntimeFence | null,
+  ): Promise<RuntimeDeployment>;
+}
+
+export interface RuntimeObserver {
+  observe(deploymentRef: DeploymentRef): Promise<RuntimeObservation>;
+}
+
 export interface VerifiedRuntime {
   readonly artifact: RuntimeArtifact;
   readonly observation: RuntimeObservation;
