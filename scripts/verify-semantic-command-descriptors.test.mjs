@@ -19,7 +19,6 @@ const expectedSurface = new Map([
 ]);
 const expectedExposure = new Map([
   ['production.promote', { worker: true, mcp: false }],
-  ['project.advance', { worker: true, mcp: false }],
 ]);
 
 async function source(path) {
@@ -62,12 +61,12 @@ test('production promotion intent is typed before provider adapter exposure', ()
   assert.deepEqual(descriptor.exposure, { worker: true, mcp: false });
 });
 
-test('project advance intent hides run choreography before runtime adapter exposure', () => {
+test('project advance intent hides run choreography behind runtime adapter exposure', () => {
   const descriptor = semanticCommandDescriptor('project.advance');
   assert.equal(descriptor.surface, 'primary');
   assert.deepEqual(descriptor.semantic_fields, ['project_ref']);
   assert.deepEqual(descriptor.required_fields, ['project_ref']);
-  assert.deepEqual(descriptor.exposure, { worker: true, mcp: false });
+  assert.deepEqual(descriptor.exposure, { worker: true, mcp: true });
 });
 
 test('migrated worker validation is descriptor-derived rather than separately listed', async () => {
