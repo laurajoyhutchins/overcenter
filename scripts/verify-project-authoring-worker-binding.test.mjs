@@ -139,3 +139,9 @@ test('GitHub graph authority preserves missing host credentials instead of laund
   const source = await readFile(new URL('../lib/project-graph-github-runtime.js', import.meta.url), 'utf8');
   assert.match(source, /catch \(error\) \{\s*if \(error\?\.code === 'GITHUB_APP_SETUP_REQUIRED'\) throw error;/);
 });
+
+test('GitHub graph authority normalizes host configuration setup failures before they cross the semantic worker boundary', async () => {
+  const source = await readFile(new URL('../lib/project-graph-github-runtime.js', import.meta.url), 'utf8');
+  assert.match(source, /config\\\/get 412\|declared as required but not set/i);
+  assert.match(source, /GITHUB_APP_SETUP_REQUIRED/);
+});
