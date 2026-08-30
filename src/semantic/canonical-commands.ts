@@ -6,6 +6,7 @@ export const CANONICAL_COMMANDS = Object.freeze([
   'project.bootstrap_confirm_graph_deriver',
   'project.define',
   'project.amend',
+  'project.advance',
   'skill.activate',
   'skill.complete',
   'github.apply_changeset',
