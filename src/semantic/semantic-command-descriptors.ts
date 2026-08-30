@@ -183,10 +183,10 @@ const DESCRIPTORS = Object.freeze({
   'production.promote':descriptor(
     'production.promote',
     'production.promote',
-    'Express intent to promote the current verified development revision by repository identity only. Provider-specific branch heads, exact verification evidence, retry identity, and production readback remain mechanically derived by the runtime adapter; MCP exposure stays disabled until that adapter exists.',
+    'Promote the current verified development revision by repository identity only. The runtime host derives provider-specific branch heads, exact-revision evidence, retry identity, and production readback behind this primary semantic boundary.',
     productionPromoteSchema,
     'primary',
-    Object.freeze({ worker:true, mcp:false }),
+    Object.freeze({ worker:true, mcp:true }),
   ),
   'project.advance':descriptor(
     'project.advance',

@@ -4,6 +4,15 @@
 
 ## Primary surface
 
+### production.promote
+
+Promote the current verified development revision by repository identity only. The runtime host derives provider-specific branch heads, exact-revision evidence, retry identity, and production readback behind this primary semantic boundary.
+
+- MCP name: `production.promote`
+- Required fields: `repo`
+- Semantic fields: `repo`
+- Exposure: worker=yes, MCP=yes
+
 ### project.advance
 
 Advance an authoritative project graph by repository-owned project identity only. The runtime adapter owns run creation or resumption, horizon selection, lease acquisition, settlement choreography, and continuation behind this primary semantic boundary.
