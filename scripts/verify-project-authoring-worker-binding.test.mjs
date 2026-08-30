@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
+import { classifyCommandError } from '../lib/command-response.js';
 import { createProjectAuthoringWorkerBinding } from '../lib/project-authoring-host-runtime.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -38,6 +39,14 @@ test('default worker API composes project authoring while semantic transport rem
 test('project authoring commands are admitted by the canonical command envelope before worker execution', () => {
   assert.equal(CANONICAL_COMMANDS.includes('project.define'), true);
   assert.equal(CANONICAL_COMMANDS.includes('project.amend'), true);
+});
+
+test('stale project definition authority remains a typed precondition rejection at the worker boundary', () => {
+  const classification = classifyCommandError('PROJECT_DEFINITION_MUTATION_AUTHORITY_STALE', { command:'project.amend' });
+  assert.equal(classification.error_class, 'precondition');
+  assert.equal(classification.http_status, 409);
+  assert.equal(classification.rejection, true);
+  assert.equal(classification.retryable, false);
 });
 
 test('host-neutral worker handler composes project authoring without caller-supplied runtime state', async () => {
