@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProjectAuthoringProductionRuntime, createProjectAuthoringProductionRuntimeFromHost } from '../lib/project-authoring-production-runtime.js';
+import { createHatchableProjectAuthoringRuntime } from '../lib/project-authoring-hatchable-runtime.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const resultingRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -101,4 +102,35 @@ test('runtime host binding can re-read source authority through projectAuthority
 
   assert.equal(result.authority.revision, resultingRevision);
   assert.deepEqual(authorityReads, [projectRef, projectRef]);
+});
+
+test('Hatchable host adapter binds existing source authority, facts, disposition, changeset, and graph capabilities', async () => {
+  const calls = [];
+  const graphRuntime = {
+    resolveProjectAuthority:async ({ project_ref }) => ({ project_ref, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' }),
+    readProjectFacts:async ({ revision }) => ({ schema:'project-authority-facts-v1', repository:'example/project', revision, facts:{ definition_facts:revision === resultingRevision
+      ? facts(revision, { ...baseDefinition, transitions:[...baseDefinition.transitions, { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] })
+      : facts(revision) } }),
+  };
+  const runtime = createHatchableProjectAuthoringRuntime({
+    graphRuntime,
+    repositoryLifecycle:{ observe:async (repository) => ({ repository, disposition:'ACTIVE' }) },
+    applyGithubChangeset:async (request, options) => {
+      const authority = await options.executionAuthority.require({ repository:request.repo });
+      calls.push({ request, authority });
+      return { ok:true, new_head:resultingRevision };
+    },
+    deriveProjectGraph:async ({ authority }) => ({ schema:'overcenter-project-graph-v1', revision:authority.revision }),
+  });
+
+  const result = await runtime.amend({
+    project_ref:projectRef,
+    expected_revision:initialRevision,
+    amendment:{ upsert_transitions:[{ id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] },
+  });
+
+  assert.equal(result.authority.revision, resultingRevision);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].authority.subject, 'project_definition');
+  assert.equal(calls[0].authority.authority_revision, initialRevision);
 });
