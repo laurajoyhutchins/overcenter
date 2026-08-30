@@ -1,35 +1,47 @@
 import { pathToFileURL } from 'node:url';
 import {
-  MIGRATED_SEMANTIC_COMMANDS,
+  SEMANTIC_COMMAND_SURFACES,
   semanticCommandDescriptor,
+  semanticMcpDiscoveryForSurface,
 } from '../lib/semantic-command-descriptors.js';
 
 function codeList(values) {
   return values.length ? values.map((value) => `\`${value}\``).join(', ') : '_none_';
 }
 
+function surfaceTitle(surface) {
+  return `${surface[0].toUpperCase()}${surface.slice(1)} surface`;
+}
+
 export function renderSemanticCommandReference() {
   const lines = [
     '# Semantic command descriptors',
     '',
-    '> Generated from the typed semantic descriptor source. Do not edit command metadata here by hand.',
+    '> Generated from the typed semantic descriptor source. Primary discovery comes first; advanced, operator, and compatibility tools remain discoverable without being ordinary-use defaults.',
     '',
   ];
 
-  for (const command of [...MIGRATED_SEMANTIC_COMMANDS].sort()) {
-    const descriptor = semanticCommandDescriptor(command);
-    lines.push(
-      `## ${descriptor.command}`,
-      '',
-      descriptor.description,
-      '',
-      `- MCP name: \`${descriptor.mcp_name}\``,
-      `- Agent surface: \`${descriptor.surface}\``,
-      `- Required fields: ${codeList(descriptor.required_fields)}`,
-      `- Semantic fields: ${codeList(descriptor.semantic_fields)}`,
-      `- Exposure: worker=${descriptor.exposure.worker ? 'yes' : 'no'}, MCP=${descriptor.exposure.mcp ? 'yes' : 'no'}`,
-      '',
-    );
+  for (const surface of SEMANTIC_COMMAND_SURFACES) {
+    const discovery = semanticMcpDiscoveryForSurface(surface);
+    lines.push(`## ${surfaceTitle(surface)}`, '');
+    if (!discovery.length) {
+      lines.push('_No MCP-exposed commands._', '');
+      continue;
+    }
+    for (const tool of [...discovery].sort((left, right) => left.command.localeCompare(right.command))) {
+      const descriptor = semanticCommandDescriptor(tool.command);
+      lines.push(
+        `### ${descriptor.command}`,
+        '',
+        descriptor.description,
+        '',
+        `- MCP name: \`${tool.name}\``,
+        `- Required fields: ${codeList(descriptor.required_fields)}`,
+        `- Semantic fields: ${codeList(descriptor.semantic_fields)}`,
+        `- Exposure: worker=${descriptor.exposure.worker ? 'yes' : 'no'}, MCP=${descriptor.exposure.mcp ? 'yes' : 'no'}`,
+        '',
+      );
+    }
   }
   return lines.join('\n').trimEnd();
 }
