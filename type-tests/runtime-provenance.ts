@@ -14,26 +14,20 @@ declare const runtimeFence: RuntimeFence;
 declare const deploymentRef: DeploymentRef;
 
 const artifact: RuntimeArtifact = {
-  source_revision: sourceRevision,
-  artifact_digest: artifactDigest,
+  sourceRevision,
+  artifactDigest,
 };
 
 const observation: RuntimeObservation = {
-  deployment_ref: deploymentRef,
-  observed_artifact_digest: artifactDigest,
-  observed_at: '2026-08-30T04:50:00.000Z',
+  deploymentRef,
+  observedArtifactDigest: artifactDigest,
+  fence: runtimeFence,
 };
 
-const verified: VerifiedRuntime = {
-  artifact,
-  runtime_fence: runtimeFence,
-  deployment_ref: deploymentRef,
-  observation,
-};
-
+const verified: VerifiedRuntime = { artifact, observation };
 void verified;
 
 // Provider deployment identity cannot masquerade as immutable artifact identity.
 // @ts-expect-error branded deployment references and artifact digests are distinct semantic identities.
-const invalidArtifact: RuntimeArtifact = { source_revision: sourceRevision, artifact_digest: deploymentRef };
+const invalidArtifact: RuntimeArtifact = { sourceRevision, artifactDigest: deploymentRef };
 void invalidArtifact;
