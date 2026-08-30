@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createProjectTransitionLeaseService } from '../lib/project-transition-leases.js';
+import { reconcileProjectTransitionChange } from '../lib/project-graph-reconciliation.js';
 import { PRODUCTIVE_STAGES } from '../lib/work-lifecycle.js';
 
 function responsibilitiesFor(target) {
@@ -126,4 +127,16 @@ test('unchanged transition continuation keeps one semantic lease across graph re
     lease_seconds:600,
     idempotency_key:'revision-contender',
   }), 'PROJECT_TRANSITION_ALREADY_LEASED');
+});
+
+test('invalid continuation authority outranks a simultaneous dependency-only change', () => {
+  const reconciliation = reconcileProjectTransitionChange(
+    { transition_id:'transition-a', definition_fingerprint:'definition-a', dependency_fingerprint:'dependencies-before' },
+    { transition_id:'transition-a', definition_fingerprint:'definition-a', dependency_fingerprint:'dependencies-after' },
+    { mutation_scope_unchanged:false, required_authority_valid:false },
+  );
+
+  assert.equal(reconciliation.kind, 'authority-invalidated');
+  assert.equal(reconciliation.may_continue_existing_authority, false);
+  assert.equal(reconciliation.may_preserve_confirmation, false);
 });
