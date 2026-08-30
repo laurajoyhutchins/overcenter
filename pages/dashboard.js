@@ -8,8 +8,8 @@ export default async function (_req, res) {
       <header class="masthead">
         <div>
           <p class="eyebrow">OVERCENTER · OPERATOR STATUS</p>
-          <h1 id="page-title">Execution path</h1>
-          <p class="lede">Live read-only evidence from the orchestration kernel. Nodes show stranded state now; labeled connections show command outcomes observed in the last 24 hours. The diagram is a projection of Overcenter state, not a second authority.</p>
+          <h1 id="page-title">Project transitions</h1>
+          <p class="lede">Live read-only projection of the authoritative repository-owned project graph. Transition state and lifecycle come first; runs, leases, journals, and recovery remain kernel diagnostics rather than project authority.</p>
         </div>
         <div class="masthead-actions">
           <div class="health" id="health" aria-live="polite">Loading orchestration health…</div>
@@ -20,8 +20,8 @@ export default async function (_req, res) {
       <section class="diagram-section" aria-labelledby="execution-heading">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">CONTROL PATH</p>
-            <h2 id="execution-heading">Run → claim → work → effects → settle → finish</h2>
+            <p class="eyebrow">AUTHORITATIVE GRAPH</p>
+            <h2 id="execution-heading">Project transitions and dependencies</h2>
           </div>
           <div id="window" class="window-note">Observed window: loading…</div>
         </div>
@@ -31,7 +31,7 @@ export default async function (_req, res) {
       <section class="evidence-section" aria-labelledby="exceptions-heading">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">CURRENT EXCEPTIONS</p>
+            <p class="eyebrow">KERNEL DIAGNOSTICS</p>
             <h2 id="exceptions-heading">Exact stranded evidence</h2>
           </div>
         </div>
@@ -57,7 +57,7 @@ export default async function (_req, res) {
         </div>
       </section>
 
-      <footer><span>Read-only current-kernel diagnostic</span><span id="updated">Not refreshed</span></footer>
+      <footer><span>Read-only graph projection and kernel diagnostics</span><span id="updated">Not refreshed</span></footer>
     </main>
     <link rel="stylesheet" href="/dashboard.css">
     <script src="/dashboard.js" defer></script>
