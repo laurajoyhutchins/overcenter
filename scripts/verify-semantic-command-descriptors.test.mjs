@@ -20,7 +20,6 @@ const expectedSurface = new Map([
 ]);
 const expectedExposure = new Map([
   ['production.promote', { worker: true, mcp: false }],
-  ['project.inspect', { worker: true, mcp: false }],
 ]);
 
 async function source(path) {
@@ -71,12 +70,12 @@ test('project advance intent hides run choreography behind runtime adapter expos
   assert.deepEqual(descriptor.exposure, { worker: true, mcp: true });
 });
 
-test('project inspect intent is primary before host adapter exposure', () => {
+test('project inspect intent is exposed after its host adapter is production-routed', () => {
   const descriptor = semanticCommandDescriptor('project.inspect');
   assert.equal(descriptor.surface, 'primary');
   assert.deepEqual(descriptor.semantic_fields, ['project_ref']);
   assert.deepEqual(descriptor.required_fields, ['project_ref']);
-  assert.deepEqual(descriptor.exposure, { worker: true, mcp: false });
+  assert.deepEqual(descriptor.exposure, { worker: true, mcp: true });
 });
 
 test('migrated worker validation is descriptor-derived rather than separately listed', async () => {
@@ -86,6 +85,14 @@ test('migrated worker validation is descriptor-derived rather than separately li
   }
   assert.doesNotMatch(worker, /GITHUB_RELEASE_(?:SEMANTIC|REQUIRED)_FIELDS/);
   assert.doesNotMatch(worker, /WORK_SETTLE_(?:SEMANTIC|REQUIRED)_FIELDS/);
+});
+
+test('project inspect primary MCP transport derives from descriptor and host adapter', async () => {
+  const text = await source('mcp/project.inspect.js');
+  assert.match(text, /semanticCommandDescriptor\(['"]project\.inspect['"]\)/);
+  assert.match(text, /projectInspectFor/);
+  assert.match(text, /executeCorrelatedCommand/);
+  assert.match(text, /\.inspect\(input\)/);
 });
 
 test('MCP metadata stays statically parseable and mechanically matches descriptors', async () => {

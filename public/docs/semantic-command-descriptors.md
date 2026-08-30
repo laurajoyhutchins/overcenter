@@ -31,6 +31,15 @@ Define canonical repository-owned project graph facts at an exact observed Git r
 - Semantic fields: `project_ref`, `expected_revision`, `definition`
 - Exposure: worker=yes, MCP=yes
 
+### project.inspect
+
+Inspect authoritative repository-owned project state by project identity only. The runtime adapter derives the exact GitHub authority revision and graph frontier while keeping repository layout and host-specific runtime coordinates outside the primary semantic intent.
+
+- MCP name: `project.inspect`
+- Required fields: `project_ref`
+- Semantic fields: `project_ref`
+- Exposure: worker=yes, MCP=yes
+
 ## Advanced surface
 
 ### github.release.create
