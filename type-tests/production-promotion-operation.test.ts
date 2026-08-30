@@ -16,7 +16,7 @@ const ports: ProductionPromotionPorts = {
   },
   verifyExactRevision: async (repo, revision) => {
     calls.push(`verify:${repo}:${revision}`);
-    return { revision, verified: true };
+    return { revision, verified: true, verification_ref: 'verification:opaque:123' };
   },
   promoteVerifiedRevision: async (request) => {
     const verificationRef: string = request.verification_ref;
