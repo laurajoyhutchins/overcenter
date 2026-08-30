@@ -134,3 +134,8 @@ test('durable orchestration journal projects bounded project authoring source co
   assert.match(journalSource, /expected_revision/);
   assert.match(journalSource, /transition_count|add_transition_count|remove_transition_count/);
 });
+
+test('GitHub graph authority preserves missing host credentials instead of laundering them as a generic graph read failure', async () => {
+  const source = await readFile(new URL('../lib/project-graph-github-runtime.js', import.meta.url), 'utf8');
+  assert.match(source, /catch \(error\) \{\s*if \(error\?\.code === 'GITHUB_APP_SETUP_REQUIRED'\) throw error;/);
+});
