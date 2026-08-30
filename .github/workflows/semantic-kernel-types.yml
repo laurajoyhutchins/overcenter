@@ -43,3 +43,39 @@ jobs:
           diff -u lib/work-settle-contract.js .semantic-build/work-settle-contract.js
       - name: Test runtime provenance semantics
         run: node --test scripts/runtime-provenance.test.mjs
+
+  portable-node-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: overcenter
+          POSTGRES_USER: overcenter
+          POSTGRES_PASSWORD: overcenter
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U overcenter -d overcenter"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: overcenter
+      PGUSER: overcenter
+      PGPASSWORD: overcenter
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Compile portable runtime without Hatchable SDK
+        run: npx --yes --package typescript@5.9.2 tsc -p tsconfig.portable-runtime.json
+      - name: Install Postgres driver for portable acceptance substrate
+        run: npm install --no-save --package-lock=false pg@8.13.1
+      - name: Execute portable Node + Postgres conformance slice
+        run: node --test scripts/node-postgres-runtime.test.mjs
