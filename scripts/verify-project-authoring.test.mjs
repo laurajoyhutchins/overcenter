@@ -130,3 +130,32 @@ test('project amendment persists the validated definition then derives the graph
   assert.deepEqual(result.diff, { added:['second'], changed:[], removed:[] });
   assert.equal(result.graph.revision, resultingRevision);
 });
+
+test('project authoring rejects readback whose derived graph revision does not match the confirmed source revision', async () => {
+  const { amendProjectDefinition } = await import('../lib/project-authoring-runtime.js');
+  const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const resultingRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+  await assert.rejects(
+    () => amendProjectDefinition({
+      project_ref:'github:example/project',
+      expected_revision:initialRevision,
+      amendment:{ upsert_transitions:[] },
+    }, {
+      resolveAuthority:async () => ({
+        project_ref:'github:example/project',
+        repository:'example/project',
+        revision:initialRevision,
+        derivation:'overcenter-project-graph-v1',
+      }),
+      readDefinition:async () => base,
+      mutateDefinition:async () => ({ revision:resultingRevision }),
+      deriveProjectGraph:async () => ({
+        schema:'overcenter-project-graph-v1',
+        project_ref:'github:example/project',
+        revision:'cccccccccccccccccccccccccccccccccccccccc',
+      }),
+    }),
+    (error) => error?.code === 'PROJECT_AUTHORING_READBACK_MISMATCH',
+  );
+});
