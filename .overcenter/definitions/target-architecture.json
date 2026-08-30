@@ -2,18 +2,175 @@
   "schema": "overcenter-project-definition-v1",
   "project_ref": "github:laurajoyhutchins/overcenter",
   "transitions": [
-    {"id":"register-project-graph-deriver","priority":120,"requires":[],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"bind-targeted-execution","priority":115,"requires":["register-project-graph-deriver"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"require-production-reachability","priority":110,"requires":["register-project-graph-deriver"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"expose-orchestration-advance","priority":105,"requires":["bind-targeted-execution","require-production-reachability"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"prove-orchestration-advance-production-reachability","priority":102,"requires":["expose-orchestration-advance"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"add-targeted-project-driver","priority":100,"requires":["prove-orchestration-advance-production-reachability"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"add-semantic-project-authoring","priority":95,"requires":["add-targeted-project-driver"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"generate-semantic-command-descriptor","priority":90,"requires":["add-targeted-project-driver"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"retire-stage-lane-semantics","priority":85,"requires":["add-targeted-project-driver"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"show-transition-first-status","priority":80,"requires":["add-targeted-project-driver"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"make-runtime-host-replaceable","priority":78,"requires":["retire-stage-lane-semantics"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"reconcile-live-graph-revisions","priority":75,"requires":["add-targeted-project-driver","add-semantic-project-authoring"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}},
-    {"id":"compact-agent-semantic-surface","priority":70,"requires":["generate-semantic-command-descriptor","retire-stage-lane-semantics","show-transition-first-status"],"executor":{"kind":"agent","role":"implementation","skill":"test-driven-development"}}
+    {
+      "id": "add-semantic-project-authoring",
+      "priority": 95,
+      "requires": [
+        "add-targeted-project-driver"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "add-targeted-project-driver",
+      "priority": 100,
+      "requires": [
+        "prove-orchestration-advance-production-reachability"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "bind-targeted-execution",
+      "priority": 115,
+      "requires": [
+        "register-project-graph-deriver"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "compact-agent-semantic-surface",
+      "priority": 70,
+      "requires": [
+        "generate-semantic-command-descriptor",
+        "retire-stage-lane-semantics",
+        "show-transition-first-status"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "expose-orchestration-advance",
+      "priority": 105,
+      "requires": [
+        "bind-targeted-execution",
+        "require-production-reachability"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "generate-semantic-command-descriptor",
+      "priority": 90,
+      "requires": [
+        "add-targeted-project-driver"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "make-runtime-host-replaceable",
+      "priority": 78,
+      "requires": [
+        "retire-stage-lane-semantics"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "prove-orchestration-advance-production-reachability",
+      "priority": 102,
+      "requires": [
+        "expose-orchestration-advance"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "reconcile-live-graph-revisions",
+      "priority": 75,
+      "requires": [
+        "add-semantic-project-authoring",
+        "add-targeted-project-driver"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "register-project-graph-deriver",
+      "priority": 120,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "require-production-reachability",
+      "priority": 110,
+      "requires": [
+        "register-project-graph-deriver"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "retire-stage-lane-semantics",
+      "priority": 85,
+      "requires": [
+        "add-targeted-project-driver"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "show-transition-first-status",
+      "priority": 80,
+      "requires": [
+        "add-targeted-project-driver"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "verify-target-architecture-completion",
+      "priority": 65,
+      "requires": [
+        "compact-agent-semantic-surface"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "verification-before-completion"
+      }
+    }
   ]
 }
