@@ -330,53 +330,99 @@ export async function verifyExactRevisionV8(input, adapters) {
   const productionProject = String(input?.production_project || '').trim();
   if (!/^[0-9a-f]{40}$/.test(revision)) reject('INVALID_REVISION', 'revision must be a full 40-character commit SHA');
   if (!project || !productionProject) reject('VERIFICATION_RUNTIME_COORDINATE_REQUIRED', 'verification and production Hatchable project coordinates are required');
-  if (project === productionProject) reject('VERIFICATION_RUNTIME_NOT_ISOLATED', 'verification runtime must be different from production');
-  if (!adapters?.source || !adapters?.runtime) reject('VERIFICATION_ADAPTER_REQUIRED', 'source and runtime adapters are required');
-  const source = await adapters.source.observe({repository,revision});
-  const exact = verifyExactRevision({repository,revision},{repository:source.repository,revision:source.revision});
-  if (!exact.ok) reject('EXACT_REVISION_MISMATCH','source adapter did not return the requested exact revision');
+  if (project === productionProject) reject('VERIFICATION_RUNTIME_NOT_ISOLATED', 'verification runtime must not be the production project');
 
-  const sourceFiles = new Map((source.files || []).map(file => [file.path,{path:file.path,content:file.content,sha256:file.sha256}]));
-  const desiredFiles = new Map([...sourceFiles.values()].map(runtimeSourceFile).map(file => [file.path,file]));
-  const current = await adapters.runtime.inspect(project);
-  const runtimeFiles = new Map((current.files || []).map(file => [file.path,{path:file.path,sha256:file.sha256}]));
-  const writes = [...desiredFiles.values()].filter(file => runtimeFiles.get(file.path)?.sha256 !== file.sha256).map(file => ({path:file.path,content:file.content}));
-  const deletes = [...runtimeFiles.keys()].filter(path => !desiredFiles.has(path));
-  let deploymentVersion = current.version;
-  if (writes.length || deletes.length) {
-    await adapters.runtime.reconcile({project,revision,expected_version:current.version,writes,deletes});
-    const deployed=await adapters.runtime.deploy({project,revision,expected_version:current.version});
-    if (deployed.version !== current.version+1) reject('DEPLOYMENT_VERSION_MISMATCH','verification deployment did not advance exactly one version');
-    deploymentVersion=deployed.version;
-  }
-  const immutable=await adapters.runtime.inspectDeployment({project,version:deploymentVersion});
-  const immutableFiles=new Map((immutable.files || []).map(file=>[file.path,{path:file.path,sha256:file.sha256}]));
-  const missing=[...desiredFiles.keys()].filter(path=>!immutableFiles.has(path));
-  const extra=[...immutableFiles.keys()].filter(path=>!desiredFiles.has(path));
-  const changed=[...desiredFiles.keys()].filter(path=>immutableFiles.has(path)&&immutableFiles.get(path).sha256!==desiredFiles.get(path).sha256);
-  if(missing.length||extra.length||changed.length) reject('SOURCE_MATERIALIZATION_MISMATCH','immutable verification deployment does not match exact source revision');
-  const regression=await adapters.runtime.runRegressions({project,revision,deployment_version:deploymentVersion});
-  if(!regression||regression.ok!==true||Number(regression.failed||0)!==0) reject('V8_REGRESSION_FAILED','canonical V8 regressions are not green');
-  if(typeof adapters.runtime.runProductionReachability!=='function') reject('VERIFICATION_RUNTIME_REACHABILITY_UNAVAILABLE','production reachability probe is required');
-  const productionReachability=await adapters.runtime.runProductionReachability({project,production_project:productionProject,repository,revision});
-  if(!productionReachability||productionReachability.schema!=='production-reachability-evidence-v1'||productionReachability.runtime_project!==project||productionReachability.runtime_revision!==revision) reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID','production reachability evidence is invalid');
-  return {
-    ok:true,
-    schema:'exact-revision-verification-v1',
-    repository,revision,
-    regression:{
-      ...regression,
-      execution:{
-        project,
-        deployment_version:deploymentVersion,
-        source_revision:revision,
-        source_normalization:HATCHABLE_TEXT_NORMALIZATION,
-        source_manifest_sha256:manifestHash(sourceFiles),
-        runtime_manifest_sha256:manifestHash(immutableFiles),
-        production_reachability:productionReachability,
-      },
+  let desired = null;
+  let desiredRuntime = null;
+  return verifyExactRevision({ repository, revision }, {
+    resolveRevision: async coordinate => {
+      const observed = await adapters.source.observe(coordinate);
+      desired = new Map((observed?.files || []).map(file => [file.path, file]));
+      desiredRuntime = new Map([...desired.values()].map(file => {
+        const runtimeFile = runtimeSourceFile(file);
+        return [runtimeFile.path, runtimeFile];
+      }));
+      return { repository: observed?.repository || repository, revision: observed?.revision };
     },
-  };
+    executeRevisionRegression: async coordinate => {
+      const before = await adapters.runtime.inspect(project);
+      const current = new Map(before.files.map(file => [file.path, file]));
+      const writes = [...desiredRuntime.values()]
+        .filter(file => current.get(file.path)?.sha256 !== file.sha256)
+        .map(({ path, content }) => ({ path, content }))
+        .sort((a, b) => a.path.localeCompare(b.path));
+      const deletes = [...current.keys()].filter(path => !desiredRuntime.has(path)).sort();
+      let deployment;
+      if (writes.length === 0 && deletes.length === 0) {
+        deployment = await adapters.runtime.inspectDeployment({ project, version: before.version });
+      } else {
+        await adapters.runtime.reconcile({ project, revision, expected_version: before.version, writes, deletes });
+        const deployed = await adapters.runtime.deploy({ project, revision, expected_version: before.version });
+        if (Number(deployed?.version) !== Number(before.version) + 1) reject('DEPLOYMENT_VERSION_MISMATCH', 'verification deployment must be the immediate next version');
+        deployment = await adapters.runtime.inspectDeployment({ project, version: deployed.version });
+      }
+      const materialized = new Map(deployment.files.map(file => [file.path, file]));
+      if (materialized.size !== desiredRuntime.size || [...desiredRuntime].some(([path, file]) => materialized.get(path)?.sha256 !== file.sha256)) {
+        reject('SOURCE_MATERIALIZATION_MISMATCH', 'verification deployment source differs from the deterministic Hatchable runtime form of the requested revision');
+      }
+      const regression = await adapters.runtime.runRegressions({ project, deployment_version: deployment.version, revision });
+      if (!regression || regression.schema !== 'regression-verification-v1') reject('VERIFICATION_RUNTIME_INVALID_REGRESSION', 'canonical Hatchable V8 regressions returned an invalid schema');
+      if (regression.ok !== true || Number(regression.failed || 0) !== 0) reject('V8_REGRESSION_FAILED', 'canonical Hatchable V8 regressions did not pass');
+      if (typeof adapters.runtime.runProductionReachability !== 'function') {
+        reject('VERIFICATION_RUNTIME_REACHABILITY_UNAVAILABLE', 'production reachability verifier is unavailable');
+      }
+      const productionReachability = await adapters.runtime.runProductionReachability({
+        project,
+        repository,
+        revision,
+        deployment_version: deployment.version,
+      });
+      const baseReachabilityValid = (
+        productionReachability?.schema === 'production-reachability-evidence-v1'
+        && productionReachability?.entrypoint === '/api/orchestration/horizon-resolve'
+        && productionReachability?.runtime_project === project
+        && productionReachability?.runtime_revision === revision
+        && productionReachability?.target?.project_ref === `github:${repository}`
+        && productionReachability?.target?.horizon?.kind === 'transition'
+        && productionReachability?.target?.horizon?.ref === 'require-production-reachability'
+      );
+      const graphAuthorityValid = (
+        productionReachability?.graph_authority?.kind === 'github'
+        && productionReachability?.graph_authority?.repository === repository
+        && typeof productionReachability?.graph_authority?.revision === 'string'
+        && productionReachability.graph_authority.revision.length > 0
+        && productionReachability?.graph_authority?.derivation === 'overcenter-project-graph-v1'
+      );
+      const externalBoundaryValid = (
+        productionReachability?.boundary?.kind === 'external_dependency'
+        && productionReachability?.boundary?.dependency === 'github_app'
+        && productionReachability?.boundary?.configuration_key === 'GITHUB_APP_ID'
+      );
+      if (!baseReachabilityValid || (!graphAuthorityValid && !externalBoundaryValid)) {
+        reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID', 'production reachability verifier returned invalid evidence');
+      }
+      return {
+        ...coordinate,
+        result: {
+          ...regression,
+          execution: {
+            runtime: 'hatchable-v8',
+            project,
+            deployment_version: deployment.version,
+            source_normalization: HATCHABLE_TEXT_NORMALIZATION,
+            source_manifest_sha256: manifestHash(desired),
+            runtime_manifest_sha256: manifestHash(desiredRuntime),
+            production_reachability: productionReachability,
+          },
+        },
+      };
+    },
+  });
 }
 
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){runVerificationCli().then(result=>{if(result.ok!==true)process.exitCode=1;}).catch(error=>{process.stderr.write(`${JSON.stringify({ok:false,error:error?.code||'EXACT_REVISION_V8_VERIFICATION_FAILED',message:String(error?.message||error)})}\n`);process.exitCode=1;});}
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runVerificationCli().then(result => { if (result.ok !== true) process.exitCode = 1; }).catch(error => {
+    process.stderr.write(`${JSON.stringify({ ok:false, error:error?.code || 'EXACT_REVISION_V8_VERIFICATION_FAILED', message:String(error?.message || error) })}\n`);
+    process.exitCode = 1;
+  });
+}
