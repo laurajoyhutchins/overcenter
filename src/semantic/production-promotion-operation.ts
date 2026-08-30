@@ -18,15 +18,22 @@ export type VerifiedProductionPromotionRequest = Readonly<{
   verification_ref: string;
 }>;
 
-export type ProductionPromotionResult = Readonly<{
+export type ProductionPromotionOutcome = Readonly<{
   production_revision: string;
+}>;
+
+export type ProductionPromotionResult = Readonly<{
+  source_revision: string;
+  previous_production_revision: string;
+  production_revision: string;
+  verification_ref: string;
 }>;
 
 export type ProductionPromotionPorts = Readonly<{
   resolveBranchRoles(repo: string): Promise<ProductionBranchRoles>;
   readBranchHead(repo: string, branch: string): Promise<string>;
   verifyExactRevision(repo: string, revision: string): Promise<ExactRevisionVerification>;
-  promoteVerifiedRevision(request: VerifiedProductionPromotionRequest): Promise<ProductionPromotionResult>;
+  promoteVerifiedRevision(request: VerifiedProductionPromotionRequest): Promise<ProductionPromotionOutcome>;
 }>;
 
 export async function promoteProduction(
@@ -46,10 +53,17 @@ export async function promoteProduction(
     throw new Error('PRODUCTION_PROMOTION_SOURCE_NOT_VERIFIED');
   }
 
-  return ports.promoteVerifiedRevision({
+  const promotion = await ports.promoteVerifiedRevision({
     repo: intent.repo,
     source_revision: sourceRevision,
     production_revision: productionRevision,
+    verification_ref: verification.verification_ref,
+  });
+
+  return Object.freeze({
+    source_revision: sourceRevision,
+    previous_production_revision: productionRevision,
+    production_revision: promotion.production_revision,
     verification_ref: verification.verification_ref,
   });
 }
