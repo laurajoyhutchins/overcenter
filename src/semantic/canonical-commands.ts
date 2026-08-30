@@ -7,6 +7,7 @@ export const CANONICAL_COMMANDS = Object.freeze([
   'project.define',
   'project.amend',
   'project.advance',
+  'project.inspect',
   'skill.activate',
   'skill.complete',
   'github.apply_changeset',
