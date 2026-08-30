@@ -49,6 +49,14 @@ test('primary semantic surface is mechanically identifiable from descriptors', (
   assert.deepEqual(primary, ['project.amend', 'project.define']);
 });
 
+test('production promotion intent is typed before provider adapter exposure', () => {
+  const descriptor = semanticCommandDescriptor('production.promote');
+  assert.equal(descriptor.surface, 'primary');
+  assert.deepEqual(descriptor.semantic_fields, ['repo']);
+  assert.deepEqual(descriptor.required_fields, ['repo']);
+  assert.deepEqual(descriptor.exposure, { worker: true, mcp: false });
+});
+
 test('migrated worker validation is descriptor-derived rather than separately listed', async () => {
   const worker = await source('lib/worker-transport.js');
   for (const command of expected) assert.match(worker, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
