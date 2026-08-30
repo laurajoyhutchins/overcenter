@@ -4,14 +4,19 @@ export type RuntimeArtifactDigest = SemanticIdentity<'RuntimeArtifactDigest'>;
 export type DeploymentRef = SemanticIdentity<'DeploymentRef'>;
 export type RuntimeFence = SemanticIdentity<'RuntimeFence'>;
 
-export interface RuntimeArtifact {
+export interface RuntimeArtifactIdentity {
   readonly sourceRevision: GitSha;
   readonly artifactDigest: RuntimeArtifactDigest;
 }
 
+export interface RuntimeArtifact {
+  readonly sourceRevision: GitSha;
+  readonly artifactDigest: string;
+}
+
 export interface RuntimeObservation {
   readonly deploymentRef: DeploymentRef;
-  readonly observedArtifactDigest: RuntimeArtifactDigest;
+  readonly observedArtifactDigest: string;
   readonly fence: RuntimeFence;
 }
 

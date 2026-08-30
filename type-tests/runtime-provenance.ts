@@ -1,8 +1,8 @@
 import type { GitSha } from '../src/semantic/semantic-identities.js';
 import type {
   DeploymentRef,
-  RuntimeArtifact,
   RuntimeArtifactDigest,
+  RuntimeArtifactIdentity,
   RuntimeFence,
   RuntimeObservation,
   VerifiedRuntime,
@@ -13,7 +13,7 @@ declare const artifactDigest: RuntimeArtifactDigest;
 declare const runtimeFence: RuntimeFence;
 declare const deploymentRef: DeploymentRef;
 
-const artifact: RuntimeArtifact = {
+const artifactIdentity: RuntimeArtifactIdentity = {
   sourceRevision,
   artifactDigest,
 };
@@ -24,10 +24,12 @@ const observation: RuntimeObservation = {
   fence: runtimeFence,
 };
 
-const verified: VerifiedRuntime = { artifact, observation };
+declare const verified: VerifiedRuntime;
+void artifactIdentity;
+void observation;
 void verified;
 
 // Provider deployment identity cannot masquerade as immutable artifact identity.
 // @ts-expect-error branded deployment references and artifact digests are distinct semantic identities.
-const invalidArtifact: RuntimeArtifact = { sourceRevision, artifactDigest: deploymentRef };
-void invalidArtifact;
+const invalidArtifactIdentity: RuntimeArtifactIdentity = { sourceRevision, artifactDigest: deploymentRef };
+void invalidArtifactIdentity;
