@@ -31,7 +31,7 @@ export function renderSemanticCommandReference() {
       '',
     );
   }
-  return lines.join('\n');
+  return `${lines.join('\n')}\n`;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
