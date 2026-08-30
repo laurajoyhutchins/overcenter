@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
 import {
   MIGRATED_SEMANTIC_COMMANDS,
   semanticCommandDescriptor,
@@ -50,6 +51,17 @@ test('representative commands have one authoritative semantic descriptor', () =>
 test('primary semantic surface is mechanically identifiable from descriptors', () => {
   const primary = expected.filter((command) => semanticCommandDescriptor(command).surface === 'primary');
   assert.deepEqual(primary, ['production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect']);
+});
+
+test('every worker-exposed primary semantic command is admitted canonically', () => {
+  const admitted = new Set(CANONICAL_COMMANDS);
+  const primaryWorkerCommands = expected.filter((command) => {
+    const descriptor = semanticCommandDescriptor(command);
+    return descriptor.surface === 'primary' && descriptor.exposure.worker;
+  });
+  for (const command of primaryWorkerCommands) {
+    assert.ok(admitted.has(command), `${command} is worker-exposed primary intent but is not canonically admitted`);
+  }
 });
 
 test('production promotion intent is exposed after its runtime host exists', () => {
