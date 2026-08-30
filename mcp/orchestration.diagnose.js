@@ -1,6 +1,6 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { ORCHESTRATION_DIAGNOSE_INPUT_SCHEMA } from 'lib/orchestration-diagnose-contract.js';
-import { createPostgresOrchestrationDiagnosisService } from 'lib/orchestration-recovery.js';
+import { createPostgresSubjectAwareOrchestrationDiagnosisService } from 'lib/orchestration-diagnose-runtime.js';
 import { statusForOrchestrationRunError } from 'lib/orchestration-runs.js';
 
 export const access = 'admin';
@@ -13,7 +13,7 @@ export default {
     const response = await executeCorrelatedCommand(
       'orchestration.diagnose',
       args || {},
-      (input) => createPostgresOrchestrationDiagnosisService({ db: ctx?.db }).diagnose(input),
+      (input) => createPostgresSubjectAwareOrchestrationDiagnosisService({ db: ctx?.db }).diagnose(input),
       {
         statusForFailure: statusForOrchestrationRunError,
         defaultError: 'ORCHESTRATION_DIAGNOSE_ERROR',
