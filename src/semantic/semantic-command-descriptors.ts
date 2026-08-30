@@ -96,6 +96,15 @@ const orchestrationDiagnoseSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const productionPromoteSchema = Object.freeze({
+  type:'object',
+  required:['repo'],
+  properties:{
+    repo:{type:'string',minLength:3,maxLength:256,pattern:'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
+  },
+  additionalProperties:false,
+});
+
 const projectDefineSchema = Object.freeze({
   type:'object',
   required:['project_ref','expected_revision','definition'],
@@ -152,6 +161,14 @@ const DESCRIPTORS = Object.freeze({
     'Read current durable orchestration state and return the typed failure class, exact deterministic recovery operation, and escalation boundary. This is state inspection and recovery classification only; it does not plan or select work.',
     orchestrationDiagnoseSchema,
     'operator',
+  ),
+  'production.promote':descriptor(
+    'production.promote',
+    'production.promote',
+    'Express intent to promote the current verified development revision by repository identity only. Provider-specific branch heads, exact verification evidence, retry identity, and production readback remain mechanically derived by the runtime adapter; MCP exposure stays disabled until that adapter exists.',
+    productionPromoteSchema,
+    'primary',
+    Object.freeze({ worker:true, mcp:false }),
   ),
   'work.settle':descriptor(
     'work.settle',

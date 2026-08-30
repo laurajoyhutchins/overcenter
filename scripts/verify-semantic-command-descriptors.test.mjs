@@ -7,13 +7,17 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.release.create', 'orchestration.diagnose', 'project.amend', 'project.define', 'work.settle'];
+const expected = ['github.release.create', 'orchestration.diagnose', 'production.promote', 'project.amend', 'project.define', 'work.settle'];
 const expectedSurface = new Map([
   ['github.release.create', 'advanced'],
   ['orchestration.diagnose', 'operator'],
+  ['production.promote', 'primary'],
   ['project.amend', 'primary'],
   ['project.define', 'primary'],
   ['work.settle', 'compatibility'],
+]);
+const expectedExposure = new Map([
+  ['production.promote', { worker: true, mcp: false }],
 ]);
 
 async function source(path) {
@@ -37,8 +41,7 @@ test('representative commands have one authoritative semantic descriptor', () =>
     assert.equal(descriptor.input_schema.additionalProperties, false);
     assert.deepEqual([...descriptor.semantic_fields].sort(), Object.keys(descriptor.input_schema.properties).sort(), `${command} semantic fields drifted from its schema`);
     assert.deepEqual([...descriptor.required_fields].sort(), [...(descriptor.input_schema.required || [])].sort(), `${command} required fields drifted from its schema`);
-    assert.equal(descriptor.exposure.worker, true);
-    assert.equal(descriptor.exposure.mcp, true);
+    assert.deepEqual(descriptor.exposure, expectedExposure.get(command) || { worker: true, mcp: true });
     assert.equal(descriptor.surface, expectedSurface.get(command), `${command} must declare its agent-facing exposure class`);
     assert.ok(descriptor.mcp_name.length > 0);
   }
@@ -46,12 +49,22 @@ test('representative commands have one authoritative semantic descriptor', () =>
 
 test('primary semantic surface is mechanically identifiable from descriptors', () => {
   const primary = expected.filter((command) => semanticCommandDescriptor(command).surface === 'primary');
-  assert.deepEqual(primary, ['project.amend', 'project.define']);
+  assert.deepEqual(primary, ['production.promote', 'project.amend', 'project.define']);
+});
+
+test('production promotion intent is typed before provider adapter exposure', () => {
+  const descriptor = semanticCommandDescriptor('production.promote');
+  assert.equal(descriptor.surface, 'primary');
+  assert.deepEqual(descriptor.semantic_fields, ['repo']);
+  assert.deepEqual(descriptor.required_fields, ['repo']);
+  assert.deepEqual(descriptor.exposure, { worker: true, mcp: false });
 });
 
 test('migrated worker validation is descriptor-derived rather than separately listed', async () => {
   const worker = await source('lib/worker-transport.js');
-  for (const command of expected) assert.match(worker, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
+  for (const command of expected.filter((command) => semanticCommandDescriptor(command).exposure.worker && semanticCommandDescriptor(command).exposure.mcp)) {
+    assert.match(worker, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
+  }
   assert.doesNotMatch(worker, /GITHUB_RELEASE_(?:SEMANTIC|REQUIRED)_FIELDS/);
   assert.doesNotMatch(worker, /WORK_SETTLE_(?:SEMANTIC|REQUIRED)_FIELDS/);
 });
