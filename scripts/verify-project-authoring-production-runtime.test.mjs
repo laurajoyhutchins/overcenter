@@ -74,3 +74,31 @@ test('runtime host binding consumes bounded capabilities instead of importing a 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].authority.subject, 'project_definition');
 });
+
+test('runtime host binding can re-read source authority through projectAuthority instead of requiring a duplicate sourceRevision capability', async () => {
+  const authorityReads = [];
+  const runtime = createProjectAuthoringProductionRuntimeFromHost({
+    projectAuthority:{ resolve:async ({ project_ref }) => {
+      authorityReads.push(project_ref);
+      return { project_ref, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' };
+    } },
+    definitionFacts:{ read:async ({ revision }) => revision === resultingRevision
+      ? facts(revision, { ...baseDefinition, transitions:[...baseDefinition.transitions, { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] })
+      : facts(revision) },
+    repositoryDisposition:{ read:async (repository) => ({ repository, disposition:'ACTIVE' }) },
+    githubChangeset:{ apply:async (request, options) => {
+      await options.executionAuthority.require({ repository:request.repo });
+      return { ok:true, new_head:resultingRevision };
+    } },
+    projectGraph:{ derive:async ({ authority }) => ({ schema:'overcenter-project-graph-v1', revision:authority.revision }) },
+  });
+
+  const result = await runtime.amend({
+    project_ref:projectRef,
+    expected_revision:initialRevision,
+    amendment:{ upsert_transitions:[{ id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] },
+  });
+
+  assert.equal(result.authority.revision, resultingRevision);
+  assert.deepEqual(authorityReads, [projectRef, projectRef]);
+});
