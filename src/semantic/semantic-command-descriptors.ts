@@ -152,20 +152,20 @@ const PROJECT_AUTHORING_DESCRIPTORS = Object.freeze({
     'project.define',
     'Define canonical repository-owned project graph facts at an exact observed Git revision. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.',
     projectDefineSchema,
-    Object.freeze({ worker:false, mcp:false }),
+    Object.freeze({ worker:true, mcp:true }),
   ),
   'project.amend':descriptor(
     'project.amend',
     'project.amend',
     'Amend canonical repository-owned project graph facts at an exact observed Git revision using semantic transition intent. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.',
     projectAmendSchema,
-    Object.freeze({ worker:false, mcp:false }),
+    Object.freeze({ worker:true, mcp:true }),
   ),
 });
 
 const ALL_DESCRIPTORS = Object.freeze({ ...DESCRIPTORS, ...PROJECT_AUTHORING_DESCRIPTORS });
 
-export const MIGRATED_SEMANTIC_COMMANDS = Object.freeze(Object.keys(DESCRIPTORS));
+export const MIGRATED_SEMANTIC_COMMANDS = Object.freeze(Object.keys(ALL_DESCRIPTORS));
 
 export function semanticCommandDescriptor(command: string): SemanticCommandDescriptor {
   if (!Object.prototype.hasOwnProperty.call(ALL_DESCRIPTORS, command)) {
