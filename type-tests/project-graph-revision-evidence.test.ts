@@ -40,11 +40,14 @@ const previousRevision: string = evidence.previous_authority.revision;
 const currentRevision: string = evidence.current_authority.revision;
 const authorityChanged: true = evidence.authority_changed;
 const changedTransitionId: string = evidence.changes[0]!.transition_id;
-const changedKind: 'dependency-changed' = evidence.changes[0]!.kind;
+
+if (evidence.changes[0]?.kind === 'dependency-changed') {
+  const changedKind: 'dependency-changed' = evidence.changes[0].kind;
+  void changedKind;
+}
 
 void schema;
 void previousRevision;
 void currentRevision;
 void authorityChanged;
 void changedTransitionId;
-void changedKind;
