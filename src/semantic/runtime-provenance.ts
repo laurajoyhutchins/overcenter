@@ -11,12 +11,12 @@ export interface RuntimeArtifactIdentity {
 
 export interface RuntimeArtifact {
   readonly sourceRevision: GitSha;
-  readonly artifactDigest: string;
+  readonly artifactDigest: RuntimeArtifactDigest;
 }
 
 export interface RuntimeObservation {
   readonly deploymentRef: DeploymentRef;
-  readonly observedArtifactDigest: string;
+  readonly observedArtifactDigest: RuntimeArtifactDigest;
   readonly fence: RuntimeFence;
 }
 

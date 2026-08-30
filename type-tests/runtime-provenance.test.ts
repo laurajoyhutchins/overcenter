@@ -1,6 +1,7 @@
 import type {
   DeploymentRef,
   RuntimeArtifact,
+  RuntimeArtifactDigest,
   RuntimeFence,
   RuntimeObservation,
   VerifiedRuntime,
@@ -8,13 +9,14 @@ import type {
 import type { GitSha } from '../src/semantic/semantic-identities.js';
 
 declare const sourceRevision: GitSha;
+declare const artifactDigest: RuntimeArtifactDigest;
 declare const deploymentRef: DeploymentRef;
 declare const fence: RuntimeFence;
 declare const rawDigest: string;
 
 const artifact: RuntimeArtifact = {
   sourceRevision,
-  artifactDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  artifactDigest,
 };
 
 const observation: RuntimeObservation = {
