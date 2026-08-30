@@ -1,6 +1,7 @@
 import { createPortableRuntime, type PortableRuntime } from './portable-runtime.js';
 import type {
   DeploymentRef,
+  RuntimeArtifact,
   RuntimeFence,
   RuntimeObserver,
   RuntimePublisher,
