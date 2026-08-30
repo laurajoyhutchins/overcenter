@@ -270,7 +270,7 @@ export function reconcileProjectTransitionChange(
   continuation: ProjectTransitionContinuationEvidence,
 ): ProjectTransitionChangeReconciliation {
   const revision = reconcileProjectTransitionRevision(previous, current, continuation);
-  if (revision.kind === 'redefined') return revision;
+  if (revision.kind !== 'unchanged') return revision;
 
   const dependencies = reconcileProjectTransitionDependencies(previous, current);
   if (dependencies.kind === 'dependency-changed') return dependencies;
