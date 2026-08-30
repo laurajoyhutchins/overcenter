@@ -1,4 +1,5 @@
 import { db as hatchableDb } from 'hatchable';
+import { commandFailure } from 'lib/command-response.js';
 import { executeSemanticWorkerCommand } from 'lib/worker-transport.js';
 import { createWorkerCommandHandler } from 'lib/worker-command-handler.js';
 import { createProjectAuthoringWorkerBinding } from 'lib/project-authoring-host-runtime.js';
@@ -41,6 +42,7 @@ const projectAuthoringFor = createProjectAuthoringWorkerBinding({
 
 export default createWorkerCommandHandler({
   db:hatchableDb,
+  commandFailure,
   projectAuthoringFor,
   executeSemanticWorkerCommand,
   logger:console,

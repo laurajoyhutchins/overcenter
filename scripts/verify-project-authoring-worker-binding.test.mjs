@@ -42,6 +42,7 @@ test('host-neutral worker handler composes project authoring without caller-supp
   let observed = null;
   const handler = workerHandler.createWorkerCommandHandler({
     db:{ marker:'worker-host-db' },
+    commandFailure:() => ({ status:400, body:{ ok:false } }),
     projectAuthoringFor(runtime) {
       composedRuntime = runtime;
       return { define:async () => ({ ok:true }), amend:async () => ({ ok:true }) };
