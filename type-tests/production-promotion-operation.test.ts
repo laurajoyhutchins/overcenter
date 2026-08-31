@@ -1,5 +1,6 @@
 import {
   promoteProduction,
+  type ProductionPromotionFailure,
   type ProductionPromotionPorts,
 } from '../src/semantic/production-promotion-operation';
 
@@ -35,3 +36,22 @@ void previousProductionRevision;
 void productionRevision;
 void verificationRef;
 void calls;
+
+let observedFailure: ProductionPromotionFailure | null = null;
+try {
+  await promoteProduction({ repo: 'laurajoyhutchins/overcenter' }, {
+    ...ports,
+    verifyExactRevision: async (_repo, revision) => ({
+      revision,
+      verified: false,
+      verification_ref: '',
+    }),
+  });
+} catch (error) {
+  observedFailure = error as ProductionPromotionFailure;
+}
+if (!observedFailure) throw new Error('expected production promotion verification failure');
+const failureCode: 'PRODUCTION_PROMOTION_SOURCE_NOT_VERIFIED' = observedFailure.code;
+const failureMutation: false = observedFailure.may_have_mutated;
+void failureCode;
+void failureMutation;
