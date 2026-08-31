@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { restoreProjectTransitionLease } from '../lib/project-transition-lease-store.js';
 import { createProjectTransitionLeaseService } from '../lib/project-transition-leases.js';
 import { PRODUCTIVE_STAGES } from '../lib/work-lifecycle.js';
 
@@ -7,6 +8,13 @@ function responsibilitiesFor(target) {
   const index = PRODUCTIVE_STAGES.indexOf(target);
   return Object.fromEntries(PRODUCTIVE_STAGES.map((stage, stageIndex) => [stage, { applicable:true, satisfied:stageIndex < index }]));
 }
+
+const revisionChange = Object.freeze({
+  schema:'project-graph-revision-change-v1',
+  previous_authority:{ kind:'github', repository:'laurajoyhutchins/overcenter', revision:'1'.repeat(40), derivation:'overcenter-project-graph-v1' },
+  current_authority:{ kind:'github', repository:'laurajoyhutchins/overcenter', revision:'2'.repeat(40), derivation:'overcenter-project-graph-v1' },
+  outcome:'unchanged',
+});
 
 test('idempotent project-transition settlement replay preserves graph revision evidence', async () => {
   const leases = new Map();
@@ -35,4 +43,25 @@ test('idempotent project-transition settlement replay preserves graph revision e
   assert.equal(settled.graph_revision_change?.current_authority?.revision, '2'.repeat(40));
   assert.equal(replayed.idempotent_replay, true);
   assert.deepEqual(replayed.graph_revision_change, settled.graph_revision_change);
+});
+
+test('durable project-transition settlement restoration retains graph revision evidence', () => {
+  const restored = restoreProjectTransitionLease({
+    lease_id:'00000000-0000-4000-8000-000000000222',
+    work_ref:`project_transition:github:laurajoyhutchins/overcenter:${'1'.repeat(40)}:transition-a`,
+    gate:'project_transition',
+    run_id:'run-replay',
+    status:'settled',
+    created_at:'2026-08-31T02:00:00Z',
+    expires_at:'2026-08-31T02:10:00Z',
+    hard_expires_at:'2026-08-31T04:00:00Z',
+    claim_idempotency_key:'project-transition:acquire-replay-evidence',
+    claim_request_hash:'a'.repeat(64),
+    claim_receipt:{ subject:'project_transition', project_transition:{ project_ref:'github:laurajoyhutchins/overcenter', transition_id:'transition-a', repository:'laurajoyhutchins/overcenter', authority_revision:'1'.repeat(40), authority_derivation:'overcenter-project-graph-v1', graph_fingerprint:'b'.repeat(64), transition_definition_fingerprint:'c'.repeat(64), transition_revision_fingerprint:'d'.repeat(64), transition_dependency_fingerprint:'e'.repeat(64), slot_key:`project_transition:github:laurajoyhutchins/overcenter:${'1'.repeat(40)}:transition-a` } },
+    settle_idempotency_key:'project-transition-settle:settle-replay-evidence',
+    settle_plan:{ disposition:'requeue' },
+    settle_receipt:{ schema:'project-transition-lease-settlement-v1', graph_revision_change:revisionChange },
+    settled_at:'2026-08-31T02:05:00Z',
+  });
+  assert.deepEqual(restored?.graph_revision_change, revisionChange);
 });
