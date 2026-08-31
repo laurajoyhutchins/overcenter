@@ -101,8 +101,8 @@ if (redefined.kind === 'redefined') {
 }
 
 const derivedContinuation = deriveProjectTransitionContinuationEvidence(
-  { transition_id: 'transition-a', definition_fingerprint: 'fingerprint-a', dependency_fingerprint: 'dependencies-a' },
-  { transition_id: 'transition-a', definition_fingerprint: 'fingerprint-a', dependency_fingerprint: 'dependencies-a' },
+  previous,
+  same,
   { repository: 'laurajoyhutchins/overcenter', revision: '1111111111111111111111111111111111111111', derivation: 'overcenter-project-graph-v1' },
   { repository: 'laurajoyhutchins/overcenter', revision: '2222222222222222222222222222222222222222', derivation: 'overcenter-project-graph-v1' },
 );
