@@ -138,6 +138,18 @@
       }
     },
     {
+      "id": "expand-portable-typescript-runtime-across-primary-kernel",
+      "priority": 104,
+      "requires": [
+        "make-runtime-host-replaceable"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "expose-compact-primary-agent-discovery",
       "priority": 85,
       "requires": [
@@ -271,6 +283,18 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "prove-typescript-kernel-host-independence",
+      "priority": 103,
+      "requires": [
+        "expand-portable-typescript-runtime-across-primary-kernel"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "verification-before-completion"
       }
     },
     {
