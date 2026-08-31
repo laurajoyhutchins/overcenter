@@ -29,6 +29,20 @@ export type ProductionPromotionResult = Readonly<{
   verification_ref: string;
 }>;
 
+export type ProductionPromotionFailureCode = 'PRODUCTION_PROMOTION_SOURCE_NOT_VERIFIED';
+
+export class ProductionPromotionFailure extends Error {
+  readonly code: ProductionPromotionFailureCode;
+  readonly may_have_mutated: false;
+
+  constructor(code: ProductionPromotionFailureCode) {
+    super(code);
+    this.name = 'ProductionPromotionFailure';
+    this.code = code;
+    this.may_have_mutated = false;
+  }
+}
+
 export type ProductionPromotionPorts = Readonly<{
   resolveBranchRoles(repo: string): Promise<ProductionBranchRoles>;
   readBranchHead(repo: string, branch: string): Promise<string>;
@@ -50,7 +64,7 @@ export async function promoteProduction(
     || verification.revision !== sourceRevision
     || verification.verification_ref.trim().length === 0
   ) {
-    throw new Error('PRODUCTION_PROMOTION_SOURCE_NOT_VERIFIED');
+    throw new ProductionPromotionFailure('PRODUCTION_PROMOTION_SOURCE_NOT_VERIFIED');
   }
 
   const promotion = await ports.promoteVerifiedRevision({
