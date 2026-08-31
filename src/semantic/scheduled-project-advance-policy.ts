@@ -27,7 +27,7 @@ export function createScheduledProjectAdvanceRuntime<Result>(
   dispatch: ScheduledProjectAdvanceDispatch<Result>,
 ): ScheduledProjectAdvanceRuntime<Result> {
   return Object.freeze({
-    advance(intent) {
+    advance(intent: ScheduledProjectAdvanceIntent) {
       return dispatchScheduledProjectAdvance(intent, dispatch);
     },
   });
