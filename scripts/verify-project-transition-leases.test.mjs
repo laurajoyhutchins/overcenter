@@ -7,6 +7,7 @@ import './verify-project-transition-continuation-wiring.test.mjs';
 import './verify-project-transition-settlement-replay-evidence.test.mjs';
 import './verify-project-transition-heartbeat-replay-evidence.test.mjs';
 import './verify-project-transition-checkpoint-revision-evidence.test.mjs';
+import './verify-project-transition-resume-revision-evidence.test.mjs';
 import { runProjectTransitionLeaseTests } from '../lib/project-transition-leases.test.js';
 
 test('project transition lease semantics', async () => {
