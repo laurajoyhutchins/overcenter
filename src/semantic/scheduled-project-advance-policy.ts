@@ -6,3 +6,15 @@ import type { ProjectAdvanceIntent } from './project-advance-operation';
  * not work identity, lane selection, or a second orchestration protocol.
  */
 export type ScheduledProjectAdvanceIntent = ProjectAdvanceIntent;
+
+export type ScheduledProjectAdvanceDispatch<Result = unknown> = (
+  command: 'project.advance',
+  intent: ScheduledProjectAdvanceIntent,
+) => Promise<Result>;
+
+export function dispatchScheduledProjectAdvance<Result>(
+  intent: ScheduledProjectAdvanceIntent,
+  dispatch: ScheduledProjectAdvanceDispatch<Result>,
+): Promise<Result> {
+  return dispatch('project.advance', intent);
+}
