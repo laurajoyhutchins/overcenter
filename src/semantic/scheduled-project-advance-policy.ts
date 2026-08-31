@@ -18,3 +18,17 @@ export function dispatchScheduledProjectAdvance<Result>(
 ): Promise<Result> {
   return dispatch('project.advance', intent);
 }
+
+export interface ScheduledProjectAdvanceRuntime<Result = unknown> {
+  advance(intent: ScheduledProjectAdvanceIntent): Promise<Result>;
+}
+
+export function createScheduledProjectAdvanceRuntime<Result>(
+  dispatch: ScheduledProjectAdvanceDispatch<Result>,
+): ScheduledProjectAdvanceRuntime<Result> {
+  return Object.freeze({
+    advance(intent: ScheduledProjectAdvanceIntent) {
+      return dispatchScheduledProjectAdvance(intent, dispatch);
+    },
+  });
+}

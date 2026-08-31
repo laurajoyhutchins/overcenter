@@ -1,4 +1,8 @@
-import { dispatchScheduledProjectAdvance, type ScheduledProjectAdvanceIntent } from '../src/semantic/scheduled-project-advance-policy';
+import {
+  createScheduledProjectAdvanceRuntime,
+  dispatchScheduledProjectAdvance,
+  type ScheduledProjectAdvanceIntent,
+} from '../src/semantic/scheduled-project-advance-policy';
 
 const scheduledIntent: ScheduledProjectAdvanceIntent = {
   project_ref: 'github:laurajoyhutchins/overcenter',
@@ -27,3 +31,13 @@ const scheduledDispatchResult = dispatchScheduledProjectAdvance(scheduledIntent,
   return { ok: true as const };
 });
 void scheduledDispatchResult;
+
+const runtime = createScheduledProjectAdvanceRuntime(async (command, intent) => {
+  const sameCommand: 'project.advance' = command;
+  const sameIntent: ScheduledProjectAdvanceIntent = intent;
+  void sameCommand;
+  void sameIntent;
+  return { outcome: 'advanced' as const };
+});
+const runtimeResult = runtime.advance(scheduledIntent);
+void runtimeResult;
