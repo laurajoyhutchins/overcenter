@@ -77,6 +77,67 @@
       }
     },
     {
+      "id": "delete-compatibility-command-exposure",
+      "priority": 83,
+      "requires": [
+        "verify-agent-facing-surface-completion"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "delete-duplicated-orchestration-controllers",
+      "priority": 82,
+      "requires": [
+        "verify-agent-facing-surface-completion"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "delete-obsolete-branch-and-verification-scaffolding",
+      "priority": 98,
+      "requires": [
+        "verify-target-architecture-completion"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "delete-proven-dead-legacy-lane-scaffolding",
+      "priority": 99,
+      "requires": [
+        "verify-target-architecture-completion"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "delete-runtime-host-scaffolding",
+      "priority": 81,
+      "requires": [
+        "make-runtime-host-replaceable",
+        "move-scheduled-execution-graph-native"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "expose-compact-primary-agent-discovery",
       "priority": 85,
       "requires": [
@@ -157,6 +218,18 @@
       "priority": 78,
       "requires": [
         "retire-stage-lane-semantics"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "move-scheduled-execution-graph-native",
+      "priority": 84,
+      "requires": [
+        "verify-agent-facing-surface-completion"
       ],
       "executor": {
         "kind": "agent",
@@ -265,6 +338,23 @@
       "requires": [
         "prove-disposable-agent-resume-round-trip",
         "prove-fresh-agent-round-trip"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "verification-before-completion"
+      }
+    },
+    {
+      "id": "verify-deletion-wave",
+      "priority": 70,
+      "requires": [
+        "delete-compatibility-command-exposure",
+        "delete-duplicated-orchestration-controllers",
+        "delete-obsolete-branch-and-verification-scaffolding",
+        "delete-proven-dead-legacy-lane-scaffolding",
+        "delete-runtime-host-scaffolding",
+        "move-scheduled-execution-graph-native"
       ],
       "executor": {
         "kind": "agent",
