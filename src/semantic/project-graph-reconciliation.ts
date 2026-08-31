@@ -168,6 +168,33 @@ function requireGitRevision(value: string, field: string): string {
   return revision;
 }
 
+export function deriveProjectTransitionContinuationEvidence(
+  previous: ProjectTransitionRevisionIdentity,
+  current: ProjectTransitionRevisionIdentity,
+  previousAuthority: ProjectGraphAuthorityCoordinate,
+  currentAuthority: ProjectGraphAuthorityCoordinate,
+): ProjectTransitionContinuationEvidence {
+  const previousTransitionId = requireSemanticText(previous.transition_id, 'previous.transition_id');
+  const currentTransitionId = requireSemanticText(current.transition_id, 'current.transition_id');
+  if (previousTransitionId !== currentTransitionId) {
+    throw new TypeError('project transition continuation evidence requires one stable transition identity');
+  }
+  const previousFingerprint = requireSemanticText(previous.definition_fingerprint, 'previous.definition_fingerprint');
+  const currentFingerprint = requireSemanticText(current.definition_fingerprint, 'current.definition_fingerprint');
+  const previousRepository = requireSemanticText(previousAuthority.repository, 'previous_authority.repository');
+  const currentRepository = requireSemanticText(currentAuthority.repository, 'current_authority.repository');
+  const previousDerivation = requireSemanticText(previousAuthority.derivation, 'previous_authority.derivation');
+  const currentDerivation = requireSemanticText(currentAuthority.derivation, 'current_authority.derivation');
+  requireGitRevision(previousAuthority.revision, 'previous_authority.revision');
+  requireGitRevision(currentAuthority.revision, 'current_authority.revision');
+
+  return Object.freeze({
+    mutation_scope_unchanged: previousFingerprint === currentFingerprint,
+    required_authority_valid:
+      previousRepository === currentRepository && previousDerivation === currentDerivation,
+  });
+}
+
 export function reconcileProjectTransitionPresence(
   previous: ProjectTransitionRevisionIdentity | null,
   current: ProjectTransitionRevisionIdentity | null,
