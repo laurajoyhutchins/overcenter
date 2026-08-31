@@ -3,6 +3,18 @@
   "project_ref": "github:laurajoyhutchins/overcenter",
   "transitions": [
     {
+      "id": "add-semantic-agent-execution-reporting",
+      "priority": 92,
+      "requires": [
+        "define-primary-agent-session-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "add-semantic-project-authoring",
       "priority": 95,
       "requires": [
@@ -53,6 +65,33 @@
       }
     },
     {
+      "id": "define-primary-agent-session-contract",
+      "priority": 100,
+      "requires": [
+        "verify-target-architecture-completion"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "expose-compact-primary-agent-discovery",
+      "priority": 85,
+      "requires": [
+        "add-semantic-agent-execution-reporting",
+        "make-project-advance-self-contained",
+        "make-project-authoring-low-ceremony",
+        "make-project-inspect-decision-oriented"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "expose-orchestration-advance",
       "priority": 105,
       "requires": [
@@ -78,6 +117,42 @@
       }
     },
     {
+      "id": "make-project-advance-self-contained",
+      "priority": 93,
+      "requires": [
+        "define-primary-agent-session-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "make-project-authoring-low-ceremony",
+      "priority": 94,
+      "requires": [
+        "define-primary-agent-session-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "make-project-inspect-decision-oriented",
+      "priority": 95,
+      "requires": [
+        "define-primary-agent-session-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "make-runtime-host-replaceable",
       "priority": 78,
       "requires": [
@@ -87,6 +162,30 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "prove-disposable-agent-resume-round-trip",
+      "priority": 79,
+      "requires": [
+        "expose-compact-primary-agent-discovery"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "verification-before-completion"
+      }
+    },
+    {
+      "id": "prove-fresh-agent-round-trip",
+      "priority": 80,
+      "requires": [
+        "expose-compact-primary-agent-discovery"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "verification-before-completion"
       }
     },
     {
@@ -158,6 +257,19 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "verify-agent-facing-surface-completion",
+      "priority": 70,
+      "requires": [
+        "prove-disposable-agent-resume-round-trip",
+        "prove-fresh-agent-round-trip"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "verification-before-completion"
       }
     },
     {
