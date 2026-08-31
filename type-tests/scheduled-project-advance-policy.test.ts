@@ -5,18 +5,16 @@ const scheduledIntent: ScheduledProjectAdvanceIntent = {
 };
 void scheduledIntent;
 
-// Scheduled execution selects project graph work, never a legacy Linear lane.
-// @ts-expect-error lane identity is outside the scheduled graph-native semantic boundary
 const legacyLaneIntent: ScheduledProjectAdvanceIntent = {
   project_ref: 'github:laurajoyhutchins/overcenter',
+  // @ts-expect-error lane identity is outside the scheduled graph-native semantic boundary
   lane: 'lane:source-implementation',
 };
 void legacyLaneIntent;
 
-// Scheduled execution does not accept caller-selected work items.
-// @ts-expect-error work identity is derived by Overcenter from the authoritative graph
 const legacyWorkIntent: ScheduledProjectAdvanceIntent = {
   project_ref: 'github:laurajoyhutchins/overcenter',
+  // @ts-expect-error work identity is derived by Overcenter from the authoritative graph
   work_ref: 'LJH-123',
 };
 void legacyWorkIntent;
