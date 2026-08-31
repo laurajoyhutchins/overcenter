@@ -2,6 +2,7 @@ import {
   reconcileProjectTransitionPresence,
   reconcileProjectTransitionRemoval,
   reconcileProjectTransitionRevision,
+  deriveProjectTransitionContinuationEvidence,
   type ProjectTransitionContinuationEvidence,
   type ProjectTransitionRevisionIdentity,
 } from '../src/semantic/project-graph-reconciliation.js';
@@ -98,3 +99,14 @@ if (redefined.kind === 'redefined') {
   void mayContinue;
   void preservesConfirmation;
 }
+
+const derivedContinuation = deriveProjectTransitionContinuationEvidence(
+  previous,
+  same,
+  { repository: 'laurajoyhutchins/overcenter', revision: '1111111111111111111111111111111111111111', derivation: 'overcenter-project-graph-v1' },
+  { repository: 'laurajoyhutchins/overcenter', revision: '2222222222222222222222222222222222222222', derivation: 'overcenter-project-graph-v1' },
+);
+const mutationScopeUnchanged: boolean = derivedContinuation.mutation_scope_unchanged;
+const requiredAuthorityValid: boolean = derivedContinuation.required_authority_valid;
+void mutationScopeUnchanged;
+void requiredAuthorityValid;
