@@ -56,7 +56,7 @@ const liveAuthorityConflict = reconcileProjectTransitionRemoval(previous, {
 });
 if (liveAuthorityConflict.kind === 'removal-conflict') {
   const mayRemove: false = liveAuthorityConflict.may_remove;
-  const reason: 'live-execution-authority' = liveAuthorityConflict.reason;
+  const reason: 'live-execution-authority' | 'confirmed-history' = liveAuthorityConflict.reason;
   void mayRemove;
   void reason;
 }
@@ -67,7 +67,7 @@ const confirmedHistoryConflict = reconcileProjectTransitionRemoval(previous, {
 });
 if (confirmedHistoryConflict.kind === 'removal-conflict') {
   const mayRemove: false = confirmedHistoryConflict.may_remove;
-  const reason: 'confirmed-history' = confirmedHistoryConflict.reason;
+  const reason: 'live-execution-authority' | 'confirmed-history' = confirmedHistoryConflict.reason;
   void mayRemove;
   void reason;
 }

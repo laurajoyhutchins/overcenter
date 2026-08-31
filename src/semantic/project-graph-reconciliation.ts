@@ -8,6 +8,32 @@ export type ProjectTransitionContinuationEvidence = Readonly<{
   required_authority_valid: boolean;
 }>;
 
+export type ProjectTransitionRemovalEvidence = Readonly<{
+  has_live_execution_authority: boolean;
+  was_confirmed: boolean;
+}>;
+
+export type AcceptedProjectTransitionRemoval = Readonly<{
+  kind: 'removal-accepted';
+  transition_id: string;
+  previous_definition_fingerprint: string;
+  may_remove: true;
+  synthesizes_completion: false;
+}>;
+
+export type ConflictingProjectTransitionRemoval = Readonly<{
+  kind: 'removal-conflict';
+  transition_id: string;
+  previous_definition_fingerprint: string;
+  may_remove: false;
+  reason: 'live-execution-authority' | 'confirmed-history';
+  synthesizes_completion: false;
+}>;
+
+export type ProjectTransitionRemovalReconciliation =
+  | AcceptedProjectTransitionRemoval
+  | ConflictingProjectTransitionRemoval;
+
 export type IntroducedProjectTransitionRevision = Readonly<{
   kind: 'introduced';
   transition_id: string;
@@ -171,6 +197,47 @@ export function reconcileProjectTransitionPresence(
   }
 
   throw new TypeError('project transition presence reconciliation requires exactly one revision to be absent');
+}
+
+export function reconcileProjectTransitionRemoval(
+  previous: ProjectTransitionRevisionIdentity,
+  evidence: ProjectTransitionRemovalEvidence,
+): ProjectTransitionRemovalReconciliation {
+  const transitionId = requireSemanticText(previous.transition_id, 'previous.transition_id');
+  const previousFingerprint = requireSemanticText(
+    previous.definition_fingerprint,
+    'previous.definition_fingerprint',
+  );
+
+  if (evidence?.has_live_execution_authority === true) {
+    return Object.freeze({
+      kind: 'removal-conflict',
+      transition_id: transitionId,
+      previous_definition_fingerprint: previousFingerprint,
+      may_remove: false,
+      reason: 'live-execution-authority',
+      synthesizes_completion: false,
+    });
+  }
+
+  if (evidence?.was_confirmed === true) {
+    return Object.freeze({
+      kind: 'removal-conflict',
+      transition_id: transitionId,
+      previous_definition_fingerprint: previousFingerprint,
+      may_remove: false,
+      reason: 'confirmed-history',
+      synthesizes_completion: false,
+    });
+  }
+
+  return Object.freeze({
+    kind: 'removal-accepted',
+    transition_id: transitionId,
+    previous_definition_fingerprint: previousFingerprint,
+    may_remove: true,
+    synthesizes_completion: false,
+  });
 }
 
 export function reconcileProjectTransitionDependencies(
