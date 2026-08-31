@@ -20,6 +20,7 @@ export type ProjectAuthoringMutationRequest = Readonly<{
 export type ProjectAuthoringRuntimeDependencies = Readonly<{
   resolveAuthority(input: Readonly<{ project_ref: string }>): Promise<ProjectAuthoringAuthority>;
   readDefinition(authority: ProjectAuthoringAuthority): Promise<unknown>;
+  readProjectObservations?(authority: ProjectAuthoringAuthority): Promise<unknown>;
   mutateDefinition(request: ProjectAuthoringMutationRequest): Promise<Readonly<{ revision: string }>>;
   deriveProjectGraph(authority: ProjectAuthoringAuthority): Promise<unknown>;
 }>;
@@ -120,6 +121,55 @@ function graphAtRevision(graphInput: unknown, authority: ProjectAuthoringAuthori
   return graph;
 }
 
+function amendmentTouchesExistingTransition(currentDefinitionInput: unknown, amendmentInput: Readonly<Record<string, unknown>>): boolean {
+  const currentDefinition = canonicalProjectDefinition(currentDefinitionInput);
+  const existingIds = new Set(currentDefinition.transitions.map((transition) => transition.id));
+  const removed = Array.isArray(amendmentInput?.remove_transition_ids) ? amendmentInput.remove_transition_ids : [];
+  const upserted = Array.isArray(amendmentInput?.upsert_transitions) ? amendmentInput.upsert_transitions : [];
+  return removed.some((id) => typeof id === 'string' && existingIds.has(id.trim()))
+    || upserted.some((transition) => transition && typeof transition === 'object' && !Array.isArray(transition)
+      && typeof (transition as Record<string, unknown>).id === 'string'
+      && existingIds.has(String((transition as Record<string, unknown>).id).trim()));
+}
+
+function confirmedTransitionIds(projectRef: string, observationsInput: unknown): readonly string[] {
+  if (!Array.isArray(observationsInput)) {
+    fail('PROJECT_AUTHORING_CONFIRMATION_HISTORY_INVALID', 'authoritative project confirmation history must be an array', { project_ref:projectRef });
+  }
+  const ids = new Set<string>();
+  for (const observationInput of observationsInput) {
+    if (!observationInput || typeof observationInput !== 'object' || Array.isArray(observationInput)) {
+      fail('PROJECT_AUTHORING_CONFIRMATION_HISTORY_INVALID', 'authoritative project confirmation history contains an invalid observation', { project_ref:projectRef });
+    }
+    const observation = observationInput as Readonly<Record<string, unknown>>;
+    const transitionId = typeof observation.transition_id === 'string' ? observation.transition_id.trim() : '';
+    if (observation.schema !== 'project-transition-observation-v1'
+        || observation.kind !== 'project_transition_confirmation'
+        || observation.project_ref !== projectRef
+        || observation.disposition !== 'completed'
+        || !transitionId) {
+      fail('PROJECT_AUTHORING_CONFIRMATION_HISTORY_INVALID', 'authoritative project confirmation history contains an invalid completed transition observation', { project_ref:projectRef });
+    }
+    ids.add(transitionId);
+  }
+  return Object.freeze([...ids].sort());
+}
+
+async function amendmentWithAuthoritativeHistory(
+  projectRef: string,
+  authority: ProjectAuthoringAuthority,
+  currentDefinition: unknown,
+  amendmentInput: Readonly<Record<string, unknown>>,
+  dependencies: ProjectAuthoringRuntimeDependencies,
+): Promise<Readonly<Record<string, unknown>>> {
+  if (!amendmentTouchesExistingTransition(currentDefinition, amendmentInput)) return amendmentInput;
+  if (typeof dependencies.readProjectObservations !== 'function') {
+    fail('PROJECT_AUTHORING_CONFIRMATION_HISTORY_UNAVAILABLE', 'project amendment requires authoritative confirmation history before changing an existing transition', { project_ref:projectRef });
+  }
+  const ids = confirmedTransitionIds(projectRef, await dependencies.readProjectObservations(authority));
+  return Object.freeze({ ...amendmentInput, confirmed_transition_ids:ids });
+}
+
 async function resultAfterMutation(authority: ProjectAuthoringAuthority, mutation: Readonly<{ revision: string }>, diff: ProjectDefinitionDiff, dependencies: ProjectAuthoringRuntimeDependencies) {
   const resultingRevision = exactRevision(mutation?.revision, 'mutation.revision');
   const resultingAuthority = Object.freeze({ ...authority, revision: resultingRevision });
@@ -186,7 +236,8 @@ export async function amendProjectDefinition(
   const expectedRevision = exactRevision(input.expected_revision);
   const authority = await fencedAuthority(projectRef, expectedRevision, dependencies);
   const currentDefinition = await dependencies.readDefinition(authority);
-  const amendment = applyProjectDefinitionAmendment(currentDefinition, input.amendment);
+  const amendmentInput = await amendmentWithAuthoritativeHistory(projectRef, authority, currentDefinition, input.amendment, dependencies);
+  const amendment = applyProjectDefinitionAmendment(currentDefinition, amendmentInput);
   const mutation = await dependencies.mutateDefinition({
     project_ref: projectRef,
     repository: authority.repository,
