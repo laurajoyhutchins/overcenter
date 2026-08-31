@@ -159,3 +159,36 @@ test('project authoring rejects readback whose derived graph revision does not m
     (error) => error?.code === 'PROJECT_AUTHORING_READBACK_MISMATCH',
   );
 });
+
+test('project amendment protects authoritative confirmed history even when caller omits confirmation hints', async () => {
+  const { amendProjectDefinition } = await import('../lib/project-authoring-runtime.js');
+  const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  let mutations = 0;
+
+  await assert.rejects(
+    () => amendProjectDefinition({
+      project_ref:'github:example/project',
+      expected_revision:initialRevision,
+      amendment:{ remove_transition_ids:['foundation'] },
+    }, {
+      resolveAuthority:async () => ({
+        project_ref:'github:example/project',
+        repository:'example/project',
+        revision:initialRevision,
+        derivation:'overcenter-project-graph-v1',
+      }),
+      readDefinition:async () => base,
+      readProjectObservations:async () => ([{
+        schema:'project-transition-observation-v1',
+        kind:'project_transition_confirmation',
+        project_ref:'github:example/project',
+        transition_id:'foundation',
+        disposition:'completed',
+      }]),
+      mutateDefinition:async () => { mutations += 1; return { revision:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }; },
+      deriveProjectGraph:async () => ({ schema:'overcenter-project-graph-v1', project_ref:'github:example/project', revision:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }),
+    }),
+    /confirmed transition/,
+  );
+  assert.equal(mutations, 0);
+});
