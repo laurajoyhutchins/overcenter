@@ -74,9 +74,9 @@ test('production branch updates are serialized into the dist-aware production ma
   assert.match(workflow, /branches:\s*\[main\]/);
   assert.match(workflow, /group:\s*overcenter-production-materialization/);
   assert.match(workflow, /cancel-in-progress:\s*false/);
-  const build = workflow.indexOf('tsc -p tsconfig.semantic.runtime.json');
+  const build = workflow.indexOf('npm run build:runtime');
   const materialize = workflow.indexOf('node scripts/production-materialization-dist-http.mjs');
-  assert.ok(build >= 0, 'production materialization must build the runtime artifact');
+  assert.ok(build >= 0, 'production materialization must build the runtime artifact through the root package boundary');
   assert.ok(materialize >= 0, 'production materialization must use the dist-aware driver');
   assert.ok(build < materialize, 'production materialization must build dist before runtime projection');
 });

@@ -6,7 +6,30 @@ Overcenter is a control plane for turning repository-owned project plans into ve
 
 > Agents are disposable. Execution truth isn't.
 
-Overcenter is for projects where agents need to pick up work across sessions without reconstructing coordination state from chat history or treating a task tracker as the source of truth.
+## Quick start
+
+A fresh checkout is an ordinary Node 22 project. Docker is required for the local PostgreSQL development runtime.
+
+```bash
+git clone https://github.com/laurajoyhutchins/overcenter.git
+cd overcenter
+npm install
+npm test
+npm run dev
+```
+
+`npm run dev` starts PostgreSQL with Docker Compose, builds the host-independent portable runtime, and starts a local development server on `http://127.0.0.1:8787`. `GET /health` verifies the Node/PostgreSQL substrate. `POST /runtime/publish` exercises portable runtime publication and verification without requiring Hatchable.
+
+The other canonical repository commands are intentionally mundane:
+
+```bash
+npm run build
+npm run typecheck
+npm run test:integration
+npm run verify
+```
+
+Use `OVERCENTER_DEV_SKIP_DOCKER=1` when supplying your own PostgreSQL instance through the standard `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD` environment variables.
 
 ## Why Overcenter
 
@@ -80,11 +103,13 @@ This separation is deliberate. Hosting, task tracking, and agent sessions should
 - `mcp/` defines semantic MCP tool contracts.
 - `api/` exposes bounded runtime and HTTP surfaces.
 - `lib/` contains the orchestration kernel, GitHub integration, evidence, recovery, and verification logic.
+- `src/` contains typed semantic, runtime, port, and adapter source.
 - `migrations/` contains durable PostgreSQL schema evolution.
 - `docs/` contains architecture and design documentation.
 - `public/docs/` contains runtime-facing command and operator documentation.
-- `scripts/` contains repository-owned verification and release checks.
-- `hatchable.toml` declares the current reference runtime configuration.
+- `scripts/` contains repository-owned build, test, development, verification, and release checks.
+- `dist/` is generated build output and is not committed.
+- `hatchable.toml` declares the current reference deployment configuration.
 
 ## Project status
 
@@ -105,12 +130,13 @@ Overcenter's source-of-truth model is intentionally host-independent: the runtim
 From a complete Git checkout:
 
 ```bash
-node scripts/verify-regression-suite-registry.mjs
-node --test scripts/verify-public-release.test.mjs
-node scripts/verify-public-release.mjs
+npm install
+npm test
+npm run build
+npm run verify
 ```
 
-The public-release verifier checks the repository boundary, tracked development residue, deployment-specific coordinates, and high-confidence credential patterns in Git history. Runtime regression verification and repository-static verification are complementary.
+`npm run verify` is the canonical full local repository check. CI installs the committed lockfile with `npm ci` and invokes the same package commands instead of maintaining a separate dependency recipe. The public-release verifier checks the repository boundary, tracked development residue, deployment-specific coordinates, and high-confidence credential patterns in Git history.
 
 ## Security
 
@@ -123,6 +149,8 @@ Keep changes narrow and evidence-backed. Tests should prove the semantic risk a 
 When deterministic software can replace repeated agent bookkeeping, prefer moving that behavior behind a semantic boundary. When ordinary GitHub behavior is sufficient, prefer using it rather than adding another orchestration path.
 
 Do not commit credentials, private operational evidence, installation-specific project IDs, or development-session journals.
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the contributor workflow.
 
 ## License
 

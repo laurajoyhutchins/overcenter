@@ -60,16 +60,16 @@ test('runtime artifact source projection fails closed when dist has no establish
   );
 });
 
-test('verification and production workflows build dist before projecting to Hatchable', async () => {
+test('verification and production workflows build dist through the canonical package boundary', async () => {
   const expectations = [
     ['.github/workflows/exact-revision-v8.yml', 'node scripts/exact-revision-v8-dist-verification-http.mjs'],
     ['.github/workflows/production-materialization.yml', 'node scripts/production-materialization-dist-http.mjs'],
   ];
   for (const [workflow, command] of expectations) {
     const source = await readFile(new URL(`../${workflow}`, import.meta.url), 'utf8');
-    const build = source.indexOf('tsc -p tsconfig.semantic.runtime.json');
+    const build = source.indexOf('npm run build:runtime');
     const projection = source.indexOf(command);
-    assert.ok(build >= 0, `${workflow} must build the runtime artifact`);
+    assert.ok(build >= 0, `${workflow} must build the runtime artifact through npm`);
     assert.ok(projection >= 0, `${workflow} must project the runtime artifact`);
     assert.ok(build < projection, `${workflow} must build before projection`);
   }

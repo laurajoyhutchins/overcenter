@@ -17,6 +17,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - name: Install canonical dependencies
+        run: npm ci
       - name: Test dist runtime artifact boundary
         run: node --test scripts/dist-runtime-artifact-boundary.test.mjs
       - name: Test semantic kernel provider boundary
@@ -26,34 +29,9 @@ jobs:
       - name: Test monotonic project authoring mutation certainty
         run: node --test scripts/verify-github-mutation-certainty.test.mjs
       - name: Type-check semantic kernel contracts
-        run: npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
-      - name: Verify runtime compatibility mirrors are generated from TypeScript source
-        run: |
-          rm -rf dist/lib
-          npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.runtime.json
-          diff -u lib/canonical-commands.js dist/lib/canonical-commands.js
-          diff -u lib/command-contracts.js dist/lib/command-contracts.js
-          diff -u lib/compatibility-transition-bindings.js dist/lib/compatibility-transition-bindings.js
-          diff -u lib/execution-authority-contracts.js dist/lib/execution-authority-contracts.js
-          diff -u lib/execution-authority-core.js dist/lib/execution-authority-core.js
-          diff -u lib/legacy-work-execution-authority-contracts.js dist/lib/legacy-work-execution-authority-contracts.js
-          diff -u lib/execution-evidence-contracts.js dist/lib/execution-evidence-contracts.js
-          diff -u lib/execution-evidence.js dist/lib/execution-evidence.js
-          diff -u lib/execution-lifecycle-contracts.js dist/lib/execution-lifecycle-contracts.js
-          diff -u lib/mutation-certainty.js dist/lib/mutation-certainty.js
-          diff -u lib/orchestration-drive.js dist/lib/orchestration-drive.js
-          diff -u lib/production-materialization-operation.js dist/lib/production-materialization-operation.js
-          diff -u lib/project-authoring-command-contract.js dist/lib/project-authoring-command-contract.js
-          diff -u lib/project-authoring-github-runtime.js dist/lib/project-authoring-github-runtime.js
-          diff -u lib/project-authoring-runtime.js dist/lib/project-authoring-runtime.js
-          diff -u lib/project-authoring-work-branch.js dist/lib/project-authoring-work-branch.js
-          diff -u lib/project-authoring.js dist/lib/project-authoring.js
-          diff -u lib/project-definition-changeset-writer.js dist/lib/project-definition-changeset-writer.js
-          diff -u lib/project-definition-mutation-authority.js dist/lib/project-definition-mutation-authority.js
-          diff -u lib/project-graph-contracts.js dist/lib/project-graph-contracts.js
-          diff -u lib/project-graph-reconciliation.js dist/lib/project-graph-reconciliation.js
-          diff -u lib/semantic-command-descriptors.js dist/lib/semantic-command-descriptors.js
-          diff -u lib/work-settle-contract.js dist/lib/work-settle-contract.js
+        run: npm run typecheck
+      - name: Build canonical runtime artifacts
+        run: npm run build
       - name: Test runtime provenance semantics
         run: node --test scripts/runtime-provenance.test.mjs
 
@@ -86,11 +64,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Compile portable runtime without Hatchable SDK
-        run: |
-          rm -rf dist/portable
-          npx --yes --package typescript@5.9.2 tsc -p tsconfig.portable-runtime.json
-      - name: Install Postgres driver for portable acceptance substrate
-        run: npm install --no-save --package-lock=false pg@8.13.1
-      - name: Execute portable Node + Postgres conformance slice
-        run: node --test scripts/node-postgres-runtime.test.mjs
+          cache: npm
+      - name: Install canonical dependencies
+        run: npm ci
+      - name: Execute portable Node and Postgres conformance slice
+        run: npm run test:integration
