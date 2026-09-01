@@ -59,7 +59,7 @@ function receiptForPlan(plan, project) {
     github_repository: plan.repository,
     github_branch: plan.branch,
     github_head: plan.revision,
-    base_hatchable_version: plan.base_version,
+    base_hatchable_version: plan.expected_version,
     target_hatchable_version: plan.target_version,
     target_manifest_sha256: plan.source_manifest_sha256,
     source_path_count: plan.source_path_count,
@@ -115,7 +115,7 @@ export async function materializeProductionRevision(input = {}, adapters = {}) {
       await adapters.runtime.stage({
         project,
         revision:plan.revision,
-        expected_version:plan.base_version,
+        expected_version:plan.expected_version,
         writes,
         deletes:plan.deletes,
         receipt,
@@ -126,7 +126,7 @@ export async function materializeProductionRevision(input = {}, adapters = {}) {
       return { runtime_ref:project, version:normalizeVersion(draft?.version, 'draft version'), files:normalizeRuntimeFiles(draft?.files) };
     },
     deployRuntime: async plan => {
-      const deployed = await adapters.runtime.deploy({ project, revision:plan.revision, expected_version:plan.base_version });
+      const deployed = await adapters.runtime.deploy({ project, revision:plan.revision, expected_version:plan.expected_version });
       return { runtime_ref:project, version:normalizeVersion(deployed?.version, 'deployed version') };
     },
     inspectImmutableDeployment: async deployment => {
