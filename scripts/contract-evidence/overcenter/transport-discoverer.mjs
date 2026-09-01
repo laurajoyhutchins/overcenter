@@ -185,12 +185,14 @@ async function httpCandidates(repoRoot, root) {
 }
 
 export function createTransportDiscoverer(options = {}) {
+  const mcpRoot = options.mcpRoot === undefined ? 'mcp' : options.mcpRoot;
+  const apiRoot = options.apiRoot === undefined ? 'api' : options.apiRoot;
   return {
     name:'overcenter-transport',
     async discover({ repoRoot }) {
       const candidates = [
-        ...await mcpCandidates(repoRoot, options.mcpRoot ?? 'mcp'),
-        ...await httpCandidates(repoRoot, options.apiRoot ?? 'api'),
+        ...await mcpCandidates(repoRoot, mcpRoot),
+        ...await httpCandidates(repoRoot, apiRoot),
       ].sort((a, b) => a.source_identity.localeCompare(b.source_identity));
       return { complete:true, candidates, diagnostics:[{ code:'TRANSPORT_DISCOVERY_COMPLETE', count:candidates.length }] };
     },
