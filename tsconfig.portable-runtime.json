@@ -7,10 +7,14 @@
     "rootDir": "src"
   },
   "include": [
+    "src/semantic/canonical-json.ts",
+    "src/semantic/compact-execution-state.ts",
     "src/semantic/runtime-provenance.ts",
     "src/semantic/semantic-identities.ts",
+    "src/ports/compact-execution-state-store.ts",
     "src/ports/portable-runtime.ts",
     "src/runtime/portable-runtime.ts",
+    "src/adapters/postgres/compact-execution-state-store.ts",
     "src/adapters/postgres/node-postgres-runtime.ts"
   ],
   "exclude": []

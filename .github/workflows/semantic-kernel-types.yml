@@ -28,6 +28,10 @@ jobs:
         run: node --test scripts/verify-project-authoring-typescript-runtime.test.mjs
       - name: Test monotonic project authoring mutation certainty
         run: node --test scripts/verify-github-mutation-certainty.test.mjs
+      - name: Test compact execution state contracts
+        run: node --test scripts/verify-compact-execution-state-contracts.test.mjs
+      - name: Test compact state migration invariants
+        run: node --test scripts/verify-compact-state-migrations.test.mjs
       - name: Type-check semantic kernel contracts
         run: npm run typecheck
       - name: Build canonical runtime artifacts
