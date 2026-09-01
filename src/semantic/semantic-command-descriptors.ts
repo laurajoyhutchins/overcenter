@@ -105,6 +105,16 @@ const productionPromoteSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const releasePublishSchema = Object.freeze({
+  type:'object',
+  required:['plan','body'],
+  properties:{
+    plan:{type:'object'},
+    body:{type:'string',maxLength:125000},
+  },
+  additionalProperties:false,
+});
+
 const projectAdvanceSchema = Object.freeze({
   type:'object',
   required:['project_ref'],
@@ -203,6 +213,14 @@ const DESCRIPTORS = Object.freeze({
     'project.inspect',
     'Inspect authoritative repository-owned project state by project identity only. The runtime adapter derives the exact GitHub authority revision and graph frontier while keeping repository layout and host-specific runtime coordinates outside the primary semantic intent.',
     projectInspectSchema,
+    'primary',
+    Object.freeze({ worker:true, mcp:true }),
+  ),
+  'release.publish':descriptor(
+    'release.publish',
+    'release.publish',
+    'Publish one exact verified semantic release plan. The caller supplies only the plan and release notes; Overcenter revalidates current Git authority and repository-owned transition impacts, derives provider release bookkeeping, invokes the immutable release primitive, and returns verified publication evidence.',
+    releasePublishSchema,
     'primary',
     Object.freeze({ worker:true, mcp:true }),
   ),
