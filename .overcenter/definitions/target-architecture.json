@@ -281,6 +281,16 @@
       }
     },
     {
+      "id": "expose-github-pull-request-mark-ready-semantic-worker",
+      "priority": 1100,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "expose-orchestration-advance",
       "priority": 105,
       "requires": [
