@@ -32,8 +32,9 @@ function facts(revision, definition = baseDefinition) {
 
 test('GitHub-backed authoring discovers definition path internally, fences mutation, and rereads resulting authority', async () => {
   const calls = [];
+  let authorityRevision = initialRevision;
   const adapter = createProjectAuthoringGithubAdapter({
-    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' }),
+    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:authorityRevision, derivation:'overcenter-project-graph-v1' }),
     readDefinitionFacts:async ({ repository, revision }) => {
       calls.push(['read', repository, revision]);
       const definition = revision === resultingRevision
@@ -46,6 +47,7 @@ test('GitHub-backed authoring discovers definition path internally, fences mutat
       assert.match(request.branch, /^chore\/project-authoring-amend-[0-9a-f]{24}$/);
       assert.equal(request.changes[0].content.endsWith('\n'), true);
       assert.deepEqual(JSON.parse(request.changes[0].content).transitions.map((item) => item.id), ['foundation', 'second']);
+      authorityRevision = resultingRevision;
       return { ok:true, new_head:resultingRevision };
     },
     deriveProjectGraph:async ({ authority, facts:inputFacts }) => {
@@ -80,8 +82,9 @@ test('semantic idempotency is internal, stable for replay, and separates materia
 
 test('project.define bootstraps discovery plus canonical definition without caller-authored paths', async () => {
   const calls = [];
+  let authorityRevision = initialRevision;
   const adapter = createProjectAuthoringGithubAdapter({
-    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' }),
+    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:authorityRevision, derivation:'overcenter-project-graph-v1' }),
     readDefinitionFacts:async ({ revision }) => {
       calls.push(['read', revision]);
       if (revision === initialRevision) return { schema:'project-definition-facts-v1', repository:'example/project', revision, definitions:[] };
@@ -101,6 +104,7 @@ test('project.define bootstraps discovery plus canonical definition without call
       });
       assert.deepEqual(JSON.parse(definition.content), baseDefinition);
       assert.match(request.idempotency_key, /^project-define-v1:[0-9a-f]{64}$/);
+      authorityRevision = resultingRevision;
       return { ok:true, new_head:resultingRevision };
     },
     deriveProjectGraph:async ({ authority }) => {
