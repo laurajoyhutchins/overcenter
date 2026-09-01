@@ -119,6 +119,57 @@ test('remote production adapter fences, stages, deploys, and reads immutable fil
   ]);
 });
 
+test('remote production adapter derives verified replay evidence only from the current immutable receipt and source manifest', async () => {
+  const http = await import('./production-materialization-http.mjs');
+  const { productionRuntimeSourceManifest, SOURCE_MATERIALIZATION_RECEIPT_PATH } = await import('../lib/production-materialization-operation.js');
+  const sourceContent = 'export const exact=true;';
+  const sourceEntry = {
+    path:'api/exact.js',
+    hash:createHash('sha256').update(sourceContent).digest('hex'),
+    size:Buffer.byteLength(sourceContent),
+  };
+  const sourceManifest = await productionRuntimeSourceManifest([sourceEntry]);
+  const receipt = {
+    schema:'source-materialization-receipt-v1',
+    authority:'github',
+    direction:'github_to_runtime',
+    hatchable_project:'prod',
+    github_repository:repository,
+    github_branch:'main',
+    github_head:revision,
+    base_hatchable_version:8,
+    target_hatchable_version:9,
+    target_manifest_sha256:sourceManifest.sha256,
+    source_path_count:sourceManifest.path_count,
+  };
+  const receiptContent = JSON.stringify(receipt);
+  const receiptEntry = {
+    path:SOURCE_MATERIALIZATION_RECEIPT_PATH,
+    hash:createHash('sha256').update(receiptContent).digest('hex'),
+    size:Buffer.byteLength(receiptContent),
+  };
+  const calls = [];
+  const runtime = http.createProductionRuntimeAdapter({
+    callTool: async (name, args) => {
+      calls.push([name, args]);
+      if (name === 'get_project') return { current_version:9 };
+      if (name === 'list_files') return { files:[sourceEntry] };
+      if (name === 'read_file') return { content:receiptContent };
+      if (name === 'get_deployment') return { version:9, file_manifest:[sourceEntry, receiptEntry] };
+      throw new Error(`unexpected tool call: ${name}`);
+    },
+  });
+
+  assert.deepEqual(await runtime.inspect('prod', { repository, branch:'main' }), {
+    project:'prod',
+    version:9,
+    files:[sourceEntry],
+    verified_revision:revision,
+    verification_ref:`immutable-runtime:prod:9:${sourceManifest.sha256}`,
+  });
+  assert.deepEqual(calls.map(([name]) => name), ['get_project', 'list_files', 'read_file', 'get_deployment']);
+});
+
 test('rejects a non-production branch before source access', async () => {
   const { materializeProductionRevision } = await import('./production-materialization.mjs');
   let touched = false;
