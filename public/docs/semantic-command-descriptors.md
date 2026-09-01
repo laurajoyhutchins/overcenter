@@ -60,6 +60,15 @@ Publish one exact verified semantic release plan. The caller supplies only the p
 
 ## Advanced surface
 
+### github.pull_request.mark_ready
+
+Mark an exact-head draft pull request ready for review through the Overcenter GitHub App. The command fails closed if GitHub does not authorize the installation actor for this PR, never retries a mutation blindly, and authoritatively rereads state after uncertain mutation transport.
+
+- MCP name: `github_pull_request_mark_ready`
+- Required fields: `repo`, `pull_request`, `expected_head`
+- Semantic fields: `repo`, `pull_request`, `expected_head`, `run_id`
+- Exposure: worker=yes, MCP=yes
+
 ### github.release.create
 
 Create an immutable lightweight Git tag at an exact observed Git commit and a GitHub Release for that tag. Fail closed on expected-state drift or conflicting existing state. Exact replay converges through durable idempotency evidence; no tag retargeting, release editing, deletion, asset upload, note generation, or commit inference is performed. This MCP tool exposes conceptual github.release.create using the underscore-safe transport name.
