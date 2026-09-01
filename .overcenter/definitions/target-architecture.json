@@ -235,6 +235,18 @@
       }
     },
     {
+      "id": "make-agent-task-selection-explicit-and-session-scoped",
+      "priority": 97,
+      "requires": [
+        "define-primary-agent-session-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "make-graph-workers-self-recovering",
       "priority": 127,
       "requires": [
@@ -263,7 +275,7 @@
       "id": "make-project-advance-self-contained",
       "priority": 93,
       "requires": [
-        "define-primary-agent-session-contract"
+        "make-agent-task-selection-explicit-and-session-scoped"
       ],
       "executor": {
         "kind": "agent",
@@ -309,7 +321,7 @@
       "id": "make-project-inspect-decision-oriented",
       "priority": 95,
       "requires": [
-        "define-primary-agent-session-contract",
+        "make-agent-task-selection-explicit-and-session-scoped",
         "make-project-inspect-snapshot-correct"
       ],
       "executor": {
