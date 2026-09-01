@@ -17,6 +17,7 @@
     "src/semantic/execution-evidence.ts",
     "src/semantic/execution-lifecycle-contracts.ts",
     "src/semantic/orchestration-drive.ts",
+    "src/semantic/production-materialization-operation.ts",
     "src/semantic/project-authoring-work-branch.ts",
     "src/semantic/project-definition-changeset-writer.ts",
     "src/semantic/project-definition-mutation-authority.ts",
