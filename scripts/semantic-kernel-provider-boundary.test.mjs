@@ -3,22 +3,35 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 
-import { findForbiddenProviderImports } from './semantic-kernel-provider-boundary.mjs';
+import {
+  findForbiddenProviderImports,
+  findForbiddenRuntimeCompatibilityImports,
+} from './semantic-kernel-provider-boundary.mjs';
 
-async function providerNeutralSources(root = process.cwd()) {
+async function collectTypeScriptSources(directories, root = process.cwd(), { skipRuntime = false } = {}) {
   const files = new Map();
+  const runtimeDirectory = path.join(root, 'src', 'runtime');
   async function walk(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
       const absolute = path.join(directory, entry.name);
-      if (entry.isDirectory()) await walk(absolute);
-      else if (entry.isFile() && entry.name.endsWith('.ts')) {
+      if (entry.isDirectory()) {
+        if (skipRuntime && absolute === runtimeDirectory) continue;
+        await walk(absolute);
+      } else if (entry.isFile() && entry.name.endsWith('.ts')) {
         files.set(path.relative(root, absolute).split(path.sep).join('/'), await readFile(absolute, 'utf8'));
       }
     }
   }
-  await walk(path.join(root, 'src', 'semantic'));
-  await walk(path.join(root, 'src', 'ports'));
+  for (const directory of directories) await walk(path.join(root, directory));
   return files;
+}
+
+function providerNeutralSources(root = process.cwd()) {
+  return collectTypeScriptSources(['src/semantic', 'src/ports'], root);
+}
+
+function architectureSources(root = process.cwd()) {
+  return collectTypeScriptSources(['src', 'type-tests'], root, { skipRuntime: true });
 }
 
 test('rejects Hatchable imports from provider-neutral source', () => {
@@ -53,6 +66,25 @@ test('allows provider-neutral semantic and port imports', () => {
   );
 });
 
+test('rejects compatibility shims while allowing genuine runtime composition imports', () => {
+  assert.deepEqual(
+    findForbiddenRuntimeCompatibilityImports(new Map([
+      ['type-tests/stale.ts', "import { createProjectAdvancePorts } from '../src/runtime/project-advance-runtime-adapter';\n"],
+      ['type-tests/composition.ts', "import { createPortableRuntime } from '../src/runtime/portable-runtime';\n"],
+      ['type-tests/host.ts', "import { createProductionPromotionRuntime } from '../src/runtime/production-promotion-overcenter-host';\n"],
+    ])),
+    [{
+      path: 'type-tests/stale.ts',
+      module: 'project-advance-runtime-adapter',
+      specifier: '../src/runtime/project-advance-runtime-adapter',
+    }],
+  );
+});
+
 test('the checked-in semantic kernel and ports contain no runtime provider imports', async () => {
   assert.deepEqual(findForbiddenProviderImports(await providerNeutralSources()), []);
+});
+
+test('checked-in TypeScript imports use runtime only for genuine composition', async () => {
+  assert.deepEqual(findForbiddenRuntimeCompatibilityImports(await architectureSources()), []);
 });

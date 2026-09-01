@@ -1,5 +1,5 @@
 import { createProductionPromotionRuntime } from '../src/runtime/production-promotion-overcenter-host';
-import type { ProductionPromotionRuntimeHost } from '../src/runtime/production-promotion-runtime-adapter';
+import type { ProductionPromotionRuntimeHost } from '../src/ports/production-promotion-runtime-host';
 import type { ProductionPromotionIntent } from '../src/semantic/production-promotion-intent';
 
 const host = {} as ProductionPromotionRuntimeHost;

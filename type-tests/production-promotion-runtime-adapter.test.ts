@@ -1,8 +1,6 @@
 import { promoteProduction } from '../src/semantic/production-promotion-operation';
-import {
-  createProductionPromotionPorts,
-  type ProductionPromotionRuntimeHost,
-} from '../src/runtime/production-promotion-runtime-adapter';
+import { createProductionPromotionPorts } from '../src/adapters/production-promotion/runtime-adapter';
+import type { ProductionPromotionRuntimeHost } from '../src/ports/production-promotion-runtime-host';
 
 const strictRequests: Array<{
   repo: string;
