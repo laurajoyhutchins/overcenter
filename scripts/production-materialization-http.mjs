@@ -1,9 +1,16 @@
+import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import {
+  productionRuntimeSourceManifest,
+  SOURCE_MATERIALIZATION_RECEIPT_PATH,
+} from '../lib/production-materialization-operation.js';
 import { createCheckoutSourceAdapter } from './exact-revision-v8-verification.mjs';
 import { connectHatchableRemoteMcp } from './exact-revision-v8-verification-http.mjs';
 import { materializeProductionRevision } from './production-materialization.mjs';
 
 export const PRODUCTION_MATERIALIZATION_HTTP_SCHEMA = 'production-materialization-http-v1';
+
+const SHA40 = /^[0-9a-f]{40}$/;
 
 function reject(code, message) {
   throw Object.assign(new Error(message), { code });
@@ -15,13 +22,88 @@ function observedVersion(info, field) {
   return version;
 }
 
+function sha256(content) {
+  return createHash('sha256').update(content).digest('hex');
+}
+
+function immutableFiles(deployment) {
+  return deployment?.file_manifest ?? deployment?.files;
+}
+
+async function verifiedProjectionEvidence(callTool, project, version, context = {}) {
+  const repository = String(context.repository || '').trim();
+  const branch = String(context.branch || '').trim();
+  if (!repository || !branch) return null;
+
+  let receiptRead;
+  let deployment;
+  try {
+    receiptRead = await callTool('read_file', {
+      project_id:project,
+      path:SOURCE_MATERIALIZATION_RECEIPT_PATH,
+    });
+    deployment = await callTool('get_deployment', { project_id:project, version });
+  } catch {
+    return null;
+  }
+
+  const receiptContent = typeof receiptRead?.content === 'string' ? receiptRead.content : '';
+  if (!receiptContent) return null;
+
+  let receipt;
+  try { receipt = JSON.parse(receiptContent); }
+  catch { return null; }
+
+  const receiptRevision = String(receipt?.github_head || '').trim().toLowerCase();
+  if (
+    receipt?.schema !== 'source-materialization-receipt-v1'
+    || receipt?.authority !== 'github'
+    || receipt?.direction !== 'github_to_runtime'
+    || receipt?.hatchable_project !== project
+    || receipt?.github_repository !== repository
+    || receipt?.github_branch !== branch
+    || !SHA40.test(receiptRevision)
+    || Number(receipt?.target_hatchable_version) !== version
+  ) return null;
+
+  if (observedVersion(deployment, 'immutable production deployment version') !== version) return null;
+  const files = immutableFiles(deployment);
+  if (!Array.isArray(files)) return null;
+  const receiptEntry = files.find(file => file?.path === SOURCE_MATERIALIZATION_RECEIPT_PATH);
+  if (
+    !receiptEntry
+    || String(receiptEntry.hash || receiptEntry.sha256 || '').trim().toLowerCase() !== sha256(receiptContent)
+    || Number(receiptEntry.size) !== Buffer.byteLength(receiptContent)
+  ) return null;
+
+  let sourceManifest;
+  try { sourceManifest = await productionRuntimeSourceManifest(files); }
+  catch { return null; }
+  if (
+    sourceManifest.sha256 !== String(receipt?.target_manifest_sha256 || '').trim().toLowerCase()
+    || sourceManifest.path_count !== Number(receipt?.source_path_count)
+  ) return null;
+
+  return Object.freeze({
+    verified_revision:receiptRevision,
+    verification_ref:`immutable-runtime:${project}:${version}:${sourceManifest.sha256}`,
+  });
+}
+
 export function createProductionRuntimeAdapter({ callTool } = {}) {
   if (typeof callTool !== 'function') reject('PRODUCTION_RUNTIME_ADAPTER_INVALID', 'callTool is required');
   return {
-    async inspect(project) {
+    async inspect(project, context = {}) {
       const info = await callTool('get_project', { project_id: project });
       const listed = await callTool('list_files', { project_id: project });
-      return { project, version: observedVersion(info, 'production runtime version'), files: listed?.files };
+      const version = observedVersion(info, 'production runtime version');
+      const evidence = await verifiedProjectionEvidence(callTool, project, version, context);
+      return {
+        project,
+        version,
+        files:listed?.files,
+        ...(evidence || {}),
+      };
     },
     async stage({ project, revision, expected_version, writes, deletes }) {
       const before = await callTool('get_project', { project_id: project });
@@ -59,7 +141,7 @@ export function createProductionRuntimeAdapter({ callTool } = {}) {
       const deployment = await callTool('get_deployment', { project_id: project, version });
       return {
         version: Number(deployment?.version),
-        files: deployment?.file_manifest ?? deployment?.files,
+        files: immutableFiles(deployment),
       };
     },
     async runRegressions({ project }) {

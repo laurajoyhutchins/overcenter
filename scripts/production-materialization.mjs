@@ -1,32 +1,19 @@
 import { createHash } from 'node:crypto';
 import { canonicalJson } from '../lib/canonical-json.js';
+import {
+  materializeProduction,
+  SOURCE_MATERIALIZATION_RECEIPT_PATH,
+} from '../lib/production-materialization-operation.js';
 import { canonicalizeHatchableText } from './exact-revision-v8-verification.mjs';
 
 export const PRODUCTION_MATERIALIZATION_SCHEMA = 'production-materialization-v1';
 export const SOURCE_MATERIALIZATION_RECEIPT_SCHEMA = 'source-materialization-receipt-v1';
-export const SOURCE_MATERIALIZATION_RECEIPT_PATH = 'public/.overcenter/source-materialization.json';
+export { SOURCE_MATERIALIZATION_RECEIPT_PATH };
 
 const SHA40 = /^[0-9a-f]{40}$/;
 
 function reject(code, message) {
   throw Object.assign(new Error(message), { code });
-}
-
-function sha256(content) {
-  return createHash('sha256').update(content).digest('hex');
-}
-
-function byteSize(content) {
-  return Buffer.byteLength(content);
-}
-
-function isSyncableSourcePath(pathInput) {
-  const path = typeof pathInput === 'string' ? pathInput : '';
-  if (path === SOURCE_MATERIALIZATION_RECEIPT_PATH) return false;
-  if (!path || path.startsWith('/') || path.includes('\\') || path.split('/').includes('..')) return false;
-  if (['hatchable.toml', 'package.json', 'seed.sql'].includes(path)) return true;
-  if (/^migrations\/[^/]+\.sql$/.test(path)) return true;
-  return /^(api|lib|mcp|pages|public)\/.+/.test(path);
 }
 
 function normalizeRevision(value) {
@@ -50,74 +37,39 @@ function normalizeVersion(value, field) {
 function normalizeRuntimeFiles(filesInput) {
   if (!Array.isArray(filesInput)) reject('INVALID_PRODUCTION_RUNTIME_OBSERVATION', 'runtime files must be an array');
   return filesInput
-    .filter(file => !file?.virtual && (isSyncableSourcePath(file?.path) || file?.path === SOURCE_MATERIALIZATION_RECEIPT_PATH))
+    .filter(file => !file?.virtual)
     .map(file => ({
-      path: String(file.path),
-      hash: String(file.hash || file.sha256 || '').toLowerCase(),
+      path: String(file?.path || ''),
+      hash: String(file?.hash || file?.sha256 || '').toLowerCase(),
       size: file?.size === undefined || file?.size === null ? null : Number(file.size),
     }))
     .sort((a, b) => a.path.localeCompare(b.path));
 }
 
-function desiredSourceRecords(filesInput) {
-  if (!Array.isArray(filesInput)) reject('INVALID_PRODUCTION_SOURCE_OBSERVATION', 'source files must be an array');
-  const seen = new Set();
-  const records = [];
-  for (const file of filesInput) {
-    const path = String(file?.path || '');
-    if (!isSyncableSourcePath(path)) continue;
-    if (seen.has(path)) reject('DUPLICATE_PRODUCTION_SOURCE_PATH', `duplicate production source path: ${path}`);
-    if (typeof file?.content !== 'string' || file.content.includes('\u0000')) reject('INVALID_PRODUCTION_SOURCE_CONTENT', `production source must be UTF-8 text: ${path}`);
-    seen.add(path);
-    const content = canonicalizeHatchableText(file.content);
-    records.push({ path, content, hash: sha256(content), size: byteSize(content) });
-  }
-  return records.sort((a, b) => a.path.localeCompare(b.path));
+function sha256(content) {
+  return createHash('sha256').update(content).digest('hex');
 }
 
-function sourceManifestSha256(records) {
-  return sha256(canonicalJson(records.map(({ path, hash, size }) => ({ path, sha256: hash, size }))));
-}
-
-function materializationReceipt({ project, repository, branch, revision, baseVersion, records }) {
-  return {
+function receiptForPlan(plan, project) {
+  return Object.freeze({
     schema: SOURCE_MATERIALIZATION_RECEIPT_SCHEMA,
     authority: 'github',
     direction: 'github_to_runtime',
     hatchable_project: project,
-    github_repository: repository,
-    github_branch: branch,
-    github_head: revision,
-    base_hatchable_version: baseVersion,
-    target_hatchable_version: baseVersion + 1,
-    target_manifest_sha256: sourceManifestSha256(records),
-    source_path_count: records.length,
-  };
+    github_repository: plan.repository,
+    github_branch: plan.branch,
+    github_head: plan.revision,
+    base_hatchable_version: plan.expected_version,
+    target_hatchable_version: plan.target_version,
+    target_manifest_sha256: plan.source_manifest_sha256,
+    source_path_count: plan.source_path_count,
+  });
 }
 
-function verifyObservedMaterialization(filesInput, records, receiptContent, { requireSize = true } = {}) {
-  const files = normalizeRuntimeFiles(filesInput);
-  const observed = new Map(files.map(file => [file.path, file]));
-  const expectedPaths = new Set(records.map(record => record.path));
-  const differences = [];
-
-  for (const record of records) {
-    const file = observed.get(record.path);
-    if (!file) differences.push({ path: record.path, kind: 'missing_source_path' });
-    else if (file.hash !== record.hash || (requireSize && file.size !== record.size)) differences.push({ path: record.path, kind: 'source_content_mismatch' });
-  }
-  for (const file of files) {
-    if (isSyncableSourcePath(file.path) && !expectedPaths.has(file.path)) differences.push({ path: file.path, kind: 'unexpected_source_path' });
-  }
-
-  const receipt = observed.get(SOURCE_MATERIALIZATION_RECEIPT_PATH);
-  const expectedReceiptHash = sha256(receiptContent);
-  const expectedReceiptSize = byteSize(receiptContent);
-  if (!receipt) differences.push({ path: SOURCE_MATERIALIZATION_RECEIPT_PATH, kind: 'receipt_missing' });
-  else if (receipt.hash !== expectedReceiptHash || (requireSize && receipt.size !== expectedReceiptSize)) differences.push({ path: SOURCE_MATERIALIZATION_RECEIPT_PATH, kind: 'receipt_content_mismatch' });
-
-  if (differences.length) reject('PRODUCTION_MATERIALIZATION_MISMATCH', 'production runtime source does not match the staged exact revision');
-  return { source_manifest_sha256: sourceManifestSha256(records) };
+function receiptMatches(files, content) {
+  const entry = normalizeRuntimeFiles(files).find(file => file.path === SOURCE_MATERIALIZATION_RECEIPT_PATH);
+  if (!entry) return false;
+  return entry.hash === sha256(content) && entry.size === Buffer.byteLength(content);
 }
 
 export async function materializeProductionRevision(input = {}, adapters = {}) {
@@ -131,45 +83,80 @@ export async function materializeProductionRevision(input = {}, adapters = {}) {
     reject('PRODUCTION_MATERIALIZATION_ADAPTER_INVALID', 'complete source and runtime adapters are required');
   }
 
-  const source = await adapters.source.observe({ repository, revision });
-  if (source?.repository !== repository || String(source?.revision || '').toLowerCase() !== revision) reject('PRODUCTION_SOURCE_REVISION_MISMATCH', 'source observation does not match the exact production revision');
-  const records = desiredSourceRecords(source.files);
+  let receiptContent = null;
+  let immutableFiles = null;
+  let regression = null;
 
-  const before = await adapters.runtime.inspect(project);
-  const baseVersion = normalizeVersion(before?.version, 'runtime version');
-  const current = normalizeRuntimeFiles(before?.files);
-  const desiredPaths = new Set(records.map(record => record.path));
-  const deletes = current.filter(file => isSyncableSourcePath(file.path) && !desiredPaths.has(file.path)).map(file => file.path).sort();
-  const receipt = materializationReceipt({ project, repository, branch, revision, baseVersion, records });
-  const receiptContent = canonicalJson(receipt);
-  const writes = records.map(({ path, content }) => ({ path, content }));
-  writes.push({ path: SOURCE_MATERIALIZATION_RECEIPT_PATH, content: receiptContent });
-  writes.sort((a, b) => a.path.localeCompare(b.path));
+  const result = await materializeProduction({ repo:repository }, {
+    resolveProductionSource: async repo => ({ repository:repo, branch, revision }),
+    observeSource: async coordinate => {
+      const source = await adapters.source.observe({ repository:coordinate.repository, revision:coordinate.revision });
+      if (source?.repository !== repository || String(source?.revision || '').trim().toLowerCase() !== revision) {
+        reject('PRODUCTION_SOURCE_REVISION_MISMATCH', 'source observation does not match the exact production revision');
+      }
+      return { ...coordinate, files:source.files };
+    },
+    normalizeSourceContent: file => canonicalizeHatchableText(file.content),
+    observeRuntime: async () => {
+      const before = await adapters.runtime.inspect(project, { repository, branch });
+      return {
+        runtime_ref:project,
+        version:normalizeVersion(before?.version, 'runtime version'),
+        files:normalizeRuntimeFiles(before?.files),
+        verified_revision:before?.verified_revision ?? null,
+        verification_ref:before?.verification_ref ?? null,
+      };
+    },
+    stageRuntime: async plan => {
+      const receipt = receiptForPlan(plan, project);
+      receiptContent = canonicalJson(receipt);
+      const writes = [...plan.writes, { path:SOURCE_MATERIALIZATION_RECEIPT_PATH, content:receiptContent }]
+        .sort((left, right) => left.path.localeCompare(right.path));
+      await adapters.runtime.stage({
+        project,
+        revision:plan.revision,
+        expected_version:plan.expected_version,
+        writes,
+        deletes:plan.deletes,
+        receipt,
+      });
+    },
+    inspectRuntimeDraft: async () => {
+      const draft = await adapters.runtime.inspectDraft(project);
+      return { runtime_ref:project, version:normalizeVersion(draft?.version, 'draft version'), files:normalizeRuntimeFiles(draft?.files) };
+    },
+    deployRuntime: async plan => {
+      const deployed = await adapters.runtime.deploy({ project, revision:plan.revision, expected_version:plan.expected_version });
+      return { runtime_ref:project, version:normalizeVersion(deployed?.version, 'deployed version') };
+    },
+    inspectImmutableDeployment: async deployment => {
+      const immutable = await adapters.runtime.inspectDeployment({ project, version:deployment.version });
+      immutableFiles = immutable?.files;
+      return { runtime_ref:project, version:normalizeVersion(immutable?.version, 'immutable deployment version'), files:normalizeRuntimeFiles(immutable?.files) };
+    },
+    verifyProduction: async request => {
+      if (typeof receiptContent !== 'string' || !receiptMatches(immutableFiles, receiptContent)) {
+        return { ok:false, verification_ref:'' };
+      }
+      regression = await adapters.runtime.runRegressions({ project, deployment_version:request.version, revision:request.revision });
+      const ok = regression?.schema === 'regression-verification-v1' && regression?.ok === true && Number(regression?.failed || 0) === 0;
+      return {
+        ok,
+        verification_ref:ok ? `runtime-deployment:${request.runtime_ref}:${request.version}:${request.source_manifest_sha256}` : '',
+      };
+    },
+  });
 
-  await adapters.runtime.stage({ project, revision, expected_version: baseVersion, writes, deletes, receipt });
-  const draft = await adapters.runtime.inspectDraft(project);
-  if (normalizeVersion(draft?.version, 'draft version') !== baseVersion) reject('PRODUCTION_RUNTIME_VERSION_MISMATCH', 'production runtime version changed while staging');
-  verifyObservedMaterialization(draft.files, records, receiptContent, { requireSize: false });
-
-  const deployed = await adapters.runtime.deploy({ project, revision, expected_version: baseVersion });
-  const deployedVersion = normalizeVersion(deployed?.version, 'deployed version');
-  if (deployedVersion !== baseVersion + 1) reject('PRODUCTION_DEPLOYMENT_VERSION_MISMATCH', 'production deployment must be the immediate successor');
-  const immutable = await adapters.runtime.inspectDeployment({ project, version: deployedVersion });
-  if (normalizeVersion(immutable?.version, 'immutable deployment version') !== deployedVersion) reject('PRODUCTION_DEPLOYMENT_VERSION_MISMATCH', 'immutable deployment observation returned the wrong version');
-  verifyObservedMaterialization(immutable.files, records, receiptContent, { requireSize: true });
-
-  const regression = await adapters.runtime.runRegressions({ project, deployment_version: deployedVersion, revision });
-  if (!regression || regression.schema !== 'regression-verification-v1') reject('PRODUCTION_REGRESSION_INVALID', 'production regressions returned an invalid schema');
-  if (regression.ok !== true || Number(regression.failed || 0) !== 0) reject('PRODUCTION_REGRESSION_FAILED', 'production regressions did not pass');
-
-  return {
-    ok: true,
-    schema: PRODUCTION_MATERIALIZATION_SCHEMA,
-    repository,
-    revision,
-    branch,
-    deployment_version: deployedVersion,
-    source_manifest_sha256: receipt.target_manifest_sha256,
+  return Object.freeze({
+    ok:true,
+    schema:PRODUCTION_MATERIALIZATION_SCHEMA,
+    outcome:result.outcome,
+    repository:result.repository,
+    revision:result.revision,
+    branch:result.branch,
+    deployment_version:result.deployment_version,
+    source_manifest_sha256:result.source_manifest_sha256,
+    verification_ref:result.verification_ref,
     regression,
-  };
+  });
 }
