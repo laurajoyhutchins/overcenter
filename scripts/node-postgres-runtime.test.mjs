@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import pg from 'pg';
-import { createNodePostgresRuntime } from '../.portable-build/runtime/node-postgres-runtime.js';
+import { createNodePostgresRuntime } from '../.portable-build/adapters/postgres/node-postgres-runtime.js';
 
 const { Client } = pg;
 
@@ -17,7 +17,7 @@ function postgresClient() {
 }
 
 test('ordinary Node and Postgres publish and verify provider-neutral runtime provenance', async () => {
-  const source = await readFile(new URL('../src/runtime/node-postgres-runtime.ts', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../src/adapters/postgres/node-postgres-runtime.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /from ['\"]hatchable['\"]|from ['\"]@hatchable\//);
 
   const client = postgresClient();

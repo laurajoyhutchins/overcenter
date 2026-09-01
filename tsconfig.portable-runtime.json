@@ -9,7 +9,9 @@
   "include": [
     "src/semantic/runtime-provenance.ts",
     "src/semantic/semantic-identities.ts",
+    "src/ports/portable-runtime.ts",
     "src/runtime/portable-runtime.ts",
+    "src/adapters/postgres/node-postgres-runtime.ts",
     "src/runtime/node-postgres-runtime.ts"
   ],
   "exclude": []
