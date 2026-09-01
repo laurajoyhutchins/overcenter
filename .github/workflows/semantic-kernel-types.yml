@@ -39,6 +39,7 @@ jobs:
           diff -u lib/execution-evidence.js .semantic-build/execution-evidence.js
           diff -u lib/execution-lifecycle-contracts.js .semantic-build/execution-lifecycle-contracts.js
           diff -u lib/orchestration-drive.js .semantic-build/orchestration-drive.js
+          diff -u lib/production-materialization-operation.js .semantic-build/production-materialization-operation.js
           diff -u lib/project-authoring-command-contract.js .semantic-build/project-authoring-command-contract.js
           diff -u lib/project-authoring-github-runtime.js .semantic-build/project-authoring-github-runtime.js
           diff -u lib/project-authoring-runtime.js .semantic-build/project-authoring-runtime.js
