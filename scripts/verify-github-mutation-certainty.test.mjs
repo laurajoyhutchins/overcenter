@@ -1,7 +1,36 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-import { applyGithubChangeset, GitHubChangesetError } from '../lib/github-apply-changeset.js';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const nodeModules = path.join(root, 'node_modules');
+const libAlias = path.join(nodeModules, 'lib');
+const hatchableStub = path.join(nodeModules, 'hatchable');
+const created = [];
+
+fs.mkdirSync(nodeModules, { recursive:true });
+if (!fs.existsSync(libAlias)) {
+  fs.symlinkSync(path.join(root, 'lib'), libAlias, 'dir');
+  created.push(libAlias);
+}
+if (!fs.existsSync(hatchableStub)) {
+  fs.mkdirSync(hatchableStub, { recursive:true });
+  fs.writeFileSync(path.join(hatchableStub, 'package.json'), JSON.stringify({ name:'hatchable', type:'module', exports:'./index.js' }));
+  fs.writeFileSync(path.join(hatchableStub, 'index.js'), [
+    'export const api = {};',
+    'export const db = {};',
+    'export const config = { get() { throw new Error("hatchable config is unavailable in focused Node regression"); } };',
+  ].join('\n'));
+  created.push(hatchableStub);
+}
+
+const { applyGithubChangeset, GitHubChangesetError } = await import('../lib/github-apply-changeset.js');
+
+test.after(() => {
+  for (const target of created.reverse()) fs.rmSync(target, { recursive:true, force:true });
+});
 
 const SHA = {
   base: '1111111111111111111111111111111111111111',
