@@ -17,6 +17,7 @@
     "test:integration": "node scripts/test-integration.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/client": "2",
     "pg": "8.13.1"
   },
   "devDependencies": {
