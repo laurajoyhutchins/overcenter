@@ -5,16 +5,12 @@ import { tmpdir } from 'node:os';
 import test from 'node:test';
 import { createTransportDiscoverer } from './transport-discoverer.mjs';
 
-test('discovers MCP input schema references without executing adapters', async () => {
+test('discovers current MCP input schema references without executing adapters', async () => {
   const result = await createTransportDiscoverer({ mcpRoot:'mcp', apiRoot:null }).discover({ repoRoot:process.cwd() });
-  const contract = result.candidates.find((item) => item.source_identity === 'mcp:mcp/work.settle.js#inputSchema');
+  const contract = result.candidates.find((item) => item.source_identity === 'mcp:mcp/project.inspect.js#inputSchema');
   assert.ok(contract);
-  assert.match(contract.structure.input_schema.syntax, /WORK_SETTLE_INPUT_SCHEMA/);
-  assert.deepEqual(contract.observed_relationships, [{
-    kind:'source-reference',
-    module:'lib/work-settle-contract.js',
-    symbol:'WORK_SETTLE_INPUT_SCHEMA',
-  }]);
+  assert.equal(contract.structure.input_schema.syntax, 'descriptor.input_schema');
+  assert.deepEqual(contract.observed_relationships, []);
 });
 
 test('discovers static HTTP request and response boundary facts', async () => {
