@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
   publishAndVerifyRuntime,
   verifyRuntimeObservation,
-} from '../.semantic-build/runtime-provenance.js';
+} from '../dist/lib/runtime-provenance.js';
 
 test('verifies a runtime only when the observed immutable artifact matches the intended artifact', () => {
   const artifact = {
@@ -27,7 +27,7 @@ test('fails closed when runtime artifact identity does not match', () => {
   const observation = {
     deploymentRef: 'provider:deployment:385',
     observedArtifactDigest: 'sha256:2222222222222222222222222222222222222222222222222222222222222222',
-    fence: 'provider:fence:385',
+    fence: 'provider:fence:386',
   };
 
   assert.throws(

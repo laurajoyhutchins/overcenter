@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import pg from 'pg';
-import { createNodePostgresRuntime } from '../.portable-build/adapters/postgres/node-postgres-runtime.js';
+import { createNodePostgresRuntime } from '../dist/portable/adapters/postgres/node-postgres-runtime.js';
 
 const { Client } = pg;
 

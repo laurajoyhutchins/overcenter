@@ -252,6 +252,18 @@
       }
     },
     {
+      "id": "establish-dist-runtime-artifact-boundary",
+      "priority": 1000,
+      "requires": [
+        "make-production-materialization-typescript-host-independent"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "expose-compact-primary-agent-discovery",
       "priority": 85,
       "requires": [
