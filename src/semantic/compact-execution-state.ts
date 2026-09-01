@@ -65,7 +65,7 @@ export interface ProofEvidenceRef {
 
 export interface ProofState {
   readonly proof_key: string;
-  readonly subject_key: string | null;
+  readonly subject_key: string;
   readonly predicate_kind: string;
   readonly authority_repository: string;
   readonly authority_revision: string;
