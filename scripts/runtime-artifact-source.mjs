@@ -62,23 +62,27 @@ export function createRuntimeArtifactSourceAdapter(baseAdapter, options = {}) {
   return {
     async observe(coordinate) {
       const source = await baseAdapter.observe(coordinate);
+      const projected = new Map((source?.files || []).map((file) => [file.path, file]));
       const artifactFiles = await readArtifactFiles();
-      const overlays = new Map();
+      const seen = new Set();
+      let applied = 0;
+
       for (const artifact of artifactFiles) {
         const path = runtimePathForDistArtifact(artifact?.path);
-        if (!path) continue;
+        if (!path || !projected.has(path)) continue;
         if (typeof artifact?.content !== 'string' || artifact.content.includes('\u0000')) {
           reject('RUNTIME_ARTIFACT_UTF8_REQUIRED', `runtime artifact must be UTF-8 text: ${artifact?.path || ''}`);
         }
-        if (overlays.has(path)) reject('RUNTIME_ARTIFACT_DUPLICATE_PATH', `duplicate runtime artifact path: ${path}`);
-        overlays.set(path, { path, content: artifact.content });
-      }
-      if (requireArtifact && overlays.size === 0) {
-        reject('RUNTIME_ARTIFACT_REQUIRED', 'dist contains no Hatchable runtime artifact files');
+        if (seen.has(path)) reject('RUNTIME_ARTIFACT_DUPLICATE_PATH', `duplicate runtime artifact path: ${path}`);
+        seen.add(path);
+        projected.set(path, { path, content: artifact.content });
+        applied += 1;
       }
 
-      const projected = new Map((source?.files || []).map((file) => [file.path, file]));
-      for (const [path, file] of overlays) projected.set(path, file);
+      if (requireArtifact && applied === 0) {
+        reject('RUNTIME_ARTIFACT_REQUIRED', 'dist contains no established Hatchable runtime artifact targets');
+      }
+
       return {
         ...source,
         files: [...projected.values()].sort((left, right) => left.path.localeCompare(right.path)),
