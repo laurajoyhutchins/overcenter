@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createProjectTransitionLeasePostgresStore } from '../lib/project-transition-lease-store.js';
 import { createProjectTransitionLeaseService } from '../lib/project-transition-leases.js';
+import { createProjectTransitionStaleAuthorityReconciler } from '../lib/project-transition-stale-reconciliation.js';
 import { PRODUCTIVE_STAGES } from '../lib/work-lifecycle.js';
 
 function responsibilitiesFor(target) {
@@ -87,6 +88,55 @@ test('project transition settlement delegates the lease and slot state change to
   assert.equal(atomicCalls, 1);
   assert.equal(splitSettlementUpdateCalled, false);
   assert.equal(splitSlotDeleteCalled, false);
+});
+
+test('stale-authority reconciliation uses the same atomic lease and slot settlement primitive', async () => {
+  const lease = {
+    lease_id:'00000000-0000-4000-8000-000000000003',
+    run_id:'run-1',
+    project_ref:'github:laurajoyhutchins/overcenter',
+    transition_id:'transition-a',
+    repository:'laurajoyhutchins/overcenter',
+    authority_revision:'1'.repeat(40),
+    authority_derivation:'overcenter-project-graph-v1',
+    graph_fingerprint:'b'.repeat(64),
+    transition_definition_fingerprint:'c'.repeat(64),
+    transition_revision_fingerprint:'d'.repeat(64),
+    transition_dependency_fingerprint:'e'.repeat(64),
+    slot_key:'project_transition:github:laurajoyhutchins/overcenter:transition-a',
+    status:'active',
+    expires_at:'2026-09-01T02:00:00Z',
+  };
+  let atomicCalls = 0;
+  const store = {
+    async getLease() { return lease; },
+    async getRun() { return { run_id:'run-1', status:'active', deadline_at:'2026-09-01T03:00:00Z' }; },
+    async getSlot() { return { lease_id:lease.lease_id, expires_at:'2026-09-01T02:00:00Z' }; },
+    async updateLease() { throw new Error('stale reconciliation must not split lease settlement from slot release'); },
+    async deleteSlot() { throw new Error('stale reconciliation must not split lease settlement from slot release'); },
+    async settleLeaseAtomically(input) {
+      atomicCalls += 1;
+      return { ...lease, status:'settled', disposition:input.disposition, settle_idempotency_key:input.settle_idempotency_key, settled_at:input.settled_at };
+    },
+  };
+  const reconciler = createProjectTransitionStaleAuthorityReconciler({ store, now:() => '2026-09-01T01:45:00Z' });
+  const result = await reconciler.reconcile({
+    lease_ref:lease.lease_id,
+    run_id:'run-1',
+    idempotency_key:'stale-atomic-settlement',
+    stale_error:{
+      code:'PROJECT_TRANSITION_AUTHORITY_STALE',
+      details:{
+        lease_ref:lease.lease_id,
+        expected_revision:lease.authority_revision,
+        actual_revision:'2'.repeat(40),
+        reason:'definition-changed',
+      },
+    },
+  });
+  assert.equal(result.status, 'settled');
+  assert.equal(result.disposition, 'requeue');
+  assert.equal(atomicCalls, 1);
 });
 
 test('postgres project transition settlement writes the lease receipt and releases the slot in one transaction', async () => {
