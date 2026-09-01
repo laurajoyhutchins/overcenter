@@ -1,6 +1,7 @@
-import type { ProductionPromotionIntent } from '../semantic/production-promotion-intent';
-import { promoteProduction, type ProductionPromotionResult } from '../semantic/production-promotion-operation';
-import { createProductionPromotionPorts, type ProductionPromotionRuntimeHost } from './production-promotion-runtime-adapter';
+import type { ProductionPromotionIntent } from '../semantic/production-promotion-intent.js';
+import { promoteProduction, type ProductionPromotionResult } from '../semantic/production-promotion-operation.js';
+import { createProductionPromotionPorts } from '../adapters/production-promotion/runtime-adapter.js';
+import type { ProductionPromotionRuntimeHost } from '../ports/production-promotion-runtime-host.js';
 
 export type ProductionPromotionRuntime = Readonly<{
   promote(intent: ProductionPromotionIntent): Promise<ProductionPromotionResult>;
