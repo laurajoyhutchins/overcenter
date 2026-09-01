@@ -21,7 +21,7 @@ test('project authoring runtime is owned by TypeScript source through project.am
     assert.equal(included.has(source), true, `${source} must be emitted by tsconfig.semantic.runtime.json`);
     assert.match(
       workflow,
-      new RegExp(`diff -u lib/${name}\\.js \\.semantic-build/${name}\\.js`),
+      new RegExp(`diff -u lib/${name}\\.js dist/lib/${name}\\.js`),
       `lib/${name}.js must be verified byte-for-byte against TypeScript output`,
     );
   }
