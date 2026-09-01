@@ -49,6 +49,15 @@ Inspect authoritative repository-owned project state by project identity only. T
 - Semantic fields: `project_ref`
 - Exposure: worker=yes, MCP=yes
 
+### release.publish
+
+Publish one exact verified semantic release plan. The caller supplies only the plan and release notes; Overcenter revalidates current Git authority and repository-owned transition impacts, derives provider release bookkeeping, invokes the immutable release primitive, and returns verified publication evidence.
+
+- MCP name: `release.publish`
+- Required fields: `plan`, `body`
+- Semantic fields: `plan`, `body`
+- Exposure: worker=yes, MCP=yes
+
 ## Advanced surface
 
 ### github.release.create
