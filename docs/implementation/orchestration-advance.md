@@ -1,5 +1,7 @@
 # orchestration.advance implementation plan
 
+> **Document status: Historical implementation plan.** `orchestration.advance` and the higher-level `project.advance` surface have shipped. This file preserves the implementation path; use [`../agent-session-contract.md`](../agent-session-contract.md), [`../command-reference.md`](../command-reference.md), and current `mcp/` contracts for caller behavior.
+
 ## Goal
 
 Expose one production `orchestration.advance` semantic operation that accepts only a targeted `run_id`, rereads authoritative project-graph state, selects and acquires one READY transition deterministically, and advances it as far as Overcenter can prove without caller-authored graph or lifecycle state.

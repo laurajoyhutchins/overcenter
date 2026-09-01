@@ -1,5 +1,7 @@
 # TypeScript Semantic Kernel Implementation Plan
 
+> **Document status: Completed implementation record.** The proof slice below is finished and preserved as engineering evidence. Use current source, [`../command-reference.md`](../command-reference.md), and executable contracts for present behavior.
+
 **Goal:** Prove TypeScript removes concrete invalid-state and contract-drift classes in Overcenter's command and project-graph semantic core without changing external runtime contracts.
 
 **Architecture:** Author typed semantic source under `src/semantic/`. Hatchable currently does not transpile TypeScript syntax in synchronized runtime files, so only runtime-bearing modules are mechanically emitted to plain JavaScript under `lib/`, and CI rejects drift between TS source and emitted JS. Type-only semantic declarations have no runtime mirror. API/MCP shells remain JavaScript and runtime validation remains authoritative.
