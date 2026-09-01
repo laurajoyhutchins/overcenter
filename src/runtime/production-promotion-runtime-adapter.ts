@@ -1,1 +1,0 @@
-export * from '../adapters/production-promotion/runtime-adapter.js';
