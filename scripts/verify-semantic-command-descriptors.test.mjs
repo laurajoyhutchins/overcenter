@@ -72,10 +72,10 @@ test('production promotion intent is exposed after its runtime host exists', () 
   assert.deepEqual(descriptor.exposure, { worker: true, mcp: true });
 });
 
-test('project advance intent hides run choreography behind runtime adapter exposure', () => {
+test('project advance exposes selection and explicit resumption while hiding run creation choreography', () => {
   const descriptor = semanticCommandDescriptor('project.advance');
   assert.equal(descriptor.surface, 'primary');
-  assert.deepEqual(descriptor.semantic_fields, ['project_ref']);
+  assert.deepEqual(descriptor.semantic_fields, ['project_ref', 'transition_id', 'resume_run_id']);
   assert.deepEqual(descriptor.required_fields, ['project_ref']);
   assert.deepEqual(descriptor.exposure, { worker: true, mcp: true });
 });

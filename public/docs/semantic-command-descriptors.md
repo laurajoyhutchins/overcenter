@@ -15,11 +15,11 @@ Promote the current verified development revision by repository identity only. T
 
 ### project.advance
 
-Advance an authoritative project graph by repository-owned project identity only. The runtime adapter owns run creation or resumption, horizon selection, lease acquisition, settlement choreography, and continuation behind this primary semantic boundary.
+Advance an authoritative project graph in an independent session by default, optionally nominating one exact transition or explicitly resuming one prior run. Overcenter rereads project authority, owns run identity, target fencing, exclusive lease acquisition, settlement choreography, and continuation; exact transition selection never silently falls back to unrelated work.
 
 - MCP name: `project.advance`
 - Required fields: `project_ref`
-- Semantic fields: `project_ref`
+- Semantic fields: `project_ref`, `transition_id`, `resume_run_id`
 - Exposure: worker=yes, MCP=yes
 
 ### project.amend
@@ -42,7 +42,7 @@ Define canonical repository-owned project graph facts at an exact observed Git r
 
 ### project.inspect
 
-Inspect authoritative repository-owned project state by project identity only. The runtime adapter derives the exact GitHub authority revision and graph frontier while keeping repository layout and host-specific runtime coordinates outside the primary semantic intent.
+Inspect authoritative repository-owned project state by project identity only. The runtime adapter derives the exact GitHub authority revision, graph frontier, and bounded frontier occupancy while keeping repository layout and host-specific runtime coordinates outside the primary semantic intent.
 
 - MCP name: `project.inspect`
 - Required fields: `project_ref`
