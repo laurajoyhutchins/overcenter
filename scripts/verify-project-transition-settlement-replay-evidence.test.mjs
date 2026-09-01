@@ -28,6 +28,19 @@ test('idempotent project-transition settlement replay preserves graph revision e
     async insertLease(row) { leases.set(row.lease_id, { ...row }); return leases.get(row.lease_id); },
     async insertSlot(row) { slots.set(row.slot_key, { ...row }); return slots.get(row.slot_key); },
     async updateLease(id, patch) { const row = { ...leases.get(id), ...patch }; leases.set(id, row); return row; },
+    async settleLeaseAtomically(input) {
+      const row = {
+        ...leases.get(input.lease_id),
+        status:'settled',
+        disposition:input.disposition,
+        settle_idempotency_key:input.settle_idempotency_key,
+        settled_at:input.settled_at,
+        graph_revision_change:input.graph_revision_change || null,
+      };
+      leases.set(input.lease_id, row);
+      if (slots.get(input.slot_key)?.lease_id === input.lease_id) slots.delete(input.slot_key);
+      return row;
+    },
     async deleteSlot(key, id) { if (slots.get(key)?.lease_id === id) slots.delete(key); },
   };
   const transition = { id:'transition-a', priority:1, requires:[], lifecycle:{ current_stage:'ENABLE', responsibilities:responsibilitiesFor('ENABLE') }, executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' }, phase_bindings:{} };
