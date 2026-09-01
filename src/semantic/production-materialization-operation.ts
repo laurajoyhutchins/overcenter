@@ -2,6 +2,7 @@ export const PRODUCTION_MATERIALIZATION_SCHEMA = 'production-materialization-v2'
 export const SOURCE_MATERIALIZATION_RECEIPT_PATH = 'public/.overcenter/source-materialization.json' as const;
 
 const SHA40 = /^[0-9a-f]{40}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 export type ProductionMaterializationIntent = Readonly<{ repo: string }>;
@@ -221,6 +222,22 @@ function runtimeSourceMap(files: readonly RuntimeSourceFile[]): Map<string, Runt
     result.set(path, file);
   }
   return result;
+}
+
+export async function productionRuntimeSourceManifest(
+  files: readonly RuntimeSourceFile[],
+): Promise<Readonly<{ sha256: string; path_count: number }>> {
+  const observed = runtimeSourceMap(files);
+  const records = [...observed.entries()].map(([path, file]) => {
+    const hash = String(file.hash || '').trim().toLowerCase();
+    const size = Number(file.size);
+    if (!SHA256.test(hash) || !Number.isSafeInteger(size) || size < 0) {
+      reject('PRODUCTION_MATERIALIZATION_RUNTIME_INVALID', `immutable runtime source identity is invalid: ${path}`);
+    }
+    return Object.freeze({ path, sha256:hash, size });
+  }).sort((left, right) => left.path.localeCompare(right.path));
+  const canonical = canonicalJson(records);
+  return Object.freeze({ sha256:(await digest(canonical)).hash, path_count:records.length });
 }
 
 function sourceMatches(files: readonly RuntimeSourceFile[], records: readonly MaterializedSourceRecord[], requireSize: boolean): boolean {
