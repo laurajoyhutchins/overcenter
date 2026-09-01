@@ -227,7 +227,20 @@
       "id": "make-project-inspect-decision-oriented",
       "priority": 95,
       "requires": [
-        "define-primary-agent-session-contract"
+        "define-primary-agent-session-contract",
+        "make-project-inspect-snapshot-correct"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "make-project-inspect-snapshot-correct",
+      "priority": 96,
+      "requires": [
+        "make-production-materialization-typescript-host-independent"
       ],
       "executor": {
         "kind": "agent",
