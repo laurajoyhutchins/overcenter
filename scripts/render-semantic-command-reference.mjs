@@ -17,7 +17,7 @@ export function renderSemanticCommandReference() {
   const lines = [
     '# Semantic command descriptors',
     '',
-    '> Generated from the typed semantic descriptor source. Primary discovery comes first; advanced, operator, and compatibility tools remain discoverable without being ordinary-use defaults.',
+    '> Generated from the typed semantic descriptor source. Only the primary product surface is MCP-discoverable to ordinary agents; advanced, operator, and compatibility commands remain runtime capabilities without top-level MCP registration.',
     '',
   ];
 

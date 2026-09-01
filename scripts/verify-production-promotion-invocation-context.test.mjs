@@ -45,7 +45,7 @@ if (domainRequests.length !== 1 || JSON.stringify(domainRequests[0]) !== JSON.st
 if (finishes.length !== 1 || finishes[0].activity?.run_id !== runId) throw new Error('journal finish lost invocation-context run_id');
 
 let semanticRejected = false;
-try { validateSemanticWorkerCommand('production.promote', { repo, run_id:runId }); }
+try { await validateSemanticWorkerCommand('production.promote', { repo, run_id:runId }); }
 catch (error) { semanticRejected = error?.code === 'REQUEST_INVALID'; }
 if (!semanticRejected) throw new Error('production.promote accepted run_id as semantic input');
 

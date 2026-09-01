@@ -22,7 +22,12 @@ const expectedSurface = new Map([
   ['release.publish', 'primary'],
   ['work.settle', 'compatibility'],
 ]);
-const expectedExposure = new Map();
+const expectedExposure = new Map([
+  ['github.pull_request.mark_ready', { worker:true, mcp:false }],
+  ['github.release.create', { worker:true, mcp:false }],
+  ['orchestration.diagnose', { worker:true, mcp:false }],
+  ['work.settle', { worker:true, mcp:false }],
+]);
 const primaryMcpFiles = ['production.promote.js', 'project.advance.js', 'project.amend.js', 'project.define.js', 'project.inspect.js', 'release.publish.js'];
 
 async function source(path) {
@@ -105,9 +110,9 @@ test('release publish intent consumes a plan without exposing GitHub release boo
   for (const field of mechanical) assert.equal(descriptor.semantic_fields.includes(field), false, `${field} leaked through release.publish intent`);
 });
 
-test('migrated worker validation is descriptor-derived rather than separately listed', async () => {
+test('migrated worker validation remains descriptor-derived for worker capabilities', async () => {
   const worker = await source('lib/worker-transport.js');
-  for (const command of expected.filter((command) => semanticCommandDescriptor(command).exposure.worker && semanticCommandDescriptor(command).exposure.mcp)) {
+  for (const command of expected.filter((command) => semanticCommandDescriptor(command).exposure.worker)) {
     assert.match(worker, new RegExp(`semanticCommandDescriptor\\(['\"]${command.replaceAll('.', '\\.')}`));
   }
   assert.doesNotMatch(worker, /GITHUB_RELEASE_(?:SEMANTIC|REQUIRED)_FIELDS/);
