@@ -21,6 +21,8 @@ jobs:
         run: node --test scripts/semantic-kernel-provider-boundary.test.mjs
       - name: Test project authoring TypeScript runtime ownership
         run: node --test scripts/verify-project-authoring-typescript-runtime.test.mjs
+      - name: Test monotonic GitHub mutation certainty
+        run: node --test scripts/verify-github-mutation-certainty.test.mjs
       - name: Type-check semantic kernel contracts
         run: npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
       - name: Verify runtime materialization is generated from TypeScript source
