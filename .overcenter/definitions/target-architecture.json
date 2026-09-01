@@ -213,6 +213,18 @@
       }
     },
     {
+      "id": "fence-production-promotion-receipt-settlement",
+      "priority": 149,
+      "requires": [
+        "make-production-promotion-mutation-certainty-monotonic"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "generate-semantic-command-descriptor",
       "priority": 90,
       "requires": [
@@ -253,6 +265,28 @@
       "requires": [
         "separate-typescript-ports-and-adapters"
       ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "make-production-promotion-exact-head-fencing-truthful",
+      "priority": 117,
+      "requires": [
+        "replace-production-promotion-pseudo-lease-with-execution-authority"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "make-production-promotion-mutation-certainty-monotonic",
+      "priority": 150,
+      "requires": [],
       "executor": {
         "kind": "agent",
         "role": "implementation",
@@ -353,6 +387,18 @@
       }
     },
     {
+      "id": "move-production-promotion-correlation-to-invocation-context",
+      "priority": 88,
+      "requires": [
+        "define-primary-agent-session-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "move-scheduled-execution-graph-native",
       "priority": 84,
       "requires": [
@@ -428,6 +474,18 @@
       "id": "register-project-graph-deriver",
       "priority": 120,
       "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "replace-production-promotion-pseudo-lease-with-execution-authority",
+      "priority": 118,
+      "requires": [
+        "fence-production-promotion-receipt-settlement"
+      ],
       "executor": {
         "kind": "agent",
         "role": "implementation",
