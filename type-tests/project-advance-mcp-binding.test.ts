@@ -1,7 +1,7 @@
 import {
   createProjectAdvanceMcpBinding,
   type ProjectAdvanceMcpRuntime,
-} from '../src/runtime/project-advance-mcp-binding';
+} from '../src/adapters/mcp/project-advance';
 
 const runtime: ProjectAdvanceMcpRuntime = {
   async advanceProject(intent) {

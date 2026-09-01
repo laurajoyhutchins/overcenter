@@ -1,4 +1,4 @@
-import { createNodePostgresRuntime } from '../src/runtime/node-postgres-runtime.js';
+import { createNodePostgresRuntime } from '../src/adapters/postgres/node-postgres-runtime.js';
 import type { RuntimeArtifact } from '../src/semantic/runtime-provenance.js';
 
 const runtime = createNodePostgresRuntime({

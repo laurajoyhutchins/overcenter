@@ -1,8 +1,6 @@
 import { advanceProject } from '../src/semantic/project-advance-operation';
-import {
-  createProjectAdvancePorts,
-  type ProjectAdvanceRuntimeHost,
-} from '../src/runtime/project-advance-runtime-adapter';
+import { createProjectAdvancePorts } from '../src/adapters/project-advance/runtime-adapter';
+import type { ProjectAdvanceRuntimeHost } from '../src/ports/project-advance-runtime-host';
 
 const host: ProjectAdvanceRuntimeHost = {
   startOrResumeProjectRun: async (projectRef) => ({

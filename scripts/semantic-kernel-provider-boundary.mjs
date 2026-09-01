@@ -22,8 +22,7 @@ export function findForbiddenProviderImports(files) {
   const violations = [];
   for (const [path, source] of files) {
     for (const specifier of importedSpecifiers(source)) {
-      const provider = matchProvider(specifier);
-      if (provider) violations.push({ path, provider });
+      if (matchProvider(specifier)) violations.push({ path, provider: specifier });
     }
   }
   return violations.sort((a, b) => a.path.localeCompare(b.path) || a.provider.localeCompare(b.provider));
