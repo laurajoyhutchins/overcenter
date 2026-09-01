@@ -214,6 +214,18 @@
       }
     },
     {
+      "id": "make-project-authoring-success-authoritatively-observable",
+      "priority": 132,
+      "requires": [
+        "make-project-authoring-success-result-command-valid"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "make-project-authoring-success-result-command-valid",
       "priority": 131,
       "requires": [],
