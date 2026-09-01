@@ -1,0 +1,50 @@
+{
+  "schema": "contract-evidence-classifications-v1",
+  "candidates": {
+    "semantic-command:github.release.create#input": {
+      "logical_contract": "github.release.create.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    },
+    "semantic-command:orchestration.diagnose#input": {
+      "logical_contract": "orchestration.diagnose.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    },
+    "semantic-command:production.promote#input": {
+      "logical_contract": "production.promote.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    },
+    "semantic-command:project.advance#input": {
+      "logical_contract": "project.advance.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    },
+    "semantic-command:project.amend#input": {
+      "logical_contract": "project.amend.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    },
+    "semantic-command:project.define#input": {
+      "logical_contract": "project.define.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    },
+    "semantic-command:project.inspect#input": {
+      "logical_contract": "project.inspect.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    },
+    "semantic-command:release.publish#input": {
+      "logical_contract": "release.publish.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    },
+    "semantic-command:work.settle#input": {
+      "logical_contract": "work.settle.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    }
+  }
+}
