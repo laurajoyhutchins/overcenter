@@ -15,6 +15,19 @@
       }
     },
     {
+      "id": "add-documentation-index",
+      "priority": 74,
+      "requires": [
+        "define-primary-agent-session-contract",
+        "document-canonical-overcenter-ontology-and-authority"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "verification-before-completion"
+      }
+    },
+    {
       "id": "add-operator-quickstart-and-recovery-runbook",
       "priority": 74,
       "requires": [
