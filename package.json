@@ -11,9 +11,11 @@
   "scripts": {
     "test": "node scripts/test.mjs",
     "build": "node scripts/build.mjs",
+    "build:runtime": "node scripts/build.mjs runtime",
+    "build:portable": "node scripts/build.mjs portable",
     "dev": "node scripts/dev.mjs",
     "verify": "node scripts/verify.mjs",
-    "typecheck": "tsc -p tsconfig.semantic.json",
+    "typecheck": "node scripts/build.mjs typecheck",
     "test:integration": "node scripts/test-integration.mjs"
   },
   "dependencies": {
