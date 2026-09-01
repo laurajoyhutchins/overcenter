@@ -66,7 +66,18 @@ Use this when the GitHub release object itself is the intended effect. It does n
 
 Read durable orchestration state and return the typed failure class, deterministic recovery operation when one is known, and the boundary where escalation is required.
 
-This is diagnosis, not project planning or work selection.
+This is diagnosis, not project planning or work selection. It is the current operator entry point for a failed or suspicious run.
+
+### Current supporting recovery mechanisms
+
+The compact semantic descriptor surface currently exposes `orchestration.diagnose` as the operator command. Two lower-level MCP mechanisms remain part of the shipped recovery substrate:
+
+- `orchestration.resume_packet` reconstructs the smallest safe continuation state for a prior run. Its current MCP transport name is `orchestration_resume_packet`.
+- `orchestration.maintain` performs bounded deterministic cleanup of expired or stuck coordination state and resolvable journal residue. It does not select or semantically edit project work.
+
+Use [`operator-recovery.md`](operator-recovery.md) for the current decision path and stop conditions.
+
+The approved recovery architecture also describes future higher-level surfaces such as `overcenter.health`, `orchestration.recover`, and `orchestration.fault_packet`. Those are design targets, not commands to assume are shipped. Check current executable `mcp/` contracts before use.
 
 ## Compatibility
 
@@ -94,6 +105,8 @@ Do not choose a lower-level command merely because it exposes more fields. Prefe
 ## Related documentation
 
 - [`agent-session-contract.md`](agent-session-contract.md) describes the normal agent loop.
+- [`operator-recovery.md`](operator-recovery.md) describes the current operator diagnosis and recovery path.
 - [`architecture/ontology-and-authority.md`](architecture/ontology-and-authority.md) defines the authority model and vocabulary.
+- [`architecture/recovery-kernel-and-self-healing.md`](architecture/recovery-kernel-and-self-healing.md) describes the approved future-state recovery architecture.
 - [`README.md`](README.md) is the documentation landing page.
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) covers repository contribution and verification practices.
