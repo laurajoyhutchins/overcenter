@@ -154,7 +154,71 @@ test('rejects immutable deployment drift before production regression certificat
   };
   await assert.rejects(
     materializeProductionRevision({ repository, revision, branch: 'main', production_project: 'production-slot' }, adapters),
-    error => error?.code === 'PRODUCTION_MATERIALIZATION_MISMATCH',
+    error => error?.code === 'PRODUCTION_MATERIALIZATION_MISMATCH' && error?.may_have_mutated === true,
   );
   assert.equal(regressionsRan, false);
+});
+
+test('typed materialization no-op requires exact verified revision evidence and performs no effect', async () => {
+  const { materializeProduction } = await import('../lib/production-materialization-operation.js');
+  const content = 'exact-runtime-source';
+  const hash = createHash('sha256').update(content).digest('hex');
+  let effects = 0;
+  const result = await materializeProduction({ repo: repository }, {
+    resolveProductionSource: async repo => ({ repository:repo, branch:'main', revision }),
+    observeSource: async coordinate => ({ ...coordinate, files:[{ path:'lib/example.js', content }] }),
+    observeRuntime: async () => ({
+      runtime_ref:'runtime:production',
+      version:30,
+      files:[{ path:'lib/example.js', hash, size:Buffer.byteLength(content) }],
+      verified_revision:revision,
+      verification_ref:'immutable:runtime:30',
+    }),
+    stageRuntime: async () => { effects += 1; },
+    inspectRuntimeDraft: async () => { throw new Error('draft should not be inspected'); },
+    deployRuntime: async () => { effects += 1; throw new Error('deploy should not run'); },
+    inspectImmutableDeployment: async () => { throw new Error('immutable deployment should not be reread'); },
+    verifyProduction: async () => { throw new Error('verification should not rerun'); },
+  });
+
+  assert.equal(result.outcome, 'already_materialized');
+  assert.equal(result.deployment_version, 30);
+  assert.equal(result.verification_ref, 'immutable:runtime:30');
+  assert.equal(effects, 0);
+});
+
+test('typed materialization rejects stale source authority before any runtime effect', async () => {
+  const { materializeProduction } = await import('../lib/production-materialization-operation.js');
+  let staged = false;
+  await assert.rejects(
+    materializeProduction({ repo:repository }, {
+      resolveProductionSource: async repo => ({ repository:repo, branch:'main', revision }),
+      observeSource: async coordinate => ({ ...coordinate, revision:'b'.repeat(40), files:[] }),
+      observeRuntime: async () => ({ runtime_ref:'runtime:production', version:1, files:[] }),
+      stageRuntime: async () => { staged = true; },
+      inspectRuntimeDraft: async () => ({ runtime_ref:'runtime:production', version:1, files:[] }),
+      deployRuntime: async () => ({ runtime_ref:'runtime:production', version:2 }),
+      inspectImmutableDeployment: async () => ({ runtime_ref:'runtime:production', version:2, files:[] }),
+      verifyProduction: async () => ({ ok:true, verification_ref:'unexpected' }),
+    }),
+    error => error?.code === 'PRODUCTION_MATERIALIZATION_SOURCE_STALE' && error?.may_have_mutated === false,
+  );
+  assert.equal(staged, false);
+});
+
+test('typed materialization makes mutation certainty monotonic once staging begins', async () => {
+  const { materializeProduction } = await import('../lib/production-materialization-operation.js');
+  await assert.rejects(
+    materializeProduction({ repo:repository }, {
+      resolveProductionSource: async repo => ({ repository:repo, branch:'main', revision }),
+      observeSource: async coordinate => ({ ...coordinate, files:[{ path:'lib/example.js', content:'new' }] }),
+      observeRuntime: async () => ({ runtime_ref:'runtime:production', version:40, files:[] }),
+      stageRuntime: async () => { throw new Error('transport disappeared after stage request'); },
+      inspectRuntimeDraft: async () => ({ runtime_ref:'runtime:production', version:40, files:[] }),
+      deployRuntime: async () => ({ runtime_ref:'runtime:production', version:41 }),
+      inspectImmutableDeployment: async () => ({ runtime_ref:'runtime:production', version:41, files:[] }),
+      verifyProduction: async () => ({ ok:true, verification_ref:'unexpected' }),
+    }),
+    error => error?.code === 'PRODUCTION_MATERIALIZATION_INDETERMINATE' && error?.may_have_mutated === true,
+  );
 });
