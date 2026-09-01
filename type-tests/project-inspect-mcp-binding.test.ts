@@ -1,7 +1,7 @@
 import {
   createProjectInspectMcpBinding,
   type ProjectInspectMcpRuntime,
-} from '../src/runtime/project-inspect-mcp-binding';
+} from '../src/adapters/mcp/project-inspect';
 
 const runtime: ProjectInspectMcpRuntime = {
   async inspectProject(intent) {

@@ -1,4 +1,4 @@
-import { createProductionPromotionMcpBinding } from '../src/runtime/production-promotion-mcp-binding';
+import { createProductionPromotionMcpBinding } from '../src/adapters/mcp/production-promotion';
 
 const sourceRevision = 'a'.repeat(40);
 const previousProductionRevision = 'b'.repeat(40);
