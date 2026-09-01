@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 
 const probe = `
 import { executeSemanticWorkerCommand } from './lib/worker-transport.js';
@@ -117,4 +118,11 @@ test('project.advance worker transport composes run and advance services', () =>
 test('project.advance accepts agent execution completion and resumes through the same semantic boundary', () => {
   const result = runProbe(completionProbe);
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
+test('project.advance primary MCP transport composes execution completion runtime', async () => {
+  const source = await readFile(new URL('../mcp/project.advance.js', import.meta.url), 'utf8');
+  assert.match(source, /createPostgresSubjectAwareOrchestrationRunService/);
+  assert.match(source, /const finish = createPostgresSubjectAwareOrchestrationRunService\(\{ db \}\);/);
+  assert.match(source, /projectAdvanceFor\(\{ db, runs, advance, finish \}\)/);
 });
