@@ -15,6 +15,18 @@
       }
     },
     {
+      "id": "add-generic-contract-evidence-protocol",
+      "priority": 130,
+      "requires": [
+        "derive-release-horizon-semver-plan"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "add-operator-quickstart-and-recovery-runbook",
       "priority": 74,
       "requires": [
