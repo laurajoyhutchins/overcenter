@@ -202,6 +202,16 @@
       }
     },
     {
+      "id": "make-project-authoring-success-result-command-valid",
+      "priority": 131,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "make-project-inspect-decision-oriented",
       "priority": 95,
       "requires": [
