@@ -1,0 +1,25 @@
+{
+  "name": "overcenter",
+  "version": "0.0.0-development",
+  "private": true,
+  "description": "Reliable execution for agent-driven software projects.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "packageManager": "npm@10.9.2",
+  "scripts": {
+    "test": "node scripts/test.mjs",
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs",
+    "verify": "node scripts/verify.mjs",
+    "typecheck": "tsc -p tsconfig.semantic.json",
+    "test:integration": "node scripts/test-integration.mjs"
+  },
+  "dependencies": {
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2"
+  }
+}
