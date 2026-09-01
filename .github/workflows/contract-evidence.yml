@@ -42,19 +42,22 @@ jobs:
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
       - name: Run contract evidence tests
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
-      - name: Generate committed contract evidence
+      - name: Generate candidate contract evidence once
         run: |
-          mkdir -p generated/contracts docs/generated
+          mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
           node scripts/contract-evidence/cli.mjs generate \
             --repo-root . \
             --config scripts/contract-evidence/overcenter/config.mjs \
-            --catalog generated/contracts/catalog.json \
-            --docs docs/generated/data-contracts.md
+            --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
+            --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md"
+          mkdir -p generated/contracts docs/generated
+          cp "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" generated/contracts/catalog.json
+          cp "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" docs/generated/data-contracts.md
       - name: Verify generated evidence and historical ratchet
         run: |
           node scripts/contract-evidence/cli.mjs check \
-            --repo-root . \
-            --config scripts/contract-evidence/overcenter/config.mjs \
+            --expected-catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
+            --expected-docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --catalog generated/contracts/catalog.json \
             --docs docs/generated/data-contracts.md
           git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
