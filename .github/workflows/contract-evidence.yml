@@ -10,6 +10,26 @@ permissions:
 jobs:
   contract-evidence:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: overcenter
+          POSTGRES_USER: overcenter
+          POSTGRES_PASSWORD: overcenter
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U overcenter -d overcenter"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: overcenter
+      PGUSER: overcenter
+      PGPASSWORD: overcenter
     steps:
       - uses: actions/checkout@v4
         with:
