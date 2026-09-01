@@ -205,9 +205,29 @@ async function amendmentWithAuthoritativeHistory(
   return Object.freeze({ ...amendmentInput, confirmed_transition_ids:ids });
 }
 
+async function authoritativeResultAuthority(
+  authority: ProjectAuthoringAuthority,
+  mutation: Readonly<{ revision: string }>,
+  dependencies: ProjectAuthoringRuntimeDependencies,
+): Promise<ProjectAuthoringAuthority> {
+  const candidateRevision = exactRevision(mutation?.revision, 'mutation.revision');
+  const observed = await dependencies.resolveAuthority({ project_ref: authority.project_ref });
+  const authoritativeRevision = exactRevision(observed?.revision, 'authority.revision');
+  if (observed?.project_ref !== authority.project_ref
+      || observed?.repository !== authority.repository
+      || authoritativeRevision !== candidateRevision) {
+    fail('PROJECT_AUTHORING_RESULT_NOT_AUTHORITATIVE', 'project authoring mutation is not authoritatively observable at the repository source boundary', {
+      project_ref:authority.project_ref,
+      repository:authority.repository,
+      candidate_revision:candidateRevision,
+      authoritative_revision:authoritativeRevision,
+    });
+  }
+  return Object.freeze({ ...observed, revision:authoritativeRevision });
+}
+
 async function resultAfterMutation(authority: ProjectAuthoringAuthority, mutation: Readonly<{ revision: string }>, diff: ProjectDefinitionDiff, dependencies: ProjectAuthoringRuntimeDependencies) {
-  const resultingRevision = exactRevision(mutation?.revision, 'mutation.revision');
-  const resultingAuthority = Object.freeze({ ...authority, revision: resultingRevision });
+  const resultingAuthority = await authoritativeResultAuthority(authority, mutation, dependencies);
   const graph = graphAtRevision(await dependencies.deriveProjectGraph(resultingAuthority), resultingAuthority);
   return Object.freeze({
     ok:true as const,

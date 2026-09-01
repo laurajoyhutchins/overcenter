@@ -167,6 +167,7 @@ test('project amendment persists the validated definition then derives the graph
   const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   const resultingRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
   const calls = [];
+  let authorityRevision = initialRevision;
 
   const result = await amendProjectDefinition({
     project_ref:'github:example/project',
@@ -180,7 +181,7 @@ test('project amendment persists the validated definition then derives the graph
     resolveAuthority:async () => ({
       project_ref:'github:example/project',
       repository:'example/project',
-      revision:initialRevision,
+      revision:authorityRevision,
       derivation:'overcenter-project-graph-v1',
     }),
     readDefinition:async (authority) => {
@@ -189,6 +190,7 @@ test('project amendment persists the validated definition then derives the graph
     },
     mutateDefinition:async (request) => {
       calls.push(['mutate', request.expected_revision, request.definition.transitions.map((transition) => transition.id)]);
+      authorityRevision = resultingRevision;
       return { revision:resultingRevision };
     },
     deriveProjectGraph:async (authority) => {
@@ -211,6 +213,7 @@ test('project authoring rejects readback whose derived graph revision does not m
   const { amendProjectDefinition } = await import('../lib/project-authoring-runtime.js');
   const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   const resultingRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  let authorityRevision = initialRevision;
 
   await assert.rejects(
     () => amendProjectDefinition({
@@ -221,11 +224,14 @@ test('project authoring rejects readback whose derived graph revision does not m
       resolveAuthority:async () => ({
         project_ref:'github:example/project',
         repository:'example/project',
-        revision:initialRevision,
+        revision:authorityRevision,
         derivation:'overcenter-project-graph-v1',
       }),
       readDefinition:async () => base,
-      mutateDefinition:async () => ({ revision:resultingRevision }),
+      mutateDefinition:async () => {
+        authorityRevision = resultingRevision;
+        return { revision:resultingRevision };
+      },
       deriveProjectGraph:async () => ({
         schema:'overcenter-project-graph-v1',
         project_ref:'github:example/project',
