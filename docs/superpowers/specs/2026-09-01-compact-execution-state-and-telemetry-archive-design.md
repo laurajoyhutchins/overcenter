@@ -222,6 +222,7 @@ Representative fields:
 ```text
 operation_id                 primary key
 command
+idempotency_scope
 subject_key                  nullable
 run_id                       nullable
 
@@ -251,10 +252,13 @@ created_at
 resolved_at                  nullable
 ```
 
+The canonical idempotency identity is `(command, idempotency_scope, idempotency_key)`. `idempotency_scope` is a deterministic semantic namespace, normally derived from the command target or subject rather than supplied as arbitrary caller text. A unique constraint enforces that identity.
+
 Semantics:
 
-- same idempotency identity plus same canonical request hash replays the proven result;
-- same idempotency identity plus a different request hash fails closed;
+- same canonical idempotency identity plus same canonical request hash replays the proven result;
+- same canonical idempotency identity plus a different request hash fails closed;
+- unrelated commands or semantic target scopes cannot collide merely because their caller-visible keys match;
 - `indeterminate` state is never garbage-collected until externally resolved;
 - unresolved operations retain the bounded recovery material needed to reconcile safely;
 - after success or proven no-effect, the record compacts to a tombstone containing only the identity, request digest, outcome, effect identity, result/evidence digest, and applicable authority fence;
@@ -340,7 +344,7 @@ The supported archive representation is a versioned provider-neutral format name
 
 The format is canonical JSON with a deterministic byte representation and SHA-256 content digest. Compression is a transport/storage choice and does not change semantic bundle identity.
 
-Each normal runtime bundle represents one completed run or one scheduler-only cycle.
+Each normal runtime bundle represents one completed run or one scheduler-only cycle. A one-time historical migration may additionally emit `legacy_unscoped` bundles for records that cannot be truthfully correlated to either unit.
 
 Representative top-level shape:
 
@@ -348,7 +352,7 @@ Representative top-level shape:
 {
   "schema": "overcenter-archive-v1",
   "bundle_id": "...",
-  "kind": "run | scheduled_cycle",
+  "kind": "run | scheduled_cycle | legacy_unscoped",
   "subject_id": "...",
   "created_at": "...",
   "source_revision": "...",
@@ -360,6 +364,8 @@ Representative top-level shape:
   "content_sha256": "..."
 }
 ```
+
+`legacy_unscoped` is valid only for migration output. Normal runtime bundle generation rejects it.
 
 `content_sha256` is computed over the canonical bundle representation according to a contract that avoids self-referential hashing, for example a digest over the canonical document with the digest field omitted.
 
