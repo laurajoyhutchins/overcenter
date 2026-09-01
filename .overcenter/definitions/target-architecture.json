@@ -128,7 +128,7 @@
       "id": "delete-runtime-host-scaffolding",
       "priority": 81,
       "requires": [
-        "make-runtime-host-replaceable",
+        "make-production-materialization-typescript-host-independent",
         "move-scheduled-execution-graph-native"
       ],
       "executor": {
@@ -170,6 +170,18 @@
       "priority": 90,
       "requires": [
         "add-targeted-project-driver"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "make-production-materialization-typescript-host-independent",
+      "priority": 82,
+      "requires": [
+        "make-runtime-host-replaceable"
       ],
       "executor": {
         "kind": "agent",
