@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import './verify-release-publish.test.mjs';
 import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
 import {
@@ -23,6 +23,7 @@ const expectedSurface = new Map([
   ['work.settle', 'compatibility'],
 ]);
 const expectedExposure = new Map();
+const primaryMcpFiles = ['production.promote.js', 'project.advance.js', 'project.amend.js', 'project.define.js', 'project.inspect.js', 'release.publish.js'];
 
 async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -55,6 +56,12 @@ test('primary semantic surface is mechanically identifiable from descriptors', (
   assert.deepEqual(primary, ['production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish']);
 });
 
+test('top-level MCP discovery exposes only the primary semantic product surface', async () => {
+  const entries = await readdir(new URL('../mcp/', import.meta.url), { withFileTypes:true });
+  const registered = entries.filter((entry) => entry.isFile() && entry.name.endsWith('.js')).map((entry) => entry.name).sort();
+  assert.deepEqual(registered, [...primaryMcpFiles].sort());
+});
+
 test('every worker-exposed primary semantic command is admitted canonically', () => {
   const admitted = new Set(CANONICAL_COMMANDS);
   const primaryWorkerCommands = expected.filter((command) => {
@@ -72,10 +79,10 @@ test('production promotion intent is exposed after its runtime host exists', () 
   assert.deepEqual(descriptor.exposure, { worker:true, mcp:true });
 });
 
-test('project advance intent exposes session selection without run choreography', () => {
+test('project advance intent exposes judgment completion without run choreography', () => {
   const descriptor = semanticCommandDescriptor('project.advance');
   assert.equal(descriptor.surface, 'primary');
-  assert.deepEqual(descriptor.semantic_fields, ['project_ref', 'transition_id', 'resume_ref']);
+  assert.deepEqual(descriptor.semantic_fields, ['project_ref', 'transition_id', 'resume_ref', 'execution_result']);
   assert.deepEqual(descriptor.required_fields, ['project_ref']);
   assert.deepEqual(descriptor.exposure, { worker:true, mcp:true });
 });
@@ -131,11 +138,8 @@ test('release publish primary MCP transport derives from descriptor and host ada
   assert.match(text, /\.publish\(input\)/);
 });
 
-test('MCP metadata stays statically parseable and mechanically matches descriptors', async () => {
+test('primary MCP metadata stays statically parseable and mechanically matches descriptors', async () => {
   const adapters = [
-    ['work.settle','mcp/work.settle.js','WORK_SETTLE_INPUT_SCHEMA'],
-    ['github.release.create','mcp/github_release_create.js','GITHUB_RELEASE_INPUT_SCHEMA'],
-    ['orchestration.diagnose','mcp/orchestration.diagnose.js','ORCHESTRATION_DIAGNOSE_INPUT_SCHEMA'],
     ['project.define','mcp/project.define.js','PROJECT_DEFINE_INPUT_SCHEMA'],
     ['project.amend','mcp/project.amend.js','PROJECT_AMEND_INPUT_SCHEMA'],
   ];
@@ -148,7 +152,7 @@ test('MCP metadata stays statically parseable and mechanically matches descripto
   }
 });
 
-test('MCP schema compatibility projections derive from the authoritative descriptor', async () => {
+test('semantic schema compatibility projections derive from the authoritative descriptor', async () => {
   const projections = [
     ['work.settle','lib/work-settle-contract.js'],
     ['github.release.create','lib/github-release-contract.js'],
