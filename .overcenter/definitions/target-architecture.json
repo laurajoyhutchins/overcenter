@@ -77,6 +77,16 @@
       }
     },
     {
+      "id": "define-receipt-integrity-threat-model",
+      "priority": 90,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "architecture",
+        "skill": "verification-before-completion"
+      }
+    },
+    {
       "id": "delete-compatibility-command-exposure",
       "priority": 83,
       "requires": [
@@ -131,6 +141,16 @@
         "make-production-materialization-typescript-host-independent",
         "move-scheduled-execution-graph-native"
       ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "enforce-github-app-permission-budget",
+      "priority": 118,
+      "requires": [],
       "executor": {
         "kind": "agent",
         "role": "implementation",
@@ -283,6 +303,18 @@
       }
     },
     {
+      "id": "migrate-callers-to-deterministic-recovery",
+      "priority": 86,
+      "requires": [
+        "verify-deterministic-recovery-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "move-scheduled-execution-graph-native",
       "priority": 84,
       "requires": [
@@ -346,6 +378,16 @@
     {
       "id": "register-project-graph-deriver",
       "priority": 120,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "require-current-lease-and-head-at-github-mutation",
+      "priority": 132,
       "requires": [],
       "executor": {
         "kind": "agent",
@@ -425,6 +467,16 @@
         "delete-runtime-host-scaffolding",
         "move-scheduled-execution-graph-native"
       ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "verification-before-completion"
+      }
+    },
+    {
+      "id": "verify-deterministic-recovery-contract",
+      "priority": 88,
+      "requires": [],
       "executor": {
         "kind": "agent",
         "role": "verification",
