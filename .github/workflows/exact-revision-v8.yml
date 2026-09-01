@@ -33,14 +33,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - name: Install canonical dependencies
+        run: npm ci
       - name: Build runtime artifact
-        run: |
-          rm -rf dist/lib
-          npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.runtime.json
+        run: npm run build:runtime
       - name: Verify project authoring authority contracts
         run: node --test scripts/verify-project-authoring-readback-contract.test.mjs scripts/verify-project-authoring-github-adapter.test.mjs
-      - name: Install MCP client for this run
-        run: npm install --no-save --package-lock=false @modelcontextprotocol/client@2
       - name: Verify exact revision in isolated Hatchable V8 runtime
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}

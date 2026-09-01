@@ -6,12 +6,24 @@ Overcenter coordinates privileged software-project mutations, so contributions s
 
 Read:
 
-1. [`README.md`](README.md) for the product model.
+1. [`README.md`](README.md) for the product model and local quick start.
 2. [`docs/README.md`](docs/README.md) for the maintained documentation map.
 3. [`docs/architecture/ontology-and-authority.md`](docs/architecture/ontology-and-authority.md) for source-of-truth boundaries.
 4. [`docs/agent-session-contract.md`](docs/agent-session-contract.md) for the intended agent-facing workflow.
 
 For command work, also read [`docs/command-reference.md`](docs/command-reference.md) and the exact relevant contract under `mcp/`.
+
+## Local setup
+
+Use Node 22 and Docker. From a fresh checkout:
+
+```bash
+npm install
+npm test
+npm run dev
+```
+
+The root `package.json` and `package-lock.json` are the canonical dependency and command boundary. Do not add parallel CI-only dependency installation recipes when the dependency belongs to the repository.
 
 ## Design rules
 
@@ -54,15 +66,19 @@ Do not force a stale branch through an up-to-date requirement. Refresh against t
 
 ## Verification
 
-Run focused tests for the subsystem you changed. From a complete Git checkout, the public repository verification entry points are:
+The canonical local commands are:
 
 ```bash
-node scripts/verify-regression-suite-registry.mjs
-node --test scripts/verify-public-release.test.mjs
-node scripts/verify-public-release.mjs
+npm test
+npm run typecheck
+npm run build
+npm run test:integration
+npm run verify
 ```
 
-CI also exercises repository-static verification, semantic type checking, and the portable Node/PostgreSQL path. A green local command is not a substitute for required exact-head CI evidence when branch protection requires it.
+`npm test` is credential-free repository verification. `npm run test:integration` requires PostgreSQL; the default local instance is provided by `compose.yaml`. `npm run verify` runs the full local test, build, generated-runtime drift, and public-release boundary checks.
+
+CI installs dependencies with `npm ci` and delegates to these same package commands. A green local command is not a substitute for required exact-head CI evidence when branch protection requires it.
 
 When adding a maintained regression suite, register it in the repository's canonical regression-suite registry rather than creating an orphan test path.
 
@@ -70,7 +86,9 @@ When adding a maintained regression suite, register it in the repository's canon
 
 TypeScript is used where static checking removes concrete invalid states. Runtime validation remains authoritative for external JSON, durable rows, revisions, leases, and other world-state facts.
 
-Where typed semantic source mechanically emits runtime JavaScript, treat the typed source as the authoring surface and let repository verification detect generated drift. Do not create a second hand-maintained semantic registry.
+Where typed semantic source mechanically emits runtime JavaScript, treat the typed source as the authoring surface and let `npm run build` detect generated drift. Do not create a second hand-maintained semantic registry.
+
+Generated artifacts belong under `dist/` and are not committed.
 
 ## Documentation
 
