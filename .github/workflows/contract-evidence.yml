@@ -5,7 +5,7 @@ on:
     branches: [dev]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   contract-evidence:
@@ -33,7 +33,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -41,17 +42,37 @@ jobs:
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
       - name: Run contract evidence tests
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
-      - name: Generate full Overcenter contract evidence
+      - name: Generate committed contract evidence
         run: |
-          mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
+          mkdir -p generated/contracts docs/generated
           node scripts/contract-evidence/cli.mjs generate \
             --repo-root . \
             --config scripts/contract-evidence/overcenter/config.mjs \
-            --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
-            --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md"
-      - uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: contract-evidence-generated
-          path: ${{ runner.temp }}/contract-evidence
-          if-no-files-found: error
+            --catalog generated/contracts/catalog.json \
+            --docs docs/generated/data-contracts.md
+      - name: Verify generated evidence and historical ratchet
+        run: |
+          node scripts/contract-evidence/cli.mjs check \
+            --repo-root . \
+            --config scripts/contract-evidence/overcenter/config.mjs \
+            --catalog generated/contracts/catalog.json \
+            --docs docs/generated/data-contracts.md
+          git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+          MERGE_BASE=$(git merge-base HEAD "origin/${{ github.base_ref }}")
+          if git cat-file -e "$MERGE_BASE:generated/contracts/catalog.json" 2>/dev/null; then
+            git show "$MERGE_BASE:generated/contracts/catalog.json" > "$RUNNER_TEMP/base-contract-catalog.json"
+            node scripts/contract-evidence/cli.mjs compare \
+              --base-catalog "$RUNNER_TEMP/base-contract-catalog.json" \
+              --head-catalog generated/contracts/catalog.json
+          else
+            echo "No merge-base contract catalog exists; establishing the initial evidence baseline."
+          fi
+      - name: Materialize initial generated evidence
+        run: |
+          if [[ -n "$(git status --porcelain -- generated/contracts/catalog.json docs/generated/data-contracts.md)" ]]; then
+            git config user.name "overcenter-contract-evidence[bot]"
+            git config user.email "overcenter-contract-evidence[bot]@users.noreply.github.com"
+            git add generated/contracts/catalog.json docs/generated/data-contracts.md
+            git commit -m "Generate contract evidence catalog"
+            git push origin "HEAD:${{ github.head_ref }}"
+          fi
