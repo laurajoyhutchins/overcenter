@@ -21,18 +21,16 @@ test('milestone due_on is optional but never nullable', async () => {
   assert.match(dueOnFunction, /due_on must be an RFC3339 timestamp/);
 });
 
-test('milestone ensure has domain implementation, MCP tool, API adapter, journal projection, and registered regression suite', async () => {
-  const [domain, mcp, api, journal, registry] = await Promise.all([
+test('milestone ensure remains an internal domain/API capability with regression coverage', async () => {
+  const [domain, api, journal, registry] = await Promise.all([
     source('lib/github-milestone.js'),
-    source('mcp/github_milestone_ensure.js'),
     source('api/github-milestone-ensure.js'),
     source('lib/orchestration-journal.js'),
     source('lib/regression-suite-registry.js'),
   ]);
   assert.match(domain, /ensureGithubMilestoneWithGitHubApp/);
-  assert.match(mcp, /name:\s*['"]github_milestone_ensure['"]/);
-  assert.match(mcp, /['"]github\.milestone\.ensure['"]/);
   assert.match(api, /['"]github\.milestone\.ensure['"]/);
   assert.match(journal, /command === ['"]github\.milestone\.ensure['"]/);
   assert.match(registry, /lib\/github-milestone\.test\.js/);
+  await assert.rejects(source('mcp/github_milestone_ensure.js'), /ENOENT/);
 });

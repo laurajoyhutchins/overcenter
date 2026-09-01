@@ -1,6 +1,6 @@
 # Primary agent session contract
 
-This document defines the ordinary way a reasoning agent should use Overcenter. It is intentionally smaller than the full command surface.
+This document defines the ordinary way a reasoning agent should use Overcenter. The ordinary MCP discovery surface is intentionally limited to primary semantic commands.
 
 The goal is simple: agents make the judgments that require reasoning, while Overcenter owns deterministic execution correctness, authority, retry identity, settlement, evidence, and recovery.
 
@@ -17,7 +17,7 @@ what requires judgment now?
       +-- project can advance --------------------> project.advance
       |
       +-- agent execution is required -----------> perform bounded work
-                                                     under returned authority
+      |                                             then project.advance again
       |
       v
 fresh authoritative project state
@@ -65,20 +65,13 @@ project.amend({
 })
 ```
 
-Typical reasons include:
-
-- a missing prerequisite was discovered;
-- two transitions have the wrong dependency relationship;
-- a new desired verified transition is required;
-- obsolete future work should be removed before it executes.
+Typical reasons include a missing prerequisite, a wrong dependency relationship, newly discovered desired work, or obsolete future work.
 
 The agent supplies semantic graph intent. Overcenter owns the repository layout, canonicalization, validation, exact-revision fence, GitHub mutation, retry identity, and authoritative readback.
 
-Do not hand-edit `.overcenter` files in the ordinary path when the semantic authoring command can express the change.
+Do not hand-edit `.overcenter` files in the ordinary path when the semantic authoring command can express the change. If a repository has been adopted but has no project definition yet, `project.define` is the corresponding bootstrap operation.
 
-If a repository has been adopted but has no project definition yet, `project.define` is the corresponding bootstrap operation.
-
-## 4. Ask Overcenter to advance deterministic work
+## 4. Ask Overcenter to advance work
 
 When the authoritative graph is correct and work can proceed, use:
 
@@ -86,9 +79,9 @@ When the authoritative graph is correct and work can proceed, use:
 project.advance({ project_ref })
 ```
 
-The primary contract is intentionally project-level. Overcenter owns run creation or resumption, target selection, lease acquisition, and deterministic progression behind this boundary.
+The primary contract is intentionally project-level. Overcenter owns run creation or resumption, target selection, lease acquisition, deterministic progression, settlement choreography, and continuation behind this boundary.
 
-A caller should not choose a work lease, manufacture idempotency keys, or recompute the frontier before calling `project.advance`.
+A caller should not choose a work lease, manufacture idempotency keys, recompute the frontier, or decompose `project.advance` into internal orchestration commands.
 
 ### Possible outcomes
 
@@ -106,18 +99,32 @@ Exact machine-readable response names are defined by the current command impleme
 
 An agent-execution packet is an execution boundary, not permission to improvise outside the transition.
 
-The agent should:
+The agent should perform only the bounded judgment-heavy work required by that transition, retain concrete verification evidence, and stop if authority becomes stale or mutation certainty becomes ambiguous. When the bounded work is ready to report, return through the same semantic command:
 
-1. preserve the exact transition and lease authority returned by Overcenter;
-2. perform only the bounded judgment-heavy work required by that transition;
-3. use Overcenter semantic mutation commands for effects that Overcenter owns;
-4. retain concrete verification evidence;
-5. stop if authority becomes stale, mutation certainty becomes ambiguous, or the task expands beyond the transition's meaning;
-6. allow Overcenter to settle and confirm against fresh authority rather than declaring completion from the agent's own confidence.
+```text
+project.advance({
+  project_ref,
+  resume_ref,
+  execution_result: {
+    disposition: "completed",
+    evidence: [...]
+  }
+})
+```
 
-The lease is non-secret authority metadata. It is still exact and time-bounded. Do not reuse it for another transition or after it is no longer valid.
+Use `requeue` or `blocked` instead of `completed` when that is the truthful outcome. Overcenter consumes the resumed execution result, settles the exact active authority internally, finishes the prior run, reacquires fresh project authority, and continues through `project.advance`.
 
-## 6. Evidence before completion claims
+Do not call `work.settle`, `orchestration.finish`, or other kernel choreography in the ordinary agent path. Those mechanisms may remain available behind internal or operator boundaries, but they are not a manual fallback implementation of `project.advance`.
+
+`resume_ref` is currently a bounded continuation coordinate. It is not an invitation to reason about run internals, and it may disappear from ordinary vocabulary when Overcenter can derive the unique continuation safely from `project_ref` alone.
+
+## 6. Failure preserves the abstraction
+
+Execution-correctness failures that are mechanically recoverable belong behind `project.advance`: expired coordination state, known journal residue, safely retryable reads, and uniquely reconcilable interrupted work should not turn the reasoning agent into an operator.
+
+If Overcenter cannot safely determine what happened, ordinary execution must fail closed with a bounded recovery condition rather than exposing the gearbox. If `project.advance` itself is unavailable because the deployed product is broken, that is an Overcenter runtime incident, not permission to manually reproduce it from lower-level commands.
+
+## 7. Evidence before completion claims
 
 A successful tool call is not enough to say the project transition is done.
 
@@ -134,7 +141,7 @@ intent
 
 If an external mutation may have happened but Overcenter cannot prove whether it did, preserve that uncertainty and reconcile it. Do not blind-retry the effect.
 
-## 7. Fresh sessions resume from software state
+## 8. Fresh sessions resume from software state
 
 A new agent session should not need the old agent's private scratchpad to continue ordinary work.
 
@@ -152,55 +159,28 @@ project.advance or project.amend
 
 Runs, leases, journals, receipts, and recovery state exist so disposable sessions can resume safely. They are supporting mechanisms, not conceptual prerequisites for every agent prompt.
 
-When an advanced recovery path is genuinely required, use the operator or diagnostic surface rather than reconstructing it from chat history.
+## Ordinary MCP discovery
 
-## Primary versus advanced commands
-
-Overcenter classifies commands by intended audience:
-
-- **primary** commands express ordinary project intent;
-- **advanced** commands expose exact lower-level capabilities for specialized workflows;
-- **operator** commands diagnose or recover the system;
-- **compatibility** commands support migration paths and should not teach new callers the preferred architecture.
-
-The current primary semantic vocabulary includes:
+Ordinary MCP discovery exposes only the primary semantic product surface:
 
 - `project.inspect`
 - `project.define`
 - `project.amend`
 - `project.advance`
 - `production.promote`
+- `release.publish`
 
-Not every primary command belongs in every session. Production promotion, for example, is a release boundary rather than an ordinary implementation step.
+Advanced GitHub effects, operator recovery mechanisms, compatibility commands, leases, journals, settlement primitives, and other kernel operations may still exist as internal worker/API capabilities. Their existence does not make them peer product APIs for ordinary agents.
 
 ## What the agent should not maintain
 
-Do not make the reasoning agent the durable owner of mechanically knowable coordination state.
-
-In the ordinary path, the agent should not manually maintain:
-
-- READY / WAITING / DONE state;
-- lease ownership tables;
-- run-to-transition correlation;
-- idempotency or retry keys when Overcenter can derive them;
-- settlement bookkeeping;
-- copied GitHub head state;
-- Linear status as execution truth;
-- a shadow project graph;
-- recovery recipes for already-classified deterministic failures.
+In the ordinary path, the agent should not manually maintain READY / WAITING / DONE state, lease ownership tables, run-to-transition correlation, retry keys, settlement bookkeeping, copied GitHub head state, Linear status as execution truth, a shadow project graph, or recovery recipes for already-classified deterministic failures.
 
 If agents repeatedly perform the same inspect, claim, retry, reconcile, settle, and frontier-recompute ceremony, that is pressure to move the ceremony behind a semantic software boundary.
 
-## When to stop and return judgment to the user
+## When to stop and return judgment
 
-Stop rather than guessing when:
-
-- desired project state is genuinely ambiguous;
-- two materially different product choices are both valid and authority cannot resolve them;
-- a safety or policy decision requires explicit owner judgment;
-- the authoritative system is unavailable and the missing fact is necessary for a safe mutation;
-- a mutation is indeterminate and no deterministic reconciliation path can resolve it;
-- completing the transition would require changing its meaning rather than executing it.
+Stop rather than guessing when desired project state is genuinely ambiguous, materially different product choices are both valid, a safety or policy decision requires explicit owner judgment, necessary authority is unavailable, a mutation is indeterminate with no deterministic reconciliation path, or completing the transition would require changing its meaning.
 
 The objective is not maximum autonomous motion. It is verified project transitions with correct authority and recoverable evidence.
 
@@ -210,5 +190,6 @@ The objective is not maximum autonomous motion. It is verified project transitio
 - [`project-graph-authority-contract.md`](project-graph-authority-contract.md) defines authoritative graph derivation.
 - [`project-horizon-authority-contract.md`](project-horizon-authority-contract.md) defines authority-bound target scopes.
 - [`architecture/recovery-kernel-and-self-healing.md`](architecture/recovery-kernel-and-self-healing.md) defines deterministic diagnosis and recovery boundaries.
+- [`command-reference.md`](command-reference.md) lists the current semantic product surface and internal capability classes.
 
-The executable `mcp/` command contracts remain authoritative for exact current schemas and machine-readable outcomes.
+The top-level `mcp/` files are authoritative for ordinary MCP discovery. Typed descriptors and internal API/lib contracts remain authoritative for the non-discoverable runtime capabilities they describe.

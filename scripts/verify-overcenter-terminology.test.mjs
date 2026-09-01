@@ -7,7 +7,7 @@ const OBSOLETE_PRODUCT_NAME_PATTERN = new RegExp(`\\b${OBSOLETE_PRODUCT_NAME}\\b
 const LIVE_PRODUCT_PATHS = Object.freeze([
   'lib/execution-authority.js',
   'lib/orchestration-run-target-runtime.js',
-  'mcp/github_apply_changeset.js',
+  'api/github-apply-changeset.js',
 ]);
 
 test('maintained production product language uses Overcenter terminology', () => {
