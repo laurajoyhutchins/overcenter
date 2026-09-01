@@ -2,15 +2,11 @@ import {
   publishAndVerifyRuntime,
   type RuntimeArtifact,
   type RuntimeFence,
-  type RuntimeObserver,
-  type RuntimePublisher,
   type VerifiedRuntime,
 } from '../semantic/runtime-provenance.js';
+import type { PortableRuntimePorts } from '../ports/portable-runtime.js';
 
-export interface PortableRuntimePorts {
-  readonly publisher: RuntimePublisher;
-  readonly observer: RuntimeObserver;
-}
+export type { PortableRuntimePorts } from '../ports/portable-runtime.js';
 
 export interface PortableRuntime {
   publishAndVerify(
