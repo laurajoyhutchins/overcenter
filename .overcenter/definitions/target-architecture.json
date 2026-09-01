@@ -29,6 +29,18 @@
       }
     },
     {
+      "id": "add-release-publish-semantic-command",
+      "priority": 94,
+      "requires": [
+        "derive-release-horizon-semver-plan"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "add-semantic-agent-execution-reporting",
       "priority": 92,
       "requires": [
@@ -57,6 +69,18 @@
       "priority": 100,
       "requires": [
         "prove-orchestration-advance-production-reachability"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "add-transition-version-impact-authority",
+      "priority": 96,
+      "requires": [
+        "define-semver-public-api-boundary"
       ],
       "executor": {
         "kind": "agent",
@@ -123,6 +147,16 @@
       }
     },
     {
+      "id": "define-semver-public-api-boundary",
+      "priority": 97,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "delete-compatibility-command-exposure",
       "priority": 83,
       "requires": [
@@ -176,6 +210,18 @@
       "requires": [
         "make-production-materialization-typescript-host-independent",
         "move-scheduled-execution-graph-native"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "derive-release-horizon-semver-plan",
+      "priority": 95,
+      "requires": [
+        "add-transition-version-impact-authority"
       ],
       "executor": {
         "kind": "agent",
