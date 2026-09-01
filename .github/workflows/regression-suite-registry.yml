@@ -26,6 +26,8 @@ jobs:
         run: find api lib mcp pages -type f -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Test targeted project driver contract
         run: node scripts/verify-orchestration-drive.mjs
+      - name: Test session-scoped project advancement
+        run: node --test scripts/verify-project-advance-session-scope.test.mjs
       - name: Test legacy lane compatibility isolation
         run: node --test scripts/verify-legacy-lane-isolation.test.mjs
       - name: Test transition-first operator dashboard
