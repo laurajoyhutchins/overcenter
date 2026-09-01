@@ -295,6 +295,16 @@
       }
     },
     {
+      "id": "polish-public-readme",
+      "priority": 140,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "verification-before-completion"
+      }
+    },
+    {
       "id": "prove-disposable-agent-resume-round-trip",
       "priority": 79,
       "requires": [
