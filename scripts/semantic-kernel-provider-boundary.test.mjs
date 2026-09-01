@@ -3,10 +3,13 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 
-import {
+import * as providerBoundary from './semantic-kernel-provider-boundary.mjs';
+
+const {
   findForbiddenProviderImports,
   findForbiddenRuntimeCompatibilityImports,
-} from './semantic-kernel-provider-boundary.mjs';
+  findUnexpectedRuntimeEntries,
+} = providerBoundary;
 
 async function collectTypeScriptSources(directories, root = process.cwd(), { skipRuntime = false } = {}) {
   const files = new Map();
@@ -81,10 +84,33 @@ test('rejects compatibility shims while allowing genuine runtime composition imp
   );
 });
 
+test('rejects nested and alternate-extension runtime modules', () => {
+  assert.deepEqual(
+    providerBoundary.findUnexpectedRuntimeEntries?.([
+      'portable-runtime.ts',
+      'production-promotion-overcenter-host.ts',
+      'compatibility/',
+      'project-inspect-mcp-binding.mjs',
+    ]),
+    ['compatibility/', 'project-inspect-mcp-binding.mjs'],
+  );
+});
+
 test('the checked-in semantic kernel and ports contain no runtime provider imports', async () => {
   assert.deepEqual(findForbiddenProviderImports(await providerNeutralSources()), []);
 });
 
 test('checked-in TypeScript imports use runtime only for genuine composition', async () => {
   assert.deepEqual(findForbiddenRuntimeCompatibilityImports(await architectureSources()), []);
+});
+
+test('checked-in runtime modules are genuine composition modules', async () => {
+  const entries = await readdir(path.join(process.cwd(), 'src', 'runtime'), { withFileTypes: true });
+  const runtimeEntries = entries.map((entry) => entry.isFile() ? entry.name : `${entry.name}/`);
+
+  assert.deepEqual(findUnexpectedRuntimeEntries(runtimeEntries), []);
+  assert.deepEqual(runtimeEntries.sort(), [
+    'portable-runtime.ts',
+    'production-promotion-overcenter-host.ts',
+  ]);
 });
