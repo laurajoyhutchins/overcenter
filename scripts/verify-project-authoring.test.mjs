@@ -162,11 +162,18 @@ test('project authoring runtime rejects stale authority before requesting a repo
   assert.equal(mutations, 0);
 });
 
-test('project amendment persists the validated definition then derives the graph at the resulting revision', async () => {
+test('project amendment derives success from refreshed authoritative definition state rather than the staged revision', async () => {
   const { amendProjectDefinition } = await import('../lib/project-authoring-runtime.js');
   const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-  const resultingRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const stagedRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const authoritativeRevision = 'cccccccccccccccccccccccccccccccccccccccc';
   const calls = [];
+  let authorityReads = 0;
+  const expectedDefinition = applyProjectDefinitionAmendment(base, {
+    upsert_transitions:[
+      { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } },
+    ],
+  }).definition;
 
   const result = await amendProjectDefinition({
     project_ref:'github:example/project',
@@ -180,16 +187,16 @@ test('project amendment persists the validated definition then derives the graph
     resolveAuthority:async () => ({
       project_ref:'github:example/project',
       repository:'example/project',
-      revision:initialRevision,
+      revision:++authorityReads === 1 ? initialRevision : authoritativeRevision,
       derivation:'overcenter-project-graph-v1',
     }),
     readDefinition:async (authority) => {
       calls.push(['read', authority.revision]);
-      return base;
+      return authority.revision === initialRevision ? base : expectedDefinition;
     },
     mutateDefinition:async (request) => {
       calls.push(['mutate', request.expected_revision, request.definition.transitions.map((transition) => transition.id)]);
-      return { revision:resultingRevision };
+      return { revision:stagedRevision };
     },
     deriveProjectGraph:async (authority) => {
       calls.push(['derive', authority.revision]);
@@ -197,20 +204,25 @@ test('project amendment persists the validated definition then derives the graph
     },
   });
 
+  assert.equal(authorityReads, 2);
   assert.deepEqual(calls, [
     ['read', initialRevision],
     ['mutate', initialRevision, ['foundation', 'second']],
-    ['derive', resultingRevision],
+    ['read', authoritativeRevision],
+    ['derive', authoritativeRevision],
   ]);
-  assert.equal(result.authority.revision, resultingRevision);
+  assert.equal(result.authority.revision, authoritativeRevision);
+  assert.notEqual(result.authority.revision, stagedRevision);
   assert.deepEqual(result.diff, { added:['second'], changed:[], removed:[] });
-  assert.equal(result.graph.revision, resultingRevision);
+  assert.equal(result.graph.revision, authoritativeRevision);
 });
 
-test('project authoring rejects readback whose derived graph revision does not match the confirmed source revision', async () => {
+test('project authoring rejects readback whose derived graph revision does not match refreshed authority', async () => {
   const { amendProjectDefinition } = await import('../lib/project-authoring-runtime.js');
   const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-  const resultingRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const stagedRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const authoritativeRevision = 'cccccccccccccccccccccccccccccccccccccccc';
+  let authorityReads = 0;
 
   await assert.rejects(
     () => amendProjectDefinition({
@@ -221,19 +233,20 @@ test('project authoring rejects readback whose derived graph revision does not m
       resolveAuthority:async () => ({
         project_ref:'github:example/project',
         repository:'example/project',
-        revision:initialRevision,
+        revision:++authorityReads === 1 ? initialRevision : authoritativeRevision,
         derivation:'overcenter-project-graph-v1',
       }),
       readDefinition:async () => base,
-      mutateDefinition:async () => ({ revision:resultingRevision }),
+      mutateDefinition:async () => ({ revision:stagedRevision }),
       deriveProjectGraph:async () => ({
         schema:'overcenter-project-graph-v1',
         project_ref:'github:example/project',
-        revision:'cccccccccccccccccccccccccccccccccccccccc',
+        revision:'dddddddddddddddddddddddddddddddddddddddd',
       }),
     }),
     (error) => error?.code === 'PROJECT_AUTHORING_READBACK_MISMATCH',
   );
+  assert.equal(authorityReads, 2);
 });
 
 test('project amendment protects authoritative confirmed history even when caller omits confirmation hints', async () => {

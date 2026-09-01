@@ -20,77 +20,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify every maintained regression suite is registered
-        run: node scripts/verify-regression-suite-registry.mjs
-      - name: Syntax-check runtime modules
-        run: find api lib mcp pages -type f -name '*.js' -print0 | xargs -0 -n1 node --check
-      - name: Test targeted project driver contract
-        run: node scripts/verify-orchestration-drive.mjs
-      - name: Test legacy lane compatibility isolation
-        run: node --test scripts/verify-legacy-lane-isolation.test.mjs
-      - name: Test transition-first operator dashboard
-        run: node --test scripts/verify-transition-first-dashboard.test.mjs
-      - name: Test execution evidence projector
-        run: node --test scripts/verify-execution-evidence-projector.test.mjs
-      - name: Test execution evidence review invariants
-        run: node --test scripts/verify-execution-evidence-review.test.mjs
-      - name: Test work lease config binding
-        run: node --test scripts/verify-work-lease-config.test.mjs
-      - name: Test project horizon semantics
-        run: node --test scripts/verify-project-horizon.test.mjs
-      - name: Test project inspect runtime host
-        run: node --input-type=module -e "import { runProjectInspectOvercenterHostTests } from './lib/project-inspect-overcenter-host.test.js'; await runProjectInspectOvercenterHostTests();"
-      - name: Test project transition lease semantics
-        run: node --test scripts/verify-project-transition-leases.test.mjs
-      - name: Test compatibility transition confirmation bridge
-        run: node --test scripts/verify-compatibility-transition-confirmation.test.mjs
-      - name: Test compatibility transition confirmation runtime
-        run: node --test scripts/verify-compatibility-transition-runtime.test.mjs
-      - name: Test MCP admission contract
-        run: node --test scripts/verify-mcp-admission-contract.test.mjs
-      - name: Test semantic command descriptors
-        run: node --test scripts/verify-semantic-command-descriptors.test.mjs
-      - name: Test semantic project authoring kernel
-        run: node --test scripts/verify-project-authoring.test.mjs
-      - name: Test GitHub-backed project authoring adapter
-        run: node --test scripts/verify-project-authoring-github-adapter.test.mjs
-      - name: Test project authoring production runtime composition
-        run: node --test scripts/verify-project-authoring-production-runtime.test.mjs
-      - name: Test project authoring readback attribution
-        run: node --test scripts/verify-project-authoring-readback-contract.test.mjs
-      - name: Test project authoring worker host binding
-        run: node --test scripts/verify-project-authoring-worker-binding.test.mjs
-      - name: Test project authoring mutation authority
-        run: node --test scripts/verify-project-authoring-mutation-authority.test.mjs
-      - name: Test project definition mutation authority policy
-        run: node --test scripts/verify-project-definition-mutation-authority.test.mjs
-      - name: Test project definition changeset authority writer
-        run: node --test scripts/verify-project-definition-changeset-writer.test.mjs
-      - name: Test semantic project authoring command contract
-        run: node --test scripts/verify-project-authoring-command-contract.test.mjs
-      - name: Test deterministic project authoring work branches
-        run: node --test scripts/verify-project-authoring-work-branch.test.mjs
-      - name: Test graph-native GitHub mutation authority
-        run: node --test scripts/verify-github-graph-authority.test.mjs
-      - name: Test repository metadata command contract
-        run: node --test scripts/verify-repository-metadata-command.test.mjs
-      - name: Test repository registration command admission
-        run: node --test scripts/verify-repository-register-command.test.mjs
-      - name: Test milestone command contract
-        run: node --test scripts/verify-milestone-command.test.mjs
-      - name: Test Overcenter terminology boundary
-        run: node --test scripts/verify-overcenter-terminology.test.mjs
-      - name: Test exact-revision V8 verification driver
-        run: node --test scripts/exact-revision-v8-verification*.test.mjs
-      - name: Test production materialization driver
-        run: node --test scripts/production-materialization*.test.mjs
-      - name: Test public-release policy
-        run: node --test scripts/verify-public-release.test.mjs
-      - name: Test public GitHub metadata policy
-        run: node --test scripts/verify-public-github-metadata.test.mjs
-      - name: Test repository registration policy
-        run: node --test scripts/verify-repository-registration-policy.test.mjs
-      - name: Verify public-release boundary
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install canonical dependencies
+        run: npm ci
+      - name: Verify repository through the developer front door
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/verify-public-release.mjs
+        run: npm run verify
+      - name: Test project inspect runtime host
+        run: node --input-type=module -e "import { runProjectInspectOvercenterHostTests } from './lib/project-inspect-overcenter-host.test.js'; await runProjectInspectOvercenterHostTests();"

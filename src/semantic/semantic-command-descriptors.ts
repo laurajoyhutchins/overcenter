@@ -68,6 +68,18 @@ const workSettleSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const githubPullRequestMarkReadySchema = Object.freeze({
+  type:'object',
+  required:['repo','pull_request','expected_head'],
+  additionalProperties:false,
+  properties:{
+    repo:{type:'string',minLength:3,maxLength:256,pattern:'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$',description:'Repository in owner/repo form.'},
+    pull_request:{type:'integer',minimum:1,description:'Open pull request number.'},
+    expected_head:{type:'string',pattern:'^[0-9a-fA-F]{40}$',description:'Exact current pull request head SHA. Any movement invalidates the request.'},
+    run_id:{type:'string',minLength:1,maxLength:512,description:'Optional orchestration run id used only for correlation.'},
+  },
+});
+
 const githubReleaseSchema = Object.freeze({
   type:'object',
   required:['repo','target_sha','tag_name','name','body','draft','prerelease','expected_state','idempotency_key','run_id'],
@@ -122,6 +134,16 @@ const projectAdvanceSchema = Object.freeze({
     project_ref:{type:'string',pattern:'^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
     transition_id:{type:'string',minLength:1,maxLength:256,pattern:'^\\S+$'},
     resume_ref:{type:'string',minLength:1,maxLength:512,pattern:'^\\S+$'},
+    execution_result:{
+      type:'object',
+      required:['disposition'],
+      properties:{
+        disposition:{type:'string',enum:[...WORK_SETTLEMENT_DISPOSITIONS]},
+        evidence:{type:'array',items:{type:'object',required:['kind','ref'],properties:{kind:{type:'string'},ref:{type:'string'}},additionalProperties:false}},
+        reason:{type:['string','null']},
+      },
+      additionalProperties:false,
+    },
   },
   additionalProperties:false,
 });
@@ -177,13 +199,24 @@ function descriptor(
   });
 }
 
+const INTERNAL_EXPOSURE = Object.freeze({ worker:true, mcp:false });
+
 const DESCRIPTORS = Object.freeze({
+  'github.pull_request.mark_ready':descriptor(
+    'github.pull_request.mark_ready',
+    'github_pull_request_mark_ready',
+    'Mark an exact-head draft pull request ready for review through the Overcenter GitHub App. The command fails closed if GitHub does not authorize the installation actor for this PR, never retries a mutation blindly, and authoritatively rereads state after uncertain mutation transport.',
+    githubPullRequestMarkReadySchema,
+    'advanced',
+    INTERNAL_EXPOSURE,
+  ),
   'github.release.create':descriptor(
     'github.release.create',
     'github_release_create',
-    'Create an immutable lightweight Git tag at an exact observed Git commit and a GitHub Release for that tag. Fail closed on expected-state drift or conflicting existing state. Exact replay converges through durable idempotency evidence; no tag retargeting, release editing, deletion, asset upload, note generation, or commit inference is performed. This MCP tool exposes conceptual github.release.create using the underscore-safe transport name.',
+    'Create an immutable lightweight Git tag at an exact observed Git commit and a GitHub Release for that tag. Fail closed on expected-state drift or conflicting existing state. Exact replay converges through durable idempotency evidence; no tag retargeting, release editing, deletion, asset upload, note generation, or commit inference is performed.',
     githubReleaseSchema,
     'advanced',
+    INTERNAL_EXPOSURE,
   ),
   'orchestration.diagnose':descriptor(
     'orchestration.diagnose',
@@ -191,6 +224,7 @@ const DESCRIPTORS = Object.freeze({
     'Read current durable orchestration state and return the typed failure class, exact deterministic recovery operation, and escalation boundary. This is state inspection and recovery classification only; it does not plan or select work.',
     orchestrationDiagnoseSchema,
     'operator',
+    INTERNAL_EXPOSURE,
   ),
   'production.promote':descriptor(
     'production.promote',
@@ -203,7 +237,7 @@ const DESCRIPTORS = Object.freeze({
   'project.advance':descriptor(
     'project.advance',
     'project.advance',
-    'Advance authoritative repository-owned project work in an independent agent session. Omit transition_id for deterministic best-available selection, or nominate one exact transition without fallback. Resume only by passing the explicit durable resume_ref returned by a prior call; Overcenter still owns run identity, lease acquisition, exact authority, settlement, and continuation.',
+    'Advance authoritative repository-owned project work in an independent agent session. Omit transition_id for deterministic best-available selection, or nominate one exact transition without fallback. Resume by passing the durable resume_ref returned by a prior call; when agent execution is complete, return its bounded execution_result through this same command. Overcenter owns run identity, lease acquisition, settlement, exact authority, recovery, and continuation.',
     projectAdvanceSchema,
     'primary',
     Object.freeze({ worker:true, mcp:true }),
@@ -230,6 +264,7 @@ const DESCRIPTORS = Object.freeze({
     'Truthfully consume one valid work lease as completed, requeue, or blocked. Supply the non-secret lease_ref plus settlement semantics; lease capability lookup, run correlation, and deterministic retry identity are derived internally.',
     workSettleSchema,
     'compatibility',
+    INTERNAL_EXPOSURE,
   ),
 });
 

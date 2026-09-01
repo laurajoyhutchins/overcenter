@@ -252,11 +252,31 @@
       }
     },
     {
+      "id": "enforce-primary-mcp-discovery-boundary",
+      "priority": 1300,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "establish-dist-runtime-artifact-boundary",
       "priority": 1000,
       "requires": [
         "make-production-materialization-typescript-host-independent"
       ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "establish-root-developer-entrypoint",
+      "priority": 1200,
+      "requires": [],
       "executor": {
         "kind": "agent",
         "role": "implementation",
@@ -274,6 +294,16 @@
         "make-project-authoring-low-ceremony",
         "make-project-inspect-decision-oriented"
       ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "expose-github-pull-request-mark-ready-semantic-worker",
+      "priority": 1100,
+      "requires": [],
       "executor": {
         "kind": "agent",
         "role": "implementation",

@@ -6,9 +6,16 @@ import { normalizeRemoteMcpToolResult } from './exact-revision-v8-verification-h
 
 const revision='a'.repeat(40);
 
-test('source bytes come from the exact Git object and non-deployable paths are excluded', async()=>{
+test('source bytes come from the exact Git object and repository package metadata is not Hatchable runtime source', async()=>{
   const calls=[];
-  const blobs=new Map([['api/a.js','exact-blob\n'],['lib/b.js','export const b=2;'],['docs/ignore.md','ignore'],['public/.overcenter/source-materialization.json','{}']]);
+  const blobs=new Map([
+    ['api/a.js','exact-blob\n'],
+    ['lib/b.js','export const b=2;'],
+    ['hatchable.toml','[mcp]\nenabled = true\n'],
+    ['package.json','{"name":"overcenter"}\n'],
+    ['docs/ignore.md','ignore'],
+    ['public/.overcenter/source-materialization.json','{}'],
+  ]);
   const source=createCheckoutSourceAdapter({runGit:async args=>{
     calls.push(args);
     if(args[0]==='rev-parse') return revision+'\n';
@@ -17,10 +24,10 @@ test('source bytes come from the exact Git object and non-deployable paths are e
     throw new Error('unexpected git call');
   }});
   const observed=await source.observe({repository:'laurajoyhutchins/overcenter',revision});
-  assert.deepEqual(observed.files.map(f=>f.path),['api/a.js','lib/b.js']);
+  assert.deepEqual(observed.files.map(f=>f.path),['api/a.js','hatchable.toml','lib/b.js']);
   assert.equal(observed.files[0].content,'exact-blob\n');
   assert.equal(observed.files[0].sha256,createHash('sha256').update('exact-blob\n').digest('hex'));
-  assert.deepEqual(calls.map(args=>args[0]),['rev-parse','ls-tree','cat-file','cat-file']);
+  assert.deepEqual(calls.map(args=>args[0]),['rev-parse','ls-tree','cat-file','cat-file','cat-file']);
 });
 
 test('source adapter reports mismatched HEAD without reading blobs', async()=>{
@@ -31,21 +38,46 @@ test('source adapter reports mismatched HEAD without reading blobs', async()=>{
   assert.deepEqual(calls.map(args=>args[0]),['rev-parse']);
 });
 
-test('Hatchable adapter normalizes, reconciles, version-fences, and runs canonical regressions', async()=>{
+test('Hatchable adapter observes package metadata only in mutable draft cleanup, never immutable runtime evidence', async()=>{
   const calls=[];
   const responses=[
-    {current_version:5},{files:[{path:'api/a.js',hash:'a'.repeat(64)},{path:'AGENTS.md',virtual:true,hash:null}]},
-    {ok:true},{ok:true},{current_version:5},{version:6},{current_version:6},
-    {version:6,file_manifest:[{path:'api/a.js',hash:'b'.repeat(64)}]},
+    {current_version:5},{files:[
+      {path:'api/a.js',hash:'a'.repeat(64)},
+      {path:'package.json',hash:'c'.repeat(64)},
+      {path:'AGENTS.md',virtual:true,hash:null},
+    ]},
+    {ok:true},{ok:true},{ok:true},{current_version:5},{version:6},{current_version:6},
+    {version:6,file_manifest:[
+      {path:'api/a.js',hash:'b'.repeat(64)},
+      {path:'package.json',hash:'d'.repeat(64)},
+    ]},
     {status:200,body:{ok:true,schema:'regression-verification-v1',passed:683,failed:0}},
   ];
   const runtime=createHatchableRuntimeAdapter({callTool:async(name,args)=>{calls.push([name,args]);return responses.shift();}});
-  assert.deepEqual(await runtime.inspect('verify'),{project:'verify',version:5,files:[{path:'api/a.js',sha256:'a'.repeat(64)}]});
-  await runtime.reconcile({project:'verify',revision:'c'.repeat(40),expected_version:5,writes:[{path:'api/a.js',content:'new'}],deletes:['lib/stale.js']});
+  assert.deepEqual(await runtime.inspect('verify'),{
+    project:'verify',
+    version:5,
+    files:[
+      {path:'api/a.js',sha256:'a'.repeat(64)},
+      {path:'package.json',sha256:'c'.repeat(64)},
+    ],
+  });
+  await runtime.reconcile({
+    project:'verify',
+    revision:'c'.repeat(40),
+    expected_version:5,
+    writes:[{path:'api/a.js',content:'new'}],
+    deletes:['lib/stale.js','package.json'],
+  });
   assert.deepEqual(await runtime.deploy({project:'verify',revision:'c'.repeat(40),expected_version:5}),{version:6});
-  assert.deepEqual(await runtime.inspectDeployment({project:'verify',version:6}),{version:6,files:[{path:'api/a.js',sha256:'b'.repeat(64)}]});
+  assert.deepEqual(await runtime.inspectDeployment({project:'verify',version:6}),{
+    version:6,
+    files:[{path:'api/a.js',sha256:'b'.repeat(64)}],
+  });
   assert.equal((await runtime.runRegressions({project:'verify'})).failed,0);
-  assert.deepEqual(calls.map(([name])=>name),['get_project','list_files','write_files','delete_file','get_project','deploy','get_project','get_deployment','run_function']);
+  assert.deepEqual(calls.map(([name])=>name),[
+    'get_project','list_files','write_files','delete_file','delete_file','get_project','deploy','get_project','get_deployment','run_function',
+  ]);
 });
 
 test('production reachability evidence traverses real orchestration API entrypoints and terminalizes its probe', async()=>{

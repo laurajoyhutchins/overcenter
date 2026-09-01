@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: overcenter
+      POSTGRES_USER: overcenter
+      POSTGRES_PASSWORD: overcenter
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U overcenter -d overcenter"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    volumes:
+      - overcenter-dev-postgres:/var/lib/postgresql/data
+
+volumes:
+  overcenter-dev-postgres:
