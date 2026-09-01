@@ -1,112 +1,91 @@
 # Command reference
 
-This is the public semantic command map for Overcenter. It is intentionally smaller than the full internal MCP and API inventory.
+This is the semantic product command map for Overcenter. **Ordinary MCP discovery exposes only the primary surface.** Advanced, operator, and compatibility capabilities can remain implemented behind worker/API boundaries without appearing as peer tools to an ordinary reasoning agent.
 
-Use the **primary** surface for ordinary project work. Reach for advanced or operator commands only when the task genuinely requires their narrower capability. Compatibility commands exist to support migration and lower-level recovery paths; they should not teach new callers the preferred workflow.
+The executable descriptors in `src/semantic/semantic-command-descriptors.ts` are authoritative for semantic classification. Top-level `mcp/*.js` files are the authoritative ordinary MCP registration surface.
 
-The executable descriptors in `lib/semantic-command-descriptors.js` and the corresponding `mcp/` contracts are authoritative for exact current schemas.
-
-## Primary
+## Primary MCP surface
 
 ### `project.inspect`
 
-Read authoritative repository-owned project state by `project_ref` and return the decision-relevant project frontier.
-
-Typical use: start or resume a project session.
-
-```text
-project.inspect({ project_ref })
-```
-
-Callers do not supply a graph, lifecycle state, or Git revision. Overcenter derives the exact authority coordinate.
+Read authoritative repository-owned project state by `project_ref` and return the decision-relevant project frontier. Typical use: start or resume a project session.
 
 ### `project.define`
 
-Create the canonical repository-owned project definition at an exact observed revision.
-
-Typical use: adopt a repository that does not yet have an Overcenter project definition.
-
-The caller supplies project intent. Overcenter owns repository layout, validation, mutation fencing, retry identity, GitHub mutation, and readback.
+Create the canonical repository-owned project definition at an exact observed revision. The caller supplies project intent; Overcenter owns repository layout, validation, mutation fencing, retry identity, GitHub mutation, and readback.
 
 ### `project.amend`
 
-Change canonical repository-owned project graph facts at an exact observed revision.
-
-Typical use: add a newly discovered transition or prerequisite, correct a dependency, or remove obsolete future work.
-
-Prefer this over hand-editing `.overcenter` definition files in the ordinary path.
+Change canonical repository-owned project graph facts at an exact observed revision. Prefer this over hand-editing `.overcenter` definition files in the ordinary path.
 
 ### `project.advance`
 
-Advance an authoritative project using only its `project_ref` until deterministic work is confirmed, reasoning work is required, the project is waiting or off nominal, or the target is complete.
+Advance authoritative project work until deterministic progress is confirmed, bounded agent execution is required, the project is waiting/off nominal, or the target is complete.
 
-Typical use: the normal execution step after `project.inspect`.
-
-Overcenter owns run creation or resumption, horizon selection, lease acquisition, settlement choreography, and continuation behind this boundary.
+When bounded agent execution is required, perform that judgment-heavy work and return the result through the same command using the returned `resume_ref` plus `execution_result`. Overcenter owns lease settlement, run terminalization, fresh authority acquisition, and continuation. There is no supported ordinary-agent decomposition of `project.advance` into work, orchestration, and provider primitives.
 
 ### `production.promote`
 
-Promote the current verified development revision by repository identity.
+Promote the current verified development revision by repository identity. This is a deliberate production boundary, not an ordinary implementation step.
 
-Typical use: a deliberate production/release boundary, not an ordinary implementation step.
+### `release.publish`
 
-Overcenter derives provider-specific branch heads, exact-revision evidence, retry identity, and production readback.
+Publish one exact verified semantic release plan. Overcenter derives provider release bookkeeping and exact publication evidence behind the semantic boundary.
 
-## Advanced
+## Internal advanced capabilities
 
-### `github.release.create`
+Capabilities such as `github.pull_request.mark_ready` and `github.release.create` remain typed worker/API operations for specialized internal workflows. They are **not registered in ordinary MCP discovery**.
 
-Create an immutable lightweight Git tag at an exact observed commit and a GitHub Release for that tag. Existing state is fenced and exact replay converges through idempotency evidence.
+## Internal operator capabilities
 
-Use this when the GitHub release object itself is the intended effect. It does not infer a target commit, retarget tags, edit releases, generate notes, or upload assets.
+Diagnosis, maintenance, resume packets, and other recovery mechanisms remain part of the recovery kernel. They are **not registered in ordinary MCP discovery**. The desired external recovery model is a bounded recovery incident or small operator surface, not instructions for ordinary agents to reconstruct orchestration state.
 
-## Operator
+## Internal compatibility capabilities
 
-### `orchestration.diagnose`
+Legacy work settlement and related migration paths can remain implemented while callers migrate. They are **not registered in ordinary MCP discovery** and should not teach new callers manual choreography.
 
-Read durable orchestration state and return the typed failure class, deterministic recovery operation when one is known, and the boundary where escalation is required.
+## Failure preserves the abstraction
 
-This is diagnosis, not project planning or work selection. It is the current operator entry point for a failed or suspicious run.
+For ordinary project execution:
 
-### Current supporting recovery mechanisms
+```text
+project.advance
+      |
+      +--> advanced / complete
+      |
+      +--> agent execution required
+      |       perform bounded work
+      |       project.advance(... execution_result ...)
+      |
+      +--> deterministic execution fault
+      |       Overcenter diagnoses/reconciles internally when safe
+      |
+      +--> cannot safely recover
+              bounded recovery condition
+              operator/recovery boundary
+              project.advance again
+```
 
-The compact semantic descriptor surface currently exposes `orchestration.diagnose` as the operator command. Two lower-level MCP mechanisms remain part of the shipped recovery substrate:
+If `project.advance` itself is unavailable because the deployed Overcenter runtime is broken, treat that as a product incident. Do not manually reproduce `project.advance` from kernel primitives.
 
-- `orchestration.resume_packet` reconstructs the smallest safe continuation state for a prior run. Its current MCP transport name is `orchestration_resume_packet`.
-- `orchestration.maintain` performs bounded deterministic cleanup of expired or stuck coordination state and resolvable journal residue. It does not select or semantically edit project work.
+## Why the repository still contains lower-level APIs and libraries
 
-Use [`operator-recovery.md`](operator-recovery.md) for the current decision path and stop conditions.
-
-The approved recovery architecture also describes future higher-level surfaces such as `overcenter.health`, `orchestration.recover`, and `orchestration.fault_packet`. Those are design targets, not commands to assume are shipped. Check current executable `mcp/` contracts before use.
-
-## Compatibility
-
-### `work.settle`
-
-Consume one valid work lease with an explicit completed, requeue, or blocked disposition.
-
-This remains available for lower-level and migration paths. New project-level callers should prefer semantic flows that let Overcenter own settlement choreography rather than teaching agents to maintain it manually.
-
-## What about the other MCP commands?
-
-The repository contains lower-level GitHub, orchestration, work, verification, recovery, and integration commands. They are supporting mechanisms, specialized capabilities, or compatibility surfaces rather than the conceptual entry point for ordinary agent work.
+The execution kernel needs precise GitHub, orchestration, work, verification, recovery, and integration operations. Those are implementation capabilities and test seams. Removing them from ordinary MCP discovery does not require deleting the engine.
 
 A useful rule is:
 
 ```text
-ordinary project intent  -> primary semantic commands
-specialized exact effect -> advanced command
-failure/recovery         -> operator command
-legacy choreography      -> compatibility command
+ordinary project intent  -> primary semantic MCP commands
+specialized exact effect -> internal advanced capability
+failure/recovery         -> internal operator/recovery capability
+legacy choreography      -> internal compatibility capability
 ```
-
-Do not choose a lower-level command merely because it exposes more fields. Prefer the highest semantic boundary that preserves the authority, evidence, and control you actually need.
 
 ## Related documentation
 
 - [`agent-session-contract.md`](agent-session-contract.md) describes the normal agent loop.
-- [`operator-recovery.md`](operator-recovery.md) describes the current operator diagnosis and recovery path.
+- [`operator-recovery.md`](operator-recovery.md) describes recovery stop conditions.
 - [`architecture/ontology-and-authority.md`](architecture/ontology-and-authority.md) defines the authority model and vocabulary.
-- [`architecture/recovery-kernel-and-self-healing.md`](architecture/recovery-kernel-and-self-healing.md) describes the approved future-state recovery architecture.
+- [`architecture/recovery-kernel-and-self-healing.md`](architecture/recovery-kernel-and-self-healing.md) describes the approved recovery architecture.
 - [`README.md`](README.md) is the documentation landing page.
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) covers repository contribution and verification practices.

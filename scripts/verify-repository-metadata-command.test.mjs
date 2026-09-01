@@ -7,13 +7,12 @@ async function source(path) {
   return readFile(path, 'utf8');
 }
 
-test('repository metadata reconciliation is a command-owned fail-closed capability', async () => {
-  const [auth, commands, core, api, mcp] = await Promise.all([
+test('repository metadata reconciliation is a command-owned fail-closed internal capability', async () => {
+  const [auth, commands, core, api] = await Promise.all([
     source('lib/github-app-auth.js'),
     source('lib/command-response.js'),
     source('lib/github-repository-metadata.js'),
     source('api/github-repository-metadata-ensure.js'),
-    source('mcp/github_repository_metadata_ensure.js'),
   ]);
 
   assert.match(auth, /repository_metadata[\s\S]{0,220}administration:\s*["']write["'][\s\S]{0,220}fail_closed/);
@@ -24,15 +23,17 @@ test('repository metadata reconciliation is a command-owned fail-closed capabili
   assert.match(core, /GITHUB_REPOSITORY_METADATA_STATE_CHANGED/);
   assert.match(core, /GITHUB_REPOSITORY_METADATA_INDETERMINATE/);
   assert.match(api, /github\.repository_metadata\.ensure/);
-  assert.match(mcp, /executeCorrelatedCommand\([\s\S]*github\.repository_metadata\.ensure/);
+  await assert.rejects(source('mcp/github_repository_metadata_ensure.js'), /ENOENT/);
 });
 
-test('repository metadata MCP surface excludes identity and lifecycle mutations', async () => {
-  const mcp = await source('mcp/github_repository_metadata_ensure.js');
-  const schemaStart = mcp.indexOf('inputSchema:');
-  assert.notEqual(schemaStart, -1);
-  const schema = mcp.slice(schemaStart);
-  for (const forbidden of ['visibility', 'archived', 'default_branch', 'new_name', 'transfer']) {
-    assert.equal(schema.includes(`${forbidden}:`), false, `MCP schema exposed forbidden field ${forbidden}`);
+test('repository metadata normalization excludes identity and lifecycle mutations', async () => {
+  const core = await source('lib/github-repository-metadata.js');
+  const stateFields = core.match(/const STATE_FIELDS = Object\.freeze\(\[([\s\S]*?)\]\);/)?.[1] || '';
+  for (const allowed of ['description','homepage','topics','has_issues','has_projects','has_wiki','has_discussions']) {
+    assert.match(stateFields, new RegExp(`['"]${allowed}['"]`));
   }
+  for (const forbidden of ['visibility','archived','default_branch','new_name','transfer']) {
+    assert.equal(stateFields.includes(`'${forbidden}'`) || stateFields.includes(`"${forbidden}"`), false, `metadata state admitted ${forbidden}`);
+  }
+  assert.match(core, /exactFields\(input, new Set\(\['repo', 'desired_state', 'expected_state'\]\), 'request'\)/);
 });
