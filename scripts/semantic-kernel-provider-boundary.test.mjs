@@ -88,3 +88,16 @@ test('the checked-in semantic kernel and ports contain no runtime provider impor
 test('checked-in TypeScript imports use runtime only for genuine composition', async () => {
   assert.deepEqual(findForbiddenRuntimeCompatibilityImports(await architectureSources()), []);
 });
+
+test('checked-in runtime modules are genuine composition modules', async () => {
+  const entries = await readdir(path.join(process.cwd(), 'src', 'runtime'), { withFileTypes: true });
+  const modules = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+    .map((entry) => entry.name)
+    .sort();
+
+  assert.deepEqual(modules, [
+    'portable-runtime.ts',
+    'production-promotion-overcenter-host.ts',
+  ]);
+});
