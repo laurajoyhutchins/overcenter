@@ -42,6 +42,8 @@ jobs:
         run: node --input-type=module -e "import { runProjectInspectOvercenterHostTests } from './lib/project-inspect-overcenter-host.test.js'; await runProjectInspectOvercenterHostTests();"
       - name: Test project advance worker binding
         run: node --test scripts/verify-project-advance-worker-binding.test.mjs
+      - name: Test production promotion receipt settlement fence
+        run: node --test scripts/verify-production-promotion-receipt-fence.test.mjs
       - name: Test project transition lease semantics
         run: node --test scripts/verify-project-transition-leases.test.mjs
       - name: Test compatibility transition confirmation bridge
