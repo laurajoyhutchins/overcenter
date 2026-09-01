@@ -1,3 +1,5 @@
+import { mayHaveMutated, mutationCertaintyFromEvidence } from './mutation-certainty.js';
+import type { MutationCertainty } from './mutation-certainty.js';
 import { applyProjectDefinitionAmendment, canonicalProjectDefinition } from './project-authoring.js';
 import type { CanonicalProjectDefinition, ProjectDefinitionDiff } from './project-authoring.js';
 
@@ -84,6 +86,39 @@ function confirmedMutationFailure(errorInput: unknown): ProjectAuthoringError {
   error.may_have_mutated = true;
   error.details = Object.freeze({ ...details, may_have_mutated:true });
   return error;
+}
+
+function mutationFailure(errorInput: unknown): ProjectAuthoringError {
+  const error = errorInput instanceof Error
+    ? errorInput as ProjectAuthoringError
+    : new Error(String(errorInput || 'project authoring mutation failed')) as ProjectAuthoringError;
+  const details = error.details && typeof error.details === 'object' && !Array.isArray(error.details)
+    ? error.details
+    : {};
+  const explicit = error.may_have_mutated ?? details.may_have_mutated;
+  const fallback: MutationCertainty = explicit === undefined
+    ? 'possible'
+    : Boolean(explicit) ? 'possible' : 'none';
+  const evidence = details.result ?? errorInput;
+  const certainty = mutationCertaintyFromEvidence(evidence, fallback);
+  error.may_have_mutated = mayHaveMutated(certainty);
+  error.details = Object.freeze({
+    ...details,
+    may_have_mutated:error.may_have_mutated,
+    mutation_certainty:certainty,
+  });
+  return error;
+}
+
+async function mutateProjectDefinition(
+  request: ProjectAuthoringMutationRequest,
+  dependencies: ProjectAuthoringRuntimeDependencies,
+) {
+  try {
+    return await dependencies.mutateDefinition(request);
+  } catch (error) {
+    throw mutationFailure(error);
+  }
 }
 
 async function fencedAuthority(projectRef: string, expectedRevision: string, dependencies: ProjectAuthoringRuntimeDependencies) {
@@ -175,6 +210,7 @@ async function resultAfterMutation(authority: ProjectAuthoringAuthority, mutatio
   const resultingAuthority = Object.freeze({ ...authority, revision: resultingRevision });
   const graph = graphAtRevision(await dependencies.deriveProjectGraph(resultingAuthority), resultingAuthority);
   return Object.freeze({
+    ok:true as const,
     schema:'project-authoring-result-v1' as const,
     authority:resultingAuthority,
     diff,
@@ -216,14 +252,14 @@ export async function defineProjectDefinition(
     changed:Object.freeze([]),
     removed:Object.freeze([]),
   });
-  const mutation = await dependencies.mutateDefinition({
+  const mutation = await mutateProjectDefinition({
     project_ref:projectRef,
     repository:authority.repository,
     expected_revision:expectedRevision,
     derivation:authority.derivation,
     definition,
     diff,
-  });
+  }, dependencies);
   return confirmedResultAfterMutation(authority, mutation, diff, dependencies);
 }
 
@@ -238,13 +274,13 @@ export async function amendProjectDefinition(
   const currentDefinition = await dependencies.readDefinition(authority);
   const amendmentInput = await amendmentWithAuthoritativeHistory(projectRef, authority, currentDefinition, input.amendment, dependencies);
   const amendment = applyProjectDefinitionAmendment(currentDefinition, amendmentInput);
-  const mutation = await dependencies.mutateDefinition({
+  const mutation = await mutateProjectDefinition({
     project_ref: projectRef,
     repository: authority.repository,
     expected_revision: expectedRevision,
     derivation: authority.derivation,
     definition: amendment.definition,
     diff: amendment.diff,
-  });
+  }, dependencies);
   return confirmedResultAfterMutation(authority, mutation, amendment.diff, dependencies);
 }
