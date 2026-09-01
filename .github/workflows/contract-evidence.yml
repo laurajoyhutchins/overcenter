@@ -5,7 +5,7 @@ on:
     branches: [dev]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   contract-evidence:
@@ -35,6 +35,7 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -50,16 +51,15 @@ jobs:
             --config scripts/contract-evidence/overcenter/config.mjs \
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md"
-          mkdir -p generated/contracts docs/generated
-          cp "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" generated/contracts/catalog.json
-          cp "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" docs/generated/data-contracts.md
-      - name: Verify generated evidence and historical ratchet
+      - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
             --expected-catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --expected-docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --catalog generated/contracts/catalog.json \
             --docs docs/generated/data-contracts.md
+      - name: Enforce historical unclassified ratchet
+        run: |
           git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
           MERGE_BASE=$(git merge-base HEAD "origin/${{ github.base_ref }}")
           if git cat-file -e "$MERGE_BASE:generated/contracts/catalog.json" 2>/dev/null; then
@@ -69,13 +69,4 @@ jobs:
               --head-catalog generated/contracts/catalog.json
           else
             echo "No merge-base contract catalog exists; establishing the initial evidence baseline."
-          fi
-      - name: Materialize initial generated evidence
-        run: |
-          if [[ -n "$(git status --porcelain -- generated/contracts/catalog.json docs/generated/data-contracts.md)" ]]; then
-            git config user.name "overcenter-contract-evidence[bot]"
-            git config user.email "overcenter-contract-evidence[bot]@users.noreply.github.com"
-            git add generated/contracts/catalog.json docs/generated/data-contracts.md
-            git commit -m "Generate contract evidence catalog"
-            git push origin "HEAD:${{ github.head_ref }}"
           fi
