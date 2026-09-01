@@ -3,10 +3,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 
-import {
+import * as providerBoundary from './semantic-kernel-provider-boundary.mjs';
+
+const {
   findForbiddenProviderImports,
   findForbiddenRuntimeCompatibilityImports,
-} from './semantic-kernel-provider-boundary.mjs';
+} = providerBoundary;
 
 async function collectTypeScriptSources(directories, root = process.cwd(), { skipRuntime = false } = {}) {
   const files = new Map();
@@ -78,6 +80,18 @@ test('rejects compatibility shims while allowing genuine runtime composition imp
       module: 'project-advance-runtime-adapter',
       specifier: '../src/runtime/project-advance-runtime-adapter',
     }],
+  );
+});
+
+test('rejects nested and alternate-extension runtime modules', () => {
+  assert.deepEqual(
+    providerBoundary.findUnexpectedRuntimeEntries?.([
+      'portable-runtime.ts',
+      'production-promotion-overcenter-host.ts',
+      'compatibility/',
+      'project-inspect-mcp-binding.mjs',
+    ]),
+    ['compatibility/', 'project-inspect-mcp-binding.mjs'],
   );
 });
 
