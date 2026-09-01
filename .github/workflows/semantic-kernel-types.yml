@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Test dist runtime artifact boundary
+        run: node --test scripts/dist-runtime-artifact-boundary.test.mjs
       - name: Test semantic kernel provider boundary
         run: node --test scripts/semantic-kernel-provider-boundary.test.mjs
       - name: Test project authoring TypeScript runtime ownership
