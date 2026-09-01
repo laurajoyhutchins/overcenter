@@ -214,6 +214,16 @@
       }
     },
     {
+      "id": "make-project-transition-settlement-atomic",
+      "priority": 130,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "make-runtime-host-replaceable",
       "priority": 78,
       "requires": [
