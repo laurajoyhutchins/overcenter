@@ -17,7 +17,7 @@ test('portable runtime compilation emits generated JavaScript under dist/portabl
   assert.equal(config.compilerOptions.outDir, 'dist/portable');
 });
 
-test('runtime artifact source projection overlays built dist files onto Hatchable root paths', async () => {
+test('runtime artifact source projection overlays only established Hatchable runtime targets', async () => {
   const base = {
     async observe() {
       return {
@@ -33,6 +33,7 @@ test('runtime artifact source projection overlays built dist files onto Hatchabl
   const source = await createRuntimeArtifactSourceAdapter(base, {
     readRuntimeArtifactFiles: async () => [
       { path: 'dist/lib/canonical-commands.js', content: 'built artifact' },
+      { path: 'dist/lib/project-graph-types.js', content: 'export {};' },
       { path: 'dist/portable/runtime/portable-runtime.js', content: 'not a Hatchable artifact' },
     ],
   }).observe({});
@@ -46,11 +47,12 @@ test('runtime artifact source projection overlays built dist files onto Hatchabl
   );
 });
 
-test('runtime artifact source projection fails closed when dist has no Hatchable runtime files', async () => {
+test('runtime artifact source projection fails closed when dist has no established Hatchable runtime targets', async () => {
   const base = { async observe() { return { files: [] }; } };
   await assert.rejects(
     createRuntimeArtifactSourceAdapter(base, {
       readRuntimeArtifactFiles: async () => [
+        { path: 'dist/lib/project-graph-types.js', content: 'export {};' },
         { path: 'dist/portable/runtime/portable-runtime.js', content: 'portable only' },
       ],
     }).observe({}),
