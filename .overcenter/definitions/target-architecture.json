@@ -184,6 +184,18 @@
       }
     },
     {
+      "id": "document-current-operator-recovery-path",
+      "priority": 78,
+      "requires": [
+        "tighten-public-documentation-surface"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "verification-before-completion"
+      }
+    },
+    {
       "id": "expose-compact-primary-agent-discovery",
       "priority": 85,
       "requires": [
