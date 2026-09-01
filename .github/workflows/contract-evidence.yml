@@ -41,3 +41,17 @@ jobs:
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
       - name: Run contract evidence tests
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
+      - name: Generate full Overcenter contract evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
+          node scripts/contract-evidence/cli.mjs generate \
+            --repo-root . \
+            --config scripts/contract-evidence/overcenter/config.mjs \
+            --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
+            --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md"
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: contract-evidence-generated
+          path: ${{ runner.temp }}/contract-evidence
+          if-no-files-found: error
