@@ -18,5 +18,8 @@ jobs:
         with:
           node-version: 22
       - run: npm install --package-lock-only --ignore-scripts
-      - name: Emit package lock
-        run: base64 -w0 package-lock.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-lock
+          path: package-lock.json
+          if-no-files-found: error
