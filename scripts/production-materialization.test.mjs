@@ -67,14 +67,18 @@ test('materializes the exact production revision and proves the immutable deploy
   assert.equal(receipt.source_path_count, 1);
 });
 
-test('production branch updates are serialized into the production materialization driver', () => {
+test('production branch updates are serialized into the dist-aware production materialization driver', () => {
   const workflowUrl = new URL('../.github/workflows/production-materialization.yml', import.meta.url);
   assert.equal(existsSync(workflowUrl), true, 'production materialization workflow is missing');
   const workflow = readFileSync(workflowUrl, 'utf8');
   assert.match(workflow, /branches:\s*\[main\]/);
   assert.match(workflow, /group:\s*overcenter-production-materialization/);
   assert.match(workflow, /cancel-in-progress:\s*false/);
-  assert.match(workflow, /node scripts\/production-materialization-http\.mjs/);
+  const build = workflow.indexOf('tsc -p tsconfig.semantic.runtime.json');
+  const materialize = workflow.indexOf('node scripts/production-materialization-dist-http.mjs');
+  assert.ok(build >= 0, 'production materialization must build the runtime artifact');
+  assert.ok(materialize >= 0, 'production materialization must use the dist-aware driver');
+  assert.ok(build < materialize, 'production materialization must build dist before runtime projection');
 });
 
 test('remote production adapter fences, stages, deploys, and reads immutable file_manifest', async () => {
