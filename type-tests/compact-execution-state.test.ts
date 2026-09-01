@@ -81,10 +81,7 @@ const badFence: ExecutionFence = { ...fence, authority_epoch: '3' };
 void badFence;
 
 // @ts-expect-error progress history is bounded to the current two hashes
-const tooMuchProgress: ExecutionState = {
-  ...execution,
-  recent_progress_sha256: ['a', 'b', 'c'],
-};
+const tooMuchProgress: ExecutionState['recent_progress_sha256'] = ['a', 'b', 'c'];
 void tooMuchProgress;
 
 // @ts-expect-error operation state is a closed lifecycle vocabulary
