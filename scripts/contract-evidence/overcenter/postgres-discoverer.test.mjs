@@ -56,7 +56,7 @@ CREATE VIEW example_contract_view AS SELECT id, status FROM example_contract;
     const payload = candidates.find((item) => item.source_identity === 'postgres:public.example_contract#payload');
     assert.equal(payload.structure.data_type, 'jsonb');
     assert.equal(payload.structure.nullable, false);
-    assert.deepEqual(ids, [...ids].sort());
+    assert.deepEqual(ids, [...ids].sort((a, b) => a.localeCompare(b)));
   } finally {
     await db.query('DROP VIEW IF EXISTS example_contract_view CASCADE').catch(() => {});
     await db.query('DROP TABLE IF EXISTS example_contract CASCADE').catch(() => {});
