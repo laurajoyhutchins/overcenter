@@ -37,6 +37,8 @@ jobs:
         run: |
           rm -rf dist/lib
           npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.runtime.json
+      - name: Verify project authoring authority contracts
+        run: node --test scripts/verify-project-authoring-readback-contract.test.mjs scripts/verify-project-authoring-github-adapter.test.mjs
       - name: Install MCP client for this run
         run: npm install --no-save --package-lock=false @modelcontextprotocol/client@2
       - name: Verify exact revision in isolated Hatchable V8 runtime
