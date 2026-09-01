@@ -342,6 +342,16 @@
       }
     },
     {
+      "id": "require-current-lease-and-head-at-github-mutation",
+      "priority": 132,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "require-production-reachability",
       "priority": 110,
       "requires": [
