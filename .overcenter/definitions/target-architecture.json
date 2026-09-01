@@ -264,6 +264,16 @@
       }
     },
     {
+      "id": "establish-root-developer-entrypoint",
+      "priority": 1200,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "expose-compact-primary-agent-discovery",
       "priority": 85,
       "requires": [
