@@ -1,1 +1,0 @@
-export * from '../adapters/mcp/project-inspect.js';
