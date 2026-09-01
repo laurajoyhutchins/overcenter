@@ -20,6 +20,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify root developer entrypoint
+        run: node --test scripts/verify-root-developer-entrypoint.test.mjs
       - name: Verify every maintained regression suite is registered
         run: node scripts/verify-regression-suite-registry.mjs
       - name: Syntax-check runtime modules
