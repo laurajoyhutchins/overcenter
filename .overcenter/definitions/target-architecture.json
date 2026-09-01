@@ -252,6 +252,16 @@
       }
     },
     {
+      "id": "enforce-primary-mcp-discovery-boundary",
+      "priority": 1300,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "establish-dist-runtime-artifact-boundary",
       "priority": 1000,
       "requires": [
