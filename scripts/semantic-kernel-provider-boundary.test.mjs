@@ -8,6 +8,7 @@ import * as providerBoundary from './semantic-kernel-provider-boundary.mjs';
 const {
   findForbiddenProviderImports,
   findForbiddenRuntimeCompatibilityImports,
+  findUnexpectedRuntimeEntries,
 } = providerBoundary;
 
 async function collectTypeScriptSources(directories, root = process.cwd(), { skipRuntime = false } = {}) {
@@ -105,12 +106,10 @@ test('checked-in TypeScript imports use runtime only for genuine composition', a
 
 test('checked-in runtime modules are genuine composition modules', async () => {
   const entries = await readdir(path.join(process.cwd(), 'src', 'runtime'), { withFileTypes: true });
-  const modules = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
-    .map((entry) => entry.name)
-    .sort();
+  const runtimeEntries = entries.map((entry) => entry.isFile() ? entry.name : `${entry.name}/`);
 
-  assert.deepEqual(modules, [
+  assert.deepEqual(findUnexpectedRuntimeEntries(runtimeEntries), []);
+  assert.deepEqual(runtimeEntries.sort(), [
     'portable-runtime.ts',
     'production-promotion-overcenter-host.ts',
   ]);

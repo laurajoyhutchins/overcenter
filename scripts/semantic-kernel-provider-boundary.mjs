@@ -3,6 +3,9 @@ const ALLOWED_RUNTIME_COMPOSITION_MODULES = new Set([
   'portable-runtime',
   'production-promotion-overcenter-host',
 ]);
+const ALLOWED_RUNTIME_COMPOSITION_ENTRIES = new Set(
+  [...ALLOWED_RUNTIME_COMPOSITION_MODULES].map((module) => `${module}.ts`),
+);
 const IMPORT_PATTERN = /\b(?:import|export)\s+(?:type\s+)?(?:[^'\"]*?\s+from\s+)?['\"]([^'\"]+)['\"]/g;
 
 function importedSpecifiers(source) {
@@ -48,4 +51,10 @@ export function findForbiddenRuntimeCompatibilityImports(files) {
     }
   }
   return violations.sort((a, b) => a.path.localeCompare(b.path) || a.specifier.localeCompare(b.specifier));
+}
+
+export function findUnexpectedRuntimeEntries(entries) {
+  return [...entries]
+    .filter((entry) => !ALLOWED_RUNTIME_COMPOSITION_ENTRIES.has(entry))
+    .sort();
 }
