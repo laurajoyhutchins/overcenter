@@ -23,6 +23,8 @@ async function javascriptFiles(directory) {
 
 const maintainedTests = [
   'verify-root-developer-entrypoint.test.mjs',
+  'verify-compact-execution-state-contracts.test.mjs',
+  'verify-compact-state-migrations.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
   'verify-transition-first-dashboard.test.mjs',
   'verify-execution-evidence-projector.test.mjs',

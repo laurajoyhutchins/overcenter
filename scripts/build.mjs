@@ -7,6 +7,7 @@ const tsc = fileURLToPath(new URL('node_modules/typescript/bin/tsc', root));
 const mirrorFiles = [
   'canonical-commands.js',
   'command-contracts.js',
+  'compact-execution-state.js',
   'compatibility-transition-bindings.js',
   'execution-authority-contracts.js',
   'execution-authority-core.js',

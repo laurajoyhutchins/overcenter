@@ -7,4 +7,4 @@ function run(args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 run(['scripts/build.mjs', 'portable']);
-run(['--test', 'scripts/node-postgres-runtime.test.mjs']);
+run(['--test', 'scripts/node-postgres-runtime.test.mjs', 'scripts/compact-execution-state-postgres.test.mjs']);

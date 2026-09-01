@@ -7,8 +7,10 @@
     "rootDir": "src/semantic"
   },
   "include": [
+    "src/semantic/canonical-json.ts",
     "src/semantic/canonical-commands.ts",
     "src/semantic/command-contracts.ts",
+    "src/semantic/compact-execution-state.ts",
     "src/semantic/compatibility-transition-bindings.ts",
     "src/semantic/execution-authority-contracts.ts",
     "src/semantic/execution-authority-core.ts",
