@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace long-lived historical execution tables with explicit 30-day TTL telemetry, optionally archive canonical immutable history to a provider-neutral sink before purge, and make Google Drive a concrete first sink without making Drive part of Overcenter semantics.
+**Goal:** Replace long-lived historical execution tables with explicit 30-day TTL telemetry, optionally archive canonical immutable history through a provider-neutral sink before purge, and make Google Drive a concrete first sink without making Drive part of Overcenter semantics.
 
-**Architecture:** Normalize new diagnostic chronology into one non-authoritative `telemetry_events` buffer. Prepare one immutable `overcenter-archive-v1` bundle per completed run or scheduler-only cycle, record delivery state in `telemetry_archive_exports`, and export through an `ArchiveSink` port. With no sink configured, TTL expiry is sufficient for purge; with a sink configured, the exact bundle digest must be confirmed first. Backfill old history through the same canonicalizer, verify every configured archive, then drop obsolete history tables through a forward migration.
+**Architecture:** Normalize new diagnostic chronology into one non-authoritative `telemetry_events` buffer. Freeze one immutable `overcenter-archive-v1` bundle only after a run/cycle is terminal and has no unresolved operation that could append semantically relevant history. Track delivery in `telemetry_archive_exports` and export through `ArchiveSink`. With no sink, TTL expiry permits purge; with a configured sink, the exact bundle digest must be confirmed first. Backfill legacy history through the same canonicalizer, confirm every configured archive, then retire obsolete history tables with a forward migration.
 
-**Tech Stack:** Node.js 22, TypeScript 5.9.2, PostgreSQL, SHA-256 canonical JSON, native `fetch`, Google Drive API v3 for the first provider adapter, existing Overcenter deterministic maintenance/runtime patterns.
+**Tech Stack:** Node.js 22, TypeScript 5.9.2, PostgreSQL, canonical JSON + SHA-256, native `fetch`, Google Drive API v3 for the first provider adapter, existing deterministic maintenance/runtime patterns.
 
 **Spec:** `docs/superpowers/specs/2026-09-01-compact-execution-state-and-telemetry-archive-design.md`
 
@@ -17,103 +17,75 @@
 ## Global Constraints
 
 - Archive and telemetry are non-authoritative. Recovery, `project.advance`, acquisition, heartbeat authorization, settlement, mutation retry, promotion, and proof evaluation may not import or query them.
-- Initial telemetry TTL is 30 days, configurable at runtime; TTL is operational configuration, not a semantic constant in archived data.
-- When no archive sink is configured, expired telemetry may purge normally.
-- When an archive sink is configured, telemetry for a bundle may purge only after that sink confirms the exact `bundle_sha256`.
-- Archive/export failure never changes execution/run/lease/operation/proof state. It creates retention debt only.
-- Normal runtime bundles are exactly `run` or `scheduled_cycle`; `legacy_unscoped` is migration-only.
-- Archive bytes are canonical JSON. `content_sha256` is computed over the canonical document with `content_sha256` omitted.
-- A retry for the same `bundle_id` must reproduce the same source-set digest and bundle digest. A mismatch fails closed as archive corruption.
-- Never archive lease/capability tokens, credentials, secret environment values, raw prompts, arbitrary provider response bodies, unrestricted request bodies, or copied repository source blobs.
-- Google Drive is an adapter. The semantic archive contract must remain equally implementable by S3-compatible object storage, filesystem storage, or another sink.
-- Google Drive authentication is injected through an access-token provider. The archive adapter does not own user identity or OAuth credential lifecycle.
-- Production table retirement requires compact-read equivalence, physical history-independence, no unresolved effect dependency, configured archive backfill confirmation, and exact-revision verification on the retirement head.
+- Initial telemetry TTL is 30 days and is configurable at runtime.
+- No configured archive sink: TTL expiry alone can permit purge.
+- Configured archive sink: TTL expiry plus confirmed exact bundle digest is required for purge.
+- Archive/export failure changes retention state only, never run/execution/operation/proof correctness state.
+- Normal runtime bundle kinds are exactly `run` and `scheduled_cycle`; `legacy_unscoped` is migration-only.
+- A run bundle is not prepared while `orchestration_runs.unresolved_operation_id` is non-null or any operation for the run remains `prepared/indeterminate`.
+- A cycle bundle is not prepared while any correlated run has unresolved operation state.
+- `content_sha256` is computed over canonical JSON with the digest field omitted.
+- Same `bundle_id` must always reproduce the same source-set digest and bundle digest. Any mismatch is corruption and blocks purge.
+- Never archive capability/lease tokens, credentials, secret environment values, raw prompts, arbitrary provider bodies, unrestricted request bodies, or copied source blobs.
+- Google Drive auth is injected. The adapter does not own OAuth/user identity or put Google-specific fields into the semantic archive contract.
+- Production retirement requires compact-read equivalence, history-independence, no unresolved dependency, confirmed archive backfill for targeted rows, and exact-revision verification on the retirement head.
 
 ---
 
-### Task 1: Define canonical telemetry and archive contracts
+### Task 1: Define canonical telemetry/archive semantics
 
 **Files:**
 - Create: `src/semantic/telemetry-archive.ts`
 - Create: `type-tests/telemetry-archive.test.ts`
 - Create: `scripts/verify-telemetry-archive-contract.test.mjs`
 - Modify: `tsconfig.semantic.runtime.json`
-- Create generated compatibility mirror: `lib/telemetry-archive.js`
+- Create generated mirror: `lib/telemetry-archive.js`
 - Modify: `.github/workflows/semantic-kernel-types.yml`
 
 **Interfaces:**
-- Consumes: canonical JSON and SHA-256 helpers.
-- Produces: `TelemetryRecordV1`, `ArchiveBundleV1`, `CanonicalArchiveArtifact`, `canonicalTelemetryRecord()`, `buildArchiveBundle()`, `archiveBundleDigestInput()`.
+- Produces: `TelemetryRecordV1`, `ArchiveBundleV1`, `CanonicalArchiveArtifact`, `buildArchiveBundle()`, `buildLegacyUnscopedArchiveBundle()`.
 
-- [ ] **Step 1: Write failing contract tests**
+- [ ] **Step 1: Write the failing type/runtime tests**
 
 ```ts
-import type { ArchiveBundleV1, TelemetryRecordV1 } from '../src/semantic/telemetry-archive.js';
-
 const record: TelemetryRecordV1 = {
-  record_type:'command_invocation',
-  record_id:'invocation:1',
-  occurred_at:'2026-09-01T18:00:00.000Z',
-  run_id:'run-1',
-  subject_key:null,
-  command:'github.apply_changeset',
-  outcome:'succeeded',
-  may_have_mutated:true,
-  payload:{ effect_ref:'abc123' },
-  payload_sha256:'a'.repeat(64),
+  record_type:'command_invocation', record_id:'invocation:1',
+  occurred_at:'2026-09-01T18:00:00.000Z', run_id:'run-1', subject_key:null,
+  command:'github.apply_changeset', outcome:'succeeded', may_have_mutated:true,
+  payload:{ effect_ref:'abc123' }, payload_sha256:'a'.repeat(64),
 };
-
-const bundle: ArchiveBundleV1 = {
-  schema:'overcenter-archive-v1',
-  bundle_id:'run:run-1',
-  kind:'run',
-  subject_id:'run-1',
-  created_at:'2026-09-01T18:10:00.000Z',
-  source_revision:'b'.repeat(40),
-  terminal_summary:{ disposition:'completed' },
-  telemetry_records:[record],
-  operation_refs:[],
-  proof_refs:[],
-  authority_refs:[],
-  content_sha256:'c'.repeat(64),
-};
-void bundle;
 ```
+
+Runtime tests must prove insertion order does not change canonical bytes/digest and normal runtime builder rejects `legacy_unscoped`.
 
 - [ ] **Step 2: Verify failure**
 
 ```bash
 npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
+node --test scripts/verify-telemetry-archive-contract.test.mjs
 ```
 
-Expected: FAIL because the archive contract does not exist.
+- [ ] **Step 3: Implement deterministic sort/digest**
 
-- [ ] **Step 3: Implement canonical ordering and self-excluding digest**
-
-`buildArchiveBundle()` must sort telemetry by `(occurred_at, record_type, record_id)`, operation/proof/authority refs lexicographically, and produce the same canonical bytes regardless of insertion order.
+Sort telemetry by `(occurred_at, record_type, record_id)` and reference arrays lexicographically. Compute digest over:
 
 ```ts
-export function archiveBundleDigestInput(bundle: ArchiveBundleV1): Omit<ArchiveBundleV1,'content_sha256'> {
-  const { content_sha256: _ignored, ...digestInput } = bundle;
-  return digestInput;
+export function archiveBundleDigestInput(bundle: ArchiveBundleV1) {
+  const { content_sha256: _ignored, ...input } = bundle;
+  return input;
 }
 ```
 
-Digest only `canonicalJson(archiveBundleDigestInput(bundle))`.
+Then SHA-256 `canonicalJson(input)`.
 
-- [ ] **Step 4: Centralize redaction**
+- [ ] **Step 4: Centralize archive redaction**
 
-The canonicalizer must reject forbidden key names such as `lease_token`, `token_hash`, `authorization`, `password`, `access_token`, `refresh_token`, and `raw_prompt` before serialization. Where current bounded-evidence utilities already normalize safe projections, reuse them instead of maintaining duplicate payload logic.
+Reject forbidden keys including `lease_token`, `token_hash`, `authorization`, `password`, `access_token`, `refresh_token`, and `raw_prompt`. Reuse current bounded-evidence projections where available; never serialize arbitrary DB rows.
 
-- [ ] **Step 5: Test normal vs migration bundle kinds**
-
-Normal runtime builder accepts only `run | scheduled_cycle`. A separate `buildLegacyUnscopedArchiveBundle()` is the only API allowed to emit `legacy_unscoped`.
-
-- [ ] **Step 6: Generate/run/commit**
+- [ ] **Step 5: Generate/run/commit**
 
 ```bash
-rm -rf dist/lib
-npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.runtime.json
+rm -rf dist/lib && npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.runtime.json
 cp dist/lib/telemetry-archive.js lib/telemetry-archive.js
 diff -u lib/telemetry-archive.js dist/lib/telemetry-archive.js
 node --test scripts/verify-telemetry-archive-contract.test.mjs
@@ -131,27 +103,16 @@ git commit -m "feat: define canonical telemetry archive format"
 - Create: `scripts/verify-telemetry-retention-migrations.test.mjs`
 
 **Interfaces:**
-- Consumes: canonical telemetry/archive fields from Task 1.
-- Produces: one non-authoritative telemetry buffer and one retention outbox.
+- Produces: non-authoritative TTL buffer plus immutable archive-delivery bookkeeping.
 
-- [ ] **Step 1: Write failing migration tests**
+- [ ] **Step 1: Write failing migration assertions**
 
 ```js
-const events = await read('057_telemetry_events.sql');
-assert.match(events, /expires_at\s+TIMESTAMPTZ\s+NOT NULL/i);
-assert.match(events, /UNIQUE\s*\(source_kind,\s*source_id\)/i);
-const exportsSql = await read('058_telemetry_archive_exports.sql');
-assert.match(exportsSql, /PRIMARY KEY\s*\(bundle_id,\s*sink_id\)/i);
-assert.match(exportsSql, /source_set_sha256\s+TEXT\s+NOT NULL/i);
+assert.match(await read('057_telemetry_events.sql'), /expires_at\s+TIMESTAMPTZ\s+NOT NULL/i);
+assert.match(await read('058_telemetry_archive_exports.sql'), /PRIMARY KEY\s*\(bundle_id,\s*sink_id\)/i);
 ```
 
-- [ ] **Step 2: Verify failure**
-
-```bash
-node --test scripts/verify-telemetry-retention-migrations.test.mjs
-```
-
-- [ ] **Step 3: Create `telemetry_events`**
+- [ ] **Step 2: Create `telemetry_events`**
 
 ```sql
 CREATE TABLE telemetry_events (
@@ -175,19 +136,21 @@ CREATE TABLE telemetry_events (
   UNIQUE (source_kind, source_id),
   UNIQUE (record_type, record_id)
 );
-CREATE INDEX telemetry_events_expiry_idx ON telemetry_events (expires_at, archive_subject_kind, archive_subject_id);
-CREATE INDEX telemetry_events_bundle_idx ON telemetry_events (archive_subject_kind, archive_subject_id, occurred_at, record_id);
+CREATE INDEX telemetry_events_bundle_idx
+  ON telemetry_events (archive_subject_kind, archive_subject_id, occurred_at, record_id);
+CREATE INDEX telemetry_events_expiry_idx
+  ON telemetry_events (expires_at, archive_subject_kind, archive_subject_id);
 ```
 
-`legacy_unscoped` inserts are permitted only through the migration backfill adapter, never the normal runtime recorder.
+Normal runtime recorders reject `archive_subject_kind='legacy_unscoped'`; only backfill code may use it.
 
-- [ ] **Step 4: Create `telemetry_archive_exports`**
+- [ ] **Step 3: Create `telemetry_archive_exports`**
 
 ```sql
 CREATE TABLE telemetry_archive_exports (
   bundle_id TEXT NOT NULL,
   sink_id TEXT NOT NULL,
-  schema_version TEXT NOT NULL CHECK (schema_version = 'overcenter-archive-v1'),
+  schema_version TEXT NOT NULL CHECK (schema_version='overcenter-archive-v1'),
   subject_kind TEXT NOT NULL CHECK (subject_kind IN ('run','scheduled_cycle','legacy_unscoped')),
   subject_id TEXT NOT NULL,
   source_cutoff_at TIMESTAMPTZ NOT NULL,
@@ -204,7 +167,7 @@ CREATE TABLE telemetry_archive_exports (
 );
 ```
 
-- [ ] **Step 5: Run and commit**
+- [ ] **Step 4: Run and commit**
 
 ```bash
 node --test scripts/verify-telemetry-retention-migrations.test.mjs
@@ -214,7 +177,7 @@ git commit -m "feat: add ttl telemetry and archive outbox schema"
 
 ---
 
-### Task 3: Add telemetry recorder and forbid kernel imports
+### Task 3: Add TTL telemetry recorder and enforce the kernel boundary
 
 **Files:**
 - Create: `src/ports/telemetry-store.ts`
@@ -227,41 +190,30 @@ git commit -m "feat: add ttl telemetry and archive outbox schema"
 - Create: `scripts/verify-telemetry-kernel-boundary.test.mjs`
 
 **Interfaces:**
-- Consumes: safe bounded event projections already produced by runtime modules.
-- Produces: `recordTelemetry(record, { ttlDays:30 })` and telemetry reads for diagnostics/archive only.
+- Produces: `recordTelemetry()` with default 30-day expiry and diagnostic-only readers.
 
-- [ ] **Step 1: Write failing recorder tests**
+- [ ] **Step 1: Write recorder/idempotency tests**
 
-Assert duplicate `(source_kind,source_id)` is idempotent only when `payload_sha256` matches; a different digest raises `TELEMETRY_SOURCE_CONFLICT`. Assert default expiry equals `occurred_at + 30 days` when the runtime policy does not override it.
+Same `(source_kind,source_id)` + same payload digest replays. Different digest throws `TELEMETRY_SOURCE_CONFLICT`. Default expiry equals occurrence time + 30 days.
 
-- [ ] **Step 2: Write the import-boundary test**
+- [ ] **Step 2: Write the forbidden-import test**
 
-Scan correctness modules (`project-transition-leases`, `work-leases`, recovery, mutation modules, production promotion, proof evaluation) and fail if they import `telemetry-recorder`, `telemetry-store`, `telemetry-retention`, or any archive adapter.
+Fail if correctness modules import `telemetry-store`, `telemetry-recorder`, `telemetry-retention`, `archive-sink`, or provider archive adapters.
 
-- [ ] **Step 3: Verify failures**
-
-```bash
-node --test scripts/verify-telemetry-recorder.test.mjs scripts/verify-telemetry-kernel-boundary.test.mjs
-```
-
-- [ ] **Step 4: Implement the recorder**
+- [ ] **Step 3: Implement retention calculation**
 
 ```ts
-export interface TelemetryRetentionPolicy { readonly ttlDays: number; }
-
-export function telemetryExpiresAt(occurredAt: string, policy: TelemetryRetentionPolicy): string {
-  const ms = Date.parse(occurredAt) + policy.ttlDays * 86_400_000;
-  return new Date(ms).toISOString();
+export function telemetryExpiresAt(occurredAt: string, ttlDays = 30): string {
+  if (!Number.isInteger(ttlDays) || ttlDays < 1) throw new TypeError('ttlDays must be a positive integer');
+  return new Date(Date.parse(occurredAt) + ttlDays * 86_400_000).toISOString();
 }
 ```
 
-Reject `ttlDays < 1` or non-integers. The default composition passes `30`.
+- [ ] **Step 4: Dual-write command/scheduler chronology**
 
-- [ ] **Step 5: Dual-write current chronology into `telemetry_events`**
+Write existing safe journal/scheduled-cycle projections into normalized telemetry while old tables still receive compatibility writes. Prove scheduled-cycle classifications match old rows before any old writer is removed.
 
-Start with command journal events and scheduled-cycle events. Preserve current public diagnostics by teaching scheduled-cycle completeness to read normalized telemetry once dual-write equivalence is proven. Do not remove old writes yet.
-
-- [ ] **Step 6: Run and commit**
+- [ ] **Step 5: Run and commit**
 
 ```bash
 rm -rf dist/portable && npx --yes --package typescript@5.9.2 tsc -p tsconfig.portable-runtime.json
@@ -272,126 +224,63 @@ git commit -m "feat: record explicit ttl telemetry"
 
 ---
 
-### Task 4: Define archive sink and durable export-store ports
+### Task 4: Add archive sink/export-store ports and immutable bundle preparation
 
 **Files:**
 - Create: `src/ports/archive-sink.ts`
 - Create: `src/ports/archive-export-store.ts`
 - Create: `src/adapters/postgres/archive-export-store.ts`
+- Create: `src/runtime/telemetry-archive-builder.ts`
+- Create: `src/runtime/telemetry-archive-exporter.ts`
 - Modify: `src/adapters/postgres/node-postgres-runtime.ts`
-- Create: `type-tests/archive-sink.test.ts`
 - Create: `scripts/archive-sink-conformance.test.mjs`
 - Create: `scripts/archive-export-store-postgres.test.mjs`
+- Create: `scripts/verify-telemetry-archive-builder.test.mjs`
+- Create: `scripts/verify-telemetry-archive-exporter.test.mjs`
 
 **Interfaces:**
-- Consumes: `CanonicalArchiveArtifact` from Task 1 and outbox table from Task 2.
-- Produces: provider-neutral `ArchiveSink` and exact-digest export bookkeeping.
+- Produces: `ArchiveSink.put()`, durable outbox transitions, deterministic builder/exporter.
 
-- [ ] **Step 1: Write the failing port contract**
+- [ ] **Step 1: Define the port in a failing type test**
 
 ```ts
-export interface ArchiveReceipt {
-  readonly sink_id:string;
-  readonly bundle_id:string;
-  readonly bundle_sha256:string;
-  readonly provider_ref:string;
-  readonly confirmed_at:string;
-}
-
 export interface ArchiveSink {
   readonly sinkId:string;
   put(artifact: CanonicalArchiveArtifact): Promise<ArchiveReceipt>;
 }
 ```
 
-`CanonicalArchiveArtifact` contains the semantic bundle, canonical UTF-8 bytes, and digest so adapters cannot reserialize it differently.
+`CanonicalArchiveArtifact` includes semantic bundle, canonical UTF-8 bytes, and digest so providers cannot choose serialization.
 
-- [ ] **Step 2: Verify type failure**
+- [ ] **Step 2: Test outbox immutability**
 
-```bash
-npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
-```
+Allowed states: `pending -> exporting -> confirmed|failed`, `failed -> exporting -> confirmed|failed`. Confirmed is immutable. Reprepare same `(bundle_id,sink_id)` with changed source-set or bundle digest throws `ARCHIVE_BUNDLE_CONFLICT`.
 
-- [ ] **Step 3: Implement export-store state transitions**
+- [ ] **Step 3: Test the unresolved-operation freeze fence**
 
-Allowed transitions are:
+A terminal run with `unresolved_operation_id` or any `prepared/indeterminate` operation is not eligible for bundle preparation. After authoritative resolution clears the pointer/state, preparation succeeds once. The same rule applies to any correlated run in a scheduled cycle.
 
-```text
-pending -> exporting -> confirmed
-pending -> exporting -> failed
-failed  -> exporting -> confirmed
-failed  -> exporting -> failed
-```
+- [ ] **Step 4: Test deterministic source set**
 
-A confirmed export is immutable. Re-preparing the same `(bundle_id,sink_id)` with a different `source_set_sha256` or `bundle_sha256` throws `ARCHIVE_BUNDLE_CONFLICT`.
+Compute `source_set_sha256` over sorted `(record_type,record_id,payload_sha256)`. Reordering does not change it. Adding/changing any record with `occurred_at <= source_cutoff_at` after preparation makes retry fail `ARCHIVE_SOURCE_SET_CHANGED`.
 
-- [ ] **Step 4: Add sink conformance tests**
+- [ ] **Step 5: Implement asynchronous export**
 
-Any sink implementation must prove: exact digest returned, same artifact replay succeeds, same bundle ID/different digest fails, and provider errors do not mutate the artifact.
-
-- [ ] **Step 5: Run and commit**
-
-```bash
-npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
-rm -rf dist/portable && npx --yes --package typescript@5.9.2 tsc -p tsconfig.portable-runtime.json
-node --test scripts/archive-sink-conformance.test.mjs scripts/archive-export-store-postgres.test.mjs
-git add src/ports/archive-sink.ts src/ports/archive-export-store.ts src/adapters/postgres/archive-export-store.ts src/adapters/postgres/node-postgres-runtime.ts type-tests/archive-sink.test.ts scripts/archive-sink-conformance.test.mjs scripts/archive-export-store-postgres.test.mjs
-git commit -m "feat: add provider neutral archive sink port"
-```
-
----
-
-### Task 5: Build immutable bundles and asynchronous exporter
-
-**Files:**
-- Create: `src/runtime/telemetry-archive-builder.ts`
-- Create: `src/runtime/telemetry-archive-exporter.ts`
-- Create: `scripts/verify-telemetry-archive-builder.test.mjs`
-- Create: `scripts/verify-telemetry-archive-exporter.test.mjs`
-
-**Interfaces:**
-- Consumes: terminal compact state, telemetry rows, archive sink, export store.
-- Produces: `prepareArchiveBundle(subject, sinkId)` and `exportArchiveBundle(bundleId, sink)`.
-
-- [ ] **Step 1: Write deterministic builder tests**
-
-For the same terminal run and telemetry set in different DB order, assert identical `source_set_sha256`, canonical bytes, and `bundle_sha256`.
-
-The source-set digest is computed over sorted pairs:
-
-```text
-(record_type, record_id, payload_sha256)
-```
-
-- [ ] **Step 2: Write the changed-source corruption test**
-
-Prepare an export, then change/add a telemetry event with `occurred_at <= source_cutoff_at`. Rebuild must throw `ARCHIVE_SOURCE_SET_CHANGED`; it may not silently update the stored digest.
-
-- [ ] **Step 3: Verify failures**
-
-```bash
-node --test scripts/verify-telemetry-archive-builder.test.mjs scripts/verify-telemetry-archive-exporter.test.mjs
-```
-
-- [ ] **Step 4: Implement preparation**
-
-A runtime `run` bundle is prepared only after the run is terminal. A `scheduled_cycle` bundle is prepared only after the cycle completeness surface declares the cycle terminal. Store `source_cutoff_at`, source-set digest, and bundle digest in `telemetry_archive_exports`; do not store a second full bundle payload.
-
-- [ ] **Step 5: Implement bounded exporter attempts**
-
-Each maintenance invocation performs at most one provider `put()` per selected bundle. On success, require receipt `bundle_id` and digest equality before `confirmed`. On failure, store bounded machine-readable `last_error`, increment attempts, set `failed`, and return a retention warning rather than throwing into execution state.
+One maintenance attempt performs at most one provider `put()` per selected bundle. Require returned `bundle_id` and digest equality before `confirmed`. Provider failure records bounded `last_error`, increments attempts, sets `failed`, and returns retention debt rather than an execution error.
 
 - [ ] **Step 6: Run and commit**
 
 ```bash
-node --test scripts/verify-telemetry-archive-builder.test.mjs scripts/verify-telemetry-archive-exporter.test.mjs
-git add src/runtime/telemetry-archive-builder.ts src/runtime/telemetry-archive-exporter.ts scripts/verify-telemetry-archive-builder.test.mjs scripts/verify-telemetry-archive-exporter.test.mjs
+npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
+rm -rf dist/portable && npx --yes --package typescript@5.9.2 tsc -p tsconfig.portable-runtime.json
+node --test scripts/archive-sink-conformance.test.mjs scripts/archive-export-store-postgres.test.mjs scripts/verify-telemetry-archive-builder.test.mjs scripts/verify-telemetry-archive-exporter.test.mjs
+git add src/ports/archive-sink.ts src/ports/archive-export-store.ts src/adapters/postgres/archive-export-store.ts src/runtime/telemetry-archive-builder.ts src/runtime/telemetry-archive-exporter.ts src/adapters/postgres/node-postgres-runtime.ts scripts/archive-sink-conformance.test.mjs scripts/archive-export-store-postgres.test.mjs scripts/verify-telemetry-archive-builder.test.mjs scripts/verify-telemetry-archive-exporter.test.mjs
 git commit -m "feat: prepare and export immutable archive bundles"
 ```
 
 ---
 
-### Task 6: Implement the Google Drive archive adapter
+### Task 5: Implement Google Drive as the first concrete archive sink
 
 **Files:**
 - Create: `src/adapters/archive/google-drive.ts`
@@ -399,59 +288,35 @@ git commit -m "feat: prepare and export immutable archive bundles"
 - Create: `scripts/google-drive-archive-sink.test.mjs`
 
 **Interfaces:**
-- Consumes: `ArchiveSink`, injected `getAccessToken(): Promise<string>`, `folderId`, and `fetch` implementation.
-- Produces: `createGoogleDriveArchiveSink()` implementing the same provider-neutral receipt contract.
+- Consumes: `ArchiveSink`, injected `getAccessToken()`, configured `folderId`, injected/native `fetch`.
+- Produces: `createGoogleDriveArchiveSink()`.
 
-- [ ] **Step 1: Write idempotency tests with a fake HTTP server/fetch**
+- [ ] **Step 1: Write fake-HTTP idempotency tests**
 
-First `put()` should search for the bundle by private `appProperties`. If a matching file exists with the same digest, no upload occurs and the existing file ID is returned. If the same bundle ID exists with a different digest, throw `ARCHIVE_DIGEST_CONFLICT`.
+Before upload, search Drive by configured parent and private `appProperties.overcenter_bundle_id`. Same digest returns existing file ID without upload. Same bundle ID with a different `overcenter_sha256` throws `ARCHIVE_DIGEST_CONFLICT`.
 
-- [ ] **Step 2: Verify failure**
+- [ ] **Step 2: Implement Drive v3 search**
 
-```bash
-node --test scripts/google-drive-archive-sink.test.mjs
-```
-
-- [ ] **Step 3: Implement Drive search**
-
-Use Drive v3 `files.list` with a query containing:
+Use `files.list` query:
 
 ```text
-'<folderId>' in parents
-and trashed = false
+'<folderId>' in parents and trashed = false
 and appProperties has { key='overcenter_bundle_id' and value='<bundleId>' }
 ```
 
-Request only `files(id,name,appProperties)` and compare `appProperties.overcenter_sha256` with the artifact digest.
+Request `files(id,name,appProperties)` only.
 
-- [ ] **Step 4: Implement resumable upload**
+- [ ] **Step 3: Implement resumable upload**
 
-Use an injected bearer token. Initiate:
+Initiate:
 
 ```text
 POST https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,appProperties
 ```
 
-Metadata:
+Metadata contains `name`, `parents:[folderId]`, `mimeType:'application/json'`, and private app properties `overcenter_bundle_id`, `overcenter_sha256`, `overcenter_schema`. Read `Location`, then `PUT` the exact canonical bytes there. Confirm returned file ID/digest metadata before returning `ArchiveReceipt`.
 
-```json
-{
-  "name": "overcenter-<bundle-id>-<digest-prefix>.json",
-  "parents": ["<configured-folder-id>"],
-  "mimeType": "application/json",
-  "appProperties": {
-    "overcenter_bundle_id": "<bundle-id>",
-    "overcenter_sha256": "<full-digest>",
-    "overcenter_schema": "overcenter-archive-v1"
-  }
-}
-```
-
-Read the returned `Location` header and `PUT` the exact canonical bytes to that session URI. Confirm the returned file ID and digest metadata before returning the archive receipt.
-
-- [ ] **Step 5: Keep auth outside the adapter contract**
-
-The constructor shape is:
+- [ ] **Step 4: Keep authentication/provider layout out of the semantic contract**
 
 ```ts
 createGoogleDriveArchiveSink({
@@ -463,9 +328,9 @@ createGoogleDriveArchiveSink({
 })
 ```
 
-Do not hard-code account IDs, folder IDs, tokens, client secrets, or a Google-specific field into `ArchiveBundleV1`.
+No account/folder/token field may appear in `ArchiveBundleV1`.
 
-- [ ] **Step 6: Run conformance and commit**
+- [ ] **Step 5: Run and commit**
 
 ```bash
 npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
@@ -476,7 +341,7 @@ git commit -m "feat: add google drive archive sink"
 
 ---
 
-### Task 7: Implement fail-closed-for-purge retention maintenance
+### Task 6: Implement fail-closed-for-purge retention maintenance
 
 **Files:**
 - Create: `src/runtime/telemetry-retention.ts`
@@ -486,39 +351,32 @@ git commit -m "feat: add google drive archive sink"
 - Create: `scripts/verify-archive-failure-does-not-block-execution.test.mjs`
 
 **Interfaces:**
-- Consumes: TTL telemetry store plus optional configured archive sink/export store.
-- Produces: deterministic purge eligibility and bounded maintenance pass.
+- Produces: deterministic purge eligibility and bounded maintenance.
 
-- [ ] **Step 1: Write the four retention truth-table tests**
+- [ ] **Step 1: Encode the retention truth table**
 
 ```text
-TTL not expired                           -> keep
-TTL expired + no archive sink             -> purge eligible
-TTL expired + sink + export confirmed     -> purge eligible
-TTL expired + sink + pending/failed export-> keep
+TTL not expired                            -> keep
+TTL expired + no sink                      -> purge eligible
+TTL expired + sink + exact export confirmed-> purge eligible
+TTL expired + sink + pending/failed export -> keep
 ```
 
-Confirmation is valid only if the outbox digest equals the currently prepared canonical bundle digest.
+Rows whose subject has not yet become archive-finalizable because of unresolved operations are always kept when a sink is configured.
 
-- [ ] **Step 2: Write the execution-isolation test**
+- [ ] **Step 2: Prove archive failure cannot block execution**
 
-Make the archive sink throw on every call. Finish/settle a run and assert its compact run/operation/execution state is unchanged and terminal. Maintenance reports `archive_pending`/retention debt separately.
+Make the sink fail on every call. Finish/settle a run. Assert compact correctness state is terminal and unchanged; only maintenance reports archive/retention debt.
 
-- [ ] **Step 3: Verify failures**
+- [ ] **Step 3: Delete in bounded batches**
 
-```bash
-node --test scripts/verify-telemetry-retention.test.mjs scripts/verify-archive-failure-does-not-block-execution.test.mjs
-```
+Select/delete at most 500 eligible telemetry rows per maintenance pass. With a sink configured, require a confirmed outbox row for that exact archive subject/digest and ensure the telemetry event occurred on/before the archived cutoff.
 
-- [ ] **Step 4: Implement bounded purge batches**
+- [ ] **Step 4: Integrate with deterministic maintenance**
 
-Select at most 500 eligible telemetry rows per maintenance pass. When a sink is configured, join through confirmed `telemetry_archive_exports` for the row's archive subject before delete. Never delete telemetry for a subject whose prepared bundle is absent, failed, pending, or digest-conflicted.
+Existing maintenance may invoke archive retries/purge and return warnings/counters. Do not create an agent reasoning loop for archive retries and do not make health/recovery success depend on provider availability.
 
-- [ ] **Step 5: Add maintenance without a new agent workflow**
-
-Existing deterministic maintenance may call the retention pass and report counts/warnings, but recovery/health success does not depend on archive provider availability. Do not introduce an agent reasoning step for retries.
-
-- [ ] **Step 6: Run and commit**
+- [ ] **Step 5: Run and commit**
 
 ```bash
 node --test scripts/verify-telemetry-retention.test.mjs scripts/verify-archive-failure-does-not-block-execution.test.mjs
@@ -528,7 +386,7 @@ git commit -m "feat: enforce archive aware telemetry retention"
 
 ---
 
-### Task 8: Backfill the entire existing safe history into canonical telemetry and archive bundles
+### Task 7: Backfill all existing safe history into canonical telemetry/archive bundles
 
 **Files:**
 - Create: `src/runtime/telemetry-history-backfill.ts`
@@ -537,34 +395,16 @@ git commit -m "feat: enforce archive aware telemetry retention"
 - Create: `scripts/verify-archive-backfill-completeness.test.mjs`
 
 **Interfaces:**
-- Consumes: legacy history tables as migration input plus compact terminal facts.
-- Produces: canonical telemetry rows, run/cycle bundles, migration-only `legacy_unscoped` bundles, and completeness evidence.
+- Consumes: legacy historical tables as migration input.
+- Produces: deterministic safe telemetry, run/cycle bundles, migration-only unscoped bundles, and completeness evidence.
 
-- [ ] **Step 1: Write one mapping fixture per legacy table family**
+- [ ] **Step 1: Write mapping fixtures for every retirement target**
 
-Cover at minimum:
+Cover `orchestration_command_invocations`, invocation resolutions, horizons, work leases/slots/checkpoints/heartbeats, changeset/release/promotion/reconcile/verification receipts, required-check observations, and scheduled-cycle events. Every source row gets deterministic `source_kind/source_id`, bounded redacted payload, and archive subject.
 
-```text
-orchestration_command_invocations
-orchestration_invocation_resolutions
-orchestration_horizons
-work_leases
-work_lease_checkpoints
-work_lease_heartbeats
-github_changeset_receipts
-github_release_receipts
-github_production_promotion_receipts
-portfolio_reconcile_receipts
-portfolio_verification_receipts
-github_required_check_observations
-scheduled_cycle_events
-```
+- [ ] **Step 2: Prove redaction before apply mode**
 
-Each fixture gets a deterministic `source_kind/source_id`, canonical record ID, bounded/redacted payload, and archive subject.
-
-- [ ] **Step 2: Verify redaction before any apply mode**
-
-Feed rows containing token-like fields and assert archive/telemetry output excludes them. The backfill refuses a record it cannot normalize safely rather than serializing the raw row.
+Fixtures containing token-like fields must not emit those fields. Rows that cannot be normalized safely are explicitly rejected, never dumped wholesale.
 
 - [ ] **Step 3: Implement dry-run by default**
 
@@ -572,15 +412,15 @@ Feed rows containing token-like fields and assert archive/telemetry output exclu
 node scripts/backfill-telemetry-history.mjs
 ```
 
-prints source counts, normalized counts, rejected/ambiguous counts, subject counts, source-set hashes, and bundle digests. Only `--apply` writes normalized telemetry/outbox rows.
+Print source counts, normalized counts, rejected/ambiguous counts, archive subject counts, source-set hashes, and bundle hashes. Only `--apply` writes.
 
-- [ ] **Step 4: Handle uncorrelatable history explicitly**
+- [ ] **Step 4: Handle uncorrelatable legacy rows explicitly**
 
-Rows that truthfully cannot map to a run or scheduled cycle go into deterministic migration-only `legacy_unscoped` groups. Normal runtime code has no API to create those bundles.
+Group genuinely uncorrelatable old records into deterministic `legacy_unscoped` migration bundles. No normal runtime API can emit that kind.
 
-- [ ] **Step 5: Add archive-completeness verification**
+- [ ] **Step 5: Verify completeness and configured archive confirmation**
 
-For every history row targeted for retirement, prove exactly one safe normalized archival record exists or an explicit documented exclusion explains why no historical payload is retainable. When a sink is configured, require every bundle covering those rows to be `confirmed` with matching digest.
+Every source row targeted for retirement must map to exactly one safe archival record or an explicit safe exclusion. If a sink is configured, every covering bundle must be `confirmed` with matching digest before the retirement gate can pass.
 
 - [ ] **Step 6: Run and commit**
 
@@ -592,44 +432,33 @@ git commit -m "feat: backfill canonical telemetry history"
 
 ---
 
-### Task 9: Retire dedicated history writers and tables
+### Task 8: Retire specialized history writers/tables
 
 **Files:**
 - Modify: `lib/orchestration-journal.js`
 - Modify: `lib/orchestration-semantic-journal-resolution.js`
 - Modify: `lib/scheduled-cycle-completeness.js`
-- Modify mutation/verification modules that still dual-write specialized receipts
+- Modify mutation/verification modules still dual-writing specialized receipts
 - Create: `scripts/verify-history-retirement-readiness.test.mjs`
 - Create: `scripts/verify-scheduler-history-independence.test.mjs`
 - Create: `migrations/059_retire_obsolete_execution_history.sql`
 
 **Interfaces:**
-- Consumes: compact correctness cutover, normalized telemetry dual-write, confirmed archive backfill.
-- Produces: one TTL telemetry store instead of many durable history tables.
+- Produces: compact correctness + one TTL telemetry store + archive outbox, with old history tables removed.
 
-- [ ] **Step 1: Write the retirement readiness gate**
+- [ ] **Step 1: Encode the five retirement gates**
 
-It must prove all five spec conditions:
+Readiness test proves: compact-read equivalence, correctness with history absent, no unresolved effect dependency, configured archive backfill confirmation for every targeted row, and exact-revision verification on the migration head.
 
-```text
-compact-read equivalence passed
-correctness passes with history absent
-no unresolved effect depends on retired storage
-configured archive backfill confirmed for every targeted row
-exact-revision verification passed for this migration head
-```
+- [ ] **Step 2: Prove scheduler diagnostics from normalized telemetry**
 
-- [ ] **Step 2: Prove scheduler completeness from normalized telemetry**
+Run existing cycle classification fixtures with `scheduled_cycle_events` physically absent and the equivalent normalized events in `telemetry_events`. Require identical `idle/completed/verified/failed_closed/missing/ambiguous` classifications.
 
-Teach `scheduled-cycle-completeness` to read the equivalent normalized scheduled-cycle events from `telemetry_events`. Run the same classification fixtures with `scheduled_cycle_events` physically absent and assert identical `idle/completed/verified/failed_closed/missing/ambiguous` results.
+- [ ] **Step 3: Stop specialized history writes**
 
-- [ ] **Step 3: Stop dedicated history writers**
+After dual-write equivalence, new runtime writes compact correctness state plus normalized telemetry only. Delete old journal-resolution/receipt persistence paths that no longer have a current consumer.
 
-Once equivalence passes, journal/scheduler/mutation/verification code writes only compact correctness state plus normalized TTL telemetry. Delete dual-write code for specialized receipt/history tables.
-
-- [ ] **Step 4: Add the forward drop migration**
-
-`059_retire_obsolete_execution_history.sql` drops only after the readiness gate is green:
+- [ ] **Step 4: Add forward retirement migration**
 
 ```sql
 DROP TABLE orchestration_invocation_resolutions;
@@ -648,26 +477,19 @@ DROP TABLE scheduled_cycle_events;
 DROP TABLE orchestration_command_invocations;
 ```
 
-Do not drop `operation_state`, `proof_state`, `execution_state`, `orchestration_runs`, `telemetry_events`, or `telemetry_archive_exports`.
+Retain `orchestration_runs`, `execution_state`, `operation_state`, `proof_state`, `telemetry_events`, and `telemetry_archive_exports`.
 
-- [ ] **Step 5: Run the repository with retired tables physically absent**
+- [ ] **Step 5: Run with retired tables absent and commit**
 
 ```bash
 node --test scripts/verify-history-retirement-readiness.test.mjs scripts/verify-scheduler-history-independence.test.mjs scripts/verify-compact-state-history-independence.test.mjs scripts/verify-legacy-work-history-independence.test.mjs scripts/verify-telemetry-retention.test.mjs
-```
-
-Expected: PASS.
-
-- [ ] **Step 6: Commit**
-
-```bash
 git add lib/orchestration-journal.js lib/orchestration-semantic-journal-resolution.js lib/scheduled-cycle-completeness.js scripts/verify-history-retirement-readiness.test.mjs scripts/verify-scheduler-history-independence.test.mjs migrations/059_retire_obsolete_execution_history.sql
 git commit -m "refactor: retire durable execution history tables"
 ```
 
 ---
 
-### Task 10: Document configuration, verify provider neutrality, and prove exact-head rollout
+### Task 9: Document configuration and prove exact-head rollout
 
 **Files:**
 - Modify: `README.md`
@@ -680,28 +502,26 @@ git commit -m "refactor: retire durable execution history tables"
 - Create: `scripts/verify-archive-provider-neutrality.test.mjs`
 
 **Interfaces:**
-- Consumes: complete retention/archive implementation.
-- Produces: documented 30-day default, archive-enabled purge rule, provider-neutral configuration, and exact-head deployment evidence.
+- Produces: operator-facing retention/archive contract plus production rollout evidence.
 
-- [ ] **Step 1: Document the operator model**
-
-State clearly:
+- [ ] **Step 1: Document the exact model**
 
 ```text
-execution correctness: compact state only
+correctness: compact state only
 telemetry: 30-day default TTL, configurable
-archive disabled: TTL expiry permits purge
-archive enabled: TTL expiry + confirmed exact bundle digest permits purge
+archive disabled: TTL expiry can purge
+archive enabled: TTL expiry + confirmed exact bundle digest can purge
+unresolved operation: do not freeze the run/cycle bundle yet
 archive outage: retention warning only, never execution failure
 ```
 
-Document Google Drive as an available adapter requiring configured folder ID and injected OAuth/access-token provider. Describe S3-compatible storage as an expected future adapter against the same `ArchiveSink` contract, not as a schema change.
+Document Google Drive as one adapter requiring configured folder ID and injected access-token provider. State that S3-compatible storage is expected to implement the same `ArchiveSink` without changing bundle schema.
 
 - [ ] **Step 2: Add provider-neutrality static tests**
 
-Fail if `src/semantic/telemetry-archive.ts`, compact correctness modules, or archive port types contain `google`, `drive`, `s3`, bucket, folder ID, or provider-specific URL fields. Provider names are allowed only under adapters/runtime configuration/docs.
+Fail if semantic archive contracts, compact correctness modules, or archive port types contain Google/Drive/S3/bucket/folder/provider URL fields. Provider names are allowed only in adapters/runtime configuration/docs.
 
-- [ ] **Step 3: Run all archive/retention gates**
+- [ ] **Step 3: Run all targeted gates**
 
 ```bash
 npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
@@ -717,11 +537,11 @@ Expected: PASS.
 node scripts/verify-regression-suite-registry.mjs
 ```
 
-Run all registered required checks and the existing dist-aware exact-revision Hatchable verifier against the same candidate SHA.
+Run every registered required check and the existing dist-aware exact-revision verifier against the same candidate SHA.
 
-- [ ] **Step 5: Exercise a real configured archive sink before production purge**
+- [ ] **Step 5: Exercise the real configured sink before production purge**
 
-For the selected deployment sink, export a non-sensitive verification bundle, confirm the provider reference and digest, re-export the same bundle to prove idempotency, and verify a deliberately different digest for the same bundle ID fails closed. For Google Drive, verify the file exists in the configured folder and its `appProperties.overcenter_sha256` equals the canonical bundle digest.
+Export one non-sensitive verification bundle, confirm provider reference/digest, replay the same bundle to prove idempotency, and prove a different digest for the same bundle ID fails closed. For Google Drive, verify the file is in the configured folder and `appProperties.overcenter_sha256` equals the canonical digest.
 
 - [ ] **Step 6: Commit docs and record rollout evidence**
 
@@ -730,4 +550,4 @@ git add README.md docs public/docs scripts/verify-archive-provider-neutrality.te
 git commit -m "docs: document telemetry retention and archival"
 ```
 
-Record candidate SHA, archive backfill counts, confirmed bundle count, outstanding retention debt, provider conformance result, retired-table absence result, canonical regression result, and exact-revision Hatchable result. Only then may the destructive migration be promoted.
+Record candidate SHA, archive backfill counts, confirmed bundle count, unresolved/not-yet-finalizable bundle count, outstanding retention debt, provider conformance result, retired-table absence result, canonical regression result, and exact-revision Hatchable result. Only then may migration `059` be promoted.
