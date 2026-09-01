@@ -47,7 +47,7 @@ export type ProductionMaterializationPlan = Readonly<{
   branch: string;
   revision: string;
   runtime_ref: string;
-  base_version: number;
+  expected_version: number;
   target_version: number;
   source_manifest_sha256: string;
   source_path_count: number;
@@ -122,6 +122,10 @@ export class ProductionMaterializationFailure extends Error {
 
 function reject(code: string, message = code): never {
   throw new ProductionMaterializationRejected(code, message);
+}
+
+function postEffectFailure(code: string, message = code): never {
+  throw Object.assign(new Error(message), { code });
 }
 
 function postMutation(error: unknown): ProductionMaterializationFailure {
@@ -255,7 +259,7 @@ export async function materializeProduction(
   const sourceManifestSha256 = await manifestHash(records);
 
   const runtime = await ports.observeRuntime(repository);
-  const baseVersion = normalizeVersion(runtime.version, 'runtime version');
+  const expectedVersion = normalizeVersion(runtime.version, 'runtime version');
   if (!String(runtime.runtime_ref || '').trim()) reject('PRODUCTION_MATERIALIZATION_RUNTIME_INVALID', 'runtime_ref is required');
 
   if (sourceMatches(runtime.files, records, true) && exactVerifiedRevision(runtime, revision)) {
@@ -267,7 +271,7 @@ export async function materializeProduction(
       branch:coordinate.branch,
       revision,
       runtime_ref:runtime.runtime_ref,
-      deployment_version:baseVersion,
+      deployment_version:expectedVersion,
       source_manifest_sha256:sourceManifestSha256,
       verification_ref:String(runtime.verification_ref),
     });
@@ -287,8 +291,8 @@ export async function materializeProduction(
     branch:coordinate.branch,
     revision,
     runtime_ref:runtime.runtime_ref,
-    base_version:baseVersion,
-    target_version:baseVersion + 1,
+    expected_version:expectedVersion,
+    target_version:expectedVersion + 1,
     source_manifest_sha256:sourceManifestSha256,
     source_path_count:records.length,
     desired_files:records,
@@ -299,17 +303,17 @@ export async function materializeProduction(
   try {
     await ports.stageRuntime(plan);
     const draft = await ports.inspectRuntimeDraft(plan.runtime_ref);
-    if (normalizeVersion(draft.version, 'draft version') !== baseVersion || !sourceMatches(draft.files, records, false)) {
-      throw new Error('PRODUCTION_MATERIALIZATION_DRAFT_MISMATCH');
+    if (normalizeVersion(draft.version, 'draft version') !== expectedVersion || !sourceMatches(draft.files, records, false)) {
+      postEffectFailure('PRODUCTION_MATERIALIZATION_MISMATCH', 'staged runtime does not match the exact desired source');
     }
 
     const deployed = await ports.deployRuntime(plan);
     if (deployed.runtime_ref !== plan.runtime_ref || normalizeVersion(deployed.version, 'deployment version') !== plan.target_version) {
-      throw new Error('PRODUCTION_MATERIALIZATION_DEPLOYMENT_MISMATCH');
+      postEffectFailure('PRODUCTION_MATERIALIZATION_MISMATCH', 'runtime deployment did not produce the exact immediate successor');
     }
     const immutable = await ports.inspectImmutableDeployment(deployed);
     if (immutable.runtime_ref !== plan.runtime_ref || normalizeVersion(immutable.version, 'immutable deployment version') !== plan.target_version || !sourceMatches(immutable.files, records, true)) {
-      throw new Error('PRODUCTION_MATERIALIZATION_IMMUTABLE_MISMATCH');
+      postEffectFailure('PRODUCTION_MATERIALIZATION_MISMATCH', 'immutable runtime deployment does not match the exact desired source');
     }
 
     const verification = await ports.verifyProduction({
@@ -321,7 +325,7 @@ export async function materializeProduction(
       source_manifest_sha256:sourceManifestSha256,
     });
     if (verification.ok !== true || !String(verification.verification_ref || '').trim()) {
-      throw new Error('PRODUCTION_MATERIALIZATION_VERIFICATION_FAILED');
+      postEffectFailure('PRODUCTION_MATERIALIZATION_VERIFICATION_FAILED');
     }
 
     return Object.freeze({
