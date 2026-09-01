@@ -8,7 +8,7 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.release.create', 'orchestration.diagnose', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'work.settle'];
+const expected = ['github.release.create', 'orchestration.diagnose', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
 const expectedSurface = new Map([
   ['github.release.create', 'advanced'],
   ['orchestration.diagnose', 'operator'],
@@ -17,6 +17,7 @@ const expectedSurface = new Map([
   ['project.amend', 'primary'],
   ['project.define', 'primary'],
   ['project.inspect', 'primary'],
+  ['release.publish', 'primary'],
   ['work.settle', 'compatibility'],
 ]);
 const expectedExposure = new Map();
@@ -50,7 +51,7 @@ test('representative commands have one authoritative semantic descriptor', () =>
 
 test('primary semantic surface is mechanically identifiable from descriptors', () => {
   const primary = expected.filter((command) => semanticCommandDescriptor(command).surface === 'primary');
-  assert.deepEqual(primary, ['production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect']);
+  assert.deepEqual(primary, ['production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish']);
 });
 
 test('every worker-exposed primary semantic command is admitted canonically', () => {
@@ -88,6 +89,16 @@ test('project inspect intent is exposed after its host adapter is production-rou
   assert.deepEqual(descriptor.exposure, { worker: true, mcp: true });
 });
 
+test('release publish intent consumes a plan without exposing GitHub release bookkeeping', () => {
+  const descriptor = semanticCommandDescriptor('release.publish');
+  assert.equal(descriptor.surface, 'primary');
+  assert.deepEqual(descriptor.semantic_fields, ['plan', 'body']);
+  assert.deepEqual(descriptor.required_fields, ['plan', 'body']);
+  assert.deepEqual(descriptor.exposure, { worker: true, mcp: true });
+  const mechanical = ['repo', 'target_sha', 'tag_name', 'name', 'draft', 'prerelease', 'expected_state', 'idempotency_key', 'run_id'];
+  for (const field of mechanical) assert.equal(descriptor.semantic_fields.includes(field), false, `${field} leaked through release.publish intent`);
+});
+
 test('migrated worker validation is descriptor-derived rather than separately listed', async () => {
   const worker = await source('lib/worker-transport.js');
   for (const command of expected.filter((command) => semanticCommandDescriptor(command).exposure.worker && semanticCommandDescriptor(command).exposure.mcp)) {
@@ -111,6 +122,14 @@ test('project inspect primary MCP transport derives from descriptor and host ada
   assert.match(text, /projectInspectFor/);
   assert.match(text, /executeCorrelatedCommand/);
   assert.match(text, /\.inspect\(input\)/);
+});
+
+test('release publish primary MCP transport derives from descriptor and host adapter', async () => {
+  const text = await source('mcp/release.publish.js');
+  assert.match(text, /semanticCommandDescriptor\(['"]release\.publish['"]\)/);
+  assert.match(text, /releasePublishingFor/);
+  assert.match(text, /executeCorrelatedCommand/);
+  assert.match(text, /\.publish\(input\)/);
 });
 
 test('MCP metadata stays statically parseable and mechanically matches descriptors', async () => {
