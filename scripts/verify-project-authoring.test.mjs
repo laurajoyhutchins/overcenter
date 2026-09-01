@@ -4,6 +4,7 @@ import {
   canonicalProjectDefinition,
   applyProjectDefinitionAmendment,
 } from '../lib/project-authoring.js';
+import { deriveOvercenterProjectGraph } from '../lib/overcenter-project-graph-deriver.js';
 
 const base = {
   schema: 'overcenter-project-definition-v1',
@@ -24,6 +25,67 @@ test('canonical project authoring normalizes order without exposing runtime stat
   assert.deepEqual(result.transitions.map((transition) => transition.id), ['foundation', 'second']);
   assert.equal('state' in result.transitions[0], false);
   assert.equal('lifecycle' in result.transitions[0], false);
+});
+
+test('transition version impact is canonical repository-owned release intent', () => {
+  const result = canonicalProjectDefinition({
+    ...base,
+    transitions: [{
+      ...base.transitions[0],
+      version_impact:{ level:'MINOR', summary:'  Add an externally visible semantic command.  ' },
+    }],
+  });
+  assert.deepEqual(result.transitions[0].version_impact, {
+    level:'minor',
+    summary:'Add an externally visible semantic command.',
+  });
+
+  assert.throws(() => canonicalProjectDefinition({
+    ...base,
+    transitions:[{ ...base.transitions[0], version_impact:{ level:'feature', summary:'not semver' } }],
+  }), /none, patch, minor, or major/);
+  assert.throws(() => canonicalProjectDefinition({
+    ...base,
+    transitions:[{ ...base.transitions[0], version_impact:{ level:'patch' } }],
+  }), /summary must be a non-empty string/);
+  assert.throws(() => canonicalProjectDefinition({
+    ...base,
+    transitions:[{ ...base.transitions[0], version_impact:{ level:'patch', summary:'Fix behavior', version:'1.2.3' } }],
+  }), /unsupported fields/);
+});
+
+test('Overcenter graph derivation validates version impact without widening execution-node state', () => {
+  const revision = 'a'.repeat(40);
+  const definition = canonicalProjectDefinition({
+    ...base,
+    transitions:[{
+      ...base.transitions[0],
+      version_impact:{ level:'patch', summary:'Fix public error semantics.' },
+    }],
+  });
+  const graph = deriveOvercenterProjectGraph({
+    project_ref:base.project_ref,
+    authority:{
+      kind:'github',
+      repository:'example/project',
+      revision,
+      derivation:'overcenter-project-graph-v1',
+    },
+    facts:{
+      definition_facts:{
+        schema:'project-definition-facts-v1',
+        repository:'example/project',
+        revision,
+        definitions:[{
+          path:'.overcenter/definitions/target-architecture.json',
+          content:JSON.stringify(definition),
+        }],
+      },
+    },
+  });
+  assert.equal(graph.nodes.length, 1);
+  assert.equal(graph.nodes[0].id, 'foundation');
+  assert.equal('version_impact' in graph.nodes[0], false);
 });
 
 test('semantic amendment validates the complete candidate graph', () => {
@@ -57,6 +119,20 @@ test('confirmed transition meaning cannot be silently rewritten', () => {
     upsert_transitions: [
       { id:'foundation', priority:99, requires:[], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } },
     ],
+  }), /confirmed transition/);
+});
+
+test('confirmed transition version impact cannot be silently rewritten', () => {
+  const withImpact = canonicalProjectDefinition({
+    ...base,
+    transitions:[{ ...base.transitions[0], version_impact:{ level:'patch', summary:'Fix public behavior.' } }],
+  });
+  assert.throws(() => applyProjectDefinitionAmendment(withImpact, {
+    confirmed_transition_ids:['foundation'],
+    upsert_transitions:[{
+      ...base.transitions[0],
+      version_impact:{ level:'minor', summary:'Reclassify as additive behavior.' },
+    }],
   }), /confirmed transition/);
 });
 
