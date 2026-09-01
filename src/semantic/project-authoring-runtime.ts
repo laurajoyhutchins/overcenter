@@ -175,6 +175,7 @@ async function resultAfterMutation(authority: ProjectAuthoringAuthority, mutatio
   const resultingAuthority = Object.freeze({ ...authority, revision: resultingRevision });
   const graph = graphAtRevision(await dependencies.deriveProjectGraph(resultingAuthority), resultingAuthority);
   return Object.freeze({
+    ok:true as const,
     schema:'project-authoring-result-v1' as const,
     authority:resultingAuthority,
     diff,
