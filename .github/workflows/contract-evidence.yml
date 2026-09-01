@@ -1,0 +1,21 @@
+name: Contract evidence verification
+
+on:
+  pull_request:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+jobs:
+  contract-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run contract evidence tests
+        run: node --test scripts/contract-evidence/*.test.mjs
