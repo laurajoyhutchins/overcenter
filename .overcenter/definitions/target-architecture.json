@@ -541,6 +541,19 @@
       }
     },
     {
+      "id": "tighten-public-documentation-surface",
+      "priority": 77,
+      "requires": [
+        "define-primary-agent-session-contract",
+        "document-canonical-overcenter-ontology-and-authority"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "verification-before-completion"
+      }
+    },
+    {
       "id": "verify-agent-facing-surface-completion",
       "priority": 70,
       "requires": [
