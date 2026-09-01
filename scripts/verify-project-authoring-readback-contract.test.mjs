@@ -19,16 +19,20 @@ const amendment = {
 };
 
 function dependencies(overrides = {}) {
+  let authorityRevision = initialRevision;
   return {
     resolveAuthority:async () => ({
       project_ref:projectRef,
       kind:'github',
       repository:'example/project',
-      revision:initialRevision,
+      revision:authorityRevision,
       derivation:'overcenter-project-graph-v1',
     }),
     readDefinition:async () => baseDefinition,
-    mutateDefinition:async () => ({ revision:resultingRevision }),
+    mutateDefinition:async () => {
+      authorityRevision = resultingRevision;
+      return { revision:resultingRevision };
+    },
     deriveProjectGraph:async () => ({ nodes:[], horizons:[] }),
     ...overrides,
   };
@@ -61,5 +65,29 @@ test('post-mutation readback failure preserves mutation uncertainty at the bound
       },
     })),
     (error) => error?.may_have_mutated === true && error?.details?.may_have_mutated === true,
+  );
+});
+
+test('project authoring does not report a candidate work-branch revision as authoritative success', async () => {
+  const staleAuthority = {
+    project_ref:projectRef,
+    kind:'github',
+    repository:'example/project',
+    revision:initialRevision,
+    derivation:'overcenter-project-graph-v1',
+  };
+  await assert.rejects(
+    () => amendProjectDefinition({
+      project_ref:projectRef,
+      expected_revision:initialRevision,
+      amendment,
+    }, dependencies({
+      resolveAuthority:async () => staleAuthority,
+      mutateDefinition:async () => ({ revision:resultingRevision }),
+    })),
+    (error) => error?.code === 'PROJECT_AUTHORING_RESULT_NOT_AUTHORITATIVE'
+      && error?.may_have_mutated === true
+      && error?.details?.candidate_revision === resultingRevision
+      && error?.details?.authoritative_revision === initialRevision,
   );
 });
