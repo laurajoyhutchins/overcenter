@@ -3,7 +3,7 @@
   "compilerOptions": {
     "noEmit": false,
     "declaration": false,
-    "outDir": ".semantic-build",
+    "outDir": "dist/lib",
     "rootDir": "src/semantic"
   },
   "include": [
