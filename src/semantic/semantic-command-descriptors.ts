@@ -110,6 +110,8 @@ const projectAdvanceSchema = Object.freeze({
   required:['project_ref'],
   properties:{
     project_ref:{type:'string',pattern:'^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
+    transition_id:{type:'string',minLength:1,maxLength:256,pattern:'^\\S+$'},
+    resume_ref:{type:'string',minLength:1,maxLength:512,pattern:'^\\S+$'},
   },
   additionalProperties:false,
 });
@@ -191,7 +193,7 @@ const DESCRIPTORS = Object.freeze({
   'project.advance':descriptor(
     'project.advance',
     'project.advance',
-    'Advance an authoritative project graph by repository-owned project identity only. The runtime adapter owns run creation or resumption, horizon selection, lease acquisition, settlement choreography, and continuation behind this primary semantic boundary.',
+    'Advance authoritative repository-owned project work in an independent agent session. Omit transition_id for deterministic best-available selection, or nominate one exact transition without fallback. Resume only by passing the explicit durable resume_ref returned by a prior call; Overcenter still owns run identity, lease acquisition, exact authority, settlement, and continuation.',
     projectAdvanceSchema,
     'primary',
     Object.freeze({ worker:true, mcp:true }),

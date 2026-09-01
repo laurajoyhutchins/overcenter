@@ -15,11 +15,11 @@ Promote the current verified development revision by repository identity only. T
 
 ### project.advance
 
-Advance an authoritative project graph by repository-owned project identity only. The runtime adapter owns run creation or resumption, horizon selection, lease acquisition, settlement choreography, and continuation behind this primary semantic boundary.
+Advance authoritative repository-owned project work in an independent agent session. Omit transition_id for deterministic best-available selection, or nominate one exact transition without fallback. Resume only by passing the explicit durable resume_ref returned by a prior call; Overcenter still owns run identity, lease acquisition, exact authority, settlement, and continuation.
 
 - MCP name: `project.advance`
 - Required fields: `project_ref`
-- Semantic fields: `project_ref`
+- Semantic fields: `project_ref`, `transition_id`, `resume_ref`
 - Exposure: worker=yes, MCP=yes
 
 ### project.amend
