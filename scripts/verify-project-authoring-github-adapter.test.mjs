@@ -8,7 +8,8 @@ import { normalizeProjectDefinitionFacts } from '../lib/project-definition-facts
 import { createProjectDefinitionFactsReader } from '../lib/project-definition-facts-reader.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-const resultingRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const stagedRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const authoritativeRevision = 'cccccccccccccccccccccccccccccccccccccccc';
 const projectRef = 'github:example/project';
 const baseDefinition = {
   schema:'overcenter-project-definition-v1',
@@ -30,14 +31,14 @@ function facts(revision, definition = baseDefinition) {
   };
 }
 
-test('GitHub-backed authoring discovers definition path internally, fences mutation, and rereads resulting authority', async () => {
+test('GitHub-backed authoring fences mutation then confirms the intended definition through refreshed authority', async () => {
   const calls = [];
-  let authorityRevision = initialRevision;
+  let authorityReads = 0;
   const adapter = createProjectAuthoringGithubAdapter({
-    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:authorityRevision, derivation:'overcenter-project-graph-v1' }),
+    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:++authorityReads === 1 ? initialRevision : authoritativeRevision, derivation:'overcenter-project-graph-v1' }),
     readDefinitionFacts:async ({ repository, revision }) => {
       calls.push(['read', repository, revision]);
-      const definition = revision === resultingRevision
+      const definition = revision === authoritativeRevision
         ? { ...baseDefinition, transitions:[...baseDefinition.transitions, { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] }
         : baseDefinition;
       return facts(revision, definition);
@@ -47,8 +48,7 @@ test('GitHub-backed authoring discovers definition path internally, fences mutat
       assert.match(request.branch, /^chore\/project-authoring-amend-[0-9a-f]{24}$/);
       assert.equal(request.changes[0].content.endsWith('\n'), true);
       assert.deepEqual(JSON.parse(request.changes[0].content).transitions.map((item) => item.id), ['foundation', 'second']);
-      authorityRevision = resultingRevision;
-      return { ok:true, new_head:resultingRevision };
+      return { ok:true, new_head:stagedRevision };
     },
     deriveProjectGraph:async ({ authority, facts:inputFacts }) => {
       calls.push(['derive', authority.revision, inputFacts.definition_facts.revision]);
@@ -64,9 +64,11 @@ test('GitHub-backed authoring discovers definition path internally, fences mutat
     amendment:{ upsert_transitions:[{ id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] },
   });
 
-  assert.equal(result.authority.revision, resultingRevision);
-  assert.equal(result.graph.revision, resultingRevision);
-  assert.deepEqual(calls.map((call) => call[0]), ['read', 'mutate', 'read', 'derive']);
+  assert.equal(authorityReads, 2);
+  assert.equal(result.authority.revision, authoritativeRevision);
+  assert.notEqual(result.authority.revision, stagedRevision);
+  assert.equal(result.graph.revision, authoritativeRevision);
+  assert.deepEqual(calls.map((call) => call[0]), ['read', 'mutate', 'read', 'read', 'derive']);
   assert.equal(calls[1][4], '.overcenter/definitions/project.json');
   assert.match(calls[1][5], /^project-amend-v1:[0-9a-f]{64}$/);
 });
@@ -80,11 +82,11 @@ test('semantic idempotency is internal, stable for replay, and separates materia
   assert.notEqual(first, different);
 });
 
-test('project.define bootstraps discovery plus canonical definition without caller-authored paths', async () => {
+test('project.define bootstraps on a work branch but returns success only after refreshed authority exposes the definition', async () => {
   const calls = [];
-  let authorityRevision = initialRevision;
+  let authorityReads = 0;
   const adapter = createProjectAuthoringGithubAdapter({
-    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:authorityRevision, derivation:'overcenter-project-graph-v1' }),
+    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:++authorityReads === 1 ? initialRevision : authoritativeRevision, derivation:'overcenter-project-graph-v1' }),
     readDefinitionFacts:async ({ revision }) => {
       calls.push(['read', revision]);
       if (revision === initialRevision) return { schema:'project-definition-facts-v1', repository:'example/project', revision, definitions:[] };
@@ -104,8 +106,7 @@ test('project.define bootstraps discovery plus canonical definition without call
       });
       assert.deepEqual(JSON.parse(definition.content), baseDefinition);
       assert.match(request.idempotency_key, /^project-define-v1:[0-9a-f]{64}$/);
-      authorityRevision = resultingRevision;
-      return { ok:true, new_head:resultingRevision };
+      return { ok:true, new_head:stagedRevision };
     },
     deriveProjectGraph:async ({ authority }) => {
       calls.push(['derive', authority.revision]);
@@ -119,9 +120,11 @@ test('project.define bootstraps discovery plus canonical definition without call
     definition:baseDefinition,
   });
 
-  assert.equal(result.authority.revision, resultingRevision);
+  assert.equal(authorityReads, 2);
+  assert.equal(result.authority.revision, authoritativeRevision);
+  assert.notEqual(result.authority.revision, stagedRevision);
   assert.deepEqual(result.diff, { added:['foundation'], changed:[], removed:[] });
-  assert.deepEqual(calls.map((call) => call[0]), ['read', 'mutate', 'read', 'derive']);
+  assert.deepEqual(calls.map((call) => call[0]), ['read', 'mutate', 'read', 'read', 'derive']);
 });
 
 test('exact-revision project facts can represent an adopted repository with no project definition yet', () => {
