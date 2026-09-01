@@ -44,6 +44,8 @@ jobs:
         run: node --test scripts/verify-project-advance-worker-binding.test.mjs
       - name: Test production promotion receipt settlement fence
         run: node --test scripts/verify-production-promotion-receipt-fence.test.mjs
+      - name: Test production promotion invocation context
+        run: node --test scripts/verify-production-promotion-invocation-context.test.mjs
       - name: Test project transition lease semantics
         run: node --test scripts/verify-project-transition-leases.test.mjs
       - name: Test compatibility transition confirmation bridge
