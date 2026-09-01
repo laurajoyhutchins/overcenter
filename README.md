@@ -1,67 +1,104 @@
 # Overcenter
 
-Overcenter is a GitHub App runtime for turning project work into verified state transitions.
+**Reliable execution for agent-driven software projects.**
 
-It separates **project truth** from **execution mechanics**:
+Overcenter is a control plane for turning repository-owned project plans into verified state transitions. Reasoning agents make judgments and implement changes. Deterministic software owns the parts that must be correct: execution authority, exact-revision mutation, idempotency, evidence, settlement, and recovery.
 
-- GitHub repositories are authoritative for repository content and technical source truth.
-- Overcenter owns execution semantics: bounded runs, exclusive work leases, claim/settlement, deterministic recovery, exact-revision mutation, receipts, and orchestration state.
-- Linear is a thin projection of currently executable work. It is not a second repository, evidence archive, or execution authority.
-- Hatchable is the current hosting/runtime layer. It does not become project authority by hosting Overcenter.
+> Agents are disposable. Execution truth isn't.
+
+Overcenter is for projects where agents need to pick up work across sessions without reconstructing coordination state from chat history or treating a task tracker as the source of truth.
+
+## Why Overcenter
+
+Agent systems are good at research, design, debugging, synthesis, and implementation. They are much less useful as human-shaped transaction coordinators.
+
+Overcenter moves repeated orchestration ceremony into software:
+
+- **Repository-owned plans.** Project definitions live with the repository instead of in a parallel planning database.
+- **Bounded execution authority.** Work runs under exclusive leases with explicit scope and expiry.
+- **Exact-revision writes.** Mutations are fenced against authoritative Git revisions rather than optimistic guesses.
+- **Durable evidence.** Commands, receipts, settlements, and recovery state survive the agent session that produced them.
+- **Fail-closed behavior.** Stale authority, ambiguous mutations, and missing evidence stop execution instead of being silently papered over.
+- **Resumable work.** A fresh agent can inspect the project and continue from durable state.
+
+The design rule is simple: reasoning agents should make judgments; deterministic software should own execution correctness.
+
+## How it works
+
+A project is a graph of desired transitions stored in the repository. Overcenter derives the executable frontier, grants authority for one transition, executes or hands off the work, records the result, and confirms completion against fresh project state.
 
 ```text
-        reasoning workers / deterministic operators
-                       |
-                       v
-       ENABLE -> ACQUIRE -> EXECUTE -> COMMIT -> CONFIRM
-                       |
-                    OVERCENTER
-                 /          \
-                v            v
-             GitHub        Linear
-            authority     projection
+GitHub project definition
+          |
+          v
+      project graph
+          |
+          v
+       Overcenter
+      /          \
+   agent        operator
+      \          /
+       verified effects
+          |
+          v
+   fresh authoritative read
 ```
 
-## Design principles
+Each transition moves through a bounded lifecycle:
 
-Overcenter exists to move repeated orchestration ceremony out of prompts and into deterministic software.
+```text
+ENABLE -> ACQUIRE -> EXECUTE -> COMMIT -> CONFIRM
+```
 
-- Use reasoning agents for judgment, research, synthesis, design, debugging, and novel implementation.
-- Use software for bookkeeping, reconciliation, validation, counting, state derivation, idempotency, and known recovery choreography.
-- Prefer one authoritative path over duplicated state, compatibility layers, or agent-maintained projections.
-- Fail closed when authority is stale, a mutation may be ambiguous, or required evidence is missing.
+That lifecycle is control-plane machinery. Agents should normally interact with higher-level semantic commands instead of manually reconstructing leases, retries, settlement, or recovery.
 
-## Core surfaces
+## Agent-facing surface
 
-The repository contains:
+The primary semantic surface is intentionally small:
 
-- `api/` — bounded HTTP/runtime surfaces;
-- `mcp/` — semantic tool contracts;
-- `lib/` — orchestration, work leasing, GitHub command, reconciliation, recovery, and verification logic;
-- `migrations/` — durable PostgreSQL schema evolution;
-- `public/docs/` — current architecture and command documentation;
-- `scripts/` — repository-owned static verification;
-- `hatchable.toml` — current Hatchable runtime configuration.
+- `project.inspect` reads the authoritative project and returns the decision-relevant frontier.
+- `project.advance` advances the project until agent judgment is required or deterministic work is confirmed.
+- `project.define` and `project.amend` create or revise repository-owned project definitions.
+- `production.promote` performs the production promotion workflow behind one semantic boundary.
 
-Important GitHub operations are intentionally command-owned when atomicity, idempotency, conditional mutation, or durable evidence justify a higher-level primitive. Ordinary GitHub functionality should remain ordinary GitHub functionality.
+Lower-level work, orchestration, GitHub, verification, and recovery commands remain available as supporting mechanisms and evidence surfaces.
+
+## Authority boundaries
+
+Overcenter keeps each system in a narrow role:
+
+- **GitHub** is authoritative for repository content and repository-owned project definitions.
+- **Overcenter** is authoritative for runs, leases, claims, settlement, receipts, recovery, and orchestration state.
+- **Linear** can project executable work, but it is not source authority or an evidence archive.
+- **Hatchable** is the current reference runtime and hosting layer, not project authority.
+
+This separation is deliberate. Hosting, task tracking, and agent sessions should be replaceable without changing what the project says is true.
+
+## Repository layout
+
+- `.overcenter/` contains repository-owned project definitions and graph metadata.
+- `mcp/` defines semantic MCP tool contracts.
+- `api/` exposes bounded runtime and HTTP surfaces.
+- `lib/` contains the orchestration kernel, GitHub integration, evidence, recovery, and verification logic.
+- `migrations/` contains durable PostgreSQL schema evolution.
+- `docs/` contains architecture and design documentation.
+- `public/docs/` contains runtime-facing command and operator documentation.
+- `scripts/` contains repository-owned verification and release checks.
+- `hatchable.toml` declares the current reference runtime configuration.
+
+## Project status
+
+Overcenter is under active development. The execution model and safety boundaries are implemented and exercised, while the agent-facing surface and portable deployment path are still being simplified.
+
+The command contracts in `mcp/` and the repository-owned project definitions in `.overcenter/` are the best references for current behavior.
 
 ## Deployment
 
-Overcenter is currently designed to run on Hatchable with PostgreSQL, a Linear API connection, and an installed GitHub App.
+The current reference deployment runs on Hatchable with PostgreSQL, an installed GitHub App, and a Linear API connection. Deployment coordinates and credentials are installation-owned and must not be committed to repository source.
 
-A deployment provides its own installation coordinates and credentials. Repository source does **not** contain a production Hatchable project ID, GitHub App private key, installation access token, or Linear credential.
+See [`hatchable.toml`](hatchable.toml) for required runtime configuration and [`SECURITY.md`](SECURITY.md) before deploying an instance.
 
-Deployment-specific self-origins are also installation-owned facts, not repository authority. Overcenter-owned browser and API links should remain relative whenever possible. If a future feature genuinely requires a canonical absolute self-origin, supply it through provider-neutral operator/runtime configuration such as `OVERCENTER_PUBLIC_ORIGIN`; do not commit the deployment value to repository source. No canonical-origin setting is required by the current runtime.
-
-The required secret/configuration names are declared in `hatchable.toml`:
-
-- `GITHUB_APP_ID`
-- `GITHUB_APP_PRIVATE_KEY`
-- the required Linear API connection
-
-The authoritative GitHub App permission profiles live in `lib/github-app-auth.js`. The App registration must grant the permissions needed by the commands you intend to enable; individual Overcenter commands then mint repository-scoped installation tokens using their fixed command-owned profiles.
-
-Source materialization is one-way: an authenticated adapter supplies the deployment's Hatchable project, GitHub repository, branch, exact Git head, and observed runtime version to `lib/source-sync.js`. GitHub is authoritative and runtime drift is repaired from GitHub, never pushed back upstream.
+Overcenter's source-of-truth model is intentionally host-independent: the runtime may host execution, but it does not become authority merely by hosting the service.
 
 ## Verification
 
@@ -73,19 +110,17 @@ node --test scripts/verify-public-release.test.mjs
 node scripts/verify-public-release.mjs
 ```
 
-`verify-public-release` requires full Git history. It checks the public repository boundary, rejects tracked development-journal residue and installation-specific project IDs, rejects deployment-specific absolute self-origins, and scans Git history for high-confidence credential patterns.
-
-Overcenter also exposes an admin-only runtime regression surface at `POST /api/verification/regressions`. Runtime verification and repository-static verification are complementary: neither substitutes for the other.
+The public-release verifier checks the repository boundary, tracked development residue, deployment-specific coordinates, and high-confidence credential patterns in Git history. Runtime regression verification and repository-static verification are complementary.
 
 ## Security
 
-Overcenter is security-sensitive software. Read [`SECURITY.md`](SECURITY.md) before deployment or vulnerability reporting.
-
-The intentionally public runtime preview exposes aggregate condition only. Privileged runs, lease references, receipts, raw errors, repository topology, and mutation capabilities remain on admin surfaces.
+Overcenter coordinates privileged repository mutations and should be treated as security-sensitive software. Read [`SECURITY.md`](SECURITY.md) before deployment or vulnerability reporting.
 
 ## Contributing
 
-Keep changes narrow and evidence-backed. Tests should prove the exact semantic risk a command owns. If an operation can be replaced by ordinary GitHub behavior or deterministic derivation, prefer deletion over adding another orchestration path.
+Keep changes narrow and evidence-backed. Tests should prove the semantic risk a command owns.
+
+When deterministic software can replace repeated agent bookkeeping, prefer moving that behavior behind a semantic boundary. When ordinary GitHub behavior is sufficient, prefer using it rather than adding another orchestration path.
 
 Do not commit credentials, private operational evidence, installation-specific project IDs, or development-session journals.
 
