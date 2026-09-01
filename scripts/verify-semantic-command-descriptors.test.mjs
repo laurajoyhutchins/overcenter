@@ -9,8 +9,9 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.release.create', 'orchestration.diagnose', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
+const expected = ['github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
 const expectedSurface = new Map([
+  ['github.pull_request.mark_ready', 'advanced'],
   ['github.release.create', 'advanced'],
   ['orchestration.diagnose', 'operator'],
   ['production.promote', 'primary'],
