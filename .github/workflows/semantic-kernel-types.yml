@@ -25,6 +25,8 @@ jobs:
         run: node --test scripts/verify-project-authoring-typescript-runtime.test.mjs
       - name: Test monotonic project authoring mutation certainty
         run: node --test scripts/verify-github-mutation-certainty.test.mjs
+      - name: Test compact execution state contracts
+        run: node --test scripts/verify-compact-execution-state-contracts.test.mjs
       - name: Type-check semantic kernel contracts
         run: npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
       - name: Verify runtime compatibility mirrors are generated from TypeScript source
@@ -33,6 +35,7 @@ jobs:
           npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.runtime.json
           diff -u lib/canonical-commands.js dist/lib/canonical-commands.js
           diff -u lib/command-contracts.js dist/lib/command-contracts.js
+          diff -u lib/compact-execution-state.js dist/lib/compact-execution-state.js
           diff -u lib/compatibility-transition-bindings.js dist/lib/compatibility-transition-bindings.js
           diff -u lib/execution-authority-contracts.js dist/lib/execution-authority-contracts.js
           diff -u lib/execution-authority-core.js dist/lib/execution-authority-core.js
