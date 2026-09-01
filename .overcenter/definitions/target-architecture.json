@@ -503,6 +503,16 @@
       }
     },
     {
+      "id": "repair-orchestration-health-recovery-convergence",
+      "priority": 160,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "replace-production-promotion-pseudo-lease-with-execution-authority",
       "priority": 118,
       "requires": [
