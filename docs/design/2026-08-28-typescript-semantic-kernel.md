@@ -1,5 +1,7 @@
 # TypeScript Semantic Kernel Design
 
+> **Document status: Accepted design decision.** The TypeScript authoring/materialization direction remains relevant, but exact current runtime behavior is defined by repository source and executable contracts. This is not a command reference.
+
 Issue: #236
 
 ## Decision
