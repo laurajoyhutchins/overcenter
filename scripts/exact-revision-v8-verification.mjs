@@ -14,7 +14,7 @@ function isSyncableSourcePath(pathInput) {
   const path = typeof pathInput === 'string' ? pathInput : '';
   if (path === SOURCE_MATERIALIZATION_RECEIPT_PATH) return false;
   if (!path || path.startsWith('/') || path.includes('\\') || path.split('/').includes('..')) return false;
-  if (['hatchable.toml', 'package.json', 'seed.sql'].includes(path)) return true;
+  if (['hatchable.toml', 'seed.sql'].includes(path)) return true;
   if (/^migrations\/[^/]+\.sql$/.test(path)) return true;
   return /^(api|lib|mcp|pages|public)\/.+/.test(path);
 }
@@ -93,10 +93,10 @@ export function normalizeMcpToolResult(result) {
   return result;
 }
 
-function normalizeRuntimeFiles(rawFiles) {
+function normalizeRuntimeFiles(rawFiles, { includeRepositoryMetadata = false } = {}) {
   if (!Array.isArray(rawFiles)) reject('VERIFICATION_RUNTIME_INVALID_OBSERVATION', 'Hatchable file observation must be an array');
   return rawFiles
-    .filter(file => !file?.virtual && isSyncableSourcePath(file?.path))
+    .filter(file => !file?.virtual && (isSyncableSourcePath(file?.path) || (includeRepositoryMetadata && file?.path === 'package.json')))
     .map(file => {
       const sha256 = String(file?.hash || file?.sha256 || '').toLowerCase();
       if (!/^[0-9a-f]{64}$/.test(sha256)) reject('VERIFICATION_RUNTIME_INVALID_OBSERVATION', `Hatchable file hash is invalid: ${file?.path || ''}`);
@@ -113,7 +113,7 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
       const listed = await callTool('list_files', { project_id: project });
       const version = Number(info?.current_version);
       if (!Number.isSafeInteger(version) || version < 1) reject('VERIFICATION_RUNTIME_INVALID_OBSERVATION', 'Hatchable project version is invalid');
-      return { project, version, files: normalizeRuntimeFiles(listed?.files) };
+      return { project, version, files: normalizeRuntimeFiles(listed?.files, { includeRepositoryMetadata:true }) };
     },
     async reconcile({ project, revision, expected_version, writes, deletes }) {
       if (writes.length) await callTool('write_files', { project_id: project, files: writes, reason: `Exact-revision V8 verification ${revision}` });
