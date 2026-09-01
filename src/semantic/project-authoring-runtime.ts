@@ -156,6 +156,37 @@ function graphAtRevision(graphInput: unknown, authority: ProjectAuthoringAuthori
   return graph;
 }
 
+function canonicalDefinitionsMatch(observedInput: unknown, expected: CanonicalProjectDefinition): boolean {
+  if (observedInput == null) return false;
+  try {
+    return JSON.stringify(canonicalProjectDefinition(observedInput)) === JSON.stringify(expected);
+  } catch {
+    return false;
+  }
+}
+
+function refreshedAuthority(
+  initial: ProjectAuthoringAuthority,
+  observedInput: ProjectAuthoringAuthority,
+  stagedRevision: string,
+): ProjectAuthoringAuthority {
+  const observedRevision = exactRevision(observedInput?.revision, 'authority.revision');
+  if (observedInput?.project_ref !== initial.project_ref
+      || observedInput?.repository !== initial.repository
+      || observedInput?.derivation !== initial.derivation) {
+    fail('PROJECT_AUTHORING_READBACK_MISMATCH', 'refreshed project authority identity changed after mutation', {
+      project_ref:initial.project_ref,
+      staged_revision:stagedRevision,
+      expected_repository:initial.repository,
+      observed_repository:observedInput?.repository ?? null,
+      expected_derivation:initial.derivation,
+      observed_derivation:observedInput?.derivation ?? null,
+      observed_authority_revision:observedRevision,
+    });
+  }
+  return Object.freeze({ ...observedInput, revision:observedRevision });
+}
+
 function amendmentTouchesExistingTransition(currentDefinitionInput: unknown, amendmentInput: Readonly<Record<string, unknown>>): boolean {
   const currentDefinition = canonicalProjectDefinition(currentDefinitionInput);
   const existingIds = new Set(currentDefinition.transitions.map((transition) => transition.id));
@@ -205,34 +236,32 @@ async function amendmentWithAuthoritativeHistory(
   return Object.freeze({ ...amendmentInput, confirmed_transition_ids:ids });
 }
 
-async function authoritativeResultAuthority(
+async function resultAfterMutation(
   authority: ProjectAuthoringAuthority,
   mutation: Readonly<{ revision: string }>,
+  expectedDefinition: CanonicalProjectDefinition,
+  diff: ProjectDefinitionDiff,
   dependencies: ProjectAuthoringRuntimeDependencies,
-): Promise<ProjectAuthoringAuthority> {
-  const candidateRevision = exactRevision(mutation?.revision, 'mutation.revision');
-  const observed = await dependencies.resolveAuthority({ project_ref: authority.project_ref });
-  const authoritativeRevision = exactRevision(observed?.revision, 'authority.revision');
-  if (observed?.project_ref !== authority.project_ref
-      || observed?.repository !== authority.repository
-      || authoritativeRevision !== candidateRevision) {
-    fail('PROJECT_AUTHORING_RESULT_NOT_AUTHORITATIVE', 'project authoring mutation is not authoritatively observable at the repository source boundary', {
+) {
+  const stagedRevision = exactRevision(mutation?.revision, 'mutation.revision');
+  const observedAuthority = refreshedAuthority(
+    authority,
+    await dependencies.resolveAuthority({ project_ref:authority.project_ref }),
+    stagedRevision,
+  );
+  const observedDefinition = await dependencies.readDefinition(observedAuthority);
+  if (!canonicalDefinitionsMatch(observedDefinition, expectedDefinition)) {
+    fail('PROJECT_AUTHORING_READBACK_MISMATCH', 'project authoring mutation is not observable through refreshed project authority', {
       project_ref:authority.project_ref,
-      repository:authority.repository,
-      candidate_revision:candidateRevision,
-      authoritative_revision:authoritativeRevision,
+      staged_revision:stagedRevision,
+      observed_authority_revision:observedAuthority.revision,
     });
   }
-  return Object.freeze({ ...observed, revision:authoritativeRevision });
-}
-
-async function resultAfterMutation(authority: ProjectAuthoringAuthority, mutation: Readonly<{ revision: string }>, diff: ProjectDefinitionDiff, dependencies: ProjectAuthoringRuntimeDependencies) {
-  const resultingAuthority = await authoritativeResultAuthority(authority, mutation, dependencies);
-  const graph = graphAtRevision(await dependencies.deriveProjectGraph(resultingAuthority), resultingAuthority);
+  const graph = graphAtRevision(await dependencies.deriveProjectGraph(observedAuthority), observedAuthority);
   return Object.freeze({
     ok:true as const,
     schema:'project-authoring-result-v1' as const,
-    authority:resultingAuthority,
+    authority:observedAuthority,
     diff,
     graph,
   });
@@ -241,11 +270,12 @@ async function resultAfterMutation(authority: ProjectAuthoringAuthority, mutatio
 async function confirmedResultAfterMutation(
   authority: ProjectAuthoringAuthority,
   mutation: Readonly<{ revision: string }>,
+  expectedDefinition: CanonicalProjectDefinition,
   diff: ProjectDefinitionDiff,
   dependencies: ProjectAuthoringRuntimeDependencies,
 ) {
   try {
-    return await resultAfterMutation(authority, mutation, diff, dependencies);
+    return await resultAfterMutation(authority, mutation, expectedDefinition, diff, dependencies);
   } catch (error) {
     throw confirmedMutationFailure(error);
   }
@@ -280,7 +310,7 @@ export async function defineProjectDefinition(
     definition,
     diff,
   }, dependencies);
-  return confirmedResultAfterMutation(authority, mutation, diff, dependencies);
+  return confirmedResultAfterMutation(authority, mutation, definition, diff, dependencies);
 }
 
 export async function amendProjectDefinition(
@@ -302,5 +332,5 @@ export async function amendProjectDefinition(
     definition: amendment.definition,
     diff: amendment.diff,
   }, dependencies);
-  return confirmedResultAfterMutation(authority, mutation, amendment.diff, dependencies);
+  return confirmedResultAfterMutation(authority, mutation, amendment.definition, amendment.diff, dependencies);
 }
