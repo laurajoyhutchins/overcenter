@@ -4,7 +4,7 @@
 
 Overcenter uses semantic versions as public compatibility coordinates for released source. A version does not replace exact Git revision identity, project authority coordinates, verification evidence, or release receipts.
 
-This document defines which kinds of change are inside Overcenter's semantic-versioning public API boundary. It does not assign a version bump to individual project transitions and it does not publish releases.
+This document defines which kinds of change are inside Overcenter's semantic-versioning public API boundary and how deterministic release planning consumes repository-owned impact declarations. It does not publish releases.
 
 ## Public compatibility surface
 
@@ -32,6 +32,39 @@ The following changes are not SemVer-visible by themselves when externally obser
 
 An internal change becomes SemVer-visible when it also changes a public compatibility surface. Calling a change a refactor does not exempt a public behavior change from versioning.
 
+## Repository-owned impact authority
+
+A project transition may declare `version_impact` with exactly two fields:
+
+```json
+{
+  "level": "minor",
+  "summary": "Add release-horizon inspection to project.inspect"
+}
+```
+
+`level` is one of `none`, `patch`, `minor`, or `major`. `summary` records the compatibility judgment that produced the classification. The final version number is not authored on the transition.
+
+Version impact belongs to repository desired state. It is release intent, not execution mutation scope. Overcenter validates the declaration at the exact project authority revision but does not widen or invalidate a work lease merely because release classification changes.
+
+## Release-horizon planning
+
+A SemVer plan consumes a resolved `release` horizon at one exact Git authority revision. The release horizon supplies a prerequisite-closed `scope_node_ids` cohort. The planner joins those IDs to the exact-revision project transition definitions and fails closed if newly included release work lacks `version_impact`.
+
+Dependency closure creates an important historical rule: impact is aggregated only for transitions newly included relative to the prior release cohort. Already released prerequisite IDs are subtracted before aggregation. Without that subtraction, an old breaking prerequisite could force every later release to inherit a major impact forever.
+
+The deterministic plan binds:
+
+- exact project authority;
+- resolved release horizon identity, targets, and dependency-closed scope;
+- explicit base release version and prior included transition IDs;
+- newly included transition IDs and their impact declarations;
+- aggregate impact;
+- candidate stable SemVer coordinate;
+- a SHA-256 plan fingerprint over those semantics.
+
+There is no implicit bootstrap version. A first release must supply an explicit base coordinate, such as `0.0.0`, with an empty prior cohort. Release publication will eventually source the base from verified release evidence rather than caller memory.
+
 ## Compatibility judgment and deterministic release logic
 
 The public API boundary answers a classification question: **can this change affect public compatibility?**
@@ -55,6 +88,6 @@ A semantic version may name a verified release, but execution fencing and recove
 
 ## Pre-1.0 policy
 
-A pre-1.0 version does not imply a stable public API. Overcenter must not infer `1.0.0` merely because a transition is breaking. Declaring 1.0 stability is a separate repository-owned product decision.
+A pre-1.0 version does not imply a stable public API. Overcenter does not infer `1.0.0` merely because a transition is breaking. Before 1.0, both `minor` and `major` impact advance the minor coordinate, while the release plan retains `aggregate_impact: "major"` and `breaking: true` for a breaking cohort. Declaring 1.0 stability remains a separate repository-owned product decision.
 
-Until a release policy explicitly says otherwise, this boundary only classifies compatibility surfaces. The release-impact and version-calculation contracts own bump semantics.
+Stable release planning currently accepts `X.Y.Z` coordinates only. Prerelease and build metadata require an explicit future policy rather than implicit string handling.
