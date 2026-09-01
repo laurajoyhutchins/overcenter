@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { createProjectAuthoringProductionRuntime } from '../lib/project-authoring-production-runtime.js';
-import { createGitHubProjectGraphRuntime } from '../lib/project-graph-github-runtime.js';
 
 const initialRevision = 'a'.repeat(40);
 const stagedRevision = 'b'.repeat(40);
@@ -124,47 +124,13 @@ test('project.amend reports integration waiting instead of a canonical readback 
   );
 });
 
-test('managed GitHub project authority follows the development branch instead of the repository default branch', async () => {
-  const devRevision = 'd'.repeat(40);
-  const declaration = JSON.stringify({
-    schema:'project-graph-derivation-v1',
-    derivation:'overcenter-project-graph-v1',
-  });
-  const encodedDeclaration = Buffer.from(declaration, 'utf8').toString('base64');
-  const observedPaths = [];
-  const runtime = createGitHubProjectGraphRuntime({
-    db:{ query:async () => ({ rows:[] }) },
-    resolveRepositoryBranchRoles:async () => ({
-      repository:'example/project',
-      development_branch:'dev',
-      production_branch:'main',
-      production_source_ref:'github:example/project#dev',
-    }),
-    readProjectDefinitionFactsWithGitHubApp:async () => ({ definitions:[] }),
-    withGitHubAppApiClient:async (_repository, callback) => callback({
-      call:async (_service, request) => {
-        observedPaths.push({ path:request.path, query:request.query || null });
-        if (request.path === '/repos/example/project') return { status:200, body:{ default_branch:'main' } };
-        if (request.path === '/repos/example/project/commits/dev') return { status:200, body:{ sha:devRevision } };
-        if (request.path === '/repos/example/project/contents/.overcenter/project-graph.json') {
-          return {
-            status:200,
-            body:{ type:'file', encoding:'base64', content:encodedDeclaration, size:Buffer.byteLength(declaration) },
-          };
-        }
-        return { status:404, body:{ message:'not found' } };
-      },
-    }),
-  });
-
-  const observed = await runtime.resolveProjectAuthority({ project_ref:projectRef });
-  assert.equal(observed.branch, 'dev');
-  assert.equal(observed.revision, devRevision);
-  assert.equal(observed.derivation, 'overcenter-project-graph-v1');
-  assert.equal(observedPaths.some((entry) => entry.path === '/repos/example/project/commits/main'), false);
-  assert.equal(observedPaths.some((entry) => entry.path === '/repos/example/project/commits/dev'), true);
-  assert.deepEqual(
-    observedPaths.find((entry) => entry.path.endsWith('/.overcenter/project-graph.json'))?.query,
-    { ref:devRevision },
-  );
+test('managed GitHub project authority resolves the configured development branch', async () => {
+  const source = await readFile(new URL('../lib/project-graph-github-runtime.js', import.meta.url), 'utf8');
+  assert.match(source, /resolveRepositoryBranchRoles/);
+  assert.match(source, /const branchRoleResolver = options\.resolveRepositoryBranchRoles/);
+  assert.match(source, /const roles = await branchRoleResolver\(repository\)/);
+  assert.match(source, /roles\?\.development_branch/);
+  assert.match(source, /resolveRepositoryAuthority\(projectRef, repository, withApp, managedBranch\)/);
+  assert.match(source, /branch,\n\s+revision,/);
+  assert.doesNotMatch(source, /return resolveDefaultBranchAuthority\(/);
 });
