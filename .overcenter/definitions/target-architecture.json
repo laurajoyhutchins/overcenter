@@ -87,6 +87,18 @@
       }
     },
     {
+      "id": "collapse-transport-command-boilerplate",
+      "priority": 84,
+      "requires": [
+        "generate-semantic-command-descriptor"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "compact-agent-semantic-surface",
       "priority": 70,
       "requires": [
@@ -128,6 +140,7 @@
       "id": "delete-duplicated-orchestration-controllers",
       "priority": 82,
       "requires": [
+        "collapse-transport-command-boilerplate",
         "verify-agent-facing-surface-completion"
       ],
       "executor": {
