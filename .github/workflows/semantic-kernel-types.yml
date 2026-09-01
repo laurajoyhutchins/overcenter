@@ -27,33 +27,33 @@ jobs:
         run: node --test scripts/verify-github-mutation-certainty.test.mjs
       - name: Type-check semantic kernel contracts
         run: npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
-      - name: Verify runtime materialization is generated from TypeScript source
+      - name: Verify runtime compatibility mirrors are generated from TypeScript source
         run: |
-          rm -rf .semantic-build
+          rm -rf dist/lib
           npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.runtime.json
-          diff -u lib/canonical-commands.js .semantic-build/canonical-commands.js
-          diff -u lib/command-contracts.js .semantic-build/command-contracts.js
-          diff -u lib/compatibility-transition-bindings.js .semantic-build/compatibility-transition-bindings.js
-          diff -u lib/execution-authority-contracts.js .semantic-build/execution-authority-contracts.js
-          diff -u lib/execution-authority-core.js .semantic-build/execution-authority-core.js
-          diff -u lib/legacy-work-execution-authority-contracts.js .semantic-build/legacy-work-execution-authority-contracts.js
-          diff -u lib/execution-evidence-contracts.js .semantic-build/execution-evidence-contracts.js
-          diff -u lib/execution-evidence.js .semantic-build/execution-evidence.js
-          diff -u lib/execution-lifecycle-contracts.js .semantic-build/execution-lifecycle-contracts.js
-          diff -u lib/mutation-certainty.js .semantic-build/mutation-certainty.js
-          diff -u lib/orchestration-drive.js .semantic-build/orchestration-drive.js
-          diff -u lib/production-materialization-operation.js .semantic-build/production-materialization-operation.js
-          diff -u lib/project-authoring-command-contract.js .semantic-build/project-authoring-command-contract.js
-          diff -u lib/project-authoring-github-runtime.js .semantic-build/project-authoring-github-runtime.js
-          diff -u lib/project-authoring-runtime.js .semantic-build/project-authoring-runtime.js
-          diff -u lib/project-authoring-work-branch.js .semantic-build/project-authoring-work-branch.js
-          diff -u lib/project-authoring.js .semantic-build/project-authoring.js
-          diff -u lib/project-definition-changeset-writer.js .semantic-build/project-definition-changeset-writer.js
-          diff -u lib/project-definition-mutation-authority.js .semantic-build/project-definition-mutation-authority.js
-          diff -u lib/project-graph-contracts.js .semantic-build/project-graph-contracts.js
-          diff -u lib/project-graph-reconciliation.js .semantic-build/project-graph-reconciliation.js
-          diff -u lib/semantic-command-descriptors.js .semantic-build/semantic-command-descriptors.js
-          diff -u lib/work-settle-contract.js .semantic-build/work-settle-contract.js
+          diff -u lib/canonical-commands.js dist/lib/canonical-commands.js
+          diff -u lib/command-contracts.js dist/lib/command-contracts.js
+          diff -u lib/compatibility-transition-bindings.js dist/lib/compatibility-transition-bindings.js
+          diff -u lib/execution-authority-contracts.js dist/lib/execution-authority-contracts.js
+          diff -u lib/execution-authority-core.js dist/lib/execution-authority-core.js
+          diff -u lib/legacy-work-execution-authority-contracts.js dist/lib/legacy-work-execution-authority-contracts.js
+          diff -u lib/execution-evidence-contracts.js dist/lib/execution-evidence-contracts.js
+          diff -u lib/execution-evidence.js dist/lib/execution-evidence.js
+          diff -u lib/execution-lifecycle-contracts.js dist/lib/execution-lifecycle-contracts.js
+          diff -u lib/mutation-certainty.js dist/lib/mutation-certainty.js
+          diff -u lib/orchestration-drive.js dist/lib/orchestration-drive.js
+          diff -u lib/production-materialization-operation.js dist/lib/production-materialization-operation.js
+          diff -u lib/project-authoring-command-contract.js dist/lib/project-authoring-command-contract.js
+          diff -u lib/project-authoring-github-runtime.js dist/lib/project-authoring-github-runtime.js
+          diff -u lib/project-authoring-runtime.js dist/lib/project-authoring-runtime.js
+          diff -u lib/project-authoring-work-branch.js dist/lib/project-authoring-work-branch.js
+          diff -u lib/project-authoring.js dist/lib/project-authoring.js
+          diff -u lib/project-definition-changeset-writer.js dist/lib/project-definition-changeset-writer.js
+          diff -u lib/project-definition-mutation-authority.js dist/lib/project-definition-mutation-authority.js
+          diff -u lib/project-graph-contracts.js dist/lib/project-graph-contracts.js
+          diff -u lib/project-graph-reconciliation.js dist/lib/project-graph-reconciliation.js
+          diff -u lib/semantic-command-descriptors.js dist/lib/semantic-command-descriptors.js
+          diff -u lib/work-settle-contract.js dist/lib/work-settle-contract.js
       - name: Test runtime provenance semantics
         run: node --test scripts/runtime-provenance.test.mjs
 
@@ -87,7 +87,9 @@ jobs:
         with:
           node-version: 22
       - name: Compile portable runtime without Hatchable SDK
-        run: npx --yes --package typescript@5.9.2 tsc -p tsconfig.portable-runtime.json
+        run: |
+          rm -rf dist/portable
+          npx --yes --package typescript@5.9.2 tsc -p tsconfig.portable-runtime.json
       - name: Install Postgres driver for portable acceptance substrate
         run: npm install --no-save --package-lock=false pg@8.13.1
       - name: Execute portable Node + Postgres conformance slice
