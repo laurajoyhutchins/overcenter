@@ -98,7 +98,7 @@ export async function materializeProductionRevision(input = {}, adapters = {}) {
     },
     normalizeSourceContent: file => canonicalizeHatchableText(file.content),
     observeRuntime: async () => {
-      const before = await adapters.runtime.inspect(project);
+      const before = await adapters.runtime.inspect(project, { repository, branch });
       return {
         runtime_ref:project,
         version:normalizeVersion(before?.version, 'runtime version'),
