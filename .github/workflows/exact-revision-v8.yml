@@ -33,6 +33,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Build runtime artifact
+        run: |
+          rm -rf dist/lib
+          npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.runtime.json
       - name: Install MCP client for this run
         run: npm install --no-save --package-lock=false @modelcontextprotocol/client@2
       - name: Verify exact revision in isolated Hatchable V8 runtime
@@ -42,4 +46,4 @@ jobs:
           HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
           OVERCENTER_HATCHABLE_VERIFICATION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_VERIFICATION_PROJECT }}
           OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
-        run: node scripts/exact-revision-v8-verification-http.mjs
+        run: node scripts/exact-revision-v8-dist-verification-http.mjs
