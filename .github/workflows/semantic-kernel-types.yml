@@ -21,7 +21,7 @@ jobs:
         run: node --test scripts/semantic-kernel-provider-boundary.test.mjs
       - name: Test project authoring TypeScript runtime ownership
         run: node --test scripts/verify-project-authoring-typescript-runtime.test.mjs
-      - name: Test monotonic GitHub mutation certainty
+      - name: Test monotonic project authoring mutation certainty
         run: node --test scripts/verify-github-mutation-certainty.test.mjs
       - name: Type-check semantic kernel contracts
         run: npx --yes --package typescript@5.9.2 tsc -p tsconfig.semantic.json
@@ -38,6 +38,7 @@ jobs:
           diff -u lib/execution-evidence-contracts.js .semantic-build/execution-evidence-contracts.js
           diff -u lib/execution-evidence.js .semantic-build/execution-evidence.js
           diff -u lib/execution-lifecycle-contracts.js .semantic-build/execution-lifecycle-contracts.js
+          diff -u lib/mutation-certainty.js .semantic-build/mutation-certainty.js
           diff -u lib/orchestration-drive.js .semantic-build/orchestration-drive.js
           diff -u lib/production-materialization-operation.js .semantic-build/production-materialization-operation.js
           diff -u lib/project-authoring-command-contract.js .semantic-build/project-authoring-command-contract.js

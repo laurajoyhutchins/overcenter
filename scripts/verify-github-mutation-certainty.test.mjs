@@ -1,101 +1,75 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const nodeModules = path.join(root, 'node_modules');
-const libAlias = path.join(nodeModules, 'lib');
-const hatchableStub = path.join(nodeModules, 'hatchable');
-const created = [];
+import { createProjectAuthoringGithubAdapter } from '../lib/project-authoring-github-runtime.js';
 
-fs.mkdirSync(nodeModules, { recursive:true });
-if (!fs.existsSync(libAlias)) {
-  fs.symlinkSync(path.join(root, 'lib'), libAlias, 'dir');
-  created.push(libAlias);
-}
-if (!fs.existsSync(hatchableStub)) {
-  fs.mkdirSync(hatchableStub, { recursive:true });
-  fs.writeFileSync(path.join(hatchableStub, 'package.json'), JSON.stringify({ name:'hatchable', type:'module', exports:'./index.js' }));
-  fs.writeFileSync(path.join(hatchableStub, 'index.js'), [
-    'export const api = {};',
-    'export const db = {};',
-    'export const config = { get() { throw new Error("hatchable config is unavailable in focused Node regression"); } };',
-  ].join('\n'));
-  created.push(hatchableStub);
-}
-
-const { applyGithubChangeset, GitHubChangesetError } = await import('../lib/github-apply-changeset.js');
-
-test.after(() => {
-  for (const target of created.reverse()) fs.rmSync(target, { recursive:true, force:true });
-});
-
-const SHA = {
-  base: '1111111111111111111111111111111111111111',
-  tree: '2222222222222222222222222222222222222222',
-  nextTree: '3333333333333333333333333333333333333333',
-  commit: '4444444444444444444444444444444444444444',
+const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const projectRef = 'github:example/project';
+const baseDefinition = {
+  schema:'overcenter-project-definition-v1',
+  project_ref:projectRef,
+  transitions:[
+    { id:'foundation', priority:10, requires:[], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } },
+  ],
 };
 
-function ambiguousRefMutationWithFailedReadback() {
-  let branchReads = 0;
+function facts() {
   return {
-    async resolveCommit() {
-      return { sha: SHA.base, tree_sha: SHA.tree, message: 'base' };
-    },
-    async getBranch() {
-      branchReads += 1;
-      if (branchReads >= 3) {
-        throw new GitHubChangesetError(
-          'GITHUB_UPSTREAM_ERROR',
-          'reconciliation read failed',
-          { phase:'reconcile.ref_readback', may_have_mutated:false },
-          502,
-        );
-      }
-      return null;
-    },
-    async getPathEntries(_repo, _treeSha, paths) {
-      return new Map(paths.map(path => [path, null]));
-    },
-    async createTree() {
-      return SHA.nextTree;
-    },
-    async createCommit() {
-      return SHA.commit;
-    },
-    async createBranch() {
-      throw new GitHubChangesetError(
-        'GITHUB_UPSTREAM_ERROR',
-        'ref mutation response was lost',
-        {
-          phase:'mutation.ref_update',
-          github_request_id:'REQ-MUTATION',
-          may_have_mutated:true,
-        },
-        502,
-      );
-    },
+    schema:'project-definition-facts-v1',
+    repository:'example/project',
+    revision:initialRevision,
+    definitions:[
+      { path:'.overcenter/definitions/project.json', content:JSON.stringify(baseDefinition) },
+    ],
   };
 }
 
-test('failed reconciliation cannot downgrade an ambiguous GitHub ref mutation', async () => {
-  const result = await applyGithubChangeset({
-    repo:'laurajoyhutchins/test',
-    base_sha:SHA.base,
-    branch:'chore/test-change',
-    changes:[{ path:'new.txt', operation:'create', content:'hello\n' }],
-    commit_message:'chore: test mutation certainty',
-  }, {
-    github:ambiguousRefMutationWithFailedReadback(),
+test('project.amend cannot downgrade failed reconciliation after a possible mutation', async () => {
+  let deriveCalls = 0;
+  const adapter = createProjectAuthoringGithubAdapter({
+    resolveAuthority:async () => ({
+      project_ref:projectRef,
+      kind:'github',
+      repository:'example/project',
+      revision:initialRevision,
+      derivation:'overcenter-project-graph-v1',
+    }),
+    readDefinitionFacts:async () => facts(),
+    applyChangeset:async () => ({
+      ok:false,
+      error:'GITHUB_UPSTREAM_ERROR',
+      message:'reconciliation read failed after an ambiguous ref mutation',
+      phase:'reconcile.ref_readback',
+      may_have_mutated:false,
+      github_request_id:'REQ-READBACK',
+    }),
+    deriveProjectGraph:async () => {
+      deriveCalls += 1;
+      throw new Error('deriveProjectGraph must not run after an unconfirmed mutation');
+    },
   });
 
-  assert.equal(result.ok, false);
-  assert.equal(result.may_have_mutated, true);
-  assert.equal(result.phase, 'mutation.ref_update');
-  assert.equal(result.github_request_id, 'REQ-MUTATION');
-  assert.equal(result.reconciliation_error?.error, 'GITHUB_UPSTREAM_ERROR');
-  assert.equal(result.reconciliation_error?.phase, 'reconcile.ref_readback');
+  let failure;
+  try {
+    await adapter.amend({
+      project_ref:projectRef,
+      expected_revision:initialRevision,
+      amendment:{
+        upsert_transitions:[
+          { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } },
+        ],
+      },
+    });
+  } catch (error) {
+    failure = error;
+  }
+
+  assert.ok(failure instanceof Error);
+  assert.equal(failure.code, 'PROJECT_AUTHORING_MUTATION_UNCONFIRMED');
+  assert.equal(failure.may_have_mutated, true);
+  assert.equal(failure.details?.may_have_mutated, true);
+  assert.equal(failure.details?.mutation_certainty, 'possible');
+  assert.equal(failure.details?.result?.phase, 'reconcile.ref_readback');
+  assert.equal(failure.details?.result?.may_have_mutated, false);
+  assert.equal(deriveCalls, 0);
 });

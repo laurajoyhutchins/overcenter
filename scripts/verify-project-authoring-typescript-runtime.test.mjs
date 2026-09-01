@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 const runtimeSources = [
+  'mutation-certainty',
   'project-authoring-command-contract',
   'project-authoring',
   'project-authoring-runtime',

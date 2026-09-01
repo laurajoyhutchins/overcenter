@@ -16,6 +16,7 @@
     "src/semantic/execution-evidence-contracts.ts",
     "src/semantic/execution-evidence.ts",
     "src/semantic/execution-lifecycle-contracts.ts",
+    "src/semantic/mutation-certainty.ts",
     "src/semantic/orchestration-drive.ts",
     "src/semantic/production-materialization-operation.ts",
     "src/semantic/project-authoring-command-contract.ts",
