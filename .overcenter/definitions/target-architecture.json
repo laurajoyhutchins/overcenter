@@ -211,6 +211,7 @@
       "requires": [
         "add-conversation-to-graph-semantic-command",
         "add-semantic-agent-execution-reporting",
+        "make-agent-execution-packets-self-contained",
         "make-project-advance-self-contained",
         "make-project-authoring-low-ceremony",
         "make-project-inspect-decision-oriented"
@@ -269,6 +270,31 @@
       }
     },
     {
+      "id": "make-agent-execution-packets-self-contained",
+      "priority": 92,
+      "requires": [
+        "make-project-advance-self-contained",
+        "make-project-authoring-low-ceremony"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "make-agent-task-selection-session-scoped",
+      "priority": 151,
+      "requires": [
+        "define-primary-agent-session-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "make-graph-workers-self-recovering",
       "priority": 127,
       "requires": [
@@ -319,7 +345,7 @@
       "id": "make-project-advance-self-contained",
       "priority": 93,
       "requires": [
-        "define-primary-agent-session-contract"
+        "make-agent-task-selection-session-scoped"
       ],
       "executor": {
         "kind": "agent",
@@ -365,7 +391,7 @@
       "id": "make-project-inspect-decision-oriented",
       "priority": 95,
       "requires": [
-        "define-primary-agent-session-contract",
+        "make-agent-task-selection-session-scoped",
         "make-project-inspect-snapshot-correct"
       ],
       "executor": {
