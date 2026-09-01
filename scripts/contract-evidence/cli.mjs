@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { canonicalJson } from './canonical.mjs';
 import { compareCatalogs } from './compare.mjs';
@@ -67,7 +67,35 @@ async function generate(flags) {
   return { ok:true, catalog:catalogPath, docs:docsPath, summary:catalog.summary };
 }
 
+async function checkPrecomputed(flags) {
+  const repoRoot = resolve(flags['repo-root'] || '.');
+  const catalogPath = artifactPath(repoRoot, required(flags, 'catalog'));
+  const docsPath = artifactPath(repoRoot, required(flags, 'docs'));
+  const expectedCatalogPath = artifactPath(repoRoot, required(flags, 'expected-catalog'));
+  const expectedDocsPath = artifactPath(repoRoot, required(flags, 'expected-docs'));
+  const [expectedCatalog, expectedDocs, actualCatalog, actualDocs] = await Promise.all([
+    readFile(expectedCatalogPath, 'utf8'),
+    readFile(expectedDocsPath, 'utf8'),
+    readFile(catalogPath, 'utf8'),
+    readFile(docsPath, 'utf8'),
+  ]);
+  const stale = [];
+  if (actualCatalog !== expectedCatalog) stale.push(catalogPath);
+  if (actualDocs !== expectedDocs) stale.push(docsPath);
+  if (stale.length) fail('CONTRACT_GENERATED_ARTIFACT_STALE', 'generated contract evidence is stale', { stale });
+  return { ok:true };
+}
+
 async function check(flags) {
+  const hasExpectedCatalog = Boolean(flags['expected-catalog']);
+  const hasExpectedDocs = Boolean(flags['expected-docs']);
+  if (hasExpectedCatalog || hasExpectedDocs) {
+    if (!hasExpectedCatalog || !hasExpectedDocs) {
+      fail('CONTRACT_CLI_INVALID', '--expected-catalog and --expected-docs must be provided together');
+    }
+    return checkPrecomputed(flags);
+  }
+
   const { repoRoot, catalog } = await compileFor(flags);
   const catalogPath = artifactPath(repoRoot, required(flags, 'catalog'));
   const docsPath = artifactPath(repoRoot, required(flags, 'docs'));
