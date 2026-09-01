@@ -52,6 +52,8 @@ jobs:
         run: node --test scripts/verify-mcp-admission-contract.test.mjs
       - name: Test semantic command descriptors
         run: node --test scripts/verify-semantic-command-descriptors.test.mjs
+      - name: Test pull request mark-ready semantic worker
+        run: node --test scripts/verify-github-pull-request-mark-ready-semantic-worker.test.mjs
       - name: Test semantic project authoring kernel
         run: node --test scripts/verify-project-authoring.test.mjs
       - name: Test GitHub-backed project authoring adapter
