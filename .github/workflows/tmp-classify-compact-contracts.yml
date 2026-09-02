@@ -137,6 +137,8 @@ jobs:
           const sorted = Object.fromEntries(Object.entries(candidates).sort(([a], [b]) => a.localeCompare(b)));
           await writeFile(classificationPath, `${JSON.stringify({ schema:document.schema, candidates:sorted }, null, 2)}\n`);
           NODE
+      - name: Reset temporary contract database
+        run: psql -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
       - name: Regenerate contract evidence
         run: |
           node scripts/contract-evidence/cli.mjs generate \
