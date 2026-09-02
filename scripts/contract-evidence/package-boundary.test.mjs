@@ -1,0 +1,1 @@
+import test from 'node:test'; import { access } from 'node:fs/promises'; test('contract-evidence package exists', async () => { await access(new URL('../../packages/contract-evidence/package.json', import.meta.url)); });
