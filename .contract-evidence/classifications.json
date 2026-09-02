@@ -49,6 +49,12 @@
       "significance": "durable-internal",
       "semver_kind": "database-layout"
     },
+    "postgres:public.github_required_check_observations#table": {
+      "logical_contract": "github.required-check-observation.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
     "postgres:public.operation_state#table": {
       "significance": "projection",
       "projection_of": "compact.operation-state"
@@ -58,14 +64,92 @@
       "significance": "durable-internal",
       "semver_kind": "database-layout"
     },
+    "postgres:public.orchestration_horizons#table": {
+      "logical_contract": "orchestration.horizon.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
+    "postgres:public.orchestration_invocation_resolutions#table": {
+      "logical_contract": "orchestration.invocation-resolution.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
     "postgres:public.orchestration_runs#table": {
       "logical_contract": "orchestration.run.persistence",
       "significance": "durable-internal",
       "semver_kind": "database-layout"
     },
+    "postgres:public.orchestration_skill_activations#table": {
+      "logical_contract": "orchestration.skill-activation.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
+    "postgres:public.portfolio_reconcile_receipts#table": {
+      "logical_contract": "portfolio.reconcile-receipt.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
+    "postgres:public.portfolio_repository_branch_roles#table": {
+      "logical_contract": "repository.branch-role.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
+    "postgres:public.portfolio_repository_disposition#table": {
+      "logical_contract": "repository.disposition.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
+    "postgres:public.portfolio_verification_receipts#table": {
+      "logical_contract": "portfolio.verification-receipt.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
+    "postgres:public.portfolio_work_identity#table": {
+      "logical_contract": "repository.work-identity.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
     "postgres:public.proof_state#table": {
       "significance": "projection",
       "projection_of": "compact.proof-state"
+    },
+    "postgres:public.scheduled_cycle_events#table": {
+      "logical_contract": "scheduler.cycle-event.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "compatibility"
+    },
+    "postgres:public.work_lease_checkpoints#table": {
+      "logical_contract": "compatibility.work-lease-checkpoint.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "compatibility"
+    },
+    "postgres:public.work_lease_heartbeats#table": {
+      "logical_contract": "compatibility.work-lease-heartbeat.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "compatibility"
+    },
+    "postgres:public.work_lease_slots#table": {
+      "logical_contract": "compatibility.work-lease-slot.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "compatibility"
+    },
+    "postgres:public.work_leases#table": {
+      "logical_contract": "compatibility.work-lease.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "compatibility"
     },
     "semantic-command:github.release.create#input": {
       "logical_contract": "github.release.create.input",

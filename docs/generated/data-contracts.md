@@ -30,14 +30,28 @@
 - `compact.execution-state` — authority `typescript:src/semantic/compact-execution-state.ts#ExecutionState`; SemVer `internal-module-layout`; 39 projections
 - `compact.operation-state` — authority `typescript:src/semantic/compact-execution-state.ts#OperationState`; SemVer `internal-module-layout`; 33 projections
 - `compact.proof-state` — authority `typescript:src/semantic/compact-execution-state.ts#ProofState`; SemVer `internal-module-layout`; 13 projections
+- `compatibility.work-lease-checkpoint.persistence` — authority `postgres:public.work_lease_checkpoints#table`; SemVer `database-layout`; 10 projections
+- `compatibility.work-lease-heartbeat.persistence` — authority `postgres:public.work_lease_heartbeats#table`; SemVer `database-layout`; 11 projections
+- `compatibility.work-lease-slot.persistence` — authority `postgres:public.work_lease_slots#table`; SemVer `database-layout`; 6 projections
+- `compatibility.work-lease.persistence` — authority `postgres:public.work_leases#table`; SemVer `database-layout`; 38 projections
 - `execution.store.lease` — authority `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionLease`
 - `execution.store.run` — authority `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionRun`
 - `execution.store.slot` — authority `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionSlot`
 - `github.changeset-receipt.persistence` — authority `postgres:public.github_changeset_receipts#table`; SemVer `database-layout`; 20 projections
 - `github.production-promotion-receipt.persistence` — authority `postgres:public.github_production_promotion_receipts#table`; SemVer `database-layout`; 15 projections
 - `github.release-receipt.persistence` — authority `postgres:public.github_release_receipts#table`; SemVer `database-layout`; 18 projections
+- `github.required-check-observation.persistence` — authority `postgres:public.github_required_check_observations#table`; SemVer `database-layout`; 10 projections
 - `orchestration.command-invocation.persistence` — authority `postgres:public.orchestration_command_invocations#table`; SemVer `database-layout`; 22 projections
+- `orchestration.horizon.persistence` — authority `postgres:public.orchestration_horizons#table`; SemVer `database-layout`; 8 projections
+- `orchestration.invocation-resolution.persistence` — authority `postgres:public.orchestration_invocation_resolutions#table`; SemVer `database-layout`; 7 projections
 - `orchestration.run.persistence` — authority `postgres:public.orchestration_runs#table`; SemVer `database-layout`; 45 projections
+- `orchestration.skill-activation.persistence` — authority `postgres:public.orchestration_skill_activations#table`; SemVer `database-layout`; 15 projections
+- `portfolio.reconcile-receipt.persistence` — authority `postgres:public.portfolio_reconcile_receipts#table`; SemVer `database-layout`; 13 projections
+- `portfolio.verification-receipt.persistence` — authority `postgres:public.portfolio_verification_receipts#table`; SemVer `database-layout`; 8 projections
+- `repository.branch-role.persistence` — authority `postgres:public.portfolio_repository_branch_roles#table`; SemVer `database-layout`; 9 projections
+- `repository.disposition.persistence` — authority `postgres:public.portfolio_repository_disposition#table`; SemVer `database-layout`; 15 projections
+- `repository.work-identity.persistence` — authority `postgres:public.portfolio_work_identity#table`; SemVer `database-layout`; 10 projections
+- `scheduler.cycle-event.persistence` — authority `postgres:public.scheduled_cycle_events#table`; SemVer `database-layout`; 29 projections
 
 ## Boundary-internal contracts
 
@@ -168,20 +182,6 @@
 - `javascript:lib/work-progress-contract.js#WORK_HEARTBEAT_SEMANTIC_FIELDS`
 - `javascript:lib/work-surface-policy.js#WORK_SURFACE_DISPOSITIONS`
 - `javascript:lib/work-surface-policy.js#workSurfacePolicyConfig`
-- `postgres:public.github_required_check_observations#table`
-- `postgres:public.orchestration_horizons#table`
-- `postgres:public.orchestration_invocation_resolutions#table`
-- `postgres:public.orchestration_skill_activations#table`
-- `postgres:public.portfolio_reconcile_receipts#table`
-- `postgres:public.portfolio_repository_branch_roles#table`
-- `postgres:public.portfolio_repository_disposition#table`
-- `postgres:public.portfolio_verification_receipts#table`
-- `postgres:public.portfolio_work_identity#table`
-- `postgres:public.scheduled_cycle_events#table`
-- `postgres:public.work_lease_checkpoints#table`
-- `postgres:public.work_lease_heartbeats#table`
-- `postgres:public.work_lease_slots#table`
-- `postgres:public.work_leases#table`
 - `repo-data:.overcenter/definitions/target-architecture.json#overcenter-project-definition-v1`
 - `repo-data:.overcenter/project-definitions.json#project-definition-discovery-v1`
 - `semantic-command:github.pull_request.mark_ready#input`
