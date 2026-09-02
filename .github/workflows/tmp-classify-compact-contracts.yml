@@ -41,13 +41,22 @@ jobs:
           node-version: 22
       - name: Install contract evidence tooling
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
+      - name: Generate current discovery snapshot
+        run: |
+          mkdir -p "$RUNNER_TEMP/compact-classification"
+          node scripts/contract-evidence/cli.mjs generate \
+            --repo-root . \
+            --config scripts/contract-evidence/overcenter/config.mjs \
+            --catalog "$RUNNER_TEMP/compact-classification/catalog.json" \
+            --docs "$RUNNER_TEMP/compact-classification/data-contracts.md"
       - name: Classify compact state contracts
         run: |
           node --input-type=module <<'NODE'
           import { readFile, writeFile } from 'node:fs/promises';
+          import { join } from 'node:path';
 
           const classificationPath = '.contract-evidence/classifications.json';
-          const catalogPath = 'generated/contracts/catalog.json';
+          const catalogPath = join(process.env.RUNNER_TEMP, 'compact-classification', 'catalog.json');
           const document = JSON.parse(await readFile(classificationPath, 'utf8'));
           const catalog = JSON.parse(await readFile(catalogPath, 'utf8'));
           const candidates = document.candidates;
