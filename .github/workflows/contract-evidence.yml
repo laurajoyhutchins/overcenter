@@ -50,14 +50,17 @@ jobs:
             --repo-root . \
             --config scripts/contract-evidence/overcenter/config.mjs \
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
-            --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md"
+            --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
+            --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
             --expected-catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --expected-docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
+            --expected-atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md" \
             --catalog generated/contracts/catalog.json \
-            --docs docs/generated/data-contracts.md
+            --docs docs/generated/data-contracts.md \
+            --atlas docs/generated/data-contract-authority-atlas.md
       - name: Enforce historical unclassified ratchet
         run: |
           git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"

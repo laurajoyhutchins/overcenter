@@ -10,21 +10,27 @@ test('check can verify precomputed evidence without compiling the repository', a
   try {
     const expectedCatalog = join(root, 'expected-catalog.json');
     const expectedDocs = join(root, 'expected-docs.md');
+    const expectedAtlas = join(root, 'expected-atlas.md');
     const catalog = join(root, 'catalog.json');
     const docs = join(root, 'docs.md');
+    const atlas = join(root, 'atlas.md');
     await Promise.all([
       writeFile(expectedCatalog, '{"schema":"contract-evidence-catalog-v1"}\n', 'utf8'),
       writeFile(catalog, '{"schema":"contract-evidence-catalog-v1"}\n', 'utf8'),
       writeFile(expectedDocs, '# Contracts\n', 'utf8'),
       writeFile(docs, '# Contracts\n', 'utf8'),
+      writeFile(expectedAtlas, '# Atlas\n', 'utf8'),
+      writeFile(atlas, '# Atlas\n', 'utf8'),
     ]);
 
     const result = await main([
       'check',
       '--expected-catalog', expectedCatalog,
       '--expected-docs', expectedDocs,
+      '--expected-atlas', expectedAtlas,
       '--catalog', catalog,
       '--docs', docs,
+      '--atlas', atlas,
     ]);
     assert.deepEqual(result, { ok:true });
 
@@ -34,8 +40,10 @@ test('check can verify precomputed evidence without compiling the repository', a
         'check',
         '--expected-catalog', expectedCatalog,
         '--expected-docs', expectedDocs,
+        '--expected-atlas', expectedAtlas,
         '--catalog', catalog,
         '--docs', docs,
+        '--atlas', atlas,
       ]),
       (error) => error?.code === 'CONTRACT_GENERATED_ARTIFACT_STALE'
         && error?.details?.stale?.length === 1

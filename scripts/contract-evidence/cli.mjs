@@ -5,6 +5,7 @@ import {
   canonicalJson,
   compareCatalogs,
   compileCatalog,
+  renderAuthorityAtlasMarkdown,
   renderCatalogMarkdown,
 } from '../../packages/contract-evidence/index.mjs';
 
@@ -64,36 +65,45 @@ async function generate(flags) {
   const { repoRoot, catalog } = await compileFor(flags);
   const catalogPath = artifactPath(repoRoot, required(flags, 'catalog'));
   const docsPath = artifactPath(repoRoot, required(flags, 'docs'));
-  await writeFile(catalogPath, canonicalJson(catalog) + '\n', 'utf8');
-  await writeFile(docsPath, renderCatalogMarkdown(catalog) + '\n', 'utf8');
-  return { ok:true, catalog:catalogPath, docs:docsPath, summary:catalog.summary };
+  const atlasPath = artifactPath(repoRoot, required(flags, 'atlas'));
+  await Promise.all([
+    writeFile(catalogPath, canonicalJson(catalog) + '\n', 'utf8'),
+    writeFile(docsPath, renderCatalogMarkdown(catalog) + '\n', 'utf8'),
+    writeFile(atlasPath, renderAuthorityAtlasMarkdown(catalog) + '\n', 'utf8'),
+  ]);
+  return { ok:true, catalog:catalogPath, docs:docsPath, atlas:atlasPath, summary:catalog.summary };
 }
 
 async function checkPrecomputed(flags) {
   const repoRoot = resolve(flags['repo-root'] || '.');
   const catalogPath = artifactPath(repoRoot, required(flags, 'catalog'));
   const docsPath = artifactPath(repoRoot, required(flags, 'docs'));
+  const atlasPath = artifactPath(repoRoot, required(flags, 'atlas'));
   const expectedCatalogPath = artifactPath(repoRoot, required(flags, 'expected-catalog'));
   const expectedDocsPath = artifactPath(repoRoot, required(flags, 'expected-docs'));
-  const [expectedCatalog, expectedDocs, actualCatalog, actualDocs] = await Promise.all([
+  const expectedAtlasPath = artifactPath(repoRoot, required(flags, 'expected-atlas'));
+  const [expectedCatalog, expectedDocs, expectedAtlas, actualCatalog, actualDocs, actualAtlas] = await Promise.all([
     readFile(expectedCatalogPath, 'utf8'),
     readFile(expectedDocsPath, 'utf8'),
+    readFile(expectedAtlasPath, 'utf8'),
     readFile(catalogPath, 'utf8'),
     readFile(docsPath, 'utf8'),
+    readFile(atlasPath, 'utf8'),
   ]);
   const stale = [];
   if (actualCatalog !== expectedCatalog) stale.push(catalogPath);
   if (actualDocs !== expectedDocs) stale.push(docsPath);
+  if (actualAtlas !== expectedAtlas) stale.push(atlasPath);
   if (stale.length) fail('CONTRACT_GENERATED_ARTIFACT_STALE', 'generated contract evidence is stale', { stale });
   return { ok:true };
 }
 
 async function check(flags) {
-  const hasExpectedCatalog = Boolean(flags['expected-catalog']);
-  const hasExpectedDocs = Boolean(flags['expected-docs']);
-  if (hasExpectedCatalog || hasExpectedDocs) {
-    if (!hasExpectedCatalog || !hasExpectedDocs) {
-      fail('CONTRACT_CLI_INVALID', '--expected-catalog and --expected-docs must be provided together');
+  const expectedFlags = ['expected-catalog', 'expected-docs', 'expected-atlas'];
+  const providedExpected = expectedFlags.filter((name) => Boolean(flags[name]));
+  if (providedExpected.length) {
+    if (providedExpected.length !== expectedFlags.length) {
+      fail('CONTRACT_CLI_INVALID', '--expected-catalog, --expected-docs, and --expected-atlas must be provided together');
     }
     return checkPrecomputed(flags);
   }
@@ -101,15 +111,19 @@ async function check(flags) {
   const { repoRoot, catalog } = await compileFor(flags);
   const catalogPath = artifactPath(repoRoot, required(flags, 'catalog'));
   const docsPath = artifactPath(repoRoot, required(flags, 'docs'));
+  const atlasPath = artifactPath(repoRoot, required(flags, 'atlas'));
   const expectedCatalog = canonicalJson(catalog) + '\n';
   const expectedDocs = renderCatalogMarkdown(catalog) + '\n';
-  const [actualCatalog, actualDocs] = await Promise.all([
+  const expectedAtlas = renderAuthorityAtlasMarkdown(catalog) + '\n';
+  const [actualCatalog, actualDocs, actualAtlas] = await Promise.all([
     readFile(catalogPath, 'utf8'),
     readFile(docsPath, 'utf8'),
+    readFile(atlasPath, 'utf8'),
   ]);
   const stale = [];
   if (actualCatalog !== expectedCatalog) stale.push(catalogPath);
   if (actualDocs !== expectedDocs) stale.push(docsPath);
+  if (actualAtlas !== expectedAtlas) stale.push(atlasPath);
   if (stale.length) fail('CONTRACT_GENERATED_ARTIFACT_STALE', 'generated contract evidence is stale', { stale });
   return { ok:true, summary:catalog.summary };
 }
