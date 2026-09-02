@@ -16,10 +16,11 @@ function statusFor(result) {
 }
 
 export default async function (req, res) {
+  const runId = typeof req.body?.run_id === 'string' ? req.body.run_id : null;
   const response = await executeCorrelatedCommand(
     'github.production.promote',
     req.body || {},
-    (input) => promoteGithubProductionWithGitHubApp(input, { db }),
+    (input) => promoteGithubProductionWithGitHubApp(input, { db, run_id:runId }),
     { statusForFailure: statusFor, flattenDetails: true, db },
   );
   return res.status(response.status).json(response.body);

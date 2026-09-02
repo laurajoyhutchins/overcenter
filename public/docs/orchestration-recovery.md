@@ -4,7 +4,7 @@ Overcenter gives interactive Fast Forward and scheduled workers bounded continui
 
 A **scheduled task** is the ChatGPT scheduler entry. A **worker** is the execution role. A **worker session** is one disposable ChatGPT execution. An **orchestration run** is the durable control-plane record identified by `run_id`; it can outlive the worker session that created it. These terms are not interchangeable.
 
-Linear remains durable work truth. GitHub and Drive remain repository/artifact truth. The Overcenter GitHub App, currently deployed on Hatchable, stores only coordination state: run budgets, advisory horizons, leases, checkpoints, heartbeats, settlement receipts, and bounded recovery evidence.
+GitHub repository state and repository-owned project definitions remain source authority. Linear is an execution projection when configured, not a recovery ledger. The Overcenter GitHub App, currently deployed on Hatchable, stores compact coordination state: current runs and execution authority, one current checkpoint/progress window, unresolved operations, exact proofs, compact terminal receipts, and bounded current failure state. Historical horizons, journals, heartbeats, and superseded checkpoints are telemetry or migration compatibility.
 
 ## Surfaces
 
@@ -55,7 +55,7 @@ A new compatible run may receive a finished or deadline-expired predecessor's re
 
 When `orchestration.start` identifies a predecessor run, call `orchestration.resume_packet` for that predecessor before selecting new work.
 
-`orchestration.resume_packet` reconstructs exact prior execution mechanics from journal evidence, work leases/slots, checkpoints, and command-specific receipts. Its continuation vocabulary remains deliberately small:
+`orchestration.resume_packet` reads present-tense recovery facts from the current run, current `execution_state`, unresolved `operation_state`, and fresh authority where required. It does not reconstruct current truth by scanning historical journals, checkpoints, heartbeats, or receipt chronology. Its continuation vocabulary remains deliberately small:
 
 - `recover_active_lease`: continue the exact still-owned gate;
 - `retry_same_request`: replay the exact stored idempotent request;
@@ -70,7 +70,7 @@ Cross-run planning continuity is owned by `orchestration.start` plus advisory ho
 
 ## Typed diagnosis and recovery
 
-`orchestration.diagnose` is the deterministic answer to "why did this worker stop?" for known control-plane failure classes. It reads the durable run, current Linear work state, lease/slot/checkpoint state, and bounded journal evidence, then returns the last successful command, last typed failure, derived worker health, whether automatic recovery is allowed, the exact recovery operation, and whether reasoning/operator escalation is required. It is not inserted into the run journal it is inspecting and cannot choose work or invent a recovery plan.
+`orchestration.diagnose` is the deterministic answer to "why did this worker stop?" for known control-plane failure classes. It reads the current run, current execution authority/checkpoint, unresolved operation state, the run's bounded current-failure register, and fresh external authority only where required. It returns the current typed failure, derived worker health, whether automatic recovery is allowed, the exact recovery operation, and whether reasoning/operator escalation is required. Historical journal rows do not participate in the decision and diagnosis cannot choose work or invent a recovery plan.
 
 Known recovery states include `CLAIM_STATE_INVALID`, `ACTIVE_LEASE_REMAINS`, `HEARTBEAT_BUDGET_EXHAUSTED`, `STALE_LEASE`, `TRANSPORT_UNAVAILABLE`, `WORKER_DISABLED`, `RECOVERY_FAILED`, and `UNKNOWN`. Transient transport absence projects `degraded` and a bounded retry operation rather than disabling the worker. Persistent invalid configuration remains an operator error. Repeated automatic recovery is bounded; after three failed attempts the diagnosis becomes `RECOVERY_FAILED` and escalates rather than looping.
 
@@ -89,7 +89,7 @@ Worker-facing recovery semantics are therefore one rule: execute the canonical c
 - durable checkpoint progress exists;
 - the run budget and three-hour hard lease cap still permit extension.
 
-The lease and slot expiry move together and a heartbeat receipt is retained. Repeated heartbeat attempts without materially advanced checkpoint progress are rejected. When the run budget or hard lease horizon prevents extension, the heartbeat checkpoint is already durable and the response is typed `HEARTBEAT_BUDGET_EXHAUSTED` with the exact `work.settle` recovery operation needed to requeue `resume_progress`. The worker executes that prescription rather than attempting another extension or reconstructing cleanup. An expired lease cannot be revived; diagnosis classifies expired/orphaned ownership as `STALE_LEASE` and prescribes the canonical reconciliation path.
+The lease and slot expiry move together. Current progress is represented by the execution state's checkpoint plus a bounded two-hash progress window; heartbeat idempotency is represented by compact operation state rather than a required heartbeat history. Repeated heartbeat attempts without materially advanced checkpoint progress are rejected. When the run budget or hard lease horizon prevents extension, the heartbeat checkpoint is already durable and the response is typed `HEARTBEAT_BUDGET_EXHAUSTED` with the exact `work.settle` recovery operation needed to requeue `resume_progress`. The worker executes that prescription rather than attempting another extension or reconstructing cleanup. An expired lease cannot be revived; diagnosis classifies expired/orphaned ownership as `STALE_LEASE` and prescribes the canonical reconciliation path.
 
 ## Run finish
 
@@ -123,6 +123,6 @@ A scheduler-only control-plane sweep runs hourly as the durable eventual-quiesce
 
 ## Journal boundary
 
-The run journal records bounded command/target coordinates, request/result hashes, safe projections, timestamps, error classification, retryability, expected-rejection status, and mutation ambiguity. After a correlated command completes durably, the run also records its monotonic last durable activity timestamp/type/sequence for diagnostics. This is evidence of the last observed command completion, never a worker-death timestamp. Run rows may additionally retain declared immutable worker-contract provenance coordinates. The journal does not record prompts, model reasoning, chain of thought, conversation text, credentials, lease tokens, source-file contents, patches, binary content, or full copies of authoritative objects.
+The run journal is diagnostic telemetry. It may record bounded command/target coordinates, hashes, safe projections, timestamps, and error classifications, and it may be retention-bounded. It never grants execution authority, establishes mutation certainty, or participates in recovery/resumption decisions. Correctness paths must continue to work when historical journal rows are absent.
 
-The journal never grants execution authority. Linear remains durable work truth; GitHub/Drive remain artifact/repository truth; work leases remain temporary exclusive execution ownership; command-specific receipt state machines remain the safety authority for idempotent mutation recovery.
+Current execution authority lives in `execution_state`; unresolved mutation certainty and idempotency live in `operation_state`; exact revision predicates live in `proof_state`; bounded current recovery classification lives on the run; GitHub remains repository/project authority. The journal does not record prompts, model reasoning, chain of thought, conversation text, credentials, lease capabilities, source-file contents, patches, binary content, or full copies of authoritative objects.

@@ -126,6 +126,11 @@ function nonEmptyText(value: unknown): string | null {
   return text || null;
 }
 
+function authorityEpoch(value: unknown): number | null {
+  const epoch = typeof value === 'number' ? value : Number(value);
+  return Number.isSafeInteger(epoch) && epoch >= 0 ? epoch : null;
+}
+
 function requireActiveLease(lease: StoredExecutionLease, observedNow: number, leaseId: LeaseId): void {
   const leaseExpiry = instant(lease.expires_at);
   const hardExpiry = lease.hard_expires_at ? instant(lease.hard_expires_at) : null;
@@ -192,6 +197,7 @@ export function createExecutionAuthorityService({
         const subjectTransitionId = nonEmptyText(subject?.transition_id);
         const subjectGraphFingerprint = nonEmptyText(subject?.graph_fingerprint);
         const subjectTransitionFingerprint = nonEmptyText(subject?.transition_definition_fingerprint);
+        const issuedAuthorityEpoch = authorityEpoch(subject?.authority_epoch);
         if (!subject || !subjectProjectRef || !subjectTransitionId || !requestedRepository || !subjectRepository) {
           fail('EXECUTION_AUTHORITY_INVALID', 'project transition execution authority is missing durable subject identity', {
             lease_id: leaseId,
@@ -237,6 +243,8 @@ export function createExecutionAuthorityService({
         const verifiedTransitionId = nonEmptyText(verifiedRecord?.transition_id);
         const verifiedGraphFingerprint = nonEmptyText(verifiedRecord?.graph_fingerprint);
         const verifiedTransitionFingerprint = nonEmptyText(verifiedRecord?.transition_definition_fingerprint);
+        const verifiedAuthorityEpoch = authorityEpoch(verifiedRecord?.authority_epoch);
+        const currentAuthorityEpoch = verifiedAuthorityEpoch ?? (issuedAuthorityEpoch === null ? 0 : null);
         if (!verifiedRecord
             || verifiedRecord.subject !== 'project_transition'
             || verifiedLeaseRef !== leaseId
@@ -244,10 +252,18 @@ export function createExecutionAuthorityService({
             || verifiedRepository !== subjectRepository
             || verifiedProjectRef !== subjectProjectRef
             || verifiedTransitionId !== subjectTransitionId
+            || currentAuthorityEpoch === null
             || (subjectGraphFingerprint !== null && verifiedGraphFingerprint !== subjectGraphFingerprint)
             || (subjectTransitionFingerprint !== null && verifiedTransitionFingerprint !== subjectTransitionFingerprint)) {
           fail('EXECUTION_AUTHORITY_INVALID', 'project transition authority validator returned inconsistent subject evidence', {
             lease_id: leaseId,
+          });
+        }
+        if (issuedAuthorityEpoch !== null && issuedAuthorityEpoch !== currentAuthorityEpoch) {
+          fail('EXECUTION_AUTHORITY_STALE', 'project transition execution authority epoch is stale', {
+            lease_id: leaseId,
+            issued_authority_epoch: issuedAuthorityEpoch,
+            current_authority_epoch: currentAuthorityEpoch,
           });
         }
         return {
@@ -255,6 +271,7 @@ export function createExecutionAuthorityService({
           lease_id: leaseId,
           lease_ref: leaseId,
           run_id: runId,
+          authority_epoch: currentAuthorityEpoch,
           repository: subjectRepository,
           project_ref: subjectProjectRef,
           transition_id: subjectTransitionId,

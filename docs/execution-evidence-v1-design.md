@@ -1,8 +1,14 @@
 # execution-evidence-v1 design
 
 Date: 2026-08-27
-Status: proposed
+Status: diagnostic compatibility projection
 Tracks: #148, #149, #150, #151, #152, #153, #154
+
+## Compact-state amendment (2026-09-01)
+
+`execution-evidence-v1` is a diagnostic historical projection, not an execution-correctness substrate. Recovery, resumption, mutation certainty, and authorization depend on compact current state (`orchestration_runs`, `execution_state`, unresolved `operation_state`, exact `proof_state`) plus fresh authoritative reads. Historical journals, horizons, heartbeats, checkpoints, and superseded receipts may be retention-bounded or absent without changing a correctness decision.
+
+Where retained, v1 remains useful for answering historical operator questions. A future current-facts evidence schema should project compact execution facts, terminal effect tombstones, exact-revision proofs, and fresh authority observations rather than reconstructing chronology.
 
 ## 1. Outcome
 
@@ -10,7 +16,7 @@ Overcenter will expose one canonical consumer-facing representation of what it c
 
 The data product is **Overcenter Execution Evidence**. Its native semantic representation is `execution-evidence-v1`.
 
-`execution-evidence-v1` is a deterministic read projection over existing durable Overcenter execution evidence and explicitly bounded observations of external authorities. It does not create a second execution ledger, a second project authority, a provider mirror, or an agent-authored historical narrative.
+`execution-evidence-v1` is a deterministic diagnostic read projection over retained Overcenter execution telemetry and explicitly bounded observations of external authorities. It does not create a second execution ledger, a second project authority, a provider mirror, or an agent-authored historical narrative, and its source rows are not required to remain durable for execution correctness.
 
 The organizing invariant is:
 
@@ -55,9 +61,9 @@ The data product must not copy complete GitHub or Linear objects merely because 
 
 Reading `execution-evidence-v1` does not make a projection authoritative for provider state. A later provider change does not rewrite historical execution evidence. Current provider truth is obtained through the appropriate authoritative observation operation.
 
-## 3. Existing durable source map
+## 3. Diagnostic compatibility source map
 
-The first implementation should require no new persistence table. Existing durable records already cover the core product:
+The original v1 projector reads the following records when they are retained. This table describes diagnostic inputs, not required durable state. Compact-state correctness must continue to work when these historical sources are empty or physically absent:
 
 | Semantic entity | Primary durable source | Notes |
 | --- | --- | --- |

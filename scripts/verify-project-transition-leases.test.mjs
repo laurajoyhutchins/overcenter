@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import './verify-project-transition-authority-epoch.test.mjs';
 import './verify-project-transition-lease-recovery.test.mjs';
 import './verify-project-transition-revision-continuation.test.mjs';
 import './verify-project-transition-continuation-wiring.test.mjs';

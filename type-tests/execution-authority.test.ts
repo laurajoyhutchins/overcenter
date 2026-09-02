@@ -55,6 +55,7 @@ const graphNativeAuthority: ProjectTransitionExecutionAuthority = {
   lease_id: leaseId,
   lease_ref: leaseId,
   run_id: runId,
+  authority_epoch: 1,
   repository: 'laurajoyhutchins/overcenter',
   project_ref: 'github:laurajoyhutchins/overcenter',
   transition_id: 'graph-native-transition',
