@@ -4,9 +4,8 @@ import pg from 'pg';
 import { fingerprintStructure, sourceIdentity } from '../canonical.mjs';
 
 const { Client } = pg;
-const SYSTEM_SCHEMAS = ['pg_catalog', 'information_schema'];
 
-function candidate(path, anchor, structure) {
+function candidate(path, anchor, structure, observedRelationships = []) {
   return {
     source_identity:sourceIdentity('postgres', path, anchor),
     source_kind:'postgres',
@@ -14,8 +13,43 @@ function candidate(path, anchor, structure) {
     symbol_or_boundary:anchor,
     structural_fingerprint:fingerprintStructure(structure),
     structure,
-    observed_relationships:[],
+    observed_relationships:observedRelationships,
   };
+}
+
+function tablePath(row) {
+  return `${row.table_schema}.${row.table_name}`;
+}
+
+function columnStructure(column, includeName = false) {
+  return {
+    ...(includeName ? { name:column.column_name } : {}),
+    kind:'column',
+    data_type:column.data_type === 'USER-DEFINED' ? column.udt_name : column.data_type,
+    udt_schema:column.udt_schema,
+    udt_name:column.udt_name,
+    nullable:column.is_nullable === 'YES',
+    default:column.column_default,
+  };
+}
+
+function constraintStructure(constraint, includeName = false) {
+  return {
+    ...(includeName ? { name:constraint.constraint_name } : {}),
+    kind:'constraint',
+    constraint_type:constraint.constraint_type,
+    definition:constraint.definition,
+  };
+}
+
+function groupByTable(rows, tablePaths, project) {
+  const grouped = new Map([...tablePaths].map((path) => [path, []]));
+  for (const row of rows) {
+    const path = tablePath(row);
+    if (!grouped.has(path)) continue;
+    grouped.get(path).push(project(row));
+  }
+  return grouped;
 }
 
 export async function applyMigrations(client, migrationsDir) {
@@ -55,9 +89,6 @@ export async function introspectPostgresContracts(client) {
       AND table_type = 'BASE TABLE'
     ORDER BY table_schema, table_name
   `);
-  for (const table of tables) {
-    candidates.push(candidate(`${table.table_schema}.${table.table_name}`, 'table', { kind:'table' }));
-  }
 
   const views = await rows(client, `
     SELECT schemaname AS table_schema, viewname AS table_name, definition
@@ -65,12 +96,6 @@ export async function introspectPostgresContracts(client) {
     WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
     ORDER BY schemaname, viewname
   `);
-  for (const view of views) {
-    candidates.push(candidate(`${view.table_schema}.${view.table_name}`, 'view', {
-      kind:'view',
-      definition:String(view.definition || '').trim(),
-    }));
-  }
 
   const columns = await rows(client, `
     SELECT table_schema, table_name, column_name, data_type, udt_schema, udt_name,
@@ -79,16 +104,6 @@ export async function introspectPostgresContracts(client) {
     WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
     ORDER BY table_schema, table_name, ordinal_position
   `);
-  for (const column of columns) {
-    candidates.push(candidate(`${column.table_schema}.${column.table_name}`, column.column_name, {
-      kind:'column',
-      data_type:column.data_type === 'USER-DEFINED' ? column.udt_name : column.data_type,
-      udt_schema:column.udt_schema,
-      udt_name:column.udt_name,
-      nullable:column.is_nullable === 'YES',
-      default:column.column_default,
-    }));
-  }
 
   const types = await rows(client, `
     SELECT n.nspname AS schema_name,
@@ -107,13 +122,6 @@ export async function introspectPostgresContracts(client) {
     GROUP BY n.nspname, t.typname, t.typtype, t.typbasetype, t.typtypmod
     ORDER BY n.nspname, t.typname
   `);
-  for (const type of types) {
-    candidates.push(candidate(`${type.schema_name}.${type.type_name}`, 'type', {
-      kind:type.type_kind === 'e' ? 'enum' : 'domain',
-      enum_values:Array.isArray(type.enum_values) ? type.enum_values : [],
-      domain_base:type.type_kind === 'd' ? type.domain_base : null,
-    }));
-  }
 
   const constraints = await rows(client, `
     SELECT n.nspname AS table_schema,
@@ -128,13 +136,49 @@ export async function introspectPostgresContracts(client) {
       AND c.relkind IN ('r', 'p')
     ORDER BY n.nspname, c.relname, con.conname
   `);
-  for (const constraint of constraints) {
-    const anchor = `constraint:${constraint.constraint_name}`;
-    candidates.push(candidate(`${constraint.table_schema}.${constraint.table_name}`, anchor, {
-      kind:'constraint',
-      constraint_type:constraint.constraint_type,
-      definition:constraint.definition,
+
+  const tablePaths = new Set(tables.map(tablePath));
+  const columnsByTable = groupByTable(columns, tablePaths, (column) => columnStructure(column, true));
+  const constraintsByTable = groupByTable(constraints, tablePaths, (constraint) => constraintStructure(constraint, true));
+
+  for (const table of tables) {
+    const path = tablePath(table);
+    candidates.push(candidate(path, 'table', {
+      kind:'table',
+      columns:columnsByTable.get(path) || [],
+      constraints:constraintsByTable.get(path) || [],
     }));
+  }
+
+  for (const view of views) {
+    candidates.push(candidate(`${view.table_schema}.${view.table_name}`, 'view', {
+      kind:'view',
+      definition:String(view.definition || '').trim(),
+    }));
+  }
+
+  for (const column of columns) {
+    const path = tablePath(column);
+    const relationships = tablePaths.has(path)
+      ? [{ kind:'structural-projection-of', target:sourceIdentity('postgres', path, 'table') }]
+      : [];
+    candidates.push(candidate(path, column.column_name, columnStructure(column), relationships));
+  }
+
+  for (const type of types) {
+    candidates.push(candidate(`${type.schema_name}.${type.type_name}`, 'type', {
+      kind:type.type_kind === 'e' ? 'enum' : 'domain',
+      enum_values:Array.isArray(type.enum_values) ? type.enum_values : [],
+      domain_base:type.type_kind === 'd' ? type.domain_base : null,
+    }));
+  }
+
+  for (const constraint of constraints) {
+    const path = tablePath(constraint);
+    const anchor = `constraint:${constraint.constraint_name}`;
+    candidates.push(candidate(path, anchor, constraintStructure(constraint), [
+      { kind:'structural-projection-of', target:sourceIdentity('postgres', path, 'table') },
+    ]));
   }
 
   candidates.sort((a, b) => a.source_identity.localeCompare(b.source_identity));

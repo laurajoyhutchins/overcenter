@@ -5,6 +5,11 @@ import {
   assertClassificationDocument,
 } from './model.mjs';
 
+const AUTOMATIC_PROJECTION_RELATIONSHIP_KINDS = new Set([
+  'generated-projection-of',
+  'structural-projection-of',
+]);
+
 function fail(code, message, details = null) {
   const error = new Error(message);
   Object.assign(error, { code, details });
@@ -111,10 +116,10 @@ export function resolveLogicalContracts(candidates, classificationDocument, opti
 
   const automaticProjectionSources = new Set();
   for (const candidate of [...bySource.values()].sort((a, b) => a.source_identity.localeCompare(b.source_identity))) {
-    const relationships = candidate.observed_relationships.filter((item) => item?.kind === 'generated-projection-of');
+    const relationships = candidate.observed_relationships.filter((item) => AUTOMATIC_PROJECTION_RELATIONSHIP_KINDS.has(item?.kind));
     if (!relationships.length) continue;
     if (relationships.length !== 1 || typeof relationships[0].target !== 'string' || !bySource.has(relationships[0].target)) {
-      fail('CONTRACT_GENERATED_PROJECTION_AMBIGUOUS', 'generated projection relationship must resolve to exactly one observed source', {
+      fail('CONTRACT_GENERATED_PROJECTION_AMBIGUOUS', 'automatic projection relationship must resolve to exactly one observed source', {
         source_identity:candidate.source_identity,
         targets:relationships.map((item) => item?.target ?? null),
       });
