@@ -284,6 +284,18 @@
       }
     },
     {
+      "id": "enrich-contract-authority-atlas-with-flow-relationships",
+      "priority": 155,
+      "requires": [
+        "generate-contract-authority-atlas"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "establish-dist-runtime-artifact-boundary",
       "priority": 1000,
       "requires": [
