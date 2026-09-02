@@ -40,7 +40,7 @@ Overcenter moves repeated orchestration ceremony into software:
 - **Repository-owned plans.** Project definitions live with the repository instead of in a parallel planning database.
 - **Bounded execution authority.** Work runs under exclusive leases with explicit scope and expiry.
 - **Exact-revision writes.** Mutations are fenced against authoritative Git revisions rather than optimistic guesses.
-- **Durable evidence.** Commands, receipts, settlements, and recovery state survive the agent session that produced them.
+- **Durable execution truth.** Current execution authority, unresolved operations, exact-revision proofs, and compact terminal receipts survive the agent session that produced them. Historical journals are diagnostic telemetry, not a correctness dependency.
 - **Fail-closed behavior.** Stale authority, ambiguous mutations, and missing evidence stop execution instead of being silently papered over.
 - **Resumable work.** A fresh agent can inspect the project and continue from durable state.
 
@@ -91,7 +91,7 @@ Lower-level work, orchestration, GitHub, verification, and recovery commands rem
 Overcenter keeps each system in a narrow role:
 
 - **GitHub** is authoritative for repository content and repository-owned project definitions.
-- **Overcenter** is authoritative for runs, leases, claims, settlement, receipts, recovery, and orchestration state.
+- **Overcenter** is authoritative for current run/execution state, unresolved operations, settlement, compact receipts and proofs, and deterministic recovery decisions.
 - **Linear** can project executable work, but it is not source authority or an evidence archive.
 - **Hatchable** is the current reference runtime and hosting layer, not project authority.
 

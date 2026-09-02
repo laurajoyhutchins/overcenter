@@ -6,9 +6,9 @@
 
 ## Summary
 
-Overcenter already preserves most of the evidence needed to recover safely: correlated command invocations, bounded request and result projections, idempotency identities, mutation-certainty flags, leases, checkpoints, run receipts, typed failure classification, resume packets, deterministic maintenance, and domain-specific receipts.
+Overcenter recovers from compact present-tense state: the current orchestration run, current execution authority and checkpoint, unresolved operation state, exact-revision proofs, and fresh observations of external authority. A bounded current-failure register on the run preserves only the failure class and streak needed for deterministic recovery policy.
 
-The missing layer is compositional. Known coordination faults are often mechanically recoverable, but a fresh agent still has to reconstruct the causal chain across several surfaces. The recovery kernel makes that reconstruction and the safe recovery choreography software responsibilities.
+Historical journals, horizons, heartbeat rows, superseded checkpoints, and legacy receipt ledgers are diagnostic telemetry or migration compatibility. They may be retention-bounded and are never required to decide what may safely happen next. The recovery kernel makes current-state interpretation and safe recovery choreography software responsibilities.
 
 ```text
 normal execution
@@ -24,7 +24,7 @@ orchestration.recover
       +--> ambiguous/new --> fault packet --> narrow quarantine --> reasoning
 ```
 
-The recovery kernel is deliberately thin. It composes existing diagnosis, continuation, journal, receipt, authority, and reconciliation primitives rather than creating a second incident or state authority.
+The recovery kernel is deliberately thin. It composes current compact state, exact proofs, fresh authority reads, and narrow reconciliation primitives rather than creating a second incident or historical state authority.
 
 ## Goals
 
@@ -51,7 +51,7 @@ The recovery kernel is deliberately thin. It composes existing diagnosis, contin
 | Concern | Authority |
 | --- | --- |
 | Repository contents, refs, commits, pull requests, releases | GitHub |
-| Orchestration runs, leases, journals, checkpoints, recovery receipts | Overcenter |
+| Current runs and execution authority, unresolved operations, exact proofs, compact terminal receipts | Overcenter |
 | Runtime and deployment state | Hatchable |
 | Executable work projection | Linear, while configured |
 | Runtime source identity | Exact GitHub revision bound to verified Hatchable deployment evidence |
@@ -59,9 +59,9 @@ The recovery kernel is deliberately thin. It composes existing diagnosis, contin
 
 Derived recovery data is evidence, not a competing authority.
 
-## Existing substrate remains canonical
+## Compact recovery substrate is canonical
 
-`orchestration.diagnose` remains the failure classifier. `orchestration.resume_packet` remains the continuation reconstruction surface. `orchestration.maintain` remains the bounded coordination janitor. The command journal and domain receipts remain the evidence substrate. Recovery must reuse these rather than replace them.
+`orchestration.diagnose` remains the failure classifier. `orchestration.resume_packet` remains the continuation surface. `orchestration.maintain` remains the bounded coordination janitor. Their correctness substrate is now `orchestration_runs` plus `execution_state`, unresolved `operation_state`, exact `proof_state`, and fresh authority reads. The command journal and historical domain receipts may support debugging or migration, but no correctness path may query them as a fallback.
 
 ## 1. Execution-time runtime provenance
 
@@ -95,11 +95,12 @@ The packet is the smallest bounded causal object needed to troubleshoot one faul
 
 1. current diagnosis;
 2. current resume packet;
-3. exact faulting invocation and causal predecessor;
-4. lease and checkpoint evidence;
-5. relevant domain receipts;
-6. captured runtime provenance;
-7. fresh authority observations required by the failure class.
+3. the current bounded run failure or unresolved operation;
+4. current execution authority and checkpoint evidence;
+5. relevant compact effect tombstones and exact proofs;
+6. captured runtime provenance when required by the safety decision;
+7. fresh authority observations required by the failure class;
+8. optional historical diagnostic trace when it is retained.
 
 It contains classification, mutation certainty, software identity, execution state, authority observations, recovery eligibility, required decisions, and evidence refs. It does not contain an AI-generated diagnosis.
 
@@ -200,7 +201,7 @@ Scheduled healing is separate from `orchestration.maintain` and contains no reas
 
 ## Privacy and evidence minimization
 
-The kernel increases correlation, not durable data volume. Reuse command-owned safe projections. Do not store raw request bodies, lease tokens, credentials, arbitrary provider responses, or copied authority contents. Evidence refs identify authoritative objects and revisions. All packet lists and strings are bounded.
+The kernel preserves only the minimum state that can change a future safety decision. Active execution keeps one current checkpoint and bounded progress hashes; unresolved operations keep only the recovery material they still need; terminal operations collapse to compact tombstones; exact proofs are revision-scoped. Historical journals and traces are optional telemetry with bounded retention. Do not store raw request bodies, lease tokens, credentials, arbitrary provider responses, or copied authority contents.
 
 ## Rollout
 
@@ -222,7 +223,7 @@ The architecture is implemented when:
 7. every `HEALED` result includes fresh authoritative readback;
 8. quarantine isolates the affected mutation surface;
 9. scheduled healing is deterministic and bounded;
-10. existing diagnosis, resume, maintenance, receipts, and authority boundaries remain canonical.
+10. diagnosis, resume, and maintenance depend only on compact current state, unresolved operations, exact proofs, and fresh authority; telemetry is never a correctness dependency.
 
 ## Agent-facing operating model
 

@@ -30,6 +30,10 @@ jobs:
         run: node --test scripts/verify-github-mutation-certainty.test.mjs
       - name: Type-check semantic kernel contracts
         run: npm run typecheck
+      - name: Test compact execution state contracts
+        run: node --test scripts/verify-compact-execution-state-contracts.test.mjs
+      - name: Test compact state migration invariants
+        run: node --test scripts/verify-compact-state-migrations.test.mjs
       - name: Build canonical runtime artifacts
         run: npm run build
       - name: Test runtime provenance semantics

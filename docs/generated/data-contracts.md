@@ -27,18 +27,25 @@
 
 ## Durable internal contracts
 
+- `compact.execution-state` — authority `typescript:src/semantic/compact-execution-state.ts#ExecutionState`; SemVer `internal-module-layout`; 39 projections
+- `compact.operation-state` — authority `typescript:src/semantic/compact-execution-state.ts#OperationState`; SemVer `internal-module-layout`; 33 projections
+- `compact.proof-state` — authority `typescript:src/semantic/compact-execution-state.ts#ProofState`; SemVer `internal-module-layout`; 13 projections
 - `execution.store.lease` — authority `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionLease`
 - `execution.store.run` — authority `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionRun`
 - `execution.store.slot` — authority `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionSlot`
+- `orchestration.run.persistence` — authority `postgres:public.orchestration_runs#table`; SemVer `database-layout`; 14 projections
 
 ## Boundary-internal contracts
 
+- `compact.execution-state.store` — authority `typescript:src/ports/compact-execution-state-store.ts#CompactExecutionStateStore`; SemVer `adapter-layout`; 9 projections
 - `execution.authority.store-port` — authority `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityStore`
 - `project.advance.runtime-host` — authority `typescript:src/ports/project-advance-runtime-host.ts#ProjectAdvanceRuntimeHost`
 
 ## Implementation-only shapes
 
 - `execution.evidence.internals` — authority `typescript:src/semantic/execution-evidence.ts#executionEvidenceInternals`; 1 projection
+- `orchestration.current-failure-internals` — authority `javascript:lib/orchestration-current-failure.js#orchestrationCurrentFailureInternals`; SemVer `internal-module-layout`
+- `postgres.transaction-executor` — authority `typescript:src/adapters/postgres/node-postgres-runtime.ts#NodePostgresTransactionExecutor`; SemVer `runtime-host-detail`
 
 ## Unclassified historical debt
 
@@ -291,7 +298,6 @@
 - `postgres:public.orchestration_runs#started_at`
 - `postgres:public.orchestration_runs#status`
 - `postgres:public.orchestration_runs#stop_reason`
-- `postgres:public.orchestration_runs#table`
 - `postgres:public.orchestration_runs#target`
 - `postgres:public.orchestration_runs#target_sha256`
 - `postgres:public.orchestration_runs#updated_at`

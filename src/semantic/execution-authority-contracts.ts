@@ -77,6 +77,7 @@ export interface ProjectTransitionExecutionAuthority {
   readonly lease_id: LeaseId;
   readonly lease_ref: LeaseId;
   readonly run_id: RunId;
+  readonly authority_epoch: number;
   readonly repository: string;
   readonly project_ref: string;
   readonly transition_id: string;

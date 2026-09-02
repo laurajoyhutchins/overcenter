@@ -18,6 +18,10 @@ export interface NodePostgresClient {
   ): Promise<NodePostgresQueryResult<Row>>;
 }
 
+export interface NodePostgresTransactionExecutor extends NodePostgresClient {
+  transaction<T>(work: (client: NodePostgresClient) => Promise<T>): Promise<T>;
+}
+
 interface DeploymentRow extends Record<string, unknown> {
   readonly deployment_ref: string;
   readonly artifact_digest: string;
@@ -36,6 +40,27 @@ function requireDeploymentRow(
     );
   }
   return row;
+}
+
+export function createNodePostgresTransactionExecutor(
+  client: NodePostgresClient,
+): NodePostgresTransactionExecutor {
+  return {
+    query(text, values) {
+      return client.query(text, values);
+    },
+    async transaction(work) {
+      await client.query('BEGIN');
+      try {
+        const result = await work(client);
+        await client.query('COMMIT');
+        return result;
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw error;
+      }
+    },
+  };
 }
 
 export function createNodePostgresRuntime(client: NodePostgresClient): PortableRuntime {
