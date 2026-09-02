@@ -2,15 +2,34 @@
 
 Generated from contract evidence. Edit authoritative sources or classification metadata, not this file.
 
-This atlas shows mechanically evidenced logical-contract authority and manifestations. It does not infer consumer or cross-contract flow relationships that the catalog does not encode.
+This atlas shows mechanically evidenced logical-contract authority, lifecycle, manifestations, and explicitly classified cross-contract relationships. It does not infer consumer or call-graph relationships that the catalog does not encode.
+
+## Flow index
+
+- `compact.execution-state.store` → `persists-as` → `compact.execution-state`
+- `compact.execution-state.store` → `persists-as` → `compact.operation-state`
+- `compact.execution-state.store` → `persists-as` → `compact.proof-state`
+- `project.advance.runtime-host` → `consumes` → `compact.execution-state.store`
+- `project.advance.runtime-host` → `consumes` → `execution.authority.project-transition`
+- `project.advance.runtime-host` → `consumes` → `project.advance.input`
+- `project.advance.runtime-host` → `produces` → `execution.evidence`
 
 ## `compact.execution-state`
 
 - Significance: `durable-internal`
+- Lifecycle: `current`
 - SemVer: `internal-module-layout`
 - Authority: `typescript:src/semantic/compact-execution-state.ts#ExecutionState` (`typescript`)
 - Authority source: `src/semantic/compact-execution-state.ts#ExecutionState`
 - Manifestations: 40
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+- `compact.execution-state.store` → `persists-as` → `compact.execution-state`
 
 ### Projections
 
@@ -96,10 +115,21 @@ This atlas shows mechanically evidenced logical-contract authority and manifesta
 ## `compact.execution-state.store`
 
 - Significance: `boundary-internal`
+- Lifecycle: `current`
 - SemVer: `adapter-layout`
 - Authority: `typescript:src/ports/compact-execution-state-store.ts#CompactExecutionStateStore` (`typescript`)
 - Authority source: `src/ports/compact-execution-state-store.ts#CompactExecutionStateStore`
 - Manifestations: 10
+
+### Outgoing relationships
+
+- `compact.execution-state.store` → `persists-as` → `compact.execution-state`
+- `compact.execution-state.store` → `persists-as` → `compact.operation-state`
+- `compact.execution-state.store` → `persists-as` → `compact.proof-state`
+
+### Incoming relationships
+
+- `project.advance.runtime-host` → `consumes` → `compact.execution-state.store`
 
 ### Projections
 
@@ -125,10 +155,19 @@ This atlas shows mechanically evidenced logical-contract authority and manifesta
 ## `compact.operation-state`
 
 - Significance: `durable-internal`
+- Lifecycle: `current`
 - SemVer: `internal-module-layout`
 - Authority: `typescript:src/semantic/compact-execution-state.ts#OperationState` (`typescript`)
 - Authority source: `src/semantic/compact-execution-state.ts#OperationState`
 - Manifestations: 34
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+- `compact.execution-state.store` → `persists-as` → `compact.operation-state`
 
 ### Projections
 
@@ -202,10 +241,19 @@ This atlas shows mechanically evidenced logical-contract authority and manifesta
 ## `compact.proof-state`
 
 - Significance: `durable-internal`
+- Lifecycle: `current`
 - SemVer: `internal-module-layout`
 - Authority: `typescript:src/semantic/compact-execution-state.ts#ProofState` (`typescript`)
 - Authority source: `src/semantic/compact-execution-state.ts#ProofState`
 - Manifestations: 14
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+- `compact.execution-state.store` → `persists-as` → `compact.proof-state`
 
 ### Projections
 
@@ -239,9 +287,18 @@ This atlas shows mechanically evidenced logical-contract authority and manifesta
 ## `execution.authority.locator`
 
 - Significance: `authority`
+- Lifecycle: `unclassified`
 - Authority: `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityLocator` (`typescript`)
 - Authority source: `src/semantic/execution-authority-contracts.ts#ExecutionAuthorityLocator`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -250,9 +307,18 @@ _None._
 ## `execution.authority.project-transition`
 
 - Significance: `authority`
+- Lifecycle: `current`
 - Authority: `typescript:src/semantic/execution-authority-contracts.ts#ProjectTransitionExecutionAuthority` (`typescript`)
 - Authority source: `src/semantic/execution-authority-contracts.ts#ProjectTransitionExecutionAuthority`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+- `project.advance.runtime-host` → `consumes` → `execution.authority.project-transition`
 
 ### Projections
 
@@ -261,9 +327,18 @@ _None._
 ## `execution.authority.store-port`
 
 - Significance: `boundary-internal`
+- Lifecycle: `unclassified`
 - Authority: `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityStore` (`typescript`)
 - Authority source: `src/semantic/execution-authority-contracts.ts#ExecutionAuthorityStore`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -272,10 +347,19 @@ _None._
 ## `execution.evidence`
 
 - Significance: `public`
+- Lifecycle: `current`
 - SemVer: `public-evidence-schema`
 - Authority: `typescript:src/semantic/execution-evidence-contracts.ts#ExecutionEvidence` (`typescript`)
 - Authority source: `src/semantic/execution-evidence-contracts.ts#ExecutionEvidence`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+- `project.advance.runtime-host` → `produces` → `execution.evidence`
 
 ### Projections
 
@@ -284,9 +368,18 @@ _None._
 ## `execution.evidence.internals`
 
 - Significance: `implementation-only`
+- Lifecycle: `unclassified`
 - Authority: `typescript:src/semantic/execution-evidence.ts#executionEvidenceInternals` (`typescript`)
 - Authority source: `src/semantic/execution-evidence.ts#executionEvidenceInternals`
 - Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -296,10 +389,19 @@ _None._
 ## `execution.lifecycle.operating-conditions`
 
 - Significance: `authority`
+- Lifecycle: `unclassified`
 - SemVer: `lifecycle-semantics`
 - Authority: `typescript:src/semantic/execution-lifecycle-contracts.ts#OPERATING_CONDITIONS` (`typescript`)
 - Authority source: `src/semantic/execution-lifecycle-contracts.ts#OPERATING_CONDITIONS`
 - Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -309,10 +411,19 @@ _None._
 ## `execution.lifecycle.productive-stages`
 
 - Significance: `authority`
+- Lifecycle: `unclassified`
 - SemVer: `lifecycle-semantics`
 - Authority: `typescript:src/semantic/execution-lifecycle-contracts.ts#PRODUCTIVE_STAGES` (`typescript`)
 - Authority source: `src/semantic/execution-lifecycle-contracts.ts#PRODUCTIVE_STAGES`
 - Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -322,10 +433,19 @@ _None._
 ## `execution.lifecycle.work-settlement-dispositions`
 
 - Significance: `authority`
+- Lifecycle: `unclassified`
 - SemVer: `lifecycle-semantics`
 - Authority: `typescript:src/semantic/execution-lifecycle-contracts.ts#WORK_SETTLEMENT_DISPOSITIONS` (`typescript`)
 - Authority source: `src/semantic/execution-lifecycle-contracts.ts#WORK_SETTLEMENT_DISPOSITIONS`
 - Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -335,9 +455,18 @@ _None._
 ## `execution.store.lease`
 
 - Significance: `durable-internal`
+- Lifecycle: `unclassified`
 - Authority: `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionLease` (`typescript`)
 - Authority source: `src/semantic/execution-authority-contracts.ts#StoredExecutionLease`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -346,9 +475,18 @@ _None._
 ## `execution.store.run`
 
 - Significance: `durable-internal`
+- Lifecycle: `unclassified`
 - Authority: `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionRun` (`typescript`)
 - Authority source: `src/semantic/execution-authority-contracts.ts#StoredExecutionRun`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -357,9 +495,18 @@ _None._
 ## `execution.store.slot`
 
 - Significance: `durable-internal`
+- Lifecycle: `unclassified`
 - Authority: `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionSlot` (`typescript`)
 - Authority source: `src/semantic/execution-authority-contracts.ts#StoredExecutionSlot`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -368,10 +515,19 @@ _None._
 ## `github.changeset-receipt.persistence`
 
 - Significance: `durable-internal`
+- Lifecycle: `unclassified`
 - SemVer: `database-layout`
 - Authority: `postgres:public.github_changeset_receipts#table` (`postgres`)
 - Authority source: `public.github_changeset_receipts#table`
 - Manifestations: 21
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -419,10 +575,19 @@ _None._
 ## `github.production-promotion-receipt.persistence`
 
 - Significance: `durable-internal`
+- Lifecycle: `unclassified`
 - SemVer: `database-layout`
 - Authority: `postgres:public.github_production_promotion_receipts#table` (`postgres`)
 - Authority source: `public.github_production_promotion_receipts#table`
 - Manifestations: 16
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -460,10 +625,19 @@ _None._
 ## `github.release-receipt.persistence`
 
 - Significance: `durable-internal`
+- Lifecycle: `unclassified`
 - SemVer: `database-layout`
 - Authority: `postgres:public.github_release_receipts#table` (`postgres`)
 - Authority source: `public.github_release_receipts#table`
 - Manifestations: 19
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -507,10 +681,19 @@ _None._
 ## `github.release.create.input`
 
 - Significance: `public`
+- Lifecycle: `unclassified`
 - SemVer: `semantic-command-contract`
 - Authority: `semantic-command:github.release.create#input` (`semantic-command`)
 - Authority source: `src/semantic/semantic-command-descriptors.ts#github.release.create`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -519,10 +702,19 @@ _None._
 ## `orchestration.command-invocation.persistence`
 
 - Significance: `durable-internal`
+- Lifecycle: `unclassified`
 - SemVer: `database-layout`
 - Authority: `postgres:public.orchestration_command_invocations#table` (`postgres`)
 - Authority source: `public.orchestration_command_invocations#table`
 - Manifestations: 23
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -574,10 +766,19 @@ _None._
 ## `orchestration.current-failure-internals`
 
 - Significance: `implementation-only`
+- Lifecycle: `unclassified`
 - SemVer: `internal-module-layout`
 - Authority: `javascript:lib/orchestration-current-failure.js#orchestrationCurrentFailureInternals` (`javascript`)
 - Authority source: `lib/orchestration-current-failure.js#orchestrationCurrentFailureInternals`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -586,10 +787,19 @@ _None._
 ## `orchestration.diagnose.input`
 
 - Significance: `public`
+- Lifecycle: `unclassified`
 - SemVer: `semantic-command-contract`
 - Authority: `semantic-command:orchestration.diagnose#input` (`semantic-command`)
 - Authority source: `src/semantic/semantic-command-descriptors.ts#orchestration.diagnose`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -598,10 +808,19 @@ _None._
 ## `orchestration.run.persistence`
 
 - Significance: `durable-internal`
+- Lifecycle: `unclassified`
 - SemVer: `database-layout`
 - Authority: `postgres:public.orchestration_runs#table` (`postgres`)
 - Authority source: `public.orchestration_runs#table`
 - Manifestations: 46
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -699,10 +918,19 @@ _None._
 ## `postgres.transaction-executor`
 
 - Significance: `implementation-only`
+- Lifecycle: `unclassified`
 - SemVer: `runtime-host-detail`
 - Authority: `typescript:src/adapters/postgres/node-postgres-runtime.ts#NodePostgresTransactionExecutor` (`typescript`)
 - Authority source: `src/adapters/postgres/node-postgres-runtime.ts#NodePostgresTransactionExecutor`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -711,10 +939,19 @@ _None._
 ## `production.promote.input`
 
 - Significance: `public`
+- Lifecycle: `unclassified`
 - SemVer: `semantic-command-contract`
 - Authority: `semantic-command:production.promote#input` (`semantic-command`)
 - Authority source: `src/semantic/semantic-command-descriptors.ts#production.promote`
 - Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -724,10 +961,19 @@ _None._
 ## `project.advance.input`
 
 - Significance: `public`
+- Lifecycle: `current`
 - SemVer: `semantic-command-contract`
 - Authority: `semantic-command:project.advance#input` (`semantic-command`)
 - Authority source: `src/semantic/semantic-command-descriptors.ts#project.advance`
 - Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+- `project.advance.runtime-host` → `consumes` → `project.advance.input`
 
 ### Projections
 
@@ -737,9 +983,21 @@ _None._
 ## `project.advance.runtime-host`
 
 - Significance: `boundary-internal`
+- Lifecycle: `current`
 - Authority: `typescript:src/ports/project-advance-runtime-host.ts#ProjectAdvanceRuntimeHost` (`typescript`)
 - Authority source: `src/ports/project-advance-runtime-host.ts#ProjectAdvanceRuntimeHost`
 - Manifestations: 1
+
+### Outgoing relationships
+
+- `project.advance.runtime-host` → `consumes` → `compact.execution-state.store`
+- `project.advance.runtime-host` → `consumes` → `execution.authority.project-transition`
+- `project.advance.runtime-host` → `consumes` → `project.advance.input`
+- `project.advance.runtime-host` → `produces` → `execution.evidence`
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -748,10 +1006,19 @@ _None._
 ## `project.amend.input`
 
 - Significance: `public`
+- Lifecycle: `unclassified`
 - SemVer: `semantic-command-contract`
 - Authority: `semantic-command:project.amend#input` (`semantic-command`)
 - Authority source: `src/semantic/semantic-command-descriptors.ts#project.amend`
 - Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -761,10 +1028,19 @@ _None._
 ## `project.define.input`
 
 - Significance: `public`
+- Lifecycle: `unclassified`
 - SemVer: `semantic-command-contract`
 - Authority: `semantic-command:project.define#input` (`semantic-command`)
 - Authority source: `src/semantic/semantic-command-descriptors.ts#project.define`
 - Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -774,9 +1050,18 @@ _None._
 ## `project.graph.authority-coordinate`
 
 - Significance: `authority`
+- Lifecycle: `unclassified`
 - Authority: `typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphAuthorityCoordinate` (`typescript`)
 - Authority source: `src/semantic/project-graph-reconciliation.ts#ProjectGraphAuthorityCoordinate`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -785,10 +1070,19 @@ _None._
 ## `project.inspect.input`
 
 - Significance: `public`
+- Lifecycle: `unclassified`
 - SemVer: `semantic-command-contract`
 - Authority: `semantic-command:project.inspect#input` (`semantic-command`)
 - Authority source: `src/semantic/semantic-command-descriptors.ts#project.inspect`
 - Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -798,10 +1092,19 @@ _None._
 ## `project.transition.states`
 
 - Significance: `authority`
+- Lifecycle: `unclassified`
 - SemVer: `lifecycle-semantics`
 - Authority: `typescript:src/semantic/project-transition-status-contracts.ts#PROJECT_TRANSITION_STATES` (`typescript`)
 - Authority source: `src/semantic/project-transition-status-contracts.ts#PROJECT_TRANSITION_STATES`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -810,10 +1113,19 @@ _None._
 ## `release.publish.input`
 
 - Significance: `public`
+- Lifecycle: `unclassified`
 - SemVer: `semantic-command-contract`
 - Authority: `semantic-command:release.publish#input` (`semantic-command`)
 - Authority source: `src/semantic/semantic-command-descriptors.ts#release.publish`
 - Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
@@ -823,10 +1135,19 @@ _None._
 ## `work.settle.input`
 
 - Significance: `public`
+- Lifecycle: `unclassified`
 - SemVer: `semantic-command-contract`
 - Authority: `semantic-command:work.settle#input` (`semantic-command`)
 - Authority source: `src/semantic/semantic-command-descriptors.ts#work.settle`
 - Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
 
 ### Projections
 
