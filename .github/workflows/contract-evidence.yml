@@ -52,6 +52,12 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+      - name: Upload candidate contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-evidence-atlas-v2-candidate
+          path: ${{ runner.temp }}/contract-evidence
+          if-no-files-found: error
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
