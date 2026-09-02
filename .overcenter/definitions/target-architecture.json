@@ -512,6 +512,16 @@
       }
     },
     {
+      "id": "make-project-advance-settlement-terminal",
+      "priority": 1600,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "make-project-authoring-low-ceremony",
       "priority": 94,
       "requires": [
