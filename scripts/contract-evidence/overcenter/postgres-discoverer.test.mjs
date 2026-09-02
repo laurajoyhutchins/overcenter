@@ -53,9 +53,22 @@ CREATE VIEW example_contract_view AS SELECT id, status FROM example_contract;
     assert.ok(ids.includes('postgres:public.example_status#type'));
     assert.ok(ids.includes('postgres:public.example_contract_view#view'));
     assert.ok(ids.includes('postgres:public.example_contract#constraint:example_payload_object'));
+    const table = candidates.find((item) => item.source_identity === 'postgres:public.example_contract#table');
+    assert.equal(table.structure.kind, 'table');
+    assert.deepEqual(table.structure.columns.map((item) => item.name), ['id', 'status', 'payload']);
+    assert.deepEqual(table.structure.constraints.map((item) => item.name), ['example_contract_pkey', 'example_payload_object']);
     const payload = candidates.find((item) => item.source_identity === 'postgres:public.example_contract#payload');
     assert.equal(payload.structure.data_type, 'jsonb');
     assert.equal(payload.structure.nullable, false);
+    assert.deepEqual(payload.observed_relationships, [{
+      kind:'structural-projection-of',
+      target:'postgres:public.example_contract#table',
+    }]);
+    const payloadConstraint = candidates.find((item) => item.source_identity === 'postgres:public.example_contract#constraint:example_payload_object');
+    assert.deepEqual(payloadConstraint.observed_relationships, [{
+      kind:'structural-projection-of',
+      target:'postgres:public.example_contract#table',
+    }]);
     assert.deepEqual(ids, [...ids].sort((a, b) => a.localeCompare(b)));
   } finally {
     await db.query('DROP VIEW IF EXISTS example_contract_view CASCADE').catch(() => {});

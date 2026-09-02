@@ -67,6 +67,26 @@ test('generated mirrors are projections and never duplicate unclassified debt', 
   assert.deepEqual(unclassifiedSourceIdentities(historical), ['typescript:src/contracts.ts#REQUEST_SCHEMA']);
 });
 
+test('structural members are projections of one aggregate contract', () => {
+  const table = candidate('postgres:public.execution_state#table');
+  const column = candidate('postgres:public.execution_state#lease_ref', [
+    { kind:'structural-projection-of', target:'postgres:public.execution_state#table' },
+  ]);
+
+  const classified = resolveLogicalContracts([table, column], classifications({
+    'postgres:public.execution_state#table':{
+      logical_contract:'execution.store.state',
+      significance:'durable-internal',
+      semver_kind:'database-layout',
+    },
+  }), { allowedSemverKinds });
+  assert.deepEqual(classified.logical_contracts[0].projections.map((item) => item.source_identity), ['postgres:public.execution_state#lease_ref']);
+  assert.deepEqual(unclassifiedSourceIdentities(classified), []);
+
+  const historical = resolveLogicalContracts([table, column], classifications({}), { allowedSemverKinds });
+  assert.deepEqual(unclassifiedSourceIdentities(historical), ['postgres:public.execution_state#table']);
+});
+
 test('resolver fails closed on inconsistent identity and authority relationships', () => {
   const a = candidate('typescript:src/a.ts#A');
   const b = candidate('typescript:src/b.ts#B');
