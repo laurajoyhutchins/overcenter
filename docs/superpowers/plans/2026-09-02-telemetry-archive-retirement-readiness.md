@@ -694,20 +694,56 @@ lh_freeze_scheduled_cycle_events
 lh_freeze_orchestration_command_invocations
 ```
 
-- [ ] **Step 4: Implement deterministic source census and freeze**
+- [ ] **Step 4: Implement the exact source-census helper and freeze**
 
-For every source table compute `row_count` plus SHA-256 over stable ordered source identities. Freeze transaction:
+Migration `062_legacy_history_retirement_control.sql` creates exactly one census helper named:
+
+```sql
+legacy_history_source_census() RETURNS jsonb
+```
+
+It returns one canonical JSON object with exactly these top-level keys:
+
+```text
+orchestration_invocation_resolution
+orchestration_horizon
+work_lease_slot
+work_lease_checkpoint
+work_lease_heartbeat
+work_lease
+github_changeset_receipt
+github_release_receipt
+github_production_promotion_receipt
+portfolio_reconcile_receipt
+portfolio_verification_receipt
+github_required_check_observation
+scheduled_cycle_event
+orchestration_command_invocation
+```
+
+Each value is exactly:
+
+```json
+{
+  "row_count": 0,
+  "source_sha256": "<lowercase SHA-256 over stable ordered source identities>"
+}
+```
+
+Each source query must use the same stable `source_id` derivation as `lib/legacy-history-backfill.js`; the aggregate census digest is SHA-256 over canonical JSON returned by `legacy_history_source_census()`. `lib/legacy-history-retirement.js` calls this SQL helper rather than independently reconstructing census semantics. Migration 062 creates no second census helper.
+
+Freeze transaction:
 
 1. verifies Plan A compact-authority marker/preconditions;
 2. verifies no unresolved sanitizer rejection;
-3. computes/stores sorted census and aggregate digest;
+3. calls `legacy_history_source_census()`, stores the full JSON object and aggregate digest;
 4. sets `freeze_state='frozen'` and `frozen_at`.
 
 After commit, direct writes are blocked by triggers.
 
-- [ ] **Step 5: Prove every guard**
+- [ ] **Step 5: Prove every guard and census helper**
 
-`scripts/legacy-history-retirement-postgres.test.mjs` iterates all 14 tables. For each table after freeze, attempt one direct INSERT, UPDATE, and DELETE using a valid fixture row/identity and assert `P0001 / LEGACY_HISTORY_FROZEN`. Recompute the census and assert exact digest equality.
+`scripts/legacy-history-retirement-postgres.test.mjs` first calls `legacy_history_source_census()` and asserts all 14 exact keys and the `{row_count,source_sha256}` value shape. Then, after freeze, iterate all 14 tables. For each table attempt one direct INSERT, UPDATE, and DELETE using a valid fixture row/identity and assert `P0001 / LEGACY_HISTORY_FROZEN`. Recompute the helper result and aggregate digest and assert exact equality.
 
 - [ ] **Step 6: Assign `legacy_unscoped` only after freeze**
 
@@ -724,7 +760,7 @@ Maximum 1,000 events/chunk, stable `(source_kind,source_id)` order. Replay repro
 Ready only when:
 
 1. all 14 freeze triggers exist and are enabled;
-2. frozen census still matches;
+2. `legacy_history_source_census()` still equals the stored frozen census and aggregate digest;
 3. every source row is represented in telemetry;
 4. there are zero sanitizer rejections;
 5. all required immutable bundles are final;
@@ -809,6 +845,7 @@ Do not start Plan C until the exact implementation head proves:
 - unresolved operations prevent run/cycle bundle freeze;
 - Google Drive replay/digest-conflict behavior is correct;
 - `ttl_only` and `archive_required` rules pass;
+- `legacy_history_source_census()` exposes all 14 exact source kinds and is the sole source-census helper;
 - the global source census is frozen;
 - all 14 freeze triggers exist, are enabled, and reject INSERT/UPDATE/DELETE;
 - the source census remains unchanged through the observation/maintenance window;
