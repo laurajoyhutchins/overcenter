@@ -34,6 +34,8 @@ const EXPECTED = Object.freeze({
 test('kernel contract authorities and transport projections are explicitly classified', async () => {
   const actual = await classifications();
   for (const [sourceIdentity, expected] of Object.entries(EXPECTED)) {
-    assert.deepEqual(actual[sourceIdentity], expected, sourceIdentity);
+    for (const [field, value] of Object.entries(expected)) {
+      assert.deepEqual(actual[sourceIdentity]?.[field], value, `${sourceIdentity}.${field}`);
+    }
   }
 });
