@@ -1,6 +1,6 @@
 # Legacy Execution History Retirement Design
 
-Status: Draft for user review
+Status: Ready for user review
 Date: 2026-09-02
 Base: `dev` after compact execution state and epoch fencing (#443)
 
@@ -183,29 +183,52 @@ Legacy work uses:
 
 as its `execution_state.subject_key`, with `subject_kind='legacy_work'`.
 
-The execution row stores current work/gate coordinates needed to identify the subject. Bounded acquisition details that are needed only for replay or settlement, such as the prior Linear projection, live in the acquisition operation resolution rather than in a new history table.
+The execution row stores explicit `work_ref` and `gate` coordinates so runtime lookup does not parse an opaque subject key. Bounded acquisition details that are needed only for replay or settlement, such as the prior Linear projection, live in the acquisition operation resolution rather than in a new history table.
 
-### Active-state backfill
+### Temporary dual-write migration
 
-Unlike project-transition authority, legacy work was not fully dual-written before this retirement. A one-time deterministic backfill is therefore required before the compact legacy-work store becomes authoritative.
+Legacy work was not fully dual-written before this retirement. The safe migration therefore introduces a temporary compact dual-write before compact state becomes authoritative.
 
-For every legacy-work subject, the backfill computes exactly one current compact projection from frozen legacy state:
+During the dual-write release:
+
+1. old `work_leases`/slot persistence remains authoritative for the compatibility API;
+2. each successful claim, checkpoint, heartbeat, settlement, invalidation, and expiry-recovery transition also writes the equivalent compact current state or operation tombstone in the same transaction where practical;
+3. preexisting active and terminal subjects are backfilled idempotently into compact state;
+4. subsequent legacy mutations keep the backfilled subjects synchronized;
+5. an equivalence checker compares old and compact current-state derivations before authority flips.
+
+The dual-write exists only as migration scaffolding. It is removed when compact reads become authoritative. No compatibility view or permanent second ledger remains.
+
+### Active/current backfill
+
+For every legacy-work subject, the backfill computes exactly one current compact projection from existing legacy state:
 
 - active current lease and slot ownership, if one exists;
 - current run and expiry bounds;
 - current capability material needed to validate the active lease;
 - latest durable checkpoint and its digest;
-- bounded recent progress sufficient to preserve no-progress semantics;
-- current continuation head from the latest eligible settled or safely expired lease;
+- the final two heartbeat progress digests ordered by durable heartbeat time and stable row identity, sufficient to preserve the bounded no-progress window;
+- current continuation head from the latest eligible settled or safely expired lease under the existing continuation rules;
 - continuation execution fingerprint and bounded no-progress streak.
 
 The backfill is allowed to read historical legacy tables because it is migration code. Runtime correctness is not.
 
-Backfill fails closed if legacy history is ambiguous, for example two simultaneously authoritative slots for the same canonical subject or conflicting terminal continuations that cannot be ordered deterministically.
+Backfill fails closed if legacy history is ambiguous, for example two simultaneously authoritative slots for the same canonical subject or conflicting terminal continuations that the existing continuation rules cannot order deterministically.
 
-### Equivalence gate
+### Equivalence and authority flip
 
-Before switching writers, a comparison mode derives the current result from both the old store and compact projection for the same subject. The cutover requires equality for authority, expiry, checkpoint digest, continuation digest, and next safe action.
+Before switching reads, comparison mode derives current authority and continuation from both the old store and compact projection for the same subject. The cutover requires equality for:
+
+- lease identity and current ownership;
+- authority revision;
+- expiry bounds;
+- checkpoint digest;
+- bounded recent-progress window;
+- continuation digest;
+- no-progress streak;
+- next safe action.
+
+Once equivalence passes, compact state becomes authoritative for `work.*`. The legacy dual-write is then removed, making the old tables historical/read-only inputs for retention backfill only.
 
 After cutover, tests physically remove the legacy lease tables and exercise the same HTTP compatibility behavior through compact state.
 
@@ -282,7 +305,7 @@ Legacy rows that genuinely lack run/cycle correlation are grouped deterministica
 
 `legacy_unscoped:<source_kind>:<UTC-month>:<chunk-index>`
 
-with a fixed maximum event count per chunk and stable ordering by source identifier. Legacy tables are frozen before these chunks are assigned, so retry reproduces the same membership and digest.
+with at most 1,000 events per chunk and stable ordering by `(source_kind, source_id)`. Legacy tables are globally write-frozen before these chunks are assigned, so retry reproduces the same membership and digest.
 
 ### `ArchiveSink`
 
@@ -341,11 +364,11 @@ Archive configuration never changes execution correctness. It changes only wheth
 
 ### Freeze-before-drop
 
-The retirement sequence includes a deliberate freeze interval.
+The retirement sequence includes a deliberate global history freeze after compact state has become authoritative and all legacy writers have been removed.
 
-A small retirement-control record and database guard prevent writes to the retiring legacy tables once freeze is enabled. Freeze is enabled only after runtime writers have been cut over.
+A small retirement-control record and database guard prevent writes to the retiring legacy tables once freeze is enabled. Freeze is not used to make the legacy-work authority flip safe; the temporary dual-write and equivalence gate do that earlier.
 
-Any hidden old writer that fires during the verification interval receives a hard database failure. This is intentional evidence that the runtime is not yet ready to drop the table.
+Any hidden old writer that fires during the freeze verification interval receives a hard database failure. This is intentional evidence that the runtime is not yet ready to drop the table.
 
 The freeze guard is itself temporary and is removed with the legacy tables.
 
@@ -356,7 +379,7 @@ For populated legacy history, destructive migration requires a durable readiness
 - retirement schema/version;
 - freeze timestamp;
 - per-source legacy row counts;
-- stable source-set digest computed after freeze;
+- stable source-set digest computed after freeze as SHA-256 over ordered `(source_kind, source_id, payload_sha256)` tuples;
 - normalized telemetry event count and digest;
 - retention mode;
 - archive confirmation digest when `archive_required`;
@@ -409,8 +432,9 @@ Migration numbers must be rechecked against `dev` immediately before implementat
 Proposed sequence:
 
 1. `057_execution_state_legacy_work_coordinates.sql`
-   - add only the current coordinates needed to identify legacy-work subjects without parsing opaque subject keys;
-   - add indexes/constraints required by compact legacy-work lookup.
+   - add nullable `work_ref text` and `gate text` columns;
+   - require both coordinates when `subject_kind='legacy_work'` has active authority;
+   - add the lookup index required by compact legacy-work compatibility.
 
 2. `058_telemetry_events.sql`
    - create explicit TTL telemetry storage and indexes.
@@ -419,7 +443,7 @@ Proposed sequence:
    - create archive outbox and confirmation state.
 
 4. `060_legacy_history_retirement_control.sql`
-   - create retirement policy/readiness state and temporary write-freeze guards.
+   - create retention policy/readiness state and temporary write-freeze guards.
 
 5. `061_retire_obsolete_execution_history.sql`
    - fail closed unless legacy tables are empty or the readiness receipt proves the populated source set was frozen, normalized, and retained according to policy;
@@ -432,13 +456,20 @@ If any of these numbers become occupied before implementation, the implementatio
 
 The deployment order is as important as the schema order.
 
-### Phase A: make compact execution complete
+### Phase A1: introduce compact legacy-work dual-write
 
 - replace project-transition lease/slot reads and writes with `execution_state` and `operation_state`;
-- backfill active/current legacy-work state;
-- switch `work.*` persistence to compact state;
+- add compact dual-write to legacy `work.*` mutations while old work-lease storage remains authoritative;
+- backfill preexisting active/current legacy-work state and continuation heads;
+- run continuous old-vs-compact equivalence checks.
+
+### Phase A2: flip execution authority
+
+- require equivalence for every current legacy-work subject;
+- make compact state authoritative for `work.*` reads, writes, replay, and recovery;
+- remove legacy dual-write;
 - remove recovery's legacy lease fallback;
-- keep old tables present but no longer authoritative.
+- leave old tables present as historical/read-only inputs for retention backfill.
 
 ### Phase B: start explicit telemetry/archive
 
@@ -448,10 +479,10 @@ The deployment order is as important as the schema order.
 - configure Google Drive adapter for the intended deployment;
 - verify archive failure never changes execution results.
 
-### Phase C: freeze and backfill
+### Phase C: global freeze and history backfill
 
 - prove static code no longer writes retiring tables;
-- enable database write freeze;
+- enable database write freeze for the retirement set;
 - operate the normal test/runtime surface with freeze enabled;
 - normalize all safe legacy rows into telemetry;
 - create immutable archive bundles;
@@ -470,7 +501,23 @@ In an integration database, drop the retiring tables before running the core sui
 - update public architecture documentation;
 - run all canonical exact-head gates.
 
-## 9. Static dependency boundary
+## 9. Implementation decomposition
+
+This architecture should be implemented as at least three separately reviewable plans and deployment boundaries rather than one giant change.
+
+### Plan A: compact execution completion
+
+Owns project-transition slot removal, temporary legacy-work dual-write/backfill, equivalence checks, compact legacy-work authority, and removal of recovery's legacy fallback. It must end with legacy work tables still present but unnecessary for correctness.
+
+### Plan B: telemetry, archive, and freeze readiness
+
+Owns normalized telemetry, safe history sanitizers, `ArchiveSink`, archive outbox/exporter, Google Drive adapter, retention modes, global write-freeze controls, legacy history backfill, and retirement readiness receipts. It must not include the destructive drop migration.
+
+### Plan C: destructive retirement
+
+Begins only after Plans A and B have been deployed and observed. Owns physical-absence verification, migration 061, removal of old runtime/backfill scaffolding, contract-evidence regeneration, and final documentation cleanup.
+
+## 10. Static dependency boundary
 
 CI must enforce that correctness code cannot import telemetry/archive modules or name retired history tables.
 
@@ -480,11 +527,15 @@ After migration 061 lands, even those exceptions disappear from runtime code.
 
 The static test complements, but does not replace, the physical-table-absence PostgreSQL tests.
 
-## 10. Failure handling
+## 11. Failure handling
 
 ### Ambiguous legacy backfill
 
-Fail closed and do not freeze/drop. Report the exact subject/source rows that cannot be reduced to one current compact state.
+Fail closed and do not flip compact authority for the affected subject. Report the exact subject/source rows that cannot be reduced to one current compact state.
+
+### Dual-write disagreement
+
+Keep the old legacy-work store authoritative and block the authority flip. Do not repair disagreement by selecting whichever side looks newer without deterministic evidence.
 
 ### Hidden writer after freeze
 
@@ -506,7 +557,7 @@ Do not freeze an immutable run/cycle archive bundle while any correlated operati
 
 Reject the mutation or settlement. Never repair stale epoch conflicts by consulting historical lease rows.
 
-## 11. Required verification
+## 12. Required verification
 
 The implementation is not complete until all of these are proven.
 
@@ -521,8 +572,10 @@ The implementation is not complete until all of these are proven.
 
 ### Compact legacy work
 
+- temporary dual-write keeps new legacy mutations equivalent during migration;
 - deterministic active-state backfill matches old current authority;
 - deterministic continuation backfill matches the next safe action previously derived from history;
+- authority is not flipped for a subject with an equivalence mismatch;
 - `work.claim`, checkpoint, heartbeat, settle, expiry recovery, and replay work with all four legacy work-lease tables physically absent;
 - API response semantics remain compatible for the cutover release;
 - stale legacy-work epoch cannot clear a newer lease.
@@ -551,7 +604,7 @@ The implementation is not complete until all of these are proven.
 ### Retirement gate
 
 - fresh empty installs can apply the destructive migration without fake archive work;
-- populated installs cannot apply it before freeze/backfill/retention readiness;
+- populated installs cannot apply it before global freeze/backfill/retention readiness;
 - a write attempt after freeze fails;
 - source counts are stable between readiness receipt and destructive migration;
 - the full core suite passes with the retirement-set tables physically absent;
@@ -561,24 +614,23 @@ The implementation is not complete until all of these are proven.
 
 If `scheduled_cycle_events` is included in the destructive migration, scheduled-cycle completeness classifications must be byte-for-byte equivalent when driven from `telemetry_events` with `scheduled_cycle_events` physically absent.
 
-## 12. Rollout and rollback
+## 13. Rollout and rollback
 
-Before destructive migration, rollback is ordinary code rollback because legacy tables still exist and are write-frozen only after the new writers are proven.
+Before destructive migration, rollback is ordinary code rollback because legacy tables still exist. During Plan A dual-write, the old legacy-work store remains authoritative until equivalence is proven and the authority flip occurs.
+
+After compact authority flips, rollback must preserve the compact rows written during the cutover. The old tables are no longer assumed complete, so rollback may restore code only if that code can continue from compact state rather than treating legacy history as newly authoritative.
 
 After destructive migration, rollback must not depend on recreating historical tables. The compact schema is the forward authority. Historical diagnostics are recovered from retained telemetry/archive, not restored into correctness tables.
 
 For this reason the destructive migration is intentionally a one-way boundary and must not be included in the same deploy that first introduces compact legacy-work writers or the archive sink.
 
-The operational rollout should therefore observe at least one deploy with:
+The operational rollout should therefore include distinct observed deployments:
 
-- compact-only writers active;
-- legacy tables frozen but still present;
-- telemetry/archive export operating;
-- all normal execution/recovery tests green.
+1. a dual-write/backfill deployment where legacy work remains authoritative and equivalence is measured;
+2. a compact-authoritative deployment where old writers are removed, telemetry/archive operates, and legacy tables are globally frozen but still present;
+3. only then, a destructive-retirement deployment.
 
-Only the following deploy may apply the destructive migration.
-
-## 13. Success criteria
+## 14. Success criteria
 
 The retirement is successful when a fresh Overcenter process can perform normal project execution, lower-level work compatibility, deterministic recovery, mutation replay, and exact-revision verification using only fresh external authority plus the compact kernel tables, while the old history tables do not exist.
 
