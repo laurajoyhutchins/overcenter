@@ -42,6 +42,8 @@ const CURRENT = Object.freeze({
   'postgres:public.orchestration_skill_activations#table': 'orchestration.skill-activation.persistence',
   'postgres:public.portfolio_repository_branch_roles#table': 'repository.branch-role.persistence',
   'postgres:public.portfolio_repository_disposition#table': 'repository.disposition.persistence',
+  'postgres:public.portfolio_reconcile_receipts#table': 'portfolio.reconcile-receipt.persistence',
+  'postgres:public.portfolio_verification_receipts#table': 'portfolio.verification-receipt.persistence',
   'postgres:public.portfolio_work_identity#table': 'repository.work-identity.persistence',
 });
 
@@ -73,18 +75,7 @@ test('remaining live PostgreSQL tables declare current or compatibility lifecycl
   }
 });
 
-test('legacy portfolio reconcile receipt table is deletion-candidate only when runtime has no reader or writer', async () => {
-  assert.deepEqual(await runtimeReferences('portfolio_reconcile_receipts'), []);
-  const actual = await classifications();
-  assert.deepEqual(actual['postgres:public.portfolio_reconcile_receipts#table'], {
-    logical_contract:'portfolio.reconcile-receipt.legacy-persistence',
-    significance:'durable-internal',
-    semver_kind:'database-layout',
-    lifecycle:'deletion-candidate',
-  });
-});
-
-test('portfolio verification receipt ownership audit reports exact current runtime references before classification', async () => {
-  const references = await runtimeReferences('portfolio_verification_receipts');
-  assert.deepEqual(references, ['__AUDIT_CURRENT_RUNTIME_REFERENCES__']);
+test('receipt tables classified as current remain backed by live runtime readers or writers', async () => {
+  assert.ok((await runtimeReferences('portfolio_reconcile_receipts')).length > 0, 'portfolio_reconcile_receipts lost every runtime owner');
+  assert.ok((await runtimeReferences('portfolio_verification_receipts')).length > 0, 'portfolio_verification_receipts lost every runtime owner');
 });
