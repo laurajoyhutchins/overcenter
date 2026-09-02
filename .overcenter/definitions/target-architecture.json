@@ -143,6 +143,18 @@
       }
     },
     {
+      "id": "classify-remaining-postgres-contract-lifecycle",
+      "priority": 156,
+      "requires": [
+        "enrich-contract-authority-atlas-with-flow-relationships"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "compact-agent-semantic-surface",
       "priority": 70,
       "requires": [
