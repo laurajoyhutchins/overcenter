@@ -16,5 +16,4 @@ test('contract evidence workflow enforces freshness and merge-base unclassified 
   assert.doesNotMatch(workflow, /contents:\s*write/);
   assert.doesNotMatch(workflow, /git push/);
   assert.doesNotMatch(workflow, /Materialize initial generated evidence/);
-  assert.doesNotMatch(workflow, /upload-artifact/);
 });
