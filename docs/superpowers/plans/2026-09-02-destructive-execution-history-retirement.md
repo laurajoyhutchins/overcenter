@@ -195,7 +195,7 @@ Expected: FAIL before verifier implementation.
 For populated history:
 
 1. read the singleton control row;
-2. recompute the current source census using the same exact source-census helper installed by migration 062;
+2. recompute the current source census using `legacy_history_source_census()` from migration 062;
 3. compare the full JSON census and aggregate SHA with the frozen record;
 4. query `pg_trigger`/`pg_proc` and require all 14 exact triggers with `tgenabled='O'` plus `prevent_frozen_legacy_history_write()`;
 5. require no unresolved migration blocker;
@@ -313,7 +313,7 @@ For zero-history fresh deployment, allow the drop without archive/readiness rows
 
 Use explicit `DROP TABLE` statements for the 14 names. Do not use wildcard discovery. Do not use `CASCADE` unless an explicitly named constraint owned by the approved set is first reviewed and dropped separately.
 
-After tables are gone:
+After tables are gone, drop exactly the two temporary migration helpers created by migration 062:
 
 ```sql
 ALTER TABLE orchestration_runs DROP COLUMN IF EXISTS latest_horizon_id;
@@ -321,7 +321,7 @@ DROP FUNCTION IF EXISTS prevent_frozen_legacy_history_write();
 DROP FUNCTION IF EXISTS legacy_history_source_census();
 ```
 
-If migration 062 uses one additional temporary census helper function, name it explicitly in Plan B before implementation and drop that exact function here. Do not discover/drop functions by pattern.
+Migration 062 creates no additional census helper. Do not discover/drop functions by pattern.
 
 - [ ] **Step 5: Verify retained tables**
 
