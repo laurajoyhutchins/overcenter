@@ -90,6 +90,8 @@ export function resolveLogicalContracts(candidates, classificationDocument, opti
         ...(classification.semver_kind ? { semver_kind:classification.semver_kind } : {}),
       }),
       projections:[],
+      relationships:[...(classification.relationships || [])],
+      ...(classification.lifecycle ? { lifecycle:classification.lifecycle } : {}),
     };
     logical.set(classification.logical_contract, entry);
     sourceToLogical.set(sourceIdentity, classification.logical_contract);
@@ -136,6 +138,28 @@ export function resolveLogicalContracts(candidates, classificationDocument, opti
     }
   }
 
+  for (const entry of logical.values()) {
+    const deduplicated = new Map();
+    for (const relationship of entry.relationships) {
+      if (!logical.has(relationship.target)) {
+        fail('CONTRACT_RELATIONSHIP_TARGET_MISSING', 'logical contract relationship references a missing target', {
+          logical_contract:entry.id,
+          kind:relationship.kind,
+          target:relationship.target,
+        });
+      }
+      if (relationship.target === entry.id) {
+        fail('CONTRACT_RELATIONSHIP_SELF_REFERENCE', 'logical contract relationship cannot target itself', {
+          logical_contract:entry.id,
+          kind:relationship.kind,
+        });
+      }
+      deduplicated.set(`${relationship.kind}::${relationship.target}`, Object.freeze({ kind:relationship.kind, target:relationship.target }));
+    }
+    entry.relationships = [...deduplicated.values()].sort((left, right) =>
+      left.kind.localeCompare(right.kind) || left.target.localeCompare(right.target));
+  }
+
   const classifiedSources = new Set(Object.keys(document.candidates));
   const unclassified = [...bySource.keys()]
     .filter((sourceIdentity) => !classifiedSources.has(sourceIdentity) && !automaticProjectionSources.has(sourceIdentity))
@@ -145,6 +169,8 @@ export function resolveLogicalContracts(candidates, classificationDocument, opti
     .map((entry) => Object.freeze({
       id:entry.id,
       authority:entry.authority,
+      ...(entry.lifecycle ? { lifecycle:entry.lifecycle } : {}),
+      relationships:Object.freeze([...entry.relationships]),
       projections:Object.freeze([...entry.projections].sort((a, b) => a.source_identity.localeCompare(b.source_identity))),
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
