@@ -15,11 +15,14 @@ The managed repository policy is:
 - pull requests required with zero mandatory human approvals and resolved review threads;
 - squash is the only allowed PR merge method;
 - linear history required;
-- caller-selected required checks enforced in strict mode;
+- caller-selected required checks enforced in strict mode when the set is non-empty;
+- an empty required-check set is valid for a repository that does not yet have CI, and emits no `required_status_checks` rule;
 - no bypass actors.
 
 The command recognizes the older `Exact-head review clearance` and `Hatchable required checks: ...` rulesets as migration predecessors. It will not overwrite classic branch protection or layer over an unowned ruleset that contributes effective policy. Material policy movement between inspection and mutation fails closed. A mutation is successful only after authoritative GitHub readback matches `branch-policy-v1`.
 
-Private repositories for which GitHub does not expose rulesets under the current account plan return `GITHUB_BRANCH_POLICY_UNAVAILABLE_BY_PLAN` before any repository setting is mutated.
+Private repositories for which GitHub does not expose rulesets under the current account plan return `GITHUB_BRANCH_POLICY_UNAVAILABLE_BY_PLAN` before any repository setting is mutated. Overcenter does not report those repositories as protected.
+
+Automatic integration separates GitHub governance enforcement from Overcenter transaction correctness. A standalone pull request may use the explicitly reported `exact_head_plan_fallback` only when GitHub returns a 403 policy/ruleset availability failure, review and check observation are complete, there are zero observable required checks, no review blocker exists, the branch is current, and the merge remains exact-head fenced. Ordinary unprotected repositories, incomplete policy evidence, stacked pull requests, required checks, review blockers, or transient policy-read failures still fail closed. The fallback permits an exact transaction; it does not create or imply GitHub branch protection.
 
 New work branches created through `github.apply_changeset` must use one of `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, or `research` followed by a lower-case kebab description. Existing legacy branch names are grandfathered for updates until they merge or close.
