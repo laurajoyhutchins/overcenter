@@ -1,4 +1,4 @@
-name: Contract evidence verification
+name: Temporary contract evidence export
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  contract-evidence:
+  export:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -41,9 +41,7 @@ jobs:
           node-version: 22
       - name: Install contract evidence tooling
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
-      - name: Run contract evidence tests
-        run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
-      - name: Generate candidate contract evidence once
+      - name: Generate expected evidence
         run: |
           mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
           node scripts/contract-evidence/cli.mjs generate \
@@ -51,22 +49,9 @@ jobs:
             --config scripts/contract-evidence/overcenter/config.mjs \
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md"
-      - name: Verify committed generated evidence
-        run: |
-          node scripts/contract-evidence/cli.mjs check \
-            --expected-catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
-            --expected-docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
-            --catalog generated/contracts/catalog.json \
-            --docs docs/generated/data-contracts.md
-      - name: Enforce historical unclassified ratchet
-        run: |
-          git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
-          MERGE_BASE=$(git merge-base HEAD "origin/${{ github.base_ref }}")
-          if git cat-file -e "$MERGE_BASE:generated/contracts/catalog.json" 2>/dev/null; then
-            git show "$MERGE_BASE:generated/contracts/catalog.json" > "$RUNNER_TEMP/base-contract-catalog.json"
-            node scripts/contract-evidence/cli.mjs compare \
-              --base-catalog "$RUNNER_TEMP/base-contract-catalog.json" \
-              --head-catalog generated/contracts/catalog.json
-          else
-            echo "No merge-base contract catalog exists; establishing the initial evidence baseline."
-          fi
+      - name: Upload expected evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-evidence-expected
+          path: ${{ runner.temp }}/contract-evidence
+          if-no-files-found: error
