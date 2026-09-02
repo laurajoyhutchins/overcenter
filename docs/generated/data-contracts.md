@@ -4,31 +4,41 @@
 
 ## Public compatibility contracts
 
+- `execution.evidence` — authority `typescript:src/semantic/execution-evidence-contracts.ts#ExecutionEvidence`; SemVer `public-evidence-schema`
 - `github.release.create.input` — authority `semantic-command:github.release.create#input`; SemVer `semantic-command-contract`
 - `orchestration.diagnose.input` — authority `semantic-command:orchestration.diagnose#input`; SemVer `semantic-command-contract`
-- `production.promote.input` — authority `semantic-command:production.promote#input`; SemVer `semantic-command-contract`
-- `project.advance.input` — authority `semantic-command:project.advance#input`; SemVer `semantic-command-contract`
-- `project.amend.input` — authority `semantic-command:project.amend#input`; SemVer `semantic-command-contract`
-- `project.define.input` — authority `semantic-command:project.define#input`; SemVer `semantic-command-contract`
-- `project.inspect.input` — authority `semantic-command:project.inspect#input`; SemVer `semantic-command-contract`
-- `release.publish.input` — authority `semantic-command:release.publish#input`; SemVer `semantic-command-contract`
+- `production.promote.input` — authority `semantic-command:production.promote#input`; SemVer `semantic-command-contract`; 1 projection
+- `project.advance.input` — authority `semantic-command:project.advance#input`; SemVer `semantic-command-contract`; 1 projection
+- `project.amend.input` — authority `semantic-command:project.amend#input`; SemVer `semantic-command-contract`; 1 projection
+- `project.define.input` — authority `semantic-command:project.define#input`; SemVer `semantic-command-contract`; 1 projection
+- `project.inspect.input` — authority `semantic-command:project.inspect#input`; SemVer `semantic-command-contract`; 1 projection
+- `release.publish.input` — authority `semantic-command:release.publish#input`; SemVer `semantic-command-contract`; 1 projection
 - `work.settle.input` — authority `semantic-command:work.settle#input`; SemVer `semantic-command-contract`
 
 ## Authority/internal contracts
 
-_None._
+- `execution.authority.locator` — authority `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityLocator`
+- `execution.authority.project-transition` — authority `typescript:src/semantic/execution-authority-contracts.ts#ProjectTransitionExecutionAuthority`
+- `execution.lifecycle.operating-conditions` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#OPERATING_CONDITIONS`; SemVer `lifecycle-semantics`; 1 projection
+- `execution.lifecycle.productive-stages` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#PRODUCTIVE_STAGES`; SemVer `lifecycle-semantics`; 1 projection
+- `execution.lifecycle.work-settlement-dispositions` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#WORK_SETTLEMENT_DISPOSITIONS`; SemVer `lifecycle-semantics`; 1 projection
+- `project.graph.authority-coordinate` — authority `typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphAuthorityCoordinate`
+- `project.transition.states` — authority `typescript:src/semantic/project-transition-status-contracts.ts#PROJECT_TRANSITION_STATES`; SemVer `lifecycle-semantics`
 
 ## Durable internal contracts
 
-_None._
+- `execution.store.lease` — authority `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionLease`
+- `execution.store.run` — authority `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionRun`
+- `execution.store.slot` — authority `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionSlot`
 
 ## Boundary-internal contracts
 
-_None._
+- `execution.authority.store-port` — authority `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityStore`
+- `project.advance.runtime-host` — authority `typescript:src/ports/project-advance-runtime-host.ts#ProjectAdvanceRuntimeHost`
 
 ## Implementation-only shapes
 
-_None._
+- `execution.evidence.internals` — authority `typescript:src/semantic/execution-evidence.ts#executionEvidenceInternals`; 1 projection
 
 ## Unclassified historical debt
 
@@ -147,12 +157,6 @@ _None._
 - `javascript:lib/work-progress-contract.js#WORK_HEARTBEAT_SEMANTIC_FIELDS`
 - `javascript:lib/work-surface-policy.js#WORK_SURFACE_DISPOSITIONS`
 - `javascript:lib/work-surface-policy.js#workSurfacePolicyConfig`
-- `mcp:mcp/production.promote.js#inputSchema`
-- `mcp:mcp/project.advance.js#inputSchema`
-- `mcp:mcp/project.amend.js#inputSchema`
-- `mcp:mcp/project.define.js#inputSchema`
-- `mcp:mcp/project.inspect.js#inputSchema`
-- `mcp:mcp/release.publish.js#inputSchema`
 - `postgres:public.github_changeset_receipts#attempt_token`
 - `postgres:public.github_changeset_receipts#base_sha`
 - `postgres:public.github_changeset_receipts#branch`
@@ -479,7 +483,6 @@ _None._
 - `typescript:src/ports/production-promotion-runtime-host.ts#ProductionPromotionRuntimeHost`
 - `typescript:src/ports/production-promotion-runtime-host.ts#ProductionPromotionVerificationEvidence`
 - `typescript:src/ports/production-promotion-runtime-host.ts#StrictProductionPromotionRequest`
-- `typescript:src/ports/project-advance-runtime-host.ts#ProjectAdvanceRuntimeHost`
 - `typescript:src/runtime/portable-runtime.ts#PortableRuntime`
 - `typescript:src/runtime/production-promotion-overcenter-host.ts#ProductionPromotionRuntime`
 - `typescript:src/semantic/canonical-commands.ts#CANONICAL_COMMANDS`
@@ -487,17 +490,10 @@ _None._
 - `typescript:src/semantic/compatibility-transition-bindings.ts#CompatibilityTransitionBinding`
 - `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthority`
 - `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityFail`
-- `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityLocator`
-- `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityStore`
-- `typescript:src/semantic/execution-authority-contracts.ts#ProjectTransitionExecutionAuthority`
-- `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionLease`
-- `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionRun`
-- `typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionSlot`
 - `typescript:src/semantic/execution-authority-core.ts#ExecutionAuthorityService`
 - `typescript:src/semantic/execution-evidence-contracts.ts#AuthorityAfterEvidence`
 - `typescript:src/semantic/execution-evidence-contracts.ts#CommandEvidence`
 - `typescript:src/semantic/execution-evidence-contracts.ts#EvidenceRef`
-- `typescript:src/semantic/execution-evidence-contracts.ts#ExecutionEvidence`
 - `typescript:src/semantic/execution-evidence-contracts.ts#MUTATION_CERTAINTIES`
 - `typescript:src/semantic/execution-evidence-contracts.ts#MutationCertainty`
 - `typescript:src/semantic/execution-evidence-contracts.ts#NO_EXTERNAL_MUTATION_COMMANDS`
@@ -505,19 +501,15 @@ _None._
 - `typescript:src/semantic/execution-evidence-contracts.ts#VERIFIED_EXTERNAL_EFFECT_COMMANDS`
 - `typescript:src/semantic/execution-evidence.ts#EXECUTION_EVIDENCE_SCHEMA`
 - `typescript:src/semantic/execution-evidence.ts#ExecutionEvidenceSource`
-- `typescript:src/semantic/execution-evidence.ts#executionEvidenceInternals`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#LIVE_LEASE_STATUSES`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#LiveLeaseStatus`
-- `typescript:src/semantic/execution-lifecycle-contracts.ts#OPERATING_CONDITIONS`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#OperatingCondition`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#OrchestrationRunMode`
-- `typescript:src/semantic/execution-lifecycle-contracts.ts#PRODUCTIVE_STAGES`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#ProductiveStage`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#RUN_FINISH_DISPOSITIONS`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#RUN_MODES`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#RunFinishDisposition`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#WORK_REQUEUE_CLASSES`
-- `typescript:src/semantic/execution-lifecycle-contracts.ts#WORK_SETTLEMENT_DISPOSITIONS`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#WorkRequeueClass`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#WorkSettlementDisposition`
 - `typescript:src/semantic/legacy-work-execution-authority-contracts.ts#LEGACY_WORK_EXECUTION_GATES`
@@ -572,7 +564,6 @@ _None._
 - `typescript:src/semantic/project-graph-reconciliation.ts#DependencyChangedProjectTransitionRevision`
 - `typescript:src/semantic/project-graph-reconciliation.ts#DependencyUnchangedProjectTransitionRevision`
 - `typescript:src/semantic/project-graph-reconciliation.ts#IntroducedProjectTransitionRevision`
-- `typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphAuthorityCoordinate`
 - `typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphRevisionChangeEvidence`
 - `typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphRevisionChangeKind`
 - `typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphRevisionContinuationEvidence`
@@ -607,7 +598,6 @@ _None._
 - `typescript:src/semantic/project-inspect-operation.ts#ProjectInspection`
 - `typescript:src/semantic/project-transition-dependency-fingerprint.ts#ProjectTransitionDependencyDefinition`
 - `typescript:src/semantic/project-transition-revision-fingerprint.ts#ProjectTransitionRevisionDefinition`
-- `typescript:src/semantic/project-transition-status-contracts.ts#PROJECT_TRANSITION_STATES`
 - `typescript:src/semantic/project-transition-status-contracts.ts#ProjectTransitionLifecycleStatus`
 - `typescript:src/semantic/project-transition-status-contracts.ts#ProjectTransitionState`
 - `typescript:src/semantic/project-transition-status-contracts.ts#ProjectTransitionStatus`
