@@ -82,21 +82,11 @@ test('semantic idempotency is internal, stable for replay, and separates materia
   assert.notEqual(first, different);
 });
 
-test('project.define bootstraps graph authority and the first definition in one work-branch changeset', async () => {
+test('project.define bootstraps on a work branch but returns success only after refreshed authority exposes the definition', async () => {
   const calls = [];
   let authorityReads = 0;
   const adapter = createProjectAuthoringGithubAdapter({
-    resolveAuthority:async () => {
-      authorityReads += 1;
-      return {
-        project_ref:projectRef,
-        kind:'github',
-        repository:'example/project',
-        revision:authorityReads === 1 ? initialRevision : authoritativeRevision,
-        derivation:'overcenter-project-graph-v1',
-        project_graph_declared:authorityReads > 1,
-      };
-    },
+    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:++authorityReads === 1 ? initialRevision : authoritativeRevision, derivation:'overcenter-project-graph-v1' }),
     readDefinitionFacts:async ({ revision }) => {
       calls.push(['read', revision]);
       if (revision === initialRevision) return { schema:'project-definition-facts-v1', repository:'example/project', revision, definitions:[] };
@@ -105,17 +95,11 @@ test('project.define bootstraps graph authority and the first definition in one 
     resolveMutationBranch:async () => ({ branch:'work/project-define', expected_head:initialRevision }),
     applyChangeset:async (request) => {
       calls.push(['mutate', request]);
-      assert.equal(request.changes.length, 3);
-      const declaration = request.changes.find((change) => change.path === '.overcenter/project-graph.json');
+      assert.equal(request.changes.length, 2);
       const discovery = request.changes.find((change) => change.path === '.overcenter/project-definitions.json');
       const definition = request.changes.find((change) => change.path === '.overcenter/definitions/project.json');
-      assert.equal(declaration.operation, 'create');
       assert.equal(discovery.operation, 'create');
       assert.equal(definition.operation, 'create');
-      assert.deepEqual(JSON.parse(declaration.content), {
-        schema:'project-graph-derivation-v1',
-        derivation:'overcenter-project-graph-v1',
-      });
       assert.deepEqual(JSON.parse(discovery.content), {
         schema:'project-definition-discovery-v1',
         definitions:['.overcenter/definitions/project.json'],
