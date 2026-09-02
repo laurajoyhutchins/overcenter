@@ -51,6 +51,12 @@ jobs:
             --config scripts/contract-evidence/overcenter/config.mjs \
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md"
+      - name: Export expected contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-evidence-expected
+          path: ${{ runner.temp }}/contract-evidence
+          if-no-files-found: error
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
