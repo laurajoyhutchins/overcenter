@@ -547,6 +547,16 @@
       }
     },
     {
+      "id": "make-project-transition-expiry-recovery-slot-independent",
+      "priority": 154,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "make-project-transition-settlement-atomic",
       "priority": 130,
       "requires": [],
