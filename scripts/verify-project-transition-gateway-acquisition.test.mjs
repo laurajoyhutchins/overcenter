@@ -82,7 +82,9 @@ test('project transition acquisition uses the transaction primitive instead of a
   assert.equal(transactionItems?.length, 4);
   assert.match(transactionItems[0].sql, /INSERT INTO execution_state/);
   assert.doesNotMatch(transactionItems[0].sql, /WITH advanced/);
+  assert.equal(transactionItems[0].params.length, 14);
   assert.match(transactionItems[1].sql, /INSERT INTO work_leases/);
+  assert.equal(transactionItems[1].params.length, 28);
   assert.match(transactionItems[2].sql, /INSERT INTO work_lease_slots/);
   assert.equal(lease.lease_id, row.lease_id);
   assert.equal(lease.authority_epoch, 1);
