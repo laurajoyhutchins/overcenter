@@ -121,6 +121,16 @@
       }
     },
     {
+      "id": "classify-kernel-contract-authorities",
+      "priority": 145,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "compact-agent-semantic-surface",
       "priority": 70,
       "requires": [
