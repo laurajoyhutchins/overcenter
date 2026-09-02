@@ -20,6 +20,40 @@ async function collect(path) {
   return files;
 }
 
+function contractShape(value) {
+  if (value === null) return { type:'null' };
+  if (Array.isArray(value)) {
+    const byShape = new Map();
+    for (const item of value) {
+      const shape = contractShape(item);
+      byShape.set(JSON.stringify(shape), shape);
+    }
+    return {
+      type:'array',
+      items:[...byShape.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([, shape]) => shape),
+    };
+  }
+  if (typeof value === 'object') {
+    return {
+      type:'object',
+      properties:Object.fromEntries(
+        Object.keys(value).sort().map((key) => [key, contractShape(value[key])]),
+      ),
+    };
+  }
+  return { type:typeof value };
+}
+
+function contractStructure(document) {
+  const schema = typeof document?.schema === 'string' && document.schema ? document.schema : null;
+  return {
+    ...(schema ? { schema } : {}),
+    shape:contractShape(document),
+  };
+}
+
 export function createRepoDataDiscoverer(options = {}) {
   const roots = options.roots || ['.overcenter/project-definitions.json', '.overcenter/definitions'];
   return {
@@ -31,15 +65,16 @@ export function createRepoDataDiscoverer(options = {}) {
       const candidates = [];
       for (const file of unique) {
         const path = repoPath(repoRoot, file);
-        let structure;
+        let document;
         try {
-          structure = JSON.parse(await readFile(file, 'utf8'));
+          document = JSON.parse(await readFile(file, 'utf8'));
         } catch (cause) {
           const error = new Error(`cannot parse repository-owned JSON ${path}`, { cause });
           Object.assign(error, { code:'CONTRACT_REPO_DATA_INVALID', path });
           throw error;
         }
-        const anchor = typeof structure?.schema === 'string' && structure.schema ? structure.schema : 'document';
+        const anchor = typeof document?.schema === 'string' && document.schema ? document.schema : 'document';
+        const structure = contractStructure(document);
         candidates.push({
           source_identity:sourceIdentity('repo-data', path, anchor),
           source_kind:'repo-data',
