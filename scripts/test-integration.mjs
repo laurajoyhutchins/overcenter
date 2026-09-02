@@ -11,6 +11,7 @@ run(['--test', 'scripts/node-postgres-runtime.test.mjs']);
 run(['--test', 'scripts/verify-compact-state-migrations-postgres.test.mjs']);
 run(['--test', 'scripts/compact-execution-state-postgres.test.mjs']);
 run(['--test', 'scripts/project-transition-compact-authority-postgres.test.mjs']);
+run(['--test', 'scripts/project-transition-expiry-recovery.test.mjs']);
 run(['--test', 'scripts/compact-provider-operations-postgres.test.mjs']);
 run(['--test', 'scripts/compact-portfolio-reconcile-postgres.test.mjs']);
 run(['--test', 'scripts/compact-proof-state-postgres.test.mjs']);
