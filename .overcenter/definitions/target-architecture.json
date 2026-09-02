@@ -121,6 +121,20 @@
       }
     },
     {
+      "id": "classify-kernel-contract-authorities",
+      "priority": 145,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "version_impact": {
+        "level": "none",
+        "summary": "Classify existing contract-evidence candidates into authoritative, durable-internal, boundary-internal, projection, and implementation-only roles without changing runtime semantics."
+      }
+    },
+    {
       "id": "compact-agent-semantic-surface",
       "priority": 70,
       "requires": [
