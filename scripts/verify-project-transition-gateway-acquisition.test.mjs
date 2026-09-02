@@ -23,6 +23,12 @@ const row = Object.freeze({
   hard_expires_at:'2026-09-02T18:30:00.000Z',
 });
 
+function assertDenseParameterVector(item) {
+  const indexes = [...item.sql.matchAll(/\$(\d+)/g)].map((match) => Number(match[1]));
+  const unique = [...new Set(indexes)].sort((a, b) => a - b);
+  assert.deepEqual(unique, Array.from({ length:item.params.length }, (_, index) => index + 1));
+}
+
 function leaseRow(authorityEpoch = 1) {
   return {
     lease_id:row.lease_id,
@@ -83,8 +89,10 @@ test('project transition acquisition uses the transaction primitive instead of a
   assert.match(transactionItems[0].sql, /INSERT INTO execution_state/);
   assert.doesNotMatch(transactionItems[0].sql, /WITH advanced/);
   assert.equal(transactionItems[0].params.length, 14);
+  assertDenseParameterVector(transactionItems[0]);
   assert.match(transactionItems[1].sql, /INSERT INTO work_leases/);
-  assert.equal(transactionItems[1].params.length, 28);
+  assert.equal(transactionItems[1].params.length, 21);
+  assertDenseParameterVector(transactionItems[1]);
   assert.match(transactionItems[2].sql, /INSERT INTO work_lease_slots/);
   assert.equal(lease.lease_id, row.lease_id);
   assert.equal(lease.authority_epoch, 1);
