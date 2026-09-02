@@ -89,6 +89,18 @@
       }
     },
     {
+      "id": "aggregate-postgres-contract-evidence",
+      "priority": 146,
+      "requires": [
+        "classify-kernel-contract-authorities"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "align-work-settle-discovery-with-runtime",
       "priority": 128,
       "requires": [],
