@@ -1,10 +1,12 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { canonicalJson } from './canonical.mjs';
-import { compareCatalogs } from './compare.mjs';
-import { compileCatalog } from './compiler.mjs';
-import { renderCatalogMarkdown } from './render-markdown.mjs';
+import {
+  canonicalJson,
+  compareCatalogs,
+  compileCatalog,
+  renderCatalogMarkdown,
+} from '../../packages/contract-evidence/index.mjs';
 
 function fail(code, message, details = null) {
   const error = new Error(message);
