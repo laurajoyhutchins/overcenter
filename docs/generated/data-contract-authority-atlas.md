@@ -284,6 +284,216 @@ _None._
 - `typescript:src/semantic/compact-execution-state.ts#ProofEvidenceRef` (`typescript`)
   - Source: `src/semantic/compact-execution-state.ts#ProofEvidenceRef`
 
+## `compatibility.work-lease-checkpoint.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `compatibility`
+- SemVer: `database-layout`
+- Authority: `postgres:public.work_lease_checkpoints#table` (`postgres`)
+- Authority source: `public.work_lease_checkpoints#table`
+- Manifestations: 11
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.work_lease_checkpoints#checkpoint` (`postgres`)
+  - Source: `public.work_lease_checkpoints#checkpoint`
+- `postgres:public.work_lease_checkpoints#checkpoint_id` (`postgres`)
+  - Source: `public.work_lease_checkpoints#checkpoint_id`
+- `postgres:public.work_lease_checkpoints#checkpoint_sha256` (`postgres`)
+  - Source: `public.work_lease_checkpoints#checkpoint_sha256`
+- `postgres:public.work_lease_checkpoints#constraint:work_lease_checkpoints_lease_id_fkey` (`postgres`)
+  - Source: `public.work_lease_checkpoints#constraint:work_lease_checkpoints_lease_id_fkey`
+- `postgres:public.work_lease_checkpoints#constraint:work_lease_checkpoints_lease_id_idempotency_key_key` (`postgres`)
+  - Source: `public.work_lease_checkpoints#constraint:work_lease_checkpoints_lease_id_idempotency_key_key`
+- `postgres:public.work_lease_checkpoints#constraint:work_lease_checkpoints_pkey` (`postgres`)
+  - Source: `public.work_lease_checkpoints#constraint:work_lease_checkpoints_pkey`
+- `postgres:public.work_lease_checkpoints#created_at` (`postgres`)
+  - Source: `public.work_lease_checkpoints#created_at`
+- `postgres:public.work_lease_checkpoints#idempotency_key` (`postgres`)
+  - Source: `public.work_lease_checkpoints#idempotency_key`
+- `postgres:public.work_lease_checkpoints#lease_id` (`postgres`)
+  - Source: `public.work_lease_checkpoints#lease_id`
+- `postgres:public.work_lease_checkpoints#request_sha256` (`postgres`)
+  - Source: `public.work_lease_checkpoints#request_sha256`
+
+## `compatibility.work-lease-heartbeat.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `compatibility`
+- SemVer: `database-layout`
+- Authority: `postgres:public.work_lease_heartbeats#table` (`postgres`)
+- Authority source: `public.work_lease_heartbeats#table`
+- Manifestations: 12
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.work_lease_heartbeats#attempt_token` (`postgres`)
+  - Source: `public.work_lease_heartbeats#attempt_token`
+- `postgres:public.work_lease_heartbeats#constraint:work_lease_heartbeats_lease_id_idempotency_key_key` (`postgres`)
+  - Source: `public.work_lease_heartbeats#constraint:work_lease_heartbeats_lease_id_idempotency_key_key`
+- `postgres:public.work_lease_heartbeats#constraint:work_lease_heartbeats_pkey` (`postgres`)
+  - Source: `public.work_lease_heartbeats#constraint:work_lease_heartbeats_pkey`
+- `postgres:public.work_lease_heartbeats#created_at` (`postgres`)
+  - Source: `public.work_lease_heartbeats#created_at`
+- `postgres:public.work_lease_heartbeats#heartbeat_id` (`postgres`)
+  - Source: `public.work_lease_heartbeats#heartbeat_id`
+- `postgres:public.work_lease_heartbeats#idempotency_key` (`postgres`)
+  - Source: `public.work_lease_heartbeats#idempotency_key`
+- `postgres:public.work_lease_heartbeats#lease_id` (`postgres`)
+  - Source: `public.work_lease_heartbeats#lease_id`
+- `postgres:public.work_lease_heartbeats#new_expires_at` (`postgres`)
+  - Source: `public.work_lease_heartbeats#new_expires_at`
+- `postgres:public.work_lease_heartbeats#previous_expires_at` (`postgres`)
+  - Source: `public.work_lease_heartbeats#previous_expires_at`
+- `postgres:public.work_lease_heartbeats#progress_sha256` (`postgres`)
+  - Source: `public.work_lease_heartbeats#progress_sha256`
+- `postgres:public.work_lease_heartbeats#request_sha256` (`postgres`)
+  - Source: `public.work_lease_heartbeats#request_sha256`
+
+## `compatibility.work-lease-slot.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `compatibility`
+- SemVer: `database-layout`
+- Authority: `postgres:public.work_lease_slots#table` (`postgres`)
+- Authority source: `public.work_lease_slots#table`
+- Manifestations: 7
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.work_lease_slots#constraint:work_lease_slots_pkey` (`postgres`)
+  - Source: `public.work_lease_slots#constraint:work_lease_slots_pkey`
+- `postgres:public.work_lease_slots#expires_at` (`postgres`)
+  - Source: `public.work_lease_slots#expires_at`
+- `postgres:public.work_lease_slots#gate` (`postgres`)
+  - Source: `public.work_lease_slots#gate`
+- `postgres:public.work_lease_slots#lease_id` (`postgres`)
+  - Source: `public.work_lease_slots#lease_id`
+- `postgres:public.work_lease_slots#updated_at` (`postgres`)
+  - Source: `public.work_lease_slots#updated_at`
+- `postgres:public.work_lease_slots#work_ref` (`postgres`)
+  - Source: `public.work_lease_slots#work_ref`
+
+## `compatibility.work-lease.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `compatibility`
+- SemVer: `database-layout`
+- Authority: `postgres:public.work_leases#table` (`postgres`)
+- Authority source: `public.work_leases#table`
+- Manifestations: 39
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.work_leases#active_revision` (`postgres`)
+  - Source: `public.work_leases#active_revision`
+- `postgres:public.work_leases#claim_idempotency_key` (`postgres`)
+  - Source: `public.work_leases#claim_idempotency_key`
+- `postgres:public.work_leases#claim_receipt` (`postgres`)
+  - Source: `public.work_leases#claim_receipt`
+- `postgres:public.work_leases#claim_request` (`postgres`)
+  - Source: `public.work_leases#claim_request`
+- `postgres:public.work_leases#claim_request_hash` (`postgres`)
+  - Source: `public.work_leases#claim_request_hash`
+- `postgres:public.work_leases#claim_revision` (`postgres`)
+  - Source: `public.work_leases#claim_revision`
+- `postgres:public.work_leases#constraint:work_leases_claim_idempotency_key_key` (`postgres`)
+  - Source: `public.work_leases#constraint:work_leases_claim_idempotency_key_key`
+- `postgres:public.work_leases#constraint:work_leases_claim_request_hash_check` (`postgres`)
+  - Source: `public.work_leases#constraint:work_leases_claim_request_hash_check`
+- `postgres:public.work_leases#constraint:work_leases_pkey` (`postgres`)
+  - Source: `public.work_leases#constraint:work_leases_pkey`
+- `postgres:public.work_leases#constraint:work_leases_settle_idempotency_key_key` (`postgres`)
+  - Source: `public.work_leases#constraint:work_leases_settle_idempotency_key_key`
+- `postgres:public.work_leases#constraint:work_leases_settle_request_hash_check` (`postgres`)
+  - Source: `public.work_leases#constraint:work_leases_settle_request_hash_check`
+- `postgres:public.work_leases#constraint:work_leases_status_check` (`postgres`)
+  - Source: `public.work_leases#constraint:work_leases_status_check`
+- `postgres:public.work_leases#constraint:work_leases_token_hash_check` (`postgres`)
+  - Source: `public.work_leases#constraint:work_leases_token_hash_check`
+- `postgres:public.work_leases#constraint:work_leases_token_hash_key` (`postgres`)
+  - Source: `public.work_leases#constraint:work_leases_token_hash_key`
+- `postgres:public.work_leases#created_at` (`postgres`)
+  - Source: `public.work_leases#created_at`
+- `postgres:public.work_leases#expires_at` (`postgres`)
+  - Source: `public.work_leases#expires_at`
+- `postgres:public.work_leases#gate` (`postgres`)
+  - Source: `public.work_leases#gate`
+- `postgres:public.work_leases#hard_expires_at` (`postgres`)
+  - Source: `public.work_leases#hard_expires_at`
+- `postgres:public.work_leases#heartbeat_count` (`postgres`)
+  - Source: `public.work_leases#heartbeat_count`
+- `postgres:public.work_leases#last_heartbeat_at` (`postgres`)
+  - Source: `public.work_leases#last_heartbeat_at`
+- `postgres:public.work_leases#lease_id` (`postgres`)
+  - Source: `public.work_leases#lease_id`
+- `postgres:public.work_leases#lease_token` (`postgres`)
+  - Source: `public.work_leases#lease_token`
+- `postgres:public.work_leases#predecessor_continuation` (`postgres`)
+  - Source: `public.work_leases#predecessor_continuation`
+- `postgres:public.work_leases#previous_lane` (`postgres`)
+  - Source: `public.work_leases#previous_lane`
+- `postgres:public.work_leases#previous_lane_id` (`postgres`)
+  - Source: `public.work_leases#previous_lane_id`
+- `postgres:public.work_leases#previous_state` (`postgres`)
+  - Source: `public.work_leases#previous_state`
+- `postgres:public.work_leases#previous_state_id` (`postgres`)
+  - Source: `public.work_leases#previous_state_id`
+- `postgres:public.work_leases#reconciliation` (`postgres`)
+  - Source: `public.work_leases#reconciliation`
+- `postgres:public.work_leases#run_id` (`postgres`)
+  - Source: `public.work_leases#run_id`
+- `postgres:public.work_leases#settle_idempotency_key` (`postgres`)
+  - Source: `public.work_leases#settle_idempotency_key`
+- `postgres:public.work_leases#settle_plan` (`postgres`)
+  - Source: `public.work_leases#settle_plan`
+- `postgres:public.work_leases#settle_receipt` (`postgres`)
+  - Source: `public.work_leases#settle_receipt`
+- `postgres:public.work_leases#settle_request_hash` (`postgres`)
+  - Source: `public.work_leases#settle_request_hash`
+- `postgres:public.work_leases#settled_at` (`postgres`)
+  - Source: `public.work_leases#settled_at`
+- `postgres:public.work_leases#status` (`postgres`)
+  - Source: `public.work_leases#status`
+- `postgres:public.work_leases#token_hash` (`postgres`)
+  - Source: `public.work_leases#token_hash`
+- `postgres:public.work_leases#updated_at` (`postgres`)
+  - Source: `public.work_leases#updated_at`
+- `postgres:public.work_leases#work_ref` (`postgres`)
+  - Source: `public.work_leases#work_ref`
+
 ## `execution.authority.locator`
 
 - Significance: `authority`
@@ -699,6 +909,46 @@ _None._
 
 _None._
 
+## `github.required-check-observation.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `current`
+- SemVer: `database-layout`
+- Authority: `postgres:public.github_required_check_observations#table` (`postgres`)
+- Authority source: `public.github_required_check_observations#table`
+- Manifestations: 11
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.github_required_check_observations#constraint:github_required_check_observations_observation_count_check` (`postgres`)
+  - Source: `public.github_required_check_observations#constraint:github_required_check_observations_observation_count_check`
+- `postgres:public.github_required_check_observations#constraint:github_required_check_observations_pkey` (`postgres`)
+  - Source: `public.github_required_check_observations#constraint:github_required_check_observations_pkey`
+- `postgres:public.github_required_check_observations#constraint:github_required_check_observations_pull_request_check` (`postgres`)
+  - Source: `public.github_required_check_observations#constraint:github_required_check_observations_pull_request_check`
+- `postgres:public.github_required_check_observations#first_missing_at` (`postgres`)
+  - Source: `public.github_required_check_observations#first_missing_at`
+- `postgres:public.github_required_check_observations#head_sha` (`postgres`)
+  - Source: `public.github_required_check_observations#head_sha`
+- `postgres:public.github_required_check_observations#last_missing_at` (`postgres`)
+  - Source: `public.github_required_check_observations#last_missing_at`
+- `postgres:public.github_required_check_observations#observation_count` (`postgres`)
+  - Source: `public.github_required_check_observations#observation_count`
+- `postgres:public.github_required_check_observations#pull_request` (`postgres`)
+  - Source: `public.github_required_check_observations#pull_request`
+- `postgres:public.github_required_check_observations#repo` (`postgres`)
+  - Source: `public.github_required_check_observations#repo`
+- `postgres:public.github_required_check_observations#required_context` (`postgres`)
+  - Source: `public.github_required_check_observations#required_context`
+
 ## `orchestration.command-invocation.persistence`
 
 - Significance: `durable-internal`
@@ -804,6 +1054,76 @@ _None._
 ### Projections
 
 _None._
+
+## `orchestration.horizon.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `current`
+- SemVer: `database-layout`
+- Authority: `postgres:public.orchestration_horizons#table` (`postgres`)
+- Authority source: `public.orchestration_horizons#table`
+- Manifestations: 9
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.orchestration_horizons#candidates` (`postgres`)
+  - Source: `public.orchestration_horizons#candidates`
+- `postgres:public.orchestration_horizons#constraint:orchestration_horizons_pkey` (`postgres`)
+  - Source: `public.orchestration_horizons#constraint:orchestration_horizons_pkey`
+- `postgres:public.orchestration_horizons#constraint:orchestration_horizons_run_id_generation_key` (`postgres`)
+  - Source: `public.orchestration_horizons#constraint:orchestration_horizons_run_id_generation_key`
+- `postgres:public.orchestration_horizons#created_at` (`postgres`)
+  - Source: `public.orchestration_horizons#created_at`
+- `postgres:public.orchestration_horizons#generation` (`postgres`)
+  - Source: `public.orchestration_horizons#generation`
+- `postgres:public.orchestration_horizons#horizon_id` (`postgres`)
+  - Source: `public.orchestration_horizons#horizon_id`
+- `postgres:public.orchestration_horizons#horizon_sha256` (`postgres`)
+  - Source: `public.orchestration_horizons#horizon_sha256`
+- `postgres:public.orchestration_horizons#run_id` (`postgres`)
+  - Source: `public.orchestration_horizons#run_id`
+
+## `orchestration.invocation-resolution.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `current`
+- SemVer: `database-layout`
+- Authority: `postgres:public.orchestration_invocation_resolutions#table` (`postgres`)
+- Authority source: `public.orchestration_invocation_resolutions#table`
+- Manifestations: 8
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.orchestration_invocation_resolutions#constraint:orchestration_invocation_resolutions_pkey` (`postgres`)
+  - Source: `public.orchestration_invocation_resolutions#constraint:orchestration_invocation_resolutions_pkey`
+- `postgres:public.orchestration_invocation_resolutions#constraint:orchestration_invocation_resolutions_resolution_kind_check` (`postgres`)
+  - Source: `public.orchestration_invocation_resolutions#constraint:orchestration_invocation_resolutions_resolution_kind_check`
+- `postgres:public.orchestration_invocation_resolutions#created_at` (`postgres`)
+  - Source: `public.orchestration_invocation_resolutions#created_at`
+- `postgres:public.orchestration_invocation_resolutions#evidence` (`postgres`)
+  - Source: `public.orchestration_invocation_resolutions#evidence`
+- `postgres:public.orchestration_invocation_resolutions#invocation_id` (`postgres`)
+  - Source: `public.orchestration_invocation_resolutions#invocation_id`
+- `postgres:public.orchestration_invocation_resolutions#resolution_id` (`postgres`)
+  - Source: `public.orchestration_invocation_resolutions#resolution_id`
+- `postgres:public.orchestration_invocation_resolutions#resolution_kind` (`postgres`)
+  - Source: `public.orchestration_invocation_resolutions#resolution_kind`
 
 ## `orchestration.run.persistence`
 
@@ -914,6 +1234,138 @@ _None._
   - Source: `public.orchestration_runs#updated_at`
 - `postgres:public.orchestration_runs#worker` (`postgres`)
   - Source: `public.orchestration_runs#worker`
+
+## `orchestration.skill-activation.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `current`
+- SemVer: `database-layout`
+- Authority: `postgres:public.orchestration_skill_activations#table` (`postgres`)
+- Authority source: `public.orchestration_skill_activations#table`
+- Manifestations: 16
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.orchestration_skill_activations#activation_id` (`postgres`)
+  - Source: `public.orchestration_skill_activations#activation_id`
+- `postgres:public.orchestration_skill_activations#completed_at` (`postgres`)
+  - Source: `public.orchestration_skill_activations#completed_at`
+- `postgres:public.orchestration_skill_activations#completion_sha256` (`postgres`)
+  - Source: `public.orchestration_skill_activations#completion_sha256`
+- `postgres:public.orchestration_skill_activations#constraint:orchestration_skill_activations_pkey` (`postgres`)
+  - Source: `public.orchestration_skill_activations#constraint:orchestration_skill_activations_pkey`
+- `postgres:public.orchestration_skill_activations#constraint:orchestration_skill_activations_run_id_fkey` (`postgres`)
+  - Source: `public.orchestration_skill_activations#constraint:orchestration_skill_activations_run_id_fkey`
+- `postgres:public.orchestration_skill_activations#constraint:orchestration_skill_activations_run_id_skill_name_key` (`postgres`)
+  - Source: `public.orchestration_skill_activations#constraint:orchestration_skill_activations_run_id_skill_name_key`
+- `postgres:public.orchestration_skill_activations#constraint:orchestration_skill_activations_status_check` (`postgres`)
+  - Source: `public.orchestration_skill_activations#constraint:orchestration_skill_activations_status_check`
+- `postgres:public.orchestration_skill_activations#created_at` (`postgres`)
+  - Source: `public.orchestration_skill_activations#created_at`
+- `postgres:public.orchestration_skill_activations#evidence` (`postgres`)
+  - Source: `public.orchestration_skill_activations#evidence`
+- `postgres:public.orchestration_skill_activations#reason` (`postgres`)
+  - Source: `public.orchestration_skill_activations#reason`
+- `postgres:public.orchestration_skill_activations#run_id` (`postgres`)
+  - Source: `public.orchestration_skill_activations#run_id`
+- `postgres:public.orchestration_skill_activations#skill_name` (`postgres`)
+  - Source: `public.orchestration_skill_activations#skill_name`
+- `postgres:public.orchestration_skill_activations#skill_reference` (`postgres`)
+  - Source: `public.orchestration_skill_activations#skill_reference`
+- `postgres:public.orchestration_skill_activations#skill_revision` (`postgres`)
+  - Source: `public.orchestration_skill_activations#skill_revision`
+- `postgres:public.orchestration_skill_activations#status` (`postgres`)
+  - Source: `public.orchestration_skill_activations#status`
+
+## `portfolio.reconcile-receipt.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `current`
+- SemVer: `database-layout`
+- Authority: `postgres:public.portfolio_reconcile_receipts#table` (`postgres`)
+- Authority source: `public.portfolio_reconcile_receipts#table`
+- Manifestations: 14
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.portfolio_reconcile_receipts#attempt_token` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#attempt_token`
+- `postgres:public.portfolio_reconcile_receipts#constraint:portfolio_reconcile_receipts_pkey` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#constraint:portfolio_reconcile_receipts_pkey`
+- `postgres:public.portfolio_reconcile_receipts#constraint:portfolio_reconcile_receipts_request_sha256_check` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#constraint:portfolio_reconcile_receipts_request_sha256_check`
+- `postgres:public.portfolio_reconcile_receipts#constraint:portfolio_reconcile_receipts_state_check` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#constraint:portfolio_reconcile_receipts_state_check`
+- `postgres:public.portfolio_reconcile_receipts#created_at` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#created_at`
+- `postgres:public.portfolio_reconcile_receipts#idempotency_key` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#idempotency_key`
+- `postgres:public.portfolio_reconcile_receipts#last_error` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#last_error`
+- `postgres:public.portfolio_reconcile_receipts#phase` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#phase`
+- `postgres:public.portfolio_reconcile_receipts#progress` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#progress`
+- `postgres:public.portfolio_reconcile_receipts#receipt` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#receipt`
+- `postgres:public.portfolio_reconcile_receipts#request_sha256` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#request_sha256`
+- `postgres:public.portfolio_reconcile_receipts#state` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#state`
+- `postgres:public.portfolio_reconcile_receipts#updated_at` (`postgres`)
+  - Source: `public.portfolio_reconcile_receipts#updated_at`
+
+## `portfolio.verification-receipt.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `current`
+- SemVer: `database-layout`
+- Authority: `postgres:public.portfolio_verification_receipts#table` (`postgres`)
+- Authority source: `public.portfolio_verification_receipts#table`
+- Manifestations: 9
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.portfolio_verification_receipts#constraint:portfolio_verification_receipts_pkey` (`postgres`)
+  - Source: `public.portfolio_verification_receipts#constraint:portfolio_verification_receipts_pkey`
+- `postgres:public.portfolio_verification_receipts#created_at` (`postgres`)
+  - Source: `public.portfolio_verification_receipts#created_at`
+- `postgres:public.portfolio_verification_receipts#evidence` (`postgres`)
+  - Source: `public.portfolio_verification_receipts#evidence`
+- `postgres:public.portfolio_verification_receipts#evidence_sha256` (`postgres`)
+  - Source: `public.portfolio_verification_receipts#evidence_sha256`
+- `postgres:public.portfolio_verification_receipts#predicate_key` (`postgres`)
+  - Source: `public.portfolio_verification_receipts#predicate_key`
+- `postgres:public.portfolio_verification_receipts#predicate_kind` (`postgres`)
+  - Source: `public.portfolio_verification_receipts#predicate_kind`
+- `postgres:public.portfolio_verification_receipts#satisfied_at` (`postgres`)
+  - Source: `public.portfolio_verification_receipts#satisfied_at`
+- `postgres:public.portfolio_verification_receipts#work_ref` (`postgres`)
+  - Source: `public.portfolio_verification_receipts#work_ref`
 
 ## `postgres.transaction-executor`
 
@@ -1131,6 +1583,212 @@ _None._
 
 - `mcp:mcp/release.publish.js#inputSchema` (`mcp`)
   - Source: `mcp/release.publish.js#inputSchema`
+
+## `repository.branch-role.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `current`
+- SemVer: `database-layout`
+- Authority: `postgres:public.portfolio_repository_branch_roles#table` (`postgres`)
+- Authority source: `public.portfolio_repository_branch_roles#table`
+- Manifestations: 10
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.portfolio_repository_branch_roles#constraint:portfolio_repository_branch_roles_check` (`postgres`)
+  - Source: `public.portfolio_repository_branch_roles#constraint:portfolio_repository_branch_roles_check`
+- `postgres:public.portfolio_repository_branch_roles#constraint:portfolio_repository_branch_roles_development_branch_check` (`postgres`)
+  - Source: `public.portfolio_repository_branch_roles#constraint:portfolio_repository_branch_roles_development_branch_check`
+- `postgres:public.portfolio_repository_branch_roles#constraint:portfolio_repository_branch_roles_pkey` (`postgres`)
+  - Source: `public.portfolio_repository_branch_roles#constraint:portfolio_repository_branch_roles_pkey`
+- `postgres:public.portfolio_repository_branch_roles#created_at` (`postgres`)
+  - Source: `public.portfolio_repository_branch_roles#created_at`
+- `postgres:public.portfolio_repository_branch_roles#development_branch` (`postgres`)
+  - Source: `public.portfolio_repository_branch_roles#development_branch`
+- `postgres:public.portfolio_repository_branch_roles#production_branch` (`postgres`)
+  - Source: `public.portfolio_repository_branch_roles#production_branch`
+- `postgres:public.portfolio_repository_branch_roles#production_source_ref` (`postgres`)
+  - Source: `public.portfolio_repository_branch_roles#production_source_ref`
+- `postgres:public.portfolio_repository_branch_roles#repository` (`postgres`)
+  - Source: `public.portfolio_repository_branch_roles#repository`
+- `postgres:public.portfolio_repository_branch_roles#updated_at` (`postgres`)
+  - Source: `public.portfolio_repository_branch_roles#updated_at`
+
+## `repository.disposition.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `current`
+- SemVer: `database-layout`
+- Authority: `postgres:public.portfolio_repository_disposition#table` (`postgres`)
+- Authority source: `public.portfolio_repository_disposition#table`
+- Manifestations: 16
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.portfolio_repository_disposition#compatibility_bound` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#compatibility_bound`
+- `postgres:public.portfolio_repository_disposition#compatibility_reference` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#compatibility_reference`
+- `postgres:public.portfolio_repository_disposition#constraint:portfolio_repository_disposition_check` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#constraint:portfolio_repository_disposition_check`
+- `postgres:public.portfolio_repository_disposition#constraint:portfolio_repository_disposition_check1` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#constraint:portfolio_repository_disposition_check1`
+- `postgres:public.portfolio_repository_disposition#constraint:portfolio_repository_disposition_disposition_check` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#constraint:portfolio_repository_disposition_disposition_check`
+- `postgres:public.portfolio_repository_disposition#constraint:portfolio_repository_disposition_pkey` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#constraint:portfolio_repository_disposition_pkey`
+- `postgres:public.portfolio_repository_disposition#disposition` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#disposition`
+- `postgres:public.portfolio_repository_disposition#github_archived` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#github_archived`
+- `postgres:public.portfolio_repository_disposition#github_observed_at` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#github_observed_at`
+- `postgres:public.portfolio_repository_disposition#github_repository_id` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#github_repository_id`
+- `postgres:public.portfolio_repository_disposition#repository` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#repository`
+- `postgres:public.portfolio_repository_disposition#successor_repository` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#successor_repository`
+- `postgres:public.portfolio_repository_disposition#transition_reason` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#transition_reason`
+- `postgres:public.portfolio_repository_disposition#transitioned_at` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#transitioned_at`
+- `postgres:public.portfolio_repository_disposition#updated_at` (`postgres`)
+  - Source: `public.portfolio_repository_disposition#updated_at`
+
+## `repository.work-identity.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `current`
+- SemVer: `database-layout`
+- Authority: `postgres:public.portfolio_work_identity#table` (`postgres`)
+- Authority source: `public.portfolio_work_identity#table`
+- Manifestations: 11
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.portfolio_work_identity#constraint:portfolio_work_identity_pkey` (`postgres`)
+  - Source: `public.portfolio_work_identity#constraint:portfolio_work_identity_pkey`
+- `postgres:public.portfolio_work_identity#created_at` (`postgres`)
+  - Source: `public.portfolio_work_identity#created_at`
+- `postgres:public.portfolio_work_identity#last_source_revision` (`postgres`)
+  - Source: `public.portfolio_work_identity#last_source_revision`
+- `postgres:public.portfolio_work_identity#linear_identifier` (`postgres`)
+  - Source: `public.portfolio_work_identity#linear_identifier`
+- `postgres:public.portfolio_work_identity#linear_issue_id` (`postgres`)
+  - Source: `public.portfolio_work_identity#linear_issue_id`
+- `postgres:public.portfolio_work_identity#source_issue_number` (`postgres`)
+  - Source: `public.portfolio_work_identity#source_issue_number`
+- `postgres:public.portfolio_work_identity#source_key` (`postgres`)
+  - Source: `public.portfolio_work_identity#source_key`
+- `postgres:public.portfolio_work_identity#source_kind` (`postgres`)
+  - Source: `public.portfolio_work_identity#source_kind`
+- `postgres:public.portfolio_work_identity#source_repo` (`postgres`)
+  - Source: `public.portfolio_work_identity#source_repo`
+- `postgres:public.portfolio_work_identity#updated_at` (`postgres`)
+  - Source: `public.portfolio_work_identity#updated_at`
+
+## `scheduler.cycle-event.persistence`
+
+- Significance: `durable-internal`
+- Lifecycle: `compatibility`
+- SemVer: `database-layout`
+- Authority: `postgres:public.scheduled_cycle_events#table` (`postgres`)
+- Authority source: `public.scheduled_cycle_events#table`
+- Manifestations: 30
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `postgres:public.scheduled_cycle_events#automation_id` (`postgres`)
+  - Source: `public.scheduled_cycle_events#automation_id`
+- `postgres:public.scheduled_cycle_events#constraint:scheduled_cycle_events_cycle_id_check` (`postgres`)
+  - Source: `public.scheduled_cycle_events#constraint:scheduled_cycle_events_cycle_id_check`
+- `postgres:public.scheduled_cycle_events#constraint:scheduled_cycle_events_event_sha256_check` (`postgres`)
+  - Source: `public.scheduled_cycle_events#constraint:scheduled_cycle_events_event_sha256_check`
+- `postgres:public.scheduled_cycle_events#constraint:scheduled_cycle_events_event_type_check` (`postgres`)
+  - Source: `public.scheduled_cycle_events#constraint:scheduled_cycle_events_event_type_check`
+- `postgres:public.scheduled_cycle_events#constraint:scheduled_cycle_events_idempotency_key_key` (`postgres`)
+  - Source: `public.scheduled_cycle_events#constraint:scheduled_cycle_events_idempotency_key_key`
+- `postgres:public.scheduled_cycle_events#constraint:scheduled_cycle_events_pkey` (`postgres`)
+  - Source: `public.scheduled_cycle_events#constraint:scheduled_cycle_events_pkey`
+- `postgres:public.scheduled_cycle_events#constraint:scheduled_cycle_events_request_sha256_check` (`postgres`)
+  - Source: `public.scheduled_cycle_events#constraint:scheduled_cycle_events_request_sha256_check`
+- `postgres:public.scheduled_cycle_events#constraint:scheduled_cycle_events_run_receipt_sha256_check` (`postgres`)
+  - Source: `public.scheduled_cycle_events#constraint:scheduled_cycle_events_run_receipt_sha256_check`
+- `postgres:public.scheduled_cycle_events#constraint:scheduled_cycle_events_sequence_key` (`postgres`)
+  - Source: `public.scheduled_cycle_events#constraint:scheduled_cycle_events_sequence_key`
+- `postgres:public.scheduled_cycle_events#created_at` (`postgres`)
+  - Source: `public.scheduled_cycle_events#created_at`
+- `postgres:public.scheduled_cycle_events#cycle_id` (`postgres`)
+  - Source: `public.scheduled_cycle_events#cycle_id`
+- `postgres:public.scheduled_cycle_events#event_id` (`postgres`)
+  - Source: `public.scheduled_cycle_events#event_id`
+- `postgres:public.scheduled_cycle_events#event_sha256` (`postgres`)
+  - Source: `public.scheduled_cycle_events#event_sha256`
+- `postgres:public.scheduled_cycle_events#event_type` (`postgres`)
+  - Source: `public.scheduled_cycle_events#event_type`
+- `postgres:public.scheduled_cycle_events#evidence` (`postgres`)
+  - Source: `public.scheduled_cycle_events#evidence`
+- `postgres:public.scheduled_cycle_events#idempotency_key` (`postgres`)
+  - Source: `public.scheduled_cycle_events#idempotency_key`
+- `postgres:public.scheduled_cycle_events#linear_receipt_ref` (`postgres`)
+  - Source: `public.scheduled_cycle_events#linear_receipt_ref`
+- `postgres:public.scheduled_cycle_events#observed_at` (`postgres`)
+  - Source: `public.scheduled_cycle_events#observed_at`
+- `postgres:public.scheduled_cycle_events#participant` (`postgres`)
+  - Source: `public.scheduled_cycle_events#participant`
+- `postgres:public.scheduled_cycle_events#production_version` (`postgres`)
+  - Source: `public.scheduled_cycle_events#production_version`
+- `postgres:public.scheduled_cycle_events#reported_started_at` (`postgres`)
+  - Source: `public.scheduled_cycle_events#reported_started_at`
+- `postgres:public.scheduled_cycle_events#request_id` (`postgres`)
+  - Source: `public.scheduled_cycle_events#request_id`
+- `postgres:public.scheduled_cycle_events#request_sha256` (`postgres`)
+  - Source: `public.scheduled_cycle_events#request_sha256`
+- `postgres:public.scheduled_cycle_events#run_id` (`postgres`)
+  - Source: `public.scheduled_cycle_events#run_id`
+- `postgres:public.scheduled_cycle_events#run_receipt_sha256` (`postgres`)
+  - Source: `public.scheduled_cycle_events#run_receipt_sha256`
+- `postgres:public.scheduled_cycle_events#scheduler_accepted_at` (`postgres`)
+  - Source: `public.scheduled_cycle_events#scheduler_accepted_at`
+- `postgres:public.scheduled_cycle_events#sequence` (`postgres`)
+  - Source: `public.scheduled_cycle_events#sequence`
+- `postgres:public.scheduled_cycle_events#source` (`postgres`)
+  - Source: `public.scheduled_cycle_events#source`
+- `postgres:public.scheduled_cycle_events#source_commit` (`postgres`)
+  - Source: `public.scheduled_cycle_events#source_commit`
 
 ## `work.settle.input`
 
