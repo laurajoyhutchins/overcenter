@@ -8,8 +8,24 @@ export const SIGNIFICANCE_CLASSES = Object.freeze([
   'projection',
   'implementation-only',
 ]);
+export const CONTRACT_LIFECYCLES = Object.freeze([
+  'current',
+  'compatibility',
+  'deprecated',
+  'deletion-candidate',
+]);
+export const CONTRACT_RELATIONSHIP_KINDS = Object.freeze([
+  'consumes',
+  'produces',
+  'persists-as',
+  'derives-from',
+  'verified-by',
+  'compatibility-for',
+]);
 
 const SIGNIFICANCE = new Set(SIGNIFICANCE_CLASSES);
+const LIFECYCLE = new Set(CONTRACT_LIFECYCLES);
+const RELATIONSHIP_KIND = new Set(CONTRACT_RELATIONSHIP_KINDS);
 const CANDIDATE_KEYS = new Set([
   'source_identity',
   'source_kind',
@@ -24,6 +40,8 @@ const CLASSIFICATION_KEYS = new Set([
   'significance',
   'projection_of',
   'semver_kind',
+  'lifecycle',
+  'relationships',
 ]);
 const SCHEMA_DUPLICATION_KEYS = new Set([
   'properties',
@@ -110,6 +128,26 @@ export function assertClassificationDocument(document) {
     }
     if (!SIGNIFICANCE.has(entry.significance)) {
       throw failure('CONTRACT_CLASSIFICATION_INVALID', 'classification significance is invalid', { source_identity:sourceIdentity, significance:entry.significance ?? null });
+    }
+    if (entry.lifecycle !== undefined && !LIFECYCLE.has(entry.lifecycle)) {
+      throw failure('CONTRACT_CLASSIFICATION_INVALID', 'classification lifecycle is invalid', { source_identity:sourceIdentity, lifecycle:entry.lifecycle ?? null });
+    }
+    if (entry.relationships !== undefined) {
+      if (!Array.isArray(entry.relationships)) {
+        throw failure('CONTRACT_CLASSIFICATION_INVALID', 'classification relationships must be an array', { source_identity:sourceIdentity });
+      }
+      for (const [index, relationship] of entry.relationships.entries()) {
+        if (!isRecord(relationship)) {
+          throw failure('CONTRACT_CLASSIFICATION_INVALID', 'classification relationship must be an object', { source_identity:sourceIdentity, index });
+        }
+        const relationshipUnknown = Object.keys(relationship).filter((key) => key !== 'kind' && key !== 'target');
+        if (relationshipUnknown.length || !RELATIONSHIP_KIND.has(relationship.kind) || !nonEmptyString(relationship.target)) {
+          throw failure('CONTRACT_CLASSIFICATION_INVALID', 'classification relationship is invalid', { source_identity:sourceIdentity, index, unknown:relationshipUnknown.sort(), kind:relationship.kind ?? null, target:relationship.target ?? null });
+        }
+      }
+    }
+    if (entry.significance === 'projection' && (entry.lifecycle !== undefined || (entry.relationships?.length || 0) > 0)) {
+      throw failure('CONTRACT_CLASSIFICATION_INVALID', 'projection classifications cannot define logical lifecycle or relationships', { source_identity:sourceIdentity });
     }
     for (const field of ['logical_contract','projection_of','semver_kind']) {
       if (entry[field] !== undefined && !nonEmptyString(entry[field])) {

@@ -85,7 +85,8 @@
     "semantic-command:project.advance#input": {
       "logical_contract": "project.advance.input",
       "significance": "public",
-      "semver_kind": "semantic-command-contract"
+      "semver_kind": "semantic-command-contract",
+      "lifecycle": "current"
     },
     "semantic-command:project.amend#input": {
       "logical_contract": "project.amend.input",
@@ -124,7 +125,22 @@
     "typescript:src/ports/compact-execution-state-store.ts#CompactExecutionStateStore": {
       "logical_contract": "compact.execution-state.store",
       "significance": "boundary-internal",
-      "semver_kind": "adapter-layout"
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current",
+      "relationships": [
+        {
+          "kind": "persists-as",
+          "target": "compact.execution-state"
+        },
+        {
+          "kind": "persists-as",
+          "target": "compact.operation-state"
+        },
+        {
+          "kind": "persists-as",
+          "target": "compact.proof-state"
+        }
+      ]
     },
     "typescript:src/ports/compact-execution-state-store.ts#CompactRunInput": {
       "significance": "projection",
@@ -160,7 +176,26 @@
     },
     "typescript:src/ports/project-advance-runtime-host.ts#ProjectAdvanceRuntimeHost": {
       "logical_contract": "project.advance.runtime-host",
-      "significance": "boundary-internal"
+      "significance": "boundary-internal",
+      "lifecycle": "current",
+      "relationships": [
+        {
+          "kind": "consumes",
+          "target": "project.advance.input"
+        },
+        {
+          "kind": "consumes",
+          "target": "execution.authority.project-transition"
+        },
+        {
+          "kind": "consumes",
+          "target": "compact.execution-state.store"
+        },
+        {
+          "kind": "produces",
+          "target": "execution.evidence"
+        }
+      ]
     },
     "typescript:src/semantic/compact-execution-state.ts#ExecutionFence": {
       "significance": "projection",
@@ -169,7 +204,8 @@
     "typescript:src/semantic/compact-execution-state.ts#ExecutionState": {
       "logical_contract": "compact.execution-state",
       "significance": "durable-internal",
-      "semver_kind": "internal-module-layout"
+      "semver_kind": "internal-module-layout",
+      "lifecycle": "current"
     },
     "typescript:src/semantic/compact-execution-state.ts#ExecutionSubjectKind": {
       "significance": "projection",
@@ -182,7 +218,8 @@
     "typescript:src/semantic/compact-execution-state.ts#OperationState": {
       "logical_contract": "compact.operation-state",
       "significance": "durable-internal",
-      "semver_kind": "internal-module-layout"
+      "semver_kind": "internal-module-layout",
+      "lifecycle": "current"
     },
     "typescript:src/semantic/compact-execution-state.ts#ProgressHashWindow": {
       "significance": "projection",
@@ -195,7 +232,8 @@
     "typescript:src/semantic/compact-execution-state.ts#ProofState": {
       "logical_contract": "compact.proof-state",
       "significance": "durable-internal",
-      "semver_kind": "internal-module-layout"
+      "semver_kind": "internal-module-layout",
+      "lifecycle": "current"
     },
     "typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityLocator": {
       "logical_contract": "execution.authority.locator",
@@ -207,7 +245,8 @@
     },
     "typescript:src/semantic/execution-authority-contracts.ts#ProjectTransitionExecutionAuthority": {
       "logical_contract": "execution.authority.project-transition",
-      "significance": "authority"
+      "significance": "authority",
+      "lifecycle": "current"
     },
     "typescript:src/semantic/execution-authority-contracts.ts#StoredExecutionLease": {
       "logical_contract": "execution.store.lease",
@@ -224,7 +263,8 @@
     "typescript:src/semantic/execution-evidence-contracts.ts#ExecutionEvidence": {
       "logical_contract": "execution.evidence",
       "significance": "public",
-      "semver_kind": "public-evidence-schema"
+      "semver_kind": "public-evidence-schema",
+      "lifecycle": "current"
     },
     "typescript:src/semantic/execution-evidence.ts#executionEvidenceInternals": {
       "logical_contract": "execution.evidence.internals",
