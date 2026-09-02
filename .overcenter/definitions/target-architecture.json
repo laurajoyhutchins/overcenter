@@ -346,6 +346,18 @@
       }
     },
     {
+      "id": "extract-contract-evidence-package-boundary",
+      "priority": 152,
+      "requires": [
+        "aggregate-postgres-contract-evidence"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "fence-production-promotion-receipt-settlement",
       "priority": 149,
       "requires": [
