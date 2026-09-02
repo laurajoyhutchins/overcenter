@@ -3,9 +3,94 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
 // command-response is inspected as source below to keep this host-neutral suite loadable.
-import { createProjectAuthoringWorkerBinding } from '../lib/project-authoring-host-runtime.js';
+import { createProjectAuthoringHostRuntime, createProjectAuthoringWorkerBinding } from '../lib/project-authoring-host-runtime.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+test('project authoring host bootstraps missing graph authority in the same GitHub changeset as the first definition', async () => {
+  const projectRef = 'github:example/project';
+  const repository = 'example/project';
+  const stagedRevision = 'b'.repeat(40);
+  const authoritativeRevision = 'c'.repeat(40);
+  const definition = {
+    schema:'overcenter-project-definition-v1',
+    project_ref:projectRef,
+    transitions:[{
+      id:'foundation',
+      priority:1,
+      requires:[],
+      executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' },
+    }],
+  };
+  let integrated = false;
+  let applied = null;
+  const graphRuntime = {
+    async resolveProjectAuthority() {
+      throw new Error('strict project authority must not gate fresh-repository authoring');
+    },
+    async resolveProjectAuthoringAuthority() {
+      return {
+        kind:'github',
+        project_ref:projectRef,
+        repository,
+        branch:'main',
+        revision:integrated ? authoritativeRevision : initialRevision,
+        derivation:'overcenter-project-graph-v1',
+        project_graph_declared:integrated,
+      };
+    },
+    async readProjectFacts({ repository:observedRepository, revision }) {
+      const definitions = revision === initialRevision ? [] : [{
+        path:'.overcenter/definitions/project.json',
+        content:`${JSON.stringify(definition, null, 2)}\n`,
+      }];
+      return {
+        schema:'project-authority-facts-v1',
+        repository:observedRepository,
+        revision,
+        facts:{
+          definition_facts:{
+            schema:'project-definition-facts-v1',
+            repository:observedRepository,
+            revision,
+            definitions,
+          },
+        },
+      };
+    },
+  };
+  const runtime = createProjectAuthoringHostRuntime({
+    graphRuntime,
+    readRepositoryDisposition:async (observedRepository) => ({ repository:observedRepository, disposition:'ACTIVE' }),
+    applyGithubChangeset:async (request) => {
+      applied = request;
+      const declaration = request.changes.find((change) => change.path === '.overcenter/project-graph.json');
+      assert.ok(declaration, 'fresh-repository project.define must include the graph derivation declaration');
+      assert.equal(declaration.operation, 'create');
+      assert.deepEqual(JSON.parse(declaration.content), {
+        schema:'project-graph-derivation-v1',
+        derivation:'overcenter-project-graph-v1',
+      });
+      return { ok:true, new_head:stagedRevision, commit_sha:stagedRevision };
+    },
+    integrateGithubChangeset:async () => {
+      integrated = true;
+      return { ok:true, outcome:'merged' };
+    },
+    deriveProjectGraph:async ({ authority }) => ({ revision:authority.revision, nodes:[], horizons:[] }),
+  });
+
+  const result = await runtime.define({
+    project_ref:projectRef,
+    expected_revision:initialRevision,
+    definition,
+  });
+
+  assert.equal(applied.repo, repository);
+  assert.equal(applied.base_sha, initialRevision);
+  assert.equal(applied.changes.length, 3);
+  assert.equal(result.authority.revision, authoritativeRevision);
+});
 
 test('worker binding preserves explicit injection and otherwise composes bounded host capabilities', () => {
   const injected = { define() {}, amend() {} };
