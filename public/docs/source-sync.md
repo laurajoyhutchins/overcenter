@@ -50,10 +50,9 @@ These GitHub-backed paths may be materialized into Hatchable:
 - `public/**`
 - `migrations/*.sql`
 - `hatchable.toml`
-- `package.json` when present
 - `seed.sql` when present
 
-Repository-only paths such as `.github/**`, `LICENSE`, `SECURITY.md`, and repository development scripts remain GitHub-only unless explicitly added to the runtime source contract.
+Root `package.json` is repository/developer tooling for building and testing Overcenter, so it remains GitHub-only and is not Hatchable runtime package metadata. Repository-only paths such as `.github/**`, `LICENSE`, `SECURITY.md`, and repository development scripts likewise remain GitHub-only unless explicitly added to the runtime source contract.
 
 `public/.overcenter/source-materialization.json` is generated runtime evidence, not GitHub-authoritative source. `isSyncableSourcePath` excludes it from the source manifest. A materialized plan emits this receipt write automatically so an adapter cannot complete the normal plan while accidentally omitting the deployment proof artifact.
 
