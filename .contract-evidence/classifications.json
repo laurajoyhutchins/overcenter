@@ -6,6 +6,11 @@
       "significance": "implementation-only",
       "semver_kind": "internal-module-layout"
     },
+    "http:api/github-repository-rename.js#request-response": {
+      "logical_contract": "github.repository.rename.http-boundary",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout"
+    },
     "mcp:mcp/production.promote.js#inputSchema": {
       "significance": "projection",
       "projection_of": "production.promote.input"
