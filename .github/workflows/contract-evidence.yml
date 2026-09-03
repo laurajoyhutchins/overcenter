@@ -5,7 +5,7 @@ on:
     branches: [dev]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   contract-evidence:
@@ -52,26 +52,6 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Materialize exact candidate catalog
-        run: |
-          CATALOG="$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json"
-          CURRENT_SHA=$(gh api "repos/$GITHUB_REPOSITORY/contents/generated/contracts/catalog.json?ref=$GITHUB_HEAD_REF" --jq .sha)
-          export CATALOG CURRENT_SHA
-          python - <<'PY'
-          import base64, json, os
-          with open(os.environ['CATALOG'], 'rb') as source:
-              content = base64.b64encode(source.read()).decode('ascii')
-          with open(os.path.join(os.environ['RUNNER_TEMP'], 'catalog-update.json'), 'w', encoding='utf-8') as target:
-              json.dump({
-                  'message': 'build: regenerate combined contract evidence catalog',
-                  'content': content,
-                  'sha': os.environ['CURRENT_SHA'],
-                  'branch': os.environ['GITHUB_HEAD_REF'],
-              }, target)
-          PY
-          gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/generated/contracts/catalog.json" --input "$RUNNER_TEMP/catalog-update.json"
-        env:
-          GH_TOKEN: ${{ github.token }}
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
