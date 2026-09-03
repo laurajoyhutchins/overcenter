@@ -767,18 +767,6 @@
       }
     },
     {
-      "id": "stress-test-project-amend-20260902",
-      "priority": 1,
-      "requires": [
-        "add-conversation-to-graph-semantic-command"
-      ],
-      "executor": {
-        "kind": "agent",
-        "role": "implementation",
-        "skill": "test-driven-development"
-      }
-    },
-    {
       "id": "tighten-public-documentation-surface",
       "priority": 77,
       "requires": [
