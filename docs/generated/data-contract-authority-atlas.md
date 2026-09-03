@@ -909,6 +909,27 @@ _None._
 
 _None._
 
+## `github.repository.rename.http-boundary`
+
+- Significance: `boundary-internal`
+- Lifecycle: `unclassified`
+- SemVer: `adapter-layout`
+- Authority: `http:api/github-repository-rename.js#request-response` (`http`)
+- Authority source: `api/github-repository-rename.js#request-response`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
 ## `github.required-check-observation.persistence`
 
 - Significance: `durable-internal`
