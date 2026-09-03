@@ -73,7 +73,7 @@ The two modes must not be mixed. In particular, lease-scoped requests fail close
 
 ## Authority resolution
 
-Before any Git mutation, Overcenter resolves `lease_ref` through the existing execution-authority service and requires all current project-transition checks to pass:
+Before any Git mutation, Overcenter resolves `lease_ref` through the execution-authority service and requires all current project-transition checks to pass:
 
 - the durable lease exists and is active;
 - the associated run and project-transition authority are still valid;
@@ -84,6 +84,31 @@ Before any Git mutation, Overcenter resolves `lease_ref` through the existing ex
 - any stale project-transition authority is rejected before mutation.
 
 Lease-scoped changesets do not accept a caller-provided repository even as a hint. The authoritative repository is the one proven by the lease.
+
+### Authority API adjustment
+
+The current execution-authority `require` path expects a caller-provided repository so it can compare that repository with the lease subject. Lease-scoped mode must not satisfy that requirement by making the agent supply `repo`, nor should the changeset adapter read `work_leases` directly and recreate authority validation.
+
+The execution-authority layer therefore needs a graph-native subject-derived entry point, conceptually:
+
+```text
+requireProjectTransition({ lease_ref })
+  -> {
+       lease_ref,
+       run_id,
+       repository,
+       project_ref,
+       transition_id,
+       authority_epoch,
+       authority,
+       graph_fingerprint,
+       transition_definition_fingerprint
+     }
+```
+
+That operation performs the same active-lease, graph, fingerprint, epoch, and stale-authority verification as the existing project-transition path, but derives repository identity from the verified lease subject instead of comparing it with caller input.
+
+Existing explicit mutation paths may continue using repository-scoped authority checks. There must be one underlying project-transition verification implementation so the two entry points cannot drift.
 
 ## Managed workspace generation
 
@@ -145,11 +170,13 @@ workspace head
 
 Every changeset performs compare-and-swap against the workspace head observed for that request. Concurrent mutation of the same managed workspace therefore produces the existing `HEAD_MISMATCH` or branch-creation-race behavior rather than lost updates.
 
+The resolved low-level request may always carry the exact generation base as `base_sha`; when the workspace branch already exists, the existing changeset engine uses the branch head as the parent and the derived `expected_head` as the CAS fence.
+
 ## Derived idempotency
 
 Lease-scoped mode derives its idempotency key mechanically. The agent does not provide one.
 
-The semantic identity should bind at least:
+The semantic identity binds:
 
 ```text
 lease_ref
@@ -162,6 +189,8 @@ commit message
 An exact replay of the same mutation intent against the same observed workspace state therefore maps to the same durable changeset receipt. A subsequent distinct write after the workspace head advances maps to a new idempotency identity.
 
 This supports iterative TDD within one lease while preserving safe replay of an interrupted or ambiguously returned changeset attempt.
+
+A new lease acquired after requeue receives new execution authority and therefore a new mutation idempotency scope even when it resolves to the same workspace generation. The executor must begin from authoritative workspace readback; it must not use reacquisition as permission to replay an unresolved ambiguous mutation from the previous lease.
 
 ## Data flow
 
@@ -180,7 +209,7 @@ github.apply_changeset
   lease_ref + changes + message
     |
     v
-execution authority validation
+subject-derived execution authority validation
     |
     v
 workspace generation derivation
@@ -277,6 +306,7 @@ The first regression must reproduce the dogfood failure that exposed this design
 
 Additional required regression cases:
 
+- subject-derived authority resolution returns the verified repository without caller input and uses the same project-transition verification logic as repository-scoped authority checks;
 - mixed lease-scoped plus explicit Git coordinates are rejected before mutation;
 - a legacy work lease is rejected from lease-scoped mode;
 - an expired or settled project-transition lease cannot mutate;
@@ -284,6 +314,7 @@ Additional required regression cases:
 - a changed transition-definition fingerprint cannot mutate the old generation;
 - a changed authority revision resolves to a different workspace generation;
 - requeue plus reacquisition at the same authority revision reuses the workspace and preserves its current head;
+- reacquisition does not replay an unresolved ambiguous mutation from the previous lease;
 - multiple sequential changesets under one active lease receive distinct derived idempotency identities as the workspace head advances;
 - exact replay of one changeset returns the durable replay receipt;
 - concurrent writes against one workspace cannot both advance the ref;
@@ -293,22 +324,22 @@ Additional required regression cases:
 
 ## Implementation boundary
 
-The likely implementation should add a small lease-scoped request resolver above the existing Git changeset core rather than broadening the core with graph concerns.
+The implementation should add a small lease-scoped request resolver above the existing Git changeset core rather than broadening the core with graph concerns.
 
-Responsibilities should remain separated:
+Responsibilities remain separated:
 
-- execution authority service: prove the current lease subject and exact project-transition authority;
-- managed workspace resolver: derive workspace generation, branch, base, current head, and idempotency identity;
+- execution authority service: expose one shared project-transition verifier through both repository-scoped and subject-derived entry points;
+- managed workspace resolver: derive workspace generation, branch, base, current head, and idempotency identity from verified authority plus current Git readback;
 - branch policy: recognize the dedicated managed `work/` branch namespace;
 - existing Git changeset core: apply the fully resolved explicit request with current transaction, fencing, recovery, and receipt behavior;
 - API/semantic adapter: validate the tagged request alternative and reject mixed authority sources.
 
-The workspace resolver should not consult Linear. Graph-native project-transition authority is sufficient.
+The workspace resolver must not consult Linear or query lease storage directly. Graph-native project-transition authority returned by the execution-authority service is sufficient.
 
 ## Non-goals
 
 - No branch or workspace field added to `project.advance`.
-- No caller-selected branch in lease-scoped mode.
+- No caller-selected repository or branch in lease-scoped mode.
 - No new agent-level workspace protocol.
 - No automatic rebasing or transplantation across changed authority revisions.
 - No merge, pull-request, or integration policy change.
@@ -319,4 +350,4 @@ The workspace resolver should not consult Linear. Graph-native project-transitio
 
 ## Success criterion
 
-The design is successful when a project-transition agent can receive an implementation assignment from `project.advance`, make iterative repository changes through `github.apply_changeset`, and settle truthfully without ever choosing a repository branch, base revision, expected head, or idempotency key, while Overcenter retains exact durable evidence for every Git state transition.
+The design is successful when a project-transition agent can receive an implementation assignment from `project.advance`, make iterative repository changes through `github.apply_changeset`, and settle truthfully without ever choosing a repository, branch, base revision, expected head, or idempotency key, while Overcenter retains exact durable evidence for every Git state transition.
