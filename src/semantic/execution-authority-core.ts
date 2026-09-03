@@ -198,16 +198,16 @@ export function createExecutionAuthorityService({
         const subjectGraphFingerprint = nonEmptyText(subject?.graph_fingerprint);
         const subjectTransitionFingerprint = nonEmptyText(subject?.transition_definition_fingerprint);
         const issuedAuthorityEpoch = authorityEpoch(subject?.authority_epoch);
-        if (!subject || !subjectProjectRef || !subjectTransitionId || !requestedRepository || !subjectRepository) {
+        if (!subject || !subjectProjectRef || !subjectTransitionId || !subjectRepository) {
           fail('EXECUTION_AUTHORITY_INVALID', 'project transition execution authority is missing durable subject identity', {
             lease_id: leaseId,
           });
         }
-        if (requestedRepository !== subjectRepository) {
+        if (requestedRepository && requestedRepository !== subjectRepository) {
           fail('EXECUTION_AUTHORITY_SCOPE_MISMATCH', 'project transition execution authority does not cover the requested repository', {
             lease_id: leaseId,
-            repository: requestedRepository || null,
-            authorized_repository: subjectRepository || null,
+            repository: requestedRepository,
+            authorized_repository: subjectRepository,
           });
         }
         if (!projectTransitions || typeof projectTransitions.require !== 'function') {
