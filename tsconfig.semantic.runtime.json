@@ -30,6 +30,7 @@
     "src/semantic/project-graph-contracts.ts",
     "src/semantic/project-graph-reconciliation.ts",
     "src/semantic/project-graph-types.ts",
+    "src/semantic/project-transition-github-workspace.ts",
     "src/semantic/runtime-provenance.ts",
     "src/semantic/semantic-command-descriptors.ts",
     "src/semantic/semantic-identities.ts",

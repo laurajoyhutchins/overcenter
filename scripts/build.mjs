@@ -27,6 +27,7 @@ const mirrorFiles = [
   'project-definition-mutation-authority.js',
   'project-graph-contracts.js',
   'project-graph-reconciliation.js',
+  'project-transition-github-workspace.js',
   'semantic-command-descriptors.js',
   'work-settle-contract.js',
 ];
