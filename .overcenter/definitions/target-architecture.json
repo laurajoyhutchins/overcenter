@@ -524,6 +524,20 @@
       }
     },
     {
+      "id": "make-project-authoring-pending-state-command-valid",
+      "priority": 134,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "version_impact": {
+        "level": "patch",
+        "summary": "Return a typed retryable project-authoring pending state with exact staged integration coordinates instead of sanitizing it to an internal error."
+      }
+    },
+    {
       "id": "make-project-authoring-success-authoritatively-observable",
       "priority": 132,
       "requires": [
