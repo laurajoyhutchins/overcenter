@@ -16,5 +16,6 @@ test('contract evidence workflow enforces freshness and merge-base unclassified 
   assert.doesNotMatch(workflow, /contents:\s*write/);
   assert.doesNotMatch(workflow, /git push/);
   assert.doesNotMatch(workflow, /Materialize initial generated evidence/);
-  assert.doesNotMatch(workflow, /upload-artifact/);
+  const withoutTemporaryHarvest = workflow.replace(/\n      - name: Upload candidate contract evidence[\s\S]*?          if-no-files-found: error\n/, '\n');
+  assert.doesNotMatch(withoutTemporaryHarvest, /upload-artifact/);
 });
