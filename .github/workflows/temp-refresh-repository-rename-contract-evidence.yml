@@ -1,0 +1,43 @@
+name: Temporary contract evidence refresh
+
+on:
+  push:
+    branches: [feat/github-repository-rename-command]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: ${{ github.event.head_commit.message != 'chore: refresh generated contract evidence' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/github-repository-rename-command
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install contract evidence tooling
+        run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
+      - name: Generate final-tree contract evidence
+        run: |
+          rm .github/workflows/temp-refresh-repository-rename-contract-evidence.yml
+          node scripts/contract-evidence/cli.mjs generate \
+            --repo-root . \
+            --config scripts/contract-evidence/overcenter/config.mjs \
+            --catalog generated/contracts/catalog.json \
+            --docs docs/generated/data-contracts.md \
+            --atlas docs/generated/data-contract-authority-atlas.md
+      - name: Commit exact generated outputs
+        run: |
+          git add generated/contracts/catalog.json docs/generated/data-contracts.md docs/generated/data-contract-authority-atlas.md
+          if git diff --cached --quiet; then
+            echo 'Generated contract evidence is already current.'
+            exit 0
+          fi
+          git config user.name 'overcenter-evidence-refresh[bot]'
+          git config user.email 'overcenter-evidence-refresh[bot]@users.noreply.github.com'
+          git commit -m 'chore: refresh generated contract evidence'
+          git push origin HEAD:feat/github-repository-rename-command
