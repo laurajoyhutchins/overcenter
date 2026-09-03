@@ -87,6 +87,7 @@
 - `http:api/github-release-create.js#request-response`
 - `http:api/github-repository-from-template-create.js#request-response`
 - `http:api/github-repository-metadata-ensure.js#request-response`
+- `http:api/github-repository-rename.js#request-response`
 - `http:api/github-repository-template-ensure.js#request-response`
 - `http:api/github-required-checks-ensure.js#request-response`
 - `http:api/github-review-packet.js#request-response`
