@@ -101,6 +101,16 @@
       }
     },
     {
+      "id": "align-runtime-source-sync-package-contract",
+      "priority": 2090,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "align-work-settle-discovery-with-runtime",
       "priority": 128,
       "requires": [],
