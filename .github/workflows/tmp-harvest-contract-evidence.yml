@@ -1,5 +1,6 @@
 name: Temporary contract evidence harvest
 
+# Branch-local one-shot generator used only to materialize the exact catalog candidate.
 on:
   push:
     branches: [feat/lease-scoped-github-changesets]
