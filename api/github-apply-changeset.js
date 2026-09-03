@@ -2,6 +2,9 @@ import { db, storage } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { applyGithubChangesetRoleAware } from 'lib/github-branch-role-runtime.js';
 import { createPostgresExecutionAuthorityService } from 'lib/execution-authority.js';
+import { createGithubApiAdapter } from 'lib/github-apply-changeset.js';
+import { githubAppChangesetPermissionProfile, withGitHubAppApiClient } from 'lib/github-app-auth.js';
+import { applyGithubLeaseScopedChangeset } from 'lib/github-lease-scoped-changeset.js';
 import { GitHubContentTransportError, expandGithubContentReferences, githubContentTransportErrorResult } from 'lib/github-content-transport.js';
 
 export const access = 'admin';
@@ -15,7 +18,7 @@ function statusFor(result) {
   if (result.error === 'GITHUB_APP_SETUP_REQUIRED') return 412;
   if (result.error === 'GITHUB_PERMISSION_DENIED' || result.error === 'GITHUB_APP_PERMISSION_DENIED') return 403;
   if (result.error === 'GITHUB_NOT_FOUND' || result.error === 'GITHUB_APP_INSTALLATION_NOT_FOUND') return 404;
-  if (['HEAD_MISMATCH', 'BRANCH_CREATION_RACE', 'TARGET_BRANCH_DISAPPEARED', 'IDEMPOTENCY_CONFLICT', 'IDEMPOTENCY_IN_PROGRESS', 'CREATE_TARGET_EXISTS', 'UPDATE_TARGET_MISSING', 'DELETE_TARGET_MISSING', 'GITHUB_CONFLICT', 'EXECUTION_AUTHORITY_REQUIRED', 'EXECUTION_AUTHORITY_INVALID', 'EXECUTION_AUTHORITY_STALE', 'EXECUTION_AUTHORITY_SCOPE_MISMATCH', 'GITHUB_BRANCH_ROLE_VIOLATION'].includes(result.error)) return 409;
+  if (['HEAD_MISMATCH', 'BRANCH_CREATION_RACE', 'TARGET_BRANCH_DISAPPEARED', 'IDEMPOTENCY_CONFLICT', 'IDEMPOTENCY_IN_PROGRESS', 'CREATE_TARGET_EXISTS', 'UPDATE_TARGET_MISSING', 'DELETE_TARGET_MISSING', 'GITHUB_CONFLICT', 'EXECUTION_AUTHORITY_REQUIRED', 'EXECUTION_AUTHORITY_INVALID', 'EXECUTION_AUTHORITY_STALE', 'EXECUTION_AUTHORITY_SCOPE_MISMATCH', 'GITHUB_BRANCH_ROLE_VIOLATION', 'LEASE_SCOPED_CHANGESET_PROJECT_TRANSITION_REQUIRED', 'PROJECT_TRANSITION_GITHUB_WORKSPACE_INVALID'].includes(result.error)) return 409;
   if (result.error === 'EXECUTION_AUTHORITY_UNAVAILABLE') return 503;
   if (result.error === 'GITHUB_REF_REJECTED') return 422;
   if (String(result.error || '').startsWith('INVALID_') || result.error === 'DUPLICATE_PATH' || result.error === 'UNSUPPORTED_BINARY_PAYLOAD' || result.error === 'UNSUPPORTED_TARGET_TYPE' || result.error === 'CONTENT_CHECKSUM_MISMATCH') return 422;
@@ -61,19 +64,29 @@ async function expandStagedContent(input) {
   return { ...input, changes };
 }
 
+async function readManagedWorkspaceBranch({ repo, branch, changes = [] }) {
+  const permissionProfile = githubAppChangesetPermissionProfile(
+    (Array.isArray(changes) ? changes : []).map((change) => change?.path),
+  );
+  return withGitHubAppApiClient(repo, async (apiClient) => {
+    const github = createGithubApiAdapter(apiClient);
+    return github.getBranch(repo, branch, { phase:'lease_scope.workspace_head' });
+  }, { permissionProfile });
+}
+
 async function applyAuthorityAwareChangeset(commandInput, runId = null) {
   if (commandInput?.lease_ref === undefined || commandInput?.lease_ref === null) {
     return applyGithubChangesetRoleAware(commandInput, { db, run_id:runId });
   }
 
-  const { lease_ref: leaseRef, ...changesetInput } = commandInput;
   const authority = createPostgresExecutionAuthorityService({ db });
-  const executionAuthority = {
-    require(request) {
-      return authority.require({ ...request, lease_ref: leaseRef });
-    },
-  };
-  return applyGithubChangesetRoleAware(changesetInput, { db, executionAuthority, run_id:runId });
+  return applyGithubLeaseScopedChangeset(commandInput, {
+    executionAuthority:authority,
+    readBranch:readManagedWorkspaceBranch,
+    applyChangeset:applyGithubChangesetRoleAware,
+    db,
+    run_id:runId,
+  });
 }
 
 export default async function (req, res) {
