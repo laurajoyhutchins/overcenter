@@ -51,6 +51,9 @@ const lifecycleFacts = Object.freeze({
   additionalProperties:false,
 });
 
+const nonNull = Object.freeze({ not:{ type:'null' } });
+const offNominalOperatingConditions = OPERATING_CONDITIONS.filter((condition) => condition !== 'NOMINAL');
+
 const workSettleSchema = Object.freeze({
   type:'object',
   required:['lease_ref','disposition'],
@@ -60,11 +63,19 @@ const workSettleSchema = Object.freeze({
     evidence:{type:'array',items:{type:'object',required:['kind','ref'],properties:{kind:{type:'string'},ref:{type:'string'}},additionalProperties:false}},
     reason:{type:['string','null']},
     promotion_condition:{type:['string','null']},
-    requeue_class:{type:['string','null'],enum:[...WORK_REQUEUE_CLASSES,null]},
-    operating_condition:{type:['string','null'],enum:[...OPERATING_CONDITIONS,null]},
-    continuation:{type:['object','null']},
+    requeue_class:{type:['string','null'],enum:[...WORK_REQUEUE_CLASSES,null],description:'Requeue classification. resume_progress requires a durable checkpoint in the effective continuation; stale_candidate requires an exact candidate in the effective continuation.'},
+    operating_condition:{type:['string','null'],enum:[...OPERATING_CONDITIONS,null],description:'Omitted or null defaults to HOLD for blocked settlements and NOMINAL otherwise.'},
+    continuation:{type:['object','null'],description:'Caller continuation is merged with persisted checkpoint/evidence state to form the effective continuation used by runtime settlement validation.'},
     lifecycle_facts:lifecycleFacts,
   },
+  allOf:[
+    { if:{ properties:{ disposition:{ const:'blocked' } },required:['disposition'] },then:{ required:['reason','promotion_condition'],properties:{ reason:{type:'string',minLength:1},promotion_condition:{type:'string',minLength:1} } } },
+    { if:{ properties:{ disposition:{ const:'blocked' } },required:['disposition'] },then:{ properties:{ operating_condition:{type:['string','null'],enum:[...offNominalOperatingConditions,null]} } } },
+    { if:{ properties:{ disposition:{ enum:['completed','requeue'] } },required:['disposition'] },then:{ properties:{ operating_condition:{type:['string','null'],enum:['NOMINAL',null]} } } },
+    { if:{ required:['requeue_class'],properties:{requeue_class:nonNull} },then:{ properties:{ disposition:{const:'requeue'} } } },
+    { if:{ required:['lifecycle_facts'],properties:{lifecycle_facts:nonNull} },then:{ properties:{ disposition:{const:'completed'} } } },
+    { if:{ properties:{ disposition:{const:'requeue'},requeue_class:{const:'wait_for_observable_change'} },required:['disposition','requeue_class'] },then:{ required:['reason'],properties:{reason:{type:'string',minLength:1}} } },
+  ],
   additionalProperties:false,
 });
 
