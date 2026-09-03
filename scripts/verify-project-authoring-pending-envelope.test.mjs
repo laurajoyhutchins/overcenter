@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { commandFailure } from '../lib/command-response.js';
-import { sanitizeWorkerBoundaryError } from '../lib/worker-boundary-errors.js';
+import { symlink } from 'node:fs/promises';
+
+// Production Hatchable modules use the runtime's `lib/...` module namespace.
+// Reproduce that namespace for this portable Node regression instead of
+// rewriting production imports just for the test harness.
+await symlink('../lib', new URL('../node_modules/lib', import.meta.url), 'dir').catch((error) => {
+  if (error?.code !== 'EEXIST') throw error;
+});
+
+const { commandFailure } = await import('../lib/command-response.js');
+const { sanitizeWorkerBoundaryError } = await import('../lib/worker-boundary-errors.js');
 
 const STAGED_SHA = 'f'.repeat(40);
 
