@@ -648,6 +648,16 @@
       }
     },
     {
+      "id": "preserve-settlement-provenance-at-subject-dispatch",
+      "priority": 2095,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "prove-disposable-agent-resume-round-trip",
       "priority": 79,
       "requires": [
