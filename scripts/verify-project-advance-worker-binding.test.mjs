@@ -96,8 +96,10 @@ if (response.status !== 200 || response.body?.ok !== true) {
 if (finishes.length !== 1) throw new Error('project.advance did not settle and finish the resumed execution internally');
 if (finishes[0].run_id !== existingRunId) throw new Error('project.advance finished the wrong resumed run');
 if (finishes[0].active_lease_settlement?.disposition !== 'completed') throw new Error('project.advance did not preserve the agent execution disposition');
-if (starts.length !== 1 || advances.length !== 1) throw new Error('project.advance did not restart from fresh authority after completion');
-if (response.body?.resume_ref !== starts[0].run_id) throw new Error('project.advance did not return the fresh continuation after completion');
+if (starts.length !== 0) throw new Error('project.advance started a fresh run after terminal execution settlement');
+if (advances.length !== 0) throw new Error('project.advance advanced into unrelated READY work after terminal execution settlement');
+if (response.body?.run_id !== existingRunId || response.body?.status !== 'finished') throw new Error('project.advance did not return the terminal settlement result');
+if (response.body?.resume_ref != null) throw new Error('project.advance returned a resume_ref after terminal execution settlement');
 `;
 
 function runProbe(source) {
@@ -115,7 +117,7 @@ test('project.advance worker transport composes run and advance services', () =>
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
-test('project.advance accepts agent execution completion and resumes through the same semantic boundary', () => {
+test('project.advance execution completion terminates through the same semantic boundary', () => {
   const result = runProbe(completionProbe);
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
