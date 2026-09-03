@@ -57,6 +57,7 @@
 
 - `compact.execution-state.store` — authority `typescript:src/ports/compact-execution-state-store.ts#CompactExecutionStateStore`; SemVer `adapter-layout`; 9 projections
 - `execution.authority.store-port` — authority `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityStore`
+- `github.repository.rename.http-boundary` — authority `http:api/github-repository-rename.js#request-response`; SemVer `adapter-layout`
 - `project.advance.runtime-host` — authority `typescript:src/ports/project-advance-runtime-host.ts#ProjectAdvanceRuntimeHost`
 
 ## Implementation-only shapes
