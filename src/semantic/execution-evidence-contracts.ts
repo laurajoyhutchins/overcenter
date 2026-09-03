@@ -29,6 +29,7 @@ export const NO_EXTERNAL_MUTATION_COMMANDS = [
 
 export const VERIFIED_EXTERNAL_EFFECT_COMMANDS = [
   'github.repository_metadata.ensure',
+  'github.repository.rename',
   'github.repository_template.ensure',
   'github.repository_from_template.create',
   'github.milestone.ensure',
