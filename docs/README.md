@@ -35,6 +35,7 @@ When operating an incident, use the current operator guide and executable contra
 - [`architecture/ontology-and-authority.md`](architecture/ontology-and-authority.md) — projects, transitions, frontiers, horizons, lifecycle phases, runs, leases, evidence, receipts, settlements, projections, and authority coordinates.
 - [`architecture/recovery-kernel-and-self-healing.md`](architecture/recovery-kernel-and-self-healing.md) — approved recovery-kernel architecture and the intended direction for deterministic diagnosis and self-healing.
 - [`execution-evidence-v1-design.md`](execution-evidence-v1-design.md) — the execution-evidence data product and its authority model.
+- [`design/2026-09-02-legacy-execution-history-retirement.md`](design/2026-09-02-legacy-execution-history-retirement.md) — accepted design for making compact state the sole correctness substrate and retiring legacy execution history safely.
 
 ## Document status
 
@@ -50,10 +51,15 @@ The documentation tree contains several kinds of material. The label matters:
 Current notable records:
 
 - [`design/2026-08-28-typescript-semantic-kernel.md`](design/2026-08-28-typescript-semantic-kernel.md) — **Accepted design decision**.
+- [`design/2026-09-02-legacy-execution-history-retirement.md`](design/2026-09-02-legacy-execution-history-retirement.md) — **Accepted design decision** for legacy execution-history retirement.
 - [`architecture/recovery-kernel-and-self-healing.md`](architecture/recovery-kernel-and-self-healing.md) — **Accepted future-state architecture**; use the operator recovery guide for the shipped path.
 - [`implementation/typescript-semantic-kernel-plan.md`](implementation/typescript-semantic-kernel-plan.md) — **Completed implementation record** for the initial proof slice.
 - [`implementation/orchestration-advance.md`](implementation/orchestration-advance.md) — **Historical implementation plan**; the operation has shipped and the current agent contract is documented elsewhere.
 - [`implementation/recovery-kernel-plan.md`](implementation/recovery-kernel-plan.md) — **Active implementation plan**.
+- [`implementation/compact-execution-authority-retirement.md`](implementation/compact-execution-authority-retirement.md) — **Active implementation plan**, phase A of legacy execution-history retirement.
+- [`implementation/telemetry-archive-retirement-readiness.md`](implementation/telemetry-archive-retirement-readiness.md) — **Active implementation plan**, phase B for telemetry, archive, freeze, and retirement readiness.
+- [`implementation/destructive-execution-history-retirement.md`](implementation/destructive-execution-history-retirement.md) — **Active implementation plan**, phase C for the guarded destructive retirement.
+- [`implementation/retirement-plan-census-contract.md`](implementation/retirement-plan-census-contract.md) — supporting implementation contract for the retirement source census.
 
 Design and implementation documents are valuable project history, but they are not automatically statements of current runtime behavior. Prefer the public README, current architecture docs, normative contracts, command reference, current operator guide, and executable schemas when learning the present system.
 
