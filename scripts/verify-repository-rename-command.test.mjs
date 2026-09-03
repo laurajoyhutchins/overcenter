@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
-import { runGithubRepositoryRenameTests } from '../lib/github-repository-rename.test.js';
 
 async function source(path) {
   return readFile(path, 'utf8');
@@ -36,7 +35,4 @@ test('repository rename request owns only old coordinate, new name, and immutabl
   }
 });
 
-test('repository rename behavioral contract is green', async () => {
-  const result = await runGithubRepositoryRenameTests();
-  assert.equal(result.ok, true, JSON.stringify(result.tests.filter((entry) => !entry.ok), null, 2));
-});
+// Behavioral rename semantics run in the Hatchable-backed runtime regression registry.
