@@ -68,6 +68,56 @@ const workSettleSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const githubChangesetChangeSchema = Object.freeze({
+  type:'object',
+  required:['path','operation'],
+  properties:{
+    path:{type:'string',minLength:1,maxLength:4096,description:'Repository-relative path.'},
+    operation:{type:'string',enum:['create','update','delete']},
+    content:{type:'string',description:'Complete UTF-8 content for create/update.'},
+    ensure_final_newline:{type:'boolean'},
+  },
+  additionalProperties:false,
+});
+
+const githubApplyChangesetSchema = Object.freeze({
+  type:'object',
+  required:['lease_ref','changes','commit_message'],
+  properties:{
+    lease_ref:{type:'string',minLength:1,maxLength:128,description:'Project-transition lease reference from AGENT_EXECUTION_REQUIRED.'},
+    changes:{type:'array',minItems:1,items:githubChangesetChangeSchema,description:'Complete repository changes. Repository, branch, base, expected head, retry identity, and credential authority are derived from the lease.'},
+    commit_message:{type:'string',minLength:1,maxLength:10000},
+  },
+  additionalProperties:false,
+});
+
+const githubApplyTextReplacementsSchema = Object.freeze({
+  type:'object',
+  required:['lease_ref','replacements','commit_message'],
+  properties:{
+    lease_ref:{type:'string',minLength:1,maxLength:128,description:'Project-transition lease reference from AGENT_EXECUTION_REQUIRED.'},
+    replacements:{
+      type:'array',
+      minItems:1,
+      maxItems:32,
+      items:{
+        type:'object',
+        required:['path','old','new_text'],
+        additionalProperties:false,
+        properties:{
+          path:{type:'string',minLength:1,maxLength:4096},
+          old:{type:'string',minLength:1},
+          new_text:{type:'string'},
+          expected_count:{type:'integer',minimum:1,default:1},
+        },
+      },
+      description:'Exact text replacements read from the same immutable workspace observation that the later mutation is fenced against.',
+    },
+    commit_message:{type:'string',minLength:1,maxLength:10000},
+  },
+  additionalProperties:false,
+});
+
 const githubPullRequestMarkReadySchema = Object.freeze({
   type:'object',
   required:['repo','pull_request','expected_head'],
@@ -202,6 +252,22 @@ function descriptor(
 const INTERNAL_EXPOSURE = Object.freeze({ worker:true, mcp:false });
 
 const DESCRIPTORS = Object.freeze({
+  'github.apply_changeset':descriptor(
+    'github.apply_changeset',
+    'github_apply_changeset',
+    'Apply an exact repository changeset using only a valid project-transition lease as execution authority. Overcenter derives repository, managed workspace branch, immutable generation base, exact workspace-head fence, retry identity, and GitHub App credentials. Caller-selected Git coordinates are not accepted.',
+    githubApplyChangesetSchema,
+    'advanced',
+    Object.freeze({ worker:true, mcp:true }),
+  ),
+  'github.apply_text_replacements':descriptor(
+    'github.apply_text_replacements',
+    'github_apply_text_replacements',
+    'Apply bounded exact text replacements under a project-transition lease. Source text is read from an immutable workspace revision and the later changeset is mechanically fenced to that same workspace observation, so stale reads fail closed before mutation. Repository, branch, head, retry identity, and credentials are derived internally.',
+    githubApplyTextReplacementsSchema,
+    'advanced',
+    Object.freeze({ worker:true, mcp:true }),
+  ),
   'github.pull_request.mark_ready':descriptor(
     'github.pull_request.mark_ready',
     'github_pull_request_mark_ready',
