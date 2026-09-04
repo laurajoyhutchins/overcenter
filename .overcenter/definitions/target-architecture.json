@@ -797,6 +797,16 @@
       }
     },
     {
+      "id": "support-large-text-github-changesets",
+      "priority": 2105,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "tighten-public-documentation-surface",
       "priority": 77,
       "requires": [
