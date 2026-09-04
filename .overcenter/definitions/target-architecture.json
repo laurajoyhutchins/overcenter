@@ -15,6 +15,16 @@
       }
     },
     {
+      "id": "add-exact-github-actions-run-deletion",
+      "priority": 100,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Add a generic Overcenter GitHub App capability to delete one exact GitHub Actions workflow run without exposing caller identity. The semantic input must bind deletion to repository plus numeric run identity and fail closed if any supplied expected execution identity (at minimum the expected head commit SHA) does not match the authoritative preflight read. Use the existing GitHub App actions:write permission profile, not user-authored GitHub connector writes. Make an already-absent exact run idempotent success. Treat transport loss after DELETE as indeterminate until authoritative readback proves absence. Add TDD coverage for matching deletion, identity mismatch with no mutation, already-absent replay, and post-dispatch uncertainty reconciliation. Expose the narrow capability through Overcenter's canonical command surface with bounded evidence; do not broaden github-actions-storage into an unrelated metadata-deletion bucket. After implementation, deploy through the normal dev-to-main exact-revision promotion/materialization path and use the live production operator to delete the two known Chirograph privacy-incident workflow runs. Verify the runs are no longer retrievable before settling."
+      }
+    },
+    {
       "id": "add-explicit-operation-attempt-epochs",
       "priority": 168,
       "requires": [
