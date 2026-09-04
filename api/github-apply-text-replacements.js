@@ -1,6 +1,7 @@
 import { db } from 'hatchable';
 import { withGitHubAppApiClient } from 'lib/github-app-auth.js';
 import { applyGithubChangeset } from 'lib/github-apply-changeset.js';
+import { createGithubWorkerMutationRuntime, statusForGithubWorkerMutationError } from 'lib/github-worker-mutations.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
@@ -27,8 +28,31 @@ function encodePath(path) {
   return String(path).split('/').map(encodeURIComponent).join('/');
 }
 
+function leaseFailure(error) {
+  const details = error?.details && typeof error.details === 'object' ? error.details : {};
+  return {
+    ok: false,
+    error: error?.code || 'TEXT_REPLACEMENT_FAILED',
+    message: String(error?.message || error),
+    ...(details.path ? { path: details.path } : {}),
+    ...(details.replacement_index !== undefined ? { replacement_index: details.replacement_index } : {}),
+    ...(details.expected_count !== undefined ? { expected_count: details.expected_count } : {}),
+    ...(details.actual_count !== undefined ? { actual_count: details.actual_count } : {}),
+  };
+}
+
 export default async function (req, res) {
   const body = req.body || {};
+
+  if (body.lease_ref !== undefined && body.lease_ref !== null) {
+    try {
+      const result = await createGithubWorkerMutationRuntime({ db }).applyTextReplacements(body);
+      return res.status(result?.ok ? 200 : 409).json(result);
+    } catch (error) {
+      return res.status(statusForGithubWorkerMutationError(error) || 422).json(leaseFailure(error));
+    }
+  }
+
   const replacements = Array.isArray(body.replacements) ? body.replacements : [];
   if (!body.repo || !body.branch || !body.expected_head || !body.commit_message || replacements.length < 1 || replacements.length > 32) {
     return res.status(422).json({ ok: false, error: 'INVALID_REQUEST', message: 'repo, branch, expected_head, commit_message, and 1..32 replacements are required' });
