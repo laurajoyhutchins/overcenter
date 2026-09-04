@@ -15,6 +15,18 @@
       }
     },
     {
+      "id": "add-explicit-operation-attempt-epochs",
+      "priority": 168,
+      "requires": [
+        "bind-command-effect-completion-identity"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "add-operator-quickstart-and-recovery-runbook",
       "priority": 74,
       "requires": [
@@ -123,6 +135,16 @@
     {
       "id": "automate-candidate-base-reconciliation",
       "priority": 126,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "bind-command-effect-completion-identity",
+      "priority": 170,
       "requires": [],
       "executor": {
         "kind": "agent",
@@ -367,6 +389,18 @@
       }
     },
     {
+      "id": "expose-invocation-attach-and-peek",
+      "priority": 163,
+      "requires": [
+        "bind-command-effect-completion-identity"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "expose-orchestration-advance",
       "priority": 105,
       "requires": [
@@ -384,6 +418,18 @@
       "priority": 152,
       "requires": [
         "aggregate-postgres-contract-evidence"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "fail-closed-before-unrecorded-provider-effects",
+      "priority": 169,
+      "requires": [
+        "bind-command-effect-completion-identity"
       ],
       "executor": {
         "kind": "agent",
@@ -613,6 +659,18 @@
       }
     },
     {
+      "id": "make-waiting-a-durable-suspension-primitive",
+      "priority": 164,
+      "requires": [
+        "persist-operation-recovery-policy"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "move-production-promotion-correlation-to-invocation-context",
       "priority": 88,
       "requires": [
@@ -638,6 +696,32 @@
       }
     },
     {
+      "id": "persist-operation-recovery-policy",
+      "priority": 166,
+      "requires": [
+        "add-explicit-operation-attempt-epochs",
+        "fail-closed-before-unrecorded-provider-effects",
+        "pin-orchestration-kernel-revision-and-protocol"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "pin-orchestration-kernel-revision-and-protocol",
+      "priority": 167,
+      "requires": [
+        "bind-command-effect-completion-identity"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "polish-public-readme",
       "priority": 140,
       "requires": [],
@@ -645,6 +729,19 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "verification-before-completion"
+      }
+    },
+    {
+      "id": "preserve-append-only-operation-attempt-trace",
+      "priority": 162,
+      "requires": [
+        "add-explicit-operation-attempt-epochs",
+        "persist-operation-recovery-policy"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
       }
     },
     {
