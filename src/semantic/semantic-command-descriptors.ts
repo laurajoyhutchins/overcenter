@@ -97,13 +97,9 @@ const githubApplyTextReplacementsSchema = Object.freeze({
   properties:{
     lease_ref:{type:'string',minLength:1,maxLength:128,description:'Project-transition lease reference from AGENT_EXECUTION_REQUIRED.'},
     replacements:{
-      type:'array',
-      minItems:1,
-      maxItems:32,
+      type:'array',minItems:1,maxItems:32,
       items:{
-        type:'object',
-        required:['path','old','new_text'],
-        additionalProperties:false,
+        type:'object',required:['path','old','new_text'],additionalProperties:false,
         properties:{
           path:{type:'string',minLength:1,maxLength:4096},
           old:{type:'string',minLength:1},
@@ -250,6 +246,7 @@ function descriptor(
 }
 
 const INTERNAL_EXPOSURE = Object.freeze({ worker:true, mcp:false });
+const WORKER_AND_MCP_EXPOSURE = Object.freeze({ worker:true, mcp:true });
 
 const DESCRIPTORS = Object.freeze({
   'github.apply_changeset':descriptor(
@@ -258,7 +255,7 @@ const DESCRIPTORS = Object.freeze({
     'Apply an exact repository changeset using only a valid project-transition lease as execution authority. Overcenter derives repository, managed workspace branch, immutable generation base, exact workspace-head fence, retry identity, and GitHub App credentials. Caller-selected Git coordinates are not accepted.',
     githubApplyChangesetSchema,
     'advanced',
-    Object.freeze({ worker:true, mcp:true }),
+    WORKER_AND_MCP_EXPOSURE,
   ),
   'github.apply_text_replacements':descriptor(
     'github.apply_text_replacements',
@@ -266,7 +263,7 @@ const DESCRIPTORS = Object.freeze({
     'Apply bounded exact text replacements under a project-transition lease. Source text is read from an immutable workspace revision and the later changeset is mechanically fenced to that same workspace observation, so stale reads fail closed before mutation. Repository, branch, head, retry identity, and credentials are derived internally.',
     githubApplyTextReplacementsSchema,
     'advanced',
-    Object.freeze({ worker:true, mcp:true }),
+    WORKER_AND_MCP_EXPOSURE,
   ),
   'github.pull_request.mark_ready':descriptor(
     'github.pull_request.mark_ready',
@@ -298,7 +295,7 @@ const DESCRIPTORS = Object.freeze({
     'Promote the current verified development revision by repository identity only. The runtime host derives provider-specific branch heads, exact-revision evidence, retry identity, and production readback behind this primary semantic boundary.',
     productionPromoteSchema,
     'primary',
-    Object.freeze({ worker:true, mcp:true }),
+    WORKER_AND_MCP_EXPOSURE,
   ),
   'project.advance':descriptor(
     'project.advance',
@@ -306,7 +303,7 @@ const DESCRIPTORS = Object.freeze({
     'Advance authoritative repository-owned project work in an independent agent session. Omit transition_id for deterministic best-available selection, or nominate one exact transition without fallback. Resume by passing the durable resume_ref returned by a prior call; when agent execution is complete, return its bounded execution_result through this same command. Overcenter owns run identity, lease acquisition, settlement, exact authority, recovery, and continuation.',
     projectAdvanceSchema,
     'primary',
-    Object.freeze({ worker:true, mcp:true }),
+    WORKER_AND_MCP_EXPOSURE,
   ),
   'project.inspect':descriptor(
     'project.inspect',
@@ -314,7 +311,7 @@ const DESCRIPTORS = Object.freeze({
     'Inspect authoritative repository-owned project state by project identity only. The runtime adapter derives the exact GitHub authority revision and graph frontier while keeping repository layout and host-specific runtime coordinates outside the primary semantic intent.',
     projectInspectSchema,
     'primary',
-    Object.freeze({ worker:true, mcp:true }),
+    WORKER_AND_MCP_EXPOSURE,
   ),
   'release.publish':descriptor(
     'release.publish',
@@ -322,7 +319,7 @@ const DESCRIPTORS = Object.freeze({
     'Publish one exact verified semantic release plan. The caller supplies only the plan and release notes; Overcenter revalidates current Git authority and repository-owned transition impacts, derives provider release bookkeeping, invokes the immutable release primitive, and returns verified publication evidence.',
     releasePublishSchema,
     'primary',
-    Object.freeze({ worker:true, mcp:true }),
+    WORKER_AND_MCP_EXPOSURE,
   ),
   'work.settle':descriptor(
     'work.settle',
@@ -341,7 +338,7 @@ const PROJECT_AUTHORING_DESCRIPTORS = Object.freeze({
     'Define canonical repository-owned project graph facts at an exact observed Git revision. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.',
     projectDefineSchema,
     'primary',
-    Object.freeze({ worker:true, mcp:true }),
+    WORKER_AND_MCP_EXPOSURE,
   ),
   'project.amend':descriptor(
     'project.amend',
@@ -349,7 +346,7 @@ const PROJECT_AUTHORING_DESCRIPTORS = Object.freeze({
     'Amend canonical repository-owned project graph facts at an exact observed Git revision using semantic transition intent. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.',
     projectAmendSchema,
     'primary',
-    Object.freeze({ worker:true, mcp:true }),
+    WORKER_AND_MCP_EXPOSURE,
   ),
 });
 
