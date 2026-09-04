@@ -64,14 +64,22 @@ async function expandStagedContent(input) {
   return { ...input, changes };
 }
 
-async function readManagedWorkspaceBranch({ repo, branch, changes = [] }) {
-  const permissionProfile = githubAppChangesetPermissionProfile(
+function permissionProfileForChanges(changes = []) {
+  return githubAppChangesetPermissionProfile(
     (Array.isArray(changes) ? changes : []).map((change) => change?.path),
   );
-  return withGitHubAppApiClient(repo, async (apiClient) => {
-    const github = createGithubApiAdapter(apiClient);
+}
+
+async function withManagedWorkspaceGithub({ repo, changes = [] }, callback) {
+  return withGitHubAppApiClient(repo, async (apiClient) => callback(createGithubApiAdapter(apiClient)), {
+    permissionProfile:permissionProfileForChanges(changes),
+  });
+}
+
+async function readManagedWorkspaceBranch({ repo, branch, changes = [] }) {
+  return withManagedWorkspaceGithub({ repo, changes }, (github) => {
     return github.getBranch(repo, branch, { phase:'lease_scope.workspace_head' });
-  }, { permissionProfile });
+  });
 }
 
 async function applyAuthorityAwareChangeset(commandInput, runId = null) {
@@ -83,6 +91,7 @@ async function applyAuthorityAwareChangeset(commandInput, runId = null) {
   return applyGithubLeaseScopedChangeset(commandInput, {
     executionAuthority:authority,
     readBranch:readManagedWorkspaceBranch,
+    withGithub:withManagedWorkspaceGithub,
     applyChangeset:applyGithubChangesetRoleAware,
     db,
     run_id:runId,
