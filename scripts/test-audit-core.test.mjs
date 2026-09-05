@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   classifyScriptTestLane,
+  collectRunnerTestSelection,
   extractLiteralTestCases,
   stableAuditTestId,
 } from './test-audit-core.mjs';
@@ -59,4 +60,16 @@ test('test audit makes maintained, integration, and unregistered script-test lan
     }),
     /multiple execution lanes/,
   );
+});
+
+test('test audit reads explicit test files and prefix-selected families from runner source', () => {
+  const source = [
+    "const maintainedTests = ['one.test.mjs'];",
+    "for (const prefix of ['exact-revision-', 'materialization-']) {",
+    "  maintainedTests.push(...names.filter(name => name.startsWith(prefix) && name.endsWith('.test.mjs')));",
+    "}",
+  ].join('\n');
+  const selection = collectRunnerTestSelection(source);
+  assert.deepEqual([...selection.files], ['scripts/one.test.mjs']);
+  assert.deepEqual([...selection.prefixes], ['exact-revision-', 'materialization-']);
 });
