@@ -28,6 +28,15 @@ test('semantic mutation corpus preserves structural validity while planting outc
   assert.ok(mutants.every((mutant) => mutant.fixture_revision === fixture.revision));
   assert.ok(mutants.every((mutant) => mutant.review_contract_version === OUTCOME_INTEGRITY_REVIEW_CONTRACT_VERSION));
   assert.ok(mutants.every((mutant) => mutant.mutation.operation));
+
+  const byKind = new Map(mutants.map((mutant) => [mutant.expected_defect.kind, mutant]));
+  assert.equal(byKind.get('missing-work').graph.obligations.some((item) => item.id === 'integrate'), false);
+  assert.equal(byKind.get('weak-evidence').graph.evidence.find((item) => item.claim === 'authoritative-development-effect').kind, 'adjacent-test');
+  assert.equal(byKind.get('hidden-assumption').graph.assumptions.length, 0);
+  assert.deepEqual(byKind.get('incompatible-sibling-strategies').graph.strategies, ['direct-merge', 'never-change-dev']);
+  assert.ok(byKind.get('semantic-justification-cycle').graph.argument.some((step) => step[0] === 'root-outcome' && step[1] === 'supporting-claim'));
+  assert.notEqual(byKind.get('stale-exact-revision-assurance').reviewed_revision, byKind.get('stale-exact-revision-assurance').current_authoritative_revision);
+  assert.ok(byKind.get('orphan-work').graph.obligations.some((item) => item.id === 'irrelevant-cleanup' && !item.produces));
 });
 
 test('authoritative-effect-gap keeps a defeater when candidate verification succeeds but dev authority is unchanged', () => {
