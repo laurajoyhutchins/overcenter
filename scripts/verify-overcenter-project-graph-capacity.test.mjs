@@ -15,11 +15,12 @@ function retainedTransition(index) {
   };
 }
 
-test('Overcenter graph derivation accepts more than 100 retained transitions', () => {
+test('Overcenter graph derivation does not impose an arbitrary total-transition ceiling', () => {
+  const transitionCount = 1001;
   const definition = {
     schema:'overcenter-project-definition-v1',
     project_ref:PROJECT_REF,
-    transitions:Array.from({ length:107 }, (_, index) => retainedTransition(index + 1)),
+    transitions:Array.from({ length:transitionCount }, (_, index) => retainedTransition(index + 1)),
   };
 
   const graph = deriveOvercenterProjectGraph({
@@ -43,5 +44,5 @@ test('Overcenter graph derivation accepts more than 100 retained transitions', (
     },
   });
 
-  assert.equal(graph.nodes.length, 107);
+  assert.equal(graph.nodes.length, transitionCount);
 });
