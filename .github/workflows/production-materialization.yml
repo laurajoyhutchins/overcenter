@@ -9,6 +9,11 @@ on:
         description: Exact production revision to reconcile
         required: true
         type: string
+      observe_only:
+        description: Verify the current production projection without mutation
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -36,13 +41,22 @@ jobs:
       - name: Install canonical dependencies
         run: npm ci
       - name: Build runtime artifact
+        if: ${{ ! inputs.observe_only }}
         run: npm run build:runtime
       - name: Fence exact production head
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/production-materialization-head-fence.mjs
+      - name: Observe current production projection
+        if: ${{ inputs.observe_only }}
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
+          OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
+        run: node scripts/production-runtime-observation-http.mjs
       - name: Materialize exact production revision
+        if: ${{ ! inputs.observe_only }}
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
