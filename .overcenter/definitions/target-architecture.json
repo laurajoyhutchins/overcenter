@@ -22,6 +22,21 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add a canonical semantic command that turns a bounded conversation-derived judgment into an authoritative project-graph amendment without requiring the caller to author repository layout or other mechanical graph bookkeeping.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ],
+        "source_ref": "github:laurajoyhutchins/overcenter@1cef15d071d297d231c1edf994709fd5a5c9e9ac:.overcenter/definitions/target-architecture.json#add-conversation-to-graph-semantic-command"
       }
     },
     {
@@ -44,6 +59,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add explicit durable operation-attempt epochs so retries and recovery can distinguish attempts while preserving idempotency, execution identity, and mutation certainty.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -92,6 +121,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "verification-before-completion"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add an operator quickstart and recovery runbook for the current canonical Overcenter command surface, authority model, failure classes, and recovery paths.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -167,6 +210,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add revision-bound cross-transition context so a fresh agent can consume relevant predecessor context without relying on prior-session memory or stale authority.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -179,6 +236,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add a canonical semantic reporting path for agent execution results and evidence so completion flows through Overcenter instead of ad hoc orchestration bookkeeping.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -405,6 +476,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Remove compatibility command exposure that is no longer part of the supported agent-facing surface, while preserving any required internal compatibility semantics.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -417,6 +502,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Delete duplicated orchestration controller paths so one canonical deterministic orchestration implementation owns execution correctness.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -441,6 +540,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Delete legacy lane scaffolding that current project-transition semantics and evidence prove is no longer live or required.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -454,6 +567,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Delete obsolete runtime-host scaffolding after the host-independent production materialization and graph-native scheduled execution boundaries make it unnecessary.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -569,6 +696,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Establish an exhaustive, repeatable audit harness that inventories every Overcenter test and makes coverage gaps, duplicated tests, weak assertions, and unregistered suites mechanically visible.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
