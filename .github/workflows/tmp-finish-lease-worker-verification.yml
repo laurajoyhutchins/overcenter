@@ -1,0 +1,54 @@
+name: Temporary final lease worker verification
+
+on:
+  push:
+    branches: [tmp/lease-worker-generation]
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: overcenter
+          POSTGRES_USER: overcenter
+          POSTGRES_PASSWORD: overcenter
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U overcenter -d overcenter"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: overcenter
+      PGUSER: overcenter
+      PGPASSWORD: overcenter
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install canonical dependencies
+        run: npm ci
+      - name: Install contract evidence tooling
+        run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
+      - name: Apply fixes, regenerate evidence, and verify repository
+        run: node scripts/tmp-finish-lease-worker-verification.mjs
+      - name: Commit canonical result
+        run: |
+          git config user.name "overcenter-artifact-bot"
+          git config user.email "overcenter-artifact-bot@users.noreply.github.com"
+          git add .contract-evidence/classifications.json lib/github-lease-scoped-changeset.test.js generated/contracts/catalog.json docs/generated/data-contracts.md docs/generated/data-contract-authority-atlas.md
+          git commit -m "fix: classify and verify lease worker mutations"
+          git push origin HEAD:tmp/lease-worker-generation
