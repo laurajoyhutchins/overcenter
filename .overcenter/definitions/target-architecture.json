@@ -47,6 +47,19 @@
       }
     },
     {
+      "id": "add-github-work-surface-retirement-commands",
+      "priority": 176,
+      "requires": [
+        "bind-project-artifact-lineage",
+        "define-work-surface-convergence-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Add narrow canonical semantic commands for exact GitHub work-surface retirement, including github.pull_request.close and github.issue.close or an equally narrow typed equivalent. Each command must preflight the exact repository plus numeric provider object identity, bind any supplied expected state/head/semantic artifact identity, be idempotent for already-closed objects, preserve mutation certainty across transport loss, and confirm closure by authoritative GitHub readback. Do not expose a generic arbitrary issue mutator. These are provider-effect primitives; project-level code decides whether closure is semantically authorized."
+      }
+    },
+    {
       "id": "add-github-workflow-dispatch-semantic-command",
       "priority": 95,
       "requires": [],
@@ -106,6 +119,19 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Implement the approved intent-first production.reconcile({ repo }) convergence operator using test-driven-development. Add the durable design spec and implementation plan under docs/superpowers. Compose the existing exact-SHA production promotion and deterministic production materialization safety contracts behind a pure coordinator and Overcenter host adapter; do not reimplement them more weakly. Public input must be repo-only: no caller-selected branch, SHA, verification run, Hatchable project/version, runtime ref, or idempotency key. The first regression must prove a disposable caller with only {repo} can take verified dev + stale production + stale runtime through promotion, authoritative production reread, exact same-SHA materialization, immutable runtime verification, and final convergence evidence, with materialization forbidden until post-promotion readback proves the selected SHA. Also cover already-converged no-op, production-current/runtime-stale, missing verification, production head drift, indeterminate promotion preventing materialization, immutable deployment mismatch, final readback drift, and schema rejection of mechanical coordinates. Preserve may_have_mutated semantics, never blind-retry indeterminate effects, and require fresh final evidence that Git production revision and verified immutable runtime revision are the same SHA. Document production.reconcile as the normal operator-facing path while retaining lower-level primitives. Do not claim to solve Hatchable #161. Run focused red-green tests plus the relevant canonical suite and settle only with exact commit/test evidence."
+      }
+    },
+    {
+      "id": "add-project-work-surface-reconcile",
+      "priority": 175,
+      "requires": [
+        "add-github-work-surface-retirement-commands",
+        "diagnose-project-work-surface-drift"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Implement an intent-first project work-surface convergence operator, preferably project.reconcile_work_surface({ project_ref }) unless command naming conventions justify project.reconcile_artifacts. Caller input must not contain issue numbers, PR numbers, branch names, candidate SHAs, close reasons, or other mechanical coordinates. The operator must derive current authoritative graph/settlement truth, current GitHub object state, and artifact lineage; automatically retire only artifacts classified mechanically safe by the convergence contract; return ambiguous artifacts as judgment-required without mutation; use exact close primitives with mutation-certainty/readback semantics; be idempotent; and return a bounded receipt describing observations, actions, and remaining ambiguity. Add no-op, superseded-PR, satisfied-explicitly-bound-issue, ambiguous-human-issue, provider-drift, and indeterminate-close regressions."
       }
     },
     {
@@ -235,6 +261,18 @@
       }
     },
     {
+      "id": "backfill-and-reconcile-overcenter-work-surface",
+      "priority": 174,
+      "requires": [
+        "add-project-work-surface-reconcile"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "Run the shipped project work-surface reconciler against github:laurajoyhutchins/overcenter and backfill only relationships that can be derived mechanically from existing authoritative definitions, operation/integration receipts, exact GitHub state, and durable settlements. Reconcile the stale PR and issue inventory identified in the September 5, 2026 audit, including superseded project-authoring candidates and temporary verification artifacts. Do not guess lineage for ambiguous historical objects. Record exact before/after classifications, provider object identities, authority revision, actions, skipped ambiguities, and final fresh project.inspect evidence. Acceptance requires zero remaining mechanically-safe retirement candidates and an explicit bounded list of any human-judgment residue."
+      }
+    },
+    {
       "id": "bind-command-effect-completion-identity",
       "priority": 170,
       "requires": [],
@@ -242,6 +280,18 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "bind-project-artifact-lineage",
+      "priority": 178,
+      "requires": [
+        "define-work-surface-convergence-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Use test-driven-development to make Overcenter-created GitHub work artifacts mechanically attributable to the project transition/candidate that produced them. Bind at minimum project_ref, transition_id when applicable, semantic operation identity/idempotency key, exact candidate head/base identity, and provider object identity for project-authoring and transition execution PRs. Represent explicit supersession when a newer authoritative candidate replaces an older candidate for the same semantic obligation. Reuse existing durable operation, integration, receipt, branch, and idempotency facts where sufficient instead of creating a parallel artifact database. Fresh sessions must be able to reconstruct lineage without PR prose or chat history. Fail closed when attribution or supersession is ambiguous."
       }
     },
     {
@@ -347,6 +397,16 @@
       }
     },
     {
+      "id": "define-work-surface-convergence-contract",
+      "priority": 179,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "architecture",
+        "skill": "Define and document the canonical Overcenter work-surface convergence contract. Preserve GitHub as authority for GitHub-native object state and Overcenter as authority for runs, leases, settlements, receipts, recovery, and semantic artifact relationships. Specify deterministic artifact classifications active, satisfied, superseded, orphaned, and ambiguous; exact identity and evidence required for each; which Overcenter-created artifacts may be retired automatically; and which human-authored issues require judgment. Issue/PR prose must never become project-definition or completion authority. Prefer deriving relationships from authoritative project definitions, exact GitHub state, existing command/operation receipts, idempotency identities, and settlement evidence; add durable state only when a relationship cannot be reconstructed safely. Update maintained architecture documentation and add executable contract tests for classification/fail-closed behavior."
+      }
+    },
+    {
       "id": "delete-compatibility-command-exposure",
       "priority": 83,
       "requires": [
@@ -441,6 +501,18 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "diagnose-project-work-surface-drift",
+      "priority": 177,
+      "requires": [
+        "bind-project-artifact-lineage"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Extend project.inspect with bounded work-surface convergence diagnostics derived from authoritative project truth plus exact GitHub observations. Surface counts and exact refs for active, safely-retirable satisfied/superseded/orphaned artifacts, and ambiguous artifacts requiring judgment. Do not change transition READY/DONE semantics merely because a projection is stale, and do not mutate GitHub during inspection. The diagnostic must detect the concrete residue patterns found in the September 5, 2026 Overcenter audit: superseded project-authoring PRs, temporary verification PRs no longer referenced, and open issues whose explicitly bound transition is durably completed, while refusing to classify loosely related issue prose as safe-to-close."
       }
     },
     {
@@ -748,6 +820,16 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "make-project-amend-noop-effect-free",
+      "priority": 180,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Use test-driven-development to make project.amend a true no-op when the canonical candidate definition is semantically identical to the current authoritative definition. Prove an empty amendment and an idempotent upsert produce no GitHub branch, pull request, commit, or other external mutation; return a confirmed no-op result bound to the current authority revision. Preserve exact-revision fencing, confirmation-history validation for real changes, and retry identity. Add a regression reproducing the September 5, 2026 no-op project.amend that created PR #545 with zero changed files, and prove the repaired path leaves no work-surface residue."
       }
     },
     {
