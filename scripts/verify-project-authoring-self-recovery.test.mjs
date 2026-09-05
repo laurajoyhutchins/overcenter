@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createProjectAuthoringRecoveryService } from '../lib/project-authoring-recovery.js';
+import { canonicalJson, sha256Text } from '../lib/canonical-json.js';
+import { projectAuthoringIdempotencyKey } from '../lib/project-authoring-github-runtime.js';
 
 const BASE='1111111111111111111111111111111111111111';
 const HEAD='2222222222222222222222222222222222222222';
@@ -11,12 +13,14 @@ const REQUEST=Object.freeze({
   amendment:{ upsert_transitions:[{ id:'next', requires:[] }] },
 });
 
-function waitingOperation(overrides={}) {
+async function waitingOperation(overrides={}) {
+  const idempotencyKey=await projectAuthoringIdempotencyKey(REQUEST);
+  const requestSha=await sha256Text(canonicalJson({ command:'project.amend', input:REQUEST }));
   return {
     command:'project.amend',
     idempotency_scope:'project:github:acme/demo',
-    idempotency_key:'project-amend-v1:'+'a'.repeat(64),
-    request_sha256:'b'.repeat(64),
+    idempotency_key:idempotencyKey,
+    request_sha256:requestSha,
     state:'prepared',
     may_have_mutated:true,
     recovery_payload:{
@@ -59,11 +63,11 @@ function serviceHarness({ existing=null, pending=[], executeAuthoring }={}) {
   const calls=[];
   const operations={
     async get(){ return existing; },
-    async claim(input){ calls.push(['claim',input]); return { outcome:'claimed', operation:{ ...waitingOperation({ may_have_mutated:false }), recovery_payload:{ attempt_token:input.attempt_token, phase:'EXECUTING' } } }; },
+    async claim(input){ calls.push(['claim',input]); return { outcome:'claimed', operation:{ ...(await waitingOperation({ may_have_mutated:false })), recovery_payload:{ attempt_token:input.attempt_token, phase:'EXECUTING' } } }; },
     async pausePrepared(input){ calls.push(['pausePrepared',input]); return waitingOperation({ recovery_payload:{ ...input.recovery_payload, attempt_token:input.attempt_token }, may_have_mutated:input.may_have_mutated }); },
-    async resumePrepared(input){ calls.push(['resumePrepared',input]); return waitingOperation({ recovery_payload:{ ...waitingOperation().recovery_payload, attempt_token:input.attempt_token, phase:'RECONCILING' } }); },
+    async resumePrepared(input){ calls.push(['resumePrepared',input]); const prior=await waitingOperation(); return waitingOperation({ recovery_payload:{ ...prior.recovery_payload, attempt_token:input.attempt_token, phase:'RECONCILING' } }); },
     async markIndeterminate(input){ calls.push(['markIndeterminate',input]); return waitingOperation({ state:'indeterminate', recovery_payload:{ ...input.recovery_payload, attempt_token:input.attempt_token } }); },
-    async succeed(input){ calls.push(['succeed',input]); return { ...waitingOperation(), state:'succeeded', recovery_payload:null, resolution:input.resolution }; },
+    async succeed(input){ calls.push(['succeed',input]); return { ...(await waitingOperation()), state:'succeeded', recovery_payload:null, resolution:input.resolution }; },
     async abandon(input){ calls.push(['abandon',input]); return true; },
   };
   const service=createProjectAuthoringRecoveryService({
@@ -94,7 +98,7 @@ test('known pending exact-head verification is durably represented without becom
 });
 
 test('maintenance resumes waiting authoring and settles the same operation without caller replay', async()=>{
-  const pending=[waitingOperation()];
+  const pending=[await waitingOperation()];
   let executions=0;
   const result={ ok:true, schema:'project-authoring-result-v1', authority:{ revision:'3333333333333333333333333333333333333333' } };
   const { service, calls }=serviceHarness({ pending, executeAuthoring:async(command,input)=>{ executions+=1; assert.equal(command,'project.amend'); assert.deepEqual(input,REQUEST); return result; } });
@@ -112,7 +116,7 @@ test('maintenance resumes waiting authoring and settles the same operation witho
 
 test('authority movement during recovery is fail-closed and never abandons the staged candidate', async()=>{
   const stale=new Error('authority moved'); stale.code='PROJECT_AUTHORING_AUTHORITY_STALE'; stale.may_have_mutated=false; stale.details={ observed_revision:'4'.repeat(40) };
-  const { service, calls }=serviceHarness({ pending:[waitingOperation()], executeAuthoring:async()=>{ throw stale; } });
+  const { service, calls }=serviceHarness({ pending:[await waitingOperation()], executeAuthoring:async()=>{ throw stale; } });
   const maintenance=await service.maintain(10);
   assert.equal(maintenance[0].outcome,'recompute_required');
   const pause=calls.filter(([name])=>name==='pausePrepared').at(-1)?.[1];
@@ -123,7 +127,7 @@ test('authority movement during recovery is fail-closed and never abandons the s
 
 test('uncertain integration transport becomes indeterminate instead of being blindly replayed', async()=>{
   const uncertain=new Error('merge transport uncertain'); uncertain.code='GITHUB_INTEGRATION_INDETERMINATE'; uncertain.may_have_mutated=true;
-  const { service, calls }=serviceHarness({ pending:[waitingOperation()], executeAuthoring:async()=>{ throw uncertain; } });
+  const { service, calls }=serviceHarness({ pending:[await waitingOperation()], executeAuthoring:async()=>{ throw uncertain; } });
   const maintenance=await service.maintain(10);
   assert.equal(maintenance[0].outcome,'indeterminate');
   assert.equal(calls.some(([name])=>name==='markIndeterminate'),true);
@@ -132,7 +136,7 @@ test('uncertain integration transport becomes indeterminate instead of being bli
 test('exact replay returns the terminal durable result without re-executing authoring', async()=>{
   const result={ ok:true, schema:'project-authoring-result-v1', authority:{ revision:'5'.repeat(40) } };
   let executions=0;
-  const { service }=serviceHarness({ existing:waitingOperation({ state:'succeeded', recovery_payload:null, resolution:{ result } }), executeAuthoring:async()=>{ executions+=1; throw new Error('must not execute'); } });
+  const { service }=serviceHarness({ existing:await waitingOperation({ state:'succeeded', recovery_payload:null, resolution:{ result } }), executeAuthoring:async()=>{ executions+=1; throw new Error('must not execute'); } });
   assert.deepEqual(await service.execute('project.amend',REQUEST),result);
   assert.equal(executions,0);
 });
