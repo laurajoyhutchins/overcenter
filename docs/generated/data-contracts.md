@@ -25,6 +25,7 @@
 - `execution.lifecycle.productive-stages` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#PRODUCTIVE_STAGES`; SemVer `lifecycle-semantics`; 1 projection
 - `execution.lifecycle.work-settlement-dispositions` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#WORK_SETTLEMENT_DISPOSITIONS`; SemVer `lifecycle-semantics`; 1 projection
 - `project.graph.authority-coordinate` — authority `typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphAuthorityCoordinate`
+- `project.obligation-graph.contract` — authority `javascript:lib/project-obligation-contract.js#PROJECT_OBLIGATION_GRAPH_CONTRACT`
 - `project.transition.states` — authority `typescript:src/semantic/project-transition-status-contracts.ts#PROJECT_TRANSITION_STATES`; SemVer `lifecycle-semantics`
 
 ## Durable internal contracts
