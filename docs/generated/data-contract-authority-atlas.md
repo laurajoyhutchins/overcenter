@@ -722,6 +722,48 @@ _None._
 
 _None._
 
+## `github.apply_changeset.input`
+
+- Significance: `public`
+- Lifecycle: `current`
+- SemVer: `semantic-command-contract`
+- Authority: `semantic-command:github.apply_changeset#input` (`semantic-command`)
+- Authority source: `src/semantic/semantic-command-descriptors.ts#github.apply_changeset`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `github.apply_text_replacements.input`
+
+- Significance: `public`
+- Lifecycle: `current`
+- SemVer: `semantic-command-contract`
+- Authority: `semantic-command:github.apply_text_replacements#input` (`semantic-command`)
+- Authority source: `src/semantic/semantic-command-descriptors.ts#github.apply_text_replacements`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
 ## `github.changeset-receipt.persistence`
 
 - Significance: `durable-internal`

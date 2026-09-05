@@ -1,15 +1,15 @@
 {
   "schema": "contract-evidence-classifications-v1",
   "candidates": {
-    "javascript:lib/orchestration-current-failure.js#orchestrationCurrentFailureInternals": {
-      "logical_contract": "orchestration.current-failure-internals",
-      "significance": "implementation-only",
-      "semver_kind": "internal-module-layout"
-    },
     "http:api/github-repository-rename.js#request-response": {
       "logical_contract": "github.repository.rename.http-boundary",
       "significance": "boundary-internal",
       "semver_kind": "adapter-layout"
+    },
+    "javascript:lib/orchestration-current-failure.js#orchestrationCurrentFailureInternals": {
+      "logical_contract": "orchestration.current-failure-internals",
+      "significance": "implementation-only",
+      "semver_kind": "internal-module-layout"
     },
     "mcp:mcp/production.promote.js#inputSchema": {
       "significance": "projection",
@@ -155,6 +155,18 @@
       "significance": "durable-internal",
       "semver_kind": "database-layout",
       "lifecycle": "compatibility"
+    },
+    "semantic-command:github.apply_changeset#input": {
+      "logical_contract": "github.apply_changeset.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract",
+      "lifecycle": "current"
+    },
+    "semantic-command:github.apply_text_replacements#input": {
+      "logical_contract": "github.apply_text_replacements.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract",
+      "lifecycle": "current"
     },
     "semantic-command:github.release.create#input": {
       "logical_contract": "github.release.create.input",
