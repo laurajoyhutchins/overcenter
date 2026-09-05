@@ -43,6 +43,9 @@ jobs:
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
       - name: Run contract evidence tests
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
+      - name: Restore final workflow input before generation
+        if: always()
+        run: git checkout 1bd6866346f9871da8a04173d3bff541eee6dba8 -- .github/workflows/contract-evidence.yml
       - name: Generate candidate contract evidence once
         if: always()
         run: |
