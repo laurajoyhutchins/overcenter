@@ -161,6 +161,7 @@
 - `javascript:lib/orchestration-runs.js#orchestrationRunInternals`
 - `javascript:lib/orchestration-status.js#ORCHESTRATION_HEALTH_CONDITION_KEYS`
 - `javascript:lib/orchestration-status.js#ORCHESTRATION_HISTORICAL_CONDITION_KEYS`
+- `javascript:lib/overcenter-metrics-contract.js#OVERCENTER_METRICS_CONTRACT`
 - `javascript:lib/portfolio-reconcile-work-surface.js#portfolioReconcileConfig`
 - `javascript:lib/portfolio-reconcile-work-surface.js#portfolioReconcileInternals`
 - `javascript:lib/project-authoring-mcp-contract.js#PROJECT_AMEND_INPUT_SCHEMA`
