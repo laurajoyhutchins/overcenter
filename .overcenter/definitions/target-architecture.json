@@ -801,6 +801,33 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make AGENT_EXECUTION_REQUIRED self-contained and authority-bound so a disposable agent can execute and settle from the returned packet alone without reconstructing task intent from issue text or prior conversation.",
+        "acceptance_evidence": [
+          {
+            "kind": "deployment",
+            "requirement": "The live Overcenter runtime must be materially bound to the exact merged source revision and its deployed regression suite must pass."
+          },
+          {
+            "kind": "implementation",
+            "requirement": "The exact merged source must define canonical ProjectExecutionIntent, author it through project.amend, include authoritative intent fields in the transition fingerprint, expose intent in AGENT_EXECUTION_REQUIRED, and fail closed before lease acquisition when an agent transition lacks valid intent."
+          },
+          {
+            "kind": "live-proof",
+            "requirement": "A fresh disposable run must receive AGENT_EXECUTION_REQUIRED and correctly complete and settle using only the returned packet plus authoritative repository/runtime evidence, without issue text or prior conversation to reconstruct the work contract."
+          },
+          {
+            "kind": "migration",
+            "requirement": "Every current unconfirmed agent transition must have canonical repository-owned execution_intent after cutover; confirmed transitions must remain immutable."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh exact-revision CI and executable regression evidence must prove missing-intent fail-closed behavior, fingerprint binding, and disposable packet-only execution."
+          }
+        ],
+        "source_ref": "github:issue:420"
       }
     },
     {
