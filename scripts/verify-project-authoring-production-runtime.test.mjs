@@ -77,8 +77,10 @@ test('staged underivable candidate is rejected before GitHub integration', async
   let integrations = 0;
   const derivedRevisions = [];
   const runtime = createProjectAuthoringProductionRuntime({
-    resolveAuthority:async () => authority(++authorityReads < 3 ? initialRevision : authoritativeRevision),
-    readDefinitionFacts:async ({ revision }) => facts(revision, revision === initialRevision ? baseDefinition : amendedDefinition),
+    resolveAuthority:async () => ({ ...authority(++authorityReads <= 3 ? initialRevision : authoritativeRevision), branch:'dev' }),
+    readDefinitionFacts:async ({ revision }) => revision === stagedRevision
+      ? { ...facts(revision, amendedDefinition), definitions:[{ path:'.overcenter/definitions/project.json', content:`${JSON.stringify(amendedDefinition, null, 2)}\n` }] }
+      : facts(revision, revision === initialRevision ? baseDefinition : amendedDefinition),
     readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
     readSourceRevision:async () => initialRevision,
     applyChangeset:async () => ({ ok:true, new_head:stagedRevision }),
