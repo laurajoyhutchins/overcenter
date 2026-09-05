@@ -569,6 +569,41 @@
       }
     },
     {
+      "id": "bind-project-transition-settlement-to-authoritative-effect",
+      "priority": 182,
+      "requires": [
+        "pin-project-transition-mutation-workspace-authority",
+        "preserve-project-transition-settlement-evidence"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Bind project-transition completion to the authoritative effect required by the declared postcondition. For repository-mutating work, a verified candidate branch or successful local execution is not sufficient settlement evidence when the intended outcome lives in GitHub authority: deterministic Overcenter machinery must perform or continue the required provider integration, preserve mutation certainty across transport loss, and authoritatively read back the exact resulting repository state before completed settlement is allowed. Keep candidate verification distinct from authoritative effect confirmation; do not require a reasoning agent to remember or manually perform merge choreography, and do not add a new lifecycle state unless later evidence proves one is necessary.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Successful settlement evidence identifies the exact authoritative subject and proves fresh readback that the required provider effect is present at the authority owning the transition postcondition; candidate-only evidence cannot satisfy this predicate."
+          },
+          {
+            "kind": "recovery",
+            "requirement": "Integration or provider-effect transport loss preserves monotonic mutation certainty, never blind-retries an indeterminate effect, and resumes through deterministic reconciliation without requiring a fresh reasoning boundary."
+          },
+          {
+            "kind": "regression",
+            "requirement": "A regression reproduces the September 5, 2026 Outcome Integrity documentation incident: lease-scoped work creates and exactly verifies the intended candidate, but the authoritative development branch is still unchanged; completed settlement must be rejected or held pending deterministic continuation until authoritative integration is confirmed."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Focused and canonical tests pass for the exact final revision, including already-integrated idempotent continuation and a negative case where verified candidate evidence exists but authoritative effect confirmation does not."
+          }
+        ]
+      }
+    },
+    {
       "id": "bind-targeted-execution",
       "priority": 115,
       "requires": [
@@ -1053,23 +1088,23 @@
       },
       "execution_intent": {
         "schema": "project-execution-intent-v1",
-        "desired_outcome": "Create a revision-bound Outcome Integrity benchmark based on structurally valid but semantically defective project graphs and semantic mutation testing, so improvements can be measured by whether they detect planted outcome-sufficiency defects rather than by subjective review quality.",
+        "desired_outcome": "Establish a revision-bound semantic mutation benchmark for Outcome Integrity using known-good project outcome arguments with planted semantic defects. The benchmark must include the observed authoritative-effect gap: all lease-scoped work succeeds, the candidate branch contains the intended change, and exact candidate verification passes while the authoritative repository branch remains unchanged. Outcome Integrity must preserve that world as an active defeater or missing authoritative-effect obligation rather than treating local execution success as project completion.",
         "acceptance_evidence": [
           {
-            "kind": "authority",
-            "requirement": "Benchmark results are test evidence for the review implementation, not project authority, and every evaluated case records the exact fixture/revision and review contract version."
+            "kind": "benchmark",
+            "requirement": "The corpus includes mutants for omitted obligations, invalid refinements, hidden assumptions, evidence-to-wrong-claim attachment, weakened evidence, orphan execution, ungrounded claims, circular support, stale exact revision, irrelevant successful work, and the verified-candidate-but-authoritative-branch-unchanged integration gap."
           },
           {
-            "kind": "fixtures",
-            "requirement": "Benchmark cases include at least missing work, weak/adjacent evidence, hidden assumption, incompatible sibling strategies, semantic justification cycle, stale exact-revision assurance, orphan work, and a case where every leaf success holds while the root outcome is false."
+            "kind": "dogfood",
+            "requirement": "A fixture modeled on the September 5, 2026 Outcome Integrity documentation transition proves that candidate creation plus exact verification can all be true while the declared repository outcome is false; the reviewer identifies the missing authoritative integration/effect obligation."
           },
           {
-            "kind": "metrics",
-            "requirement": "Report defect recall, finding precision, false-blocker rate, counterexample validity, correct claim/argument path, minimal missing-obligation accuracy, repair minimality, paraphrase stability where applicable, and revision-binding correctness."
+            "kind": "quality",
+            "requirement": "Benchmark scoring records defect recall, false-blocker rate, counterexample validity, minimal missing-obligation accuracy, and revision-binding correctness without treating model confidence as authority."
           },
           {
-            "kind": "mutation",
-            "requirement": "The harness can derive semantic mutants from a known-good graph by operations such as deleting a required obligation, weakening acceptance evidence, removing an assumption, changing refinement meaning, inserting irrelevant work, or introducing contradiction, while preserving structural graph validity where the case intends to test outcome rather than workflow soundness."
+            "kind": "verification",
+            "requirement": "The benchmark runs reproducibly against exact revisions and fails when the authoritative-effect-gap mutant is incorrectly accepted as established."
           }
         ]
       }
