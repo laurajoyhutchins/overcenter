@@ -98,3 +98,9 @@ test('project transition mutation authority fails closed when durable lease issu
       && error?.details?.reason === 'issued_authority_unavailable',
   );
 });
+
+test('project transition mutation authority accepts the opaque plink lease reference emitted by project.advance', async () => {
+  const authority = await fixture().require({ lease_ref:`plink:${LEASE_REF}`, repository:REPOSITORY });
+  assert.equal(authority.lease_ref, LEASE_REF);
+  assert.equal(authority.transition_id, TRANSITION_ID);
+});
