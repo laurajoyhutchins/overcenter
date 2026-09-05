@@ -10,6 +10,8 @@ import {
   projectObligationGraphSemanticInput,
   projectObligationSemanticInput,
 } from '../lib/project-obligation-contract.js';
+import { deriveProjectObligationProjection } from '../lib/project-obligation-state.js';
+import { evaluateProjectGraph } from '../lib/project-graph.js';
 
 const transition = (overrides = {}) => ({
   id:'B',
@@ -26,6 +28,24 @@ const transition = (overrides = {}) => ({
   evidence:[{ kind:'commit', ref:'abc' }],
   observed_at:'2026-09-05T05:00:00Z',
   ...overrides,
+});
+
+const obligationAuthority = (revision = 'a'.repeat(40)) => ({
+  kind:'github',
+  repository:'owner/repo',
+  revision,
+  derivation:'overcenter-project-graph-v1',
+});
+
+const lifecycle = ({ complete = false, condition = 'NOMINAL' } = {}) => ({
+  current_stage:'CONFIRM',
+  condition,
+  responsibilities:Object.freeze(Object.fromEntries(
+    ['ENABLE', 'ACQUIRE', 'EXECUTE', 'COMMIT', 'CONFIRM'].map((stage) => [
+      stage,
+      Object.freeze({ applicable:true, satisfied:complete }),
+    ]),
+  )),
 });
 
 test('obligation graph profile preserves finite acyclic all-of semantics', () => {
@@ -193,4 +213,118 @@ test('graph fingerprint retains logical obligation keys even though individual f
     transitions:[transition({ id:'renamed', requires:[] })],
   });
   assert.notEqual(right, left);
+});
+
+test('derived readiness follows predecessor-closed historical satisfaction', async () => {
+  const a = transition({ id:'A', requires:[] });
+  const b = transition({ id:'B', requires:['A'] });
+  const aFingerprint = await projectObligationFingerprint(a);
+  const result = await deriveProjectObligationProjection({
+    nodes:[b, a],
+    authority:obligationAuthority(),
+    realizations:[{
+      transition_id:'A',
+      obligation_fingerprint:aFingerprint,
+      authority:obligationAuthority('b'.repeat(40)),
+      disposition:'completed',
+    }],
+  });
+  assert.deepEqual(result.nodes.map((node) => [node.id, node.state, node.unmet_requirements]), [
+    ['A', 'DONE', []],
+    ['B', 'READY', []],
+  ]);
+  assert.deepEqual(result.frontier.map((node) => node.id), ['B']);
+});
+
+test('changed obligation identity makes historical realization stale instead of done', async () => {
+  const previous = transition({ id:'A', requires:[] });
+  const changed = transition({
+    id:'A',
+    requires:[],
+    executor:{ kind:'agent', role:'verification', skill:'test-driven-development' },
+  });
+  const previousFingerprint = await projectObligationFingerprint(previous);
+  const result = await deriveProjectObligationProjection({
+    nodes:[changed],
+    authority:obligationAuthority(),
+    realizations:[{
+      transition_id:'A',
+      obligation_fingerprint:previousFingerprint,
+      authority:obligationAuthority('b'.repeat(40)),
+      disposition:'completed',
+    }],
+  });
+  assert.equal(result.nodes[0].state, 'READY');
+  assert.equal(result.accepted_realizations.length, 0);
+  assert.equal(result.stale_realizations[0].reason, 'obligation_identity_changed');
+});
+
+test('derived satisfaction fails closed when historical completion is not predecessor closed', async () => {
+  const a = transition({ id:'A', requires:[] });
+  const b = transition({ id:'B', requires:['A'] });
+  const bFingerprint = await projectObligationFingerprint(b);
+  await assert.rejects(
+    () => deriveProjectObligationProjection({
+      nodes:[a, b],
+      authority:obligationAuthority(),
+      realizations:[{
+        transition_id:'B',
+        obligation_fingerprint:bFingerprint,
+        authority:obligationAuthority(),
+        disposition:'completed',
+      }],
+    }),
+    (error) => error?.code === 'PROJECT_OBLIGATION_PREDECESSOR_CLOSURE_INVALID',
+  );
+});
+
+test('empty derived frontier is explainable by live execution or an explicit blocker', async () => {
+  const a = transition({ id:'A', requires:[] });
+  const aFingerprint = await projectObligationFingerprint(a);
+  const executing = await deriveProjectObligationProjection({
+    nodes:[a],
+    authority:obligationAuthority(),
+    executions:[{
+      transition_id:'A',
+      obligation_fingerprint:aFingerprint,
+      authority:obligationAuthority(),
+      lease_ref:'lease-1',
+    }],
+  });
+  assert.equal(executing.frontier.length, 0);
+  assert.equal(executing.nodes[0].state, 'EXECUTING');
+
+  const blocked = await deriveProjectObligationProjection({
+    nodes:[a],
+    authority:obligationAuthority(),
+    blockers:[{
+      transition_id:'A',
+      obligation_fingerprint:aFingerprint,
+      reason:'needs-owner-decision',
+    }],
+  });
+  assert.equal(blocked.frontier.length, 0);
+  assert.equal(blocked.nodes[0].state, 'OFF_NOMINAL');
+});
+
+test('legacy graph evaluator rejects impossible DONE history and allows explainable empty frontier', () => {
+  const executor = { kind:'agent', role:'implementation', skill:'test-driven-development' };
+  assert.throws(
+    () => evaluateProjectGraph({ nodes:[
+      { id:'A', priority:1, requires:[], executor, phase_bindings:{}, lifecycle:lifecycle({ complete:false }) },
+      { id:'B', priority:0, requires:['A'], executor, phase_bindings:{}, lifecycle:lifecycle({ complete:true }) },
+    ] }),
+    (error) => error?.code === 'PROJECT_OBLIGATION_PREDECESSOR_CLOSURE_INVALID',
+  );
+
+  const blocked = evaluateProjectGraph({ nodes:[
+    { id:'A', priority:1, requires:[], executor, phase_bindings:{}, lifecycle:lifecycle({ condition:'HOLD' }) },
+    { id:'B', priority:0, requires:['A'], executor, phase_bindings:{}, lifecycle:lifecycle() },
+  ] });
+  assert.equal(blocked.complete, false);
+  assert.equal(blocked.frontier.length, 0);
+  assert.deepEqual(blocked.nodes.map((node) => [node.id, node.state]), [
+    ['A', 'OFF_NOMINAL'],
+    ['B', 'WAITING'],
+  ]);
 });
