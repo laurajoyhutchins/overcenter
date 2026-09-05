@@ -16,6 +16,7 @@ export const CANONICAL_COMMANDS = Object.freeze([
   'github.apply_text_replacements',
   'github.delete_branch',
   'github.actions_storage',
+  'github.actions_run.delete',
   'github.auto_merge.ensure',
   'github.repository_metadata.ensure',
   'github.repository.rename',
