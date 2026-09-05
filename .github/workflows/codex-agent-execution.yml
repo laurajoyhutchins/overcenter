@@ -85,5 +85,4 @@ jobs:
           retention-days: 7
           path: |
             ${{ runner.temp }}/overcenter-codex-result.json
-            ${{ runner.temp }}/overcenter-codex-events.jsonl
             ${{ runner.temp }}/overcenter-codex-apply-receipt.json

@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
-import { appendFile, chmod, readFile, stat, writeFile } from 'node:fs/promises';
+import { appendFile, chmod, lstat, readFile, writeFile } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { connectHatchableRemoteMcp } from './exact-revision-v8-verification-http.mjs';
 
 const SHA40 = /^[0-9a-f]{40}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
 const MAX_FILES = 64;
 const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
@@ -62,6 +63,8 @@ function normalizePacket(body, repository, transitionId) {
   const expiry = Date.parse(expiresAt);
   if (!Number.isFinite(expiry) || expiry <= Date.now() + EXPIRY_RESERVE_MS) reject('CODEX_LEASE_WINDOW_TOO_SHORT', 'project.advance lease does not leave enough execution time');
   const executionIntent = validateExecutionIntent(body.transition.execution_intent);
+  const transitionDefinitionFingerprint = String(body.transition_definition_fingerprint || '').trim().toLowerCase();
+  if (!SHA256.test(transitionDefinitionFingerprint)) reject('CODEX_TRANSITION_FINGERPRINT_REQUIRED', 'project.advance transition fingerprint is missing or invalid');
   return Object.freeze({
     schema: 'overcenter-codex-execution-packet-v1',
     project_ref: `github:${repository}`,
@@ -70,7 +73,7 @@ function normalizePacket(body, repository, transitionId) {
     run_id: runId,
     lease_ref: leaseRef,
     expires_at: expiresAt,
-    transition_definition_fingerprint: String(body.transition_definition_fingerprint || ''),
+    transition_definition_fingerprint: transitionDefinitionFingerprint,
     authority: Object.freeze({ kind: 'github', repository, revision, derivation: String(body.authority.derivation || '') }),
     execution_intent: executionIntent,
   });
@@ -105,7 +108,16 @@ async function runOvercenter(connection, projectId, command, input) {
 }
 
 function codexChildEnvironment() {
-  const childEnv = { ...process.env };
+  const inheritedEnvironmentKeys = [
+    'PATH', 'HOME', 'USERPROFILE', 'CODEX_HOME',
+    'APPDATA', 'LOCALAPPDATA', 'PROGRAMDATA', 'SYSTEMROOT', 'COMSPEC', 'PATHEXT',
+    'TEMP', 'TMP', 'TMPDIR', 'LANG', 'LC_ALL', 'TERM', 'COLORTERM', 'NO_COLOR',
+    'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME',
+  ];
+  const childEnv = Object.fromEntries(inheritedEnvironmentKeys
+    .filter((key) => typeof process.env[key] === 'string')
+    .map((key) => [key, process.env[key]]));
+  childEnv.CI = 'true';
   delete childEnv.OPENAI_API_KEY;
   delete childEnv.CODEX_API_KEY;
   delete childEnv.HATCHABLE_TOKEN;
@@ -184,7 +196,7 @@ function safeWorkspacePath(workspace, repoPath) {
 async function fileChange(workspace, repoPath, tracked) {
   const safe = safeWorkspacePath(workspace, repoPath);
   let fileStat;
-  try { fileStat = await stat(safe.absolute); }
+  try { fileStat = await lstat(safe.absolute); }
   catch (error) {
     if (error?.code === 'ENOENT' && tracked) return { path: safe.path, operation: 'delete' };
     throw error;
@@ -200,7 +212,9 @@ async function fileChange(workspace, repoPath, tracked) {
 }
 
 async function collectChanges(workspace) {
-  const trackedRaw = await runGit(workspace, ['diff', 'HEAD', '--name-only', '-z', '--']);
+  const summary = await runGit(workspace, ['diff', '--no-renames', '--summary', 'HEAD', '--']);
+  if (/mode change/.test(summary)) reject('CODEX_CHANGESET_MODE_UNSUPPORTED', 'Codex produced a file-mode change that the lease-scoped text changeset cannot represent');
+  const trackedRaw = await runGit(workspace, ['diff', '--no-renames', '--name-only', '-z', 'HEAD', '--']);
   const untrackedRaw = await runGit(workspace, ['ls-files', '--others', '--exclude-standard', '-z']);
   const tracked = trackedRaw.split('\0').filter(Boolean);
   const untracked = untrackedRaw.split('\0').filter(Boolean);
@@ -317,7 +331,6 @@ async function apply(env = process.env) {
       run_id: packet.run_id,
       transition_id: packet.transition_id,
       authority_revision: packet.authority.revision,
-      lease_ref: packet.lease_ref,
       branch: receipt.branch,
       commit_sha: receipt.commit_sha,
       changed_paths: Array.isArray(receipt.changed_paths) ? receipt.changed_paths : [],
