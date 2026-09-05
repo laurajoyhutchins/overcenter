@@ -22,6 +22,7 @@ async function javascriptFiles(directory) {
 }
 
 const maintainedTests = [
+  'test-audit-core.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
   'verify-transition-first-dashboard.test.mjs',
