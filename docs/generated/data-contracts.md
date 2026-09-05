@@ -186,9 +186,11 @@
 - `javascript:lib/work-progress-contract.js#WORK_HEARTBEAT_SEMANTIC_FIELDS`
 - `javascript:lib/work-surface-policy.js#WORK_SURFACE_DISPOSITIONS`
 - `javascript:lib/work-surface-policy.js#workSurfacePolicyConfig`
+- `mcp:mcp/production.reconcile.js#inputSchema`
 - `repo-data:.overcenter/definitions/target-architecture.json#overcenter-project-definition-v1`
 - `repo-data:.overcenter/project-definitions.json#project-definition-discovery-v1`
 - `semantic-command:github.pull_request.mark_ready#input`
+- `semantic-command:production.reconcile#input`
 - `typescript:src/adapters/mcp/production-promotion.ts#ProductionPromotionMcpRuntime`
 - `typescript:src/adapters/mcp/project-advance.ts#ProjectAdvanceMcpRuntime`
 - `typescript:src/adapters/mcp/project-inspect.ts#ProjectInspectMcpRuntime`
