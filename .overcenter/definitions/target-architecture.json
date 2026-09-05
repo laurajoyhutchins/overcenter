@@ -119,6 +119,18 @@
       }
     },
     {
+      "id": "add-revision-bound-cross-transition-context",
+      "priority": 91,
+      "requires": [
+        "make-agent-execution-packets-self-contained"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "add-semantic-agent-execution-reporting",
       "priority": 92,
       "requires": [
