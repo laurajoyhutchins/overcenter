@@ -61,11 +61,12 @@ function pendingError() {
 
 function serviceHarness({ existing=null, pending=[], executeAuthoring }={}) {
   const calls=[];
+  let resumeTaken=false;
   const operations={
     async get(){ return existing; },
     async claim(input){ calls.push(['claim',input]); return { outcome:'claimed', operation:{ ...(await waitingOperation({ may_have_mutated:false })), recovery_payload:{ attempt_token:input.attempt_token, phase:'EXECUTING' } } }; },
     async pausePrepared(input){ calls.push(['pausePrepared',input]); return waitingOperation({ recovery_payload:{ ...input.recovery_payload, attempt_token:input.attempt_token }, may_have_mutated:input.may_have_mutated }); },
-    async resumePrepared(input){ calls.push(['resumePrepared',input]); const prior=await waitingOperation(); return waitingOperation({ recovery_payload:{ ...prior.recovery_payload, attempt_token:input.attempt_token, phase:'RECONCILING' } }); },
+    async resumePrepared(input){ calls.push(['resumePrepared',input]); if(resumeTaken)return null; resumeTaken=true; const prior=await waitingOperation(); return waitingOperation({ recovery_payload:{ ...prior.recovery_payload, attempt_token:input.attempt_token, phase:'RECONCILING' } }); },
     async markIndeterminate(input){ calls.push(['markIndeterminate',input]); return waitingOperation({ state:'indeterminate', recovery_payload:{ ...input.recovery_payload, attempt_token:input.attempt_token } }); },
     async succeed(input){ calls.push(['succeed',input]); return { ...(await waitingOperation()), state:'succeeded', recovery_payload:null, resolution:input.resolution }; },
     async abandon(input){ calls.push(['abandon',input]); return true; },
@@ -131,6 +132,39 @@ test('uncertain integration transport becomes indeterminate instead of being bli
   const maintenance=await service.maintain(10);
   assert.equal(maintenance[0].outcome,'indeterminate');
   assert.equal(calls.some(([name])=>name==='markIndeterminate'),true);
+});
+
+for (const [label,code] of [
+  ['head movement','GITHUB_HEAD_MOVED'],
+  ['pull request closure','GITHUB_PULL_REQUEST_CLOSED'],
+  ['failed required checks','GITHUB_INTEGRATION_VERIFICATION_FAILED'],
+]) test(`${label} is retained as a deterministic blocked recovery state`, async()=>{
+  const error=new Error(label); error.code=code; error.may_have_mutated=true; error.details={ integration:{ ok:false, error:code, may_have_mutated:false } };
+  const { service, calls }=serviceHarness({ pending:[await waitingOperation()], executeAuthoring:async()=>{ throw error; } });
+  const maintenance=await service.maintain(10);
+  assert.equal(maintenance[0].outcome,'blocked');
+  const pause=calls.filter(([name])=>name==='pausePrepared').at(-1)?.[1];
+  assert.equal(pause.recovery_payload.phase,'RECOVERY_BLOCKED');
+  assert.equal(calls.some(([name])=>name==='markIndeterminate'),false);
+});
+
+test('final authoritative readback mismatch becomes indeterminate after a possible integration effect', async()=>{
+  const mismatch=new Error('final readback mismatch'); mismatch.code='PROJECT_AUTHORING_READBACK_MISMATCH'; mismatch.may_have_mutated=true;
+  const { service, calls }=serviceHarness({ pending:[await waitingOperation()], executeAuthoring:async()=>{ throw mismatch; } });
+  const maintenance=await service.maintain(10);
+  assert.equal(maintenance[0].outcome,'indeterminate');
+  assert.equal(calls.some(([name])=>name==='markIndeterminate'),true);
+});
+
+test('duplicate event wakeups cannot execute the same waiting operation twice', async()=>{
+  const operation=await waitingOperation();
+  let executions=0;
+  const { service }=serviceHarness({ executeAuthoring:async()=>{ executions+=1; return { ok:true, authority:{ revision:'6'.repeat(40) } }; } });
+  const first=await service.wake(operation);
+  const second=await service.wake(operation);
+  assert.equal(first.outcome,'succeeded');
+  assert.equal(second.outcome,'already_claimed');
+  assert.equal(executions,1);
 });
 
 test('exact replay returns the terminal durable result without re-executing authoring', async()=>{
