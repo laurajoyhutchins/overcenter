@@ -52,14 +52,6 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Upload generated contract evidence candidate
-        uses: actions/upload-artifact@v4
-        with:
-          name: contract-evidence-candidate
-          path: |
-            ${{ runner.temp }}/contract-evidence/generated/contracts/catalog.json
-            ${{ runner.temp }}/contract-evidence/docs/generated/data-contracts.md
-            ${{ runner.temp }}/contract-evidence/docs/generated/data-contract-authority-atlas.md
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
