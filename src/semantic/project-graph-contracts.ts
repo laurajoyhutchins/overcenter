@@ -4,6 +4,7 @@ import type {
   Executor,
   JsonValue,
   PhaseBinding,
+  ProjectExecutionIntent,
   PhaseBindings,
   PhaseInputSource,
   ProjectBindingPhase,
@@ -20,6 +21,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function requiredText(value: unknown, field: string, fail: ProjectGraphFail): string {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (!normalized) fail('INVALID_PROJECT_GRAPH', `${field} must be a non-empty string`, { field, value: value ?? null });
+  return normalized;
+}
+
+function boundedText(value: unknown, field: string, max: number, fail: ProjectGraphFail): string {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (!normalized || normalized.length > max) {
+    fail('INVALID_PROJECT_GRAPH', `${field} must be a non-empty string no longer than ${max} characters`, { field, value: value ?? null, max });
+  }
   return normalized;
 }
 
@@ -45,6 +54,40 @@ export function normalizeProjectExecutor(raw: unknown, nodeId: string, fail: Pro
     });
   }
   return fail('INVALID_PROJECT_GRAPH', 'executor.kind must be operator or agent', { node_id: nodeId, kind });
+}
+
+export function normalizeProjectExecutionIntent(raw: unknown, nodeId: string, fail: ProjectGraphFail): ProjectExecutionIntent | undefined {
+  if (raw == null) return undefined;
+  if (!isRecord(raw)) fail('INVALID_PROJECT_GRAPH', 'execution_intent must be an object', { node_id: nodeId });
+  const unknown = Object.keys(raw).filter((key) => !['schema', 'desired_outcome', 'acceptance_evidence', 'source_ref'].includes(key)).sort();
+  if (unknown.length) fail('INVALID_PROJECT_GRAPH', 'execution_intent contains unsupported fields', { node_id: nodeId, unknown });
+  if (raw.schema !== 'project-execution-intent-v1') {
+    fail('INVALID_PROJECT_GRAPH', 'execution_intent.schema is unsupported', { node_id: nodeId, schema: raw.schema ?? null });
+  }
+  const desiredOutcome = boundedText(raw.desired_outcome, 'execution_intent.desired_outcome', 4096, fail);
+  if (!Array.isArray(raw.acceptance_evidence) || raw.acceptance_evidence.length === 0 || raw.acceptance_evidence.length > 16) {
+    fail('INVALID_PROJECT_GRAPH', 'execution_intent.acceptance_evidence must contain between 1 and 16 requirements', { node_id: nodeId });
+  }
+  const acceptanceEvidence = raw.acceptance_evidence.map((entry, index) => {
+    if (!isRecord(entry)) fail('INVALID_PROJECT_GRAPH', 'execution_intent acceptance evidence requirement must be an object', { node_id: nodeId, index });
+    const entryUnknown = Object.keys(entry).filter((key) => !['kind', 'requirement'].includes(key)).sort();
+    if (entryUnknown.length) fail('INVALID_PROJECT_GRAPH', 'execution_intent acceptance evidence requirement contains unsupported fields', { node_id: nodeId, index, unknown: entryUnknown });
+    return Object.freeze({
+      kind: boundedText(entry.kind, `execution_intent.acceptance_evidence[${index}].kind`, 128, fail),
+      requirement: boundedText(entry.requirement, `execution_intent.acceptance_evidence[${index}].requirement`, 2048, fail),
+    });
+  });
+  const evidenceKeys = acceptanceEvidence.map((entry) => JSON.stringify(entry));
+  if (new Set(evidenceKeys).size !== evidenceKeys.length) {
+    fail('INVALID_PROJECT_GRAPH', 'execution_intent.acceptance_evidence contains duplicates', { node_id: nodeId });
+  }
+  const sourceRef = raw.source_ref == null ? undefined : boundedText(raw.source_ref, 'execution_intent.source_ref', 512, fail);
+  return Object.freeze({
+    schema:'project-execution-intent-v1',
+    desired_outcome:desiredOutcome,
+    acceptance_evidence:Object.freeze(acceptanceEvidence),
+    ...(sourceRef ? { source_ref:sourceRef } : {}),
+  });
 }
 
 function normalizeProjectLiteral(value: unknown, field: string, fail: ProjectGraphFail): JsonValue {

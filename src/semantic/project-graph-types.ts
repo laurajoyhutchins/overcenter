@@ -22,6 +22,18 @@ export type AgentExecutor = {
 
 export type Executor = OperatorExecutor | AgentExecutor;
 
+export type ProjectExecutionEvidenceRequirement = Readonly<{
+  kind: string;
+  requirement: string;
+}>;
+
+export type ProjectExecutionIntent = Readonly<{
+  schema: 'project-execution-intent-v1';
+  desired_outcome: string;
+  acceptance_evidence: readonly ProjectExecutionEvidenceRequirement[];
+  source_ref?: string;
+}>;
+
 export type FromPhaseInputSource = {
   readonly from: string;
   readonly literal?: never;
