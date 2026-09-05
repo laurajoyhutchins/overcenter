@@ -16,7 +16,9 @@
     "dev": "node scripts/dev.mjs",
     "verify": "node scripts/verify.mjs",
     "typecheck": "node scripts/build.mjs typecheck",
-    "test:integration": "node scripts/test-integration.mjs"
+    "test:integration": "node scripts/test-integration.mjs",
+    "audit:tests": "node scripts/test-audit.mjs",
+    "audit:tests:coverage": "node scripts/test-audit.mjs --coverage"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "2",

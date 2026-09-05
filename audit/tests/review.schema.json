@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "overcenter-test-audit-review-v1",
+  "title": "Overcenter test audit review row",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "test_id", "revision", "file", "line", "name", "intent", "subject", "invariants", "authority",
+    "setup_validity", "assertion_strength", "identity_binding", "failure_behavior", "mutation_certainty",
+    "concurrency_recovery", "determinism", "production_fidelity", "overlap", "regression_lineage", "disposition",
+    "evidence", "notes"
+  ],
+  "properties": {
+    "schema": { "const": "overcenter-test-audit-review-v1" },
+    "test_id": { "type": "string", "pattern": "^test_[0-9a-f]{16}$" },
+    "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "file": { "type": "string", "minLength": 1 },
+    "line": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "intent": { "type": ["string", "null"] },
+    "subject": { "type": ["string", "null"] },
+    "invariants": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "authority": { "type": ["string", "null"] },
+    "setup_validity": { "$ref": "#/$defs/finding" },
+    "assertion_strength": { "enum": ["UNKNOWN", "NONE", "WEAK", "BEHAVIORAL", "BOUNDARY", "INVARIANT"] },
+    "identity_binding": { "$ref": "#/$defs/finding" },
+    "failure_behavior": { "$ref": "#/$defs/finding" },
+    "mutation_certainty": { "$ref": "#/$defs/finding" },
+    "concurrency_recovery": { "$ref": "#/$defs/finding" },
+    "determinism": { "$ref": "#/$defs/finding" },
+    "production_fidelity": { "$ref": "#/$defs/finding" },
+    "overlap": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "regression_lineage": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "disposition": { "enum": ["UNKNOWN", "KEEP", "STRENGTHEN", "MERGE", "REPLACE", "DELETE", "BROKEN"] },
+    "evidence": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": ["string", "null"] }
+  },
+  "$defs": {
+    "finding": { "enum": ["UNKNOWN", "PASS", "CONCERN", "FAIL", "NA"] }
+  }
+}
