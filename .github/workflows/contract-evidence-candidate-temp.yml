@@ -41,6 +41,12 @@ jobs:
           node-version: 22
       - name: Install contract evidence tooling
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
+      - name: Capture committed evidence baseline
+        run: |
+          mkdir -p "$RUNNER_TEMP/baseline/generated/contracts" "$RUNNER_TEMP/baseline/docs/generated"
+          cp generated/contracts/catalog.json "$RUNNER_TEMP/baseline/generated/contracts/catalog.json"
+          cp docs/generated/data-contracts.md "$RUNNER_TEMP/baseline/docs/generated/data-contracts.md"
+          cp docs/generated/data-contract-authority-atlas.md "$RUNNER_TEMP/baseline/docs/generated/data-contract-authority-atlas.md"
       - name: Generate candidate evidence
         run: |
           mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
@@ -55,6 +61,9 @@ jobs:
         with:
           name: contract-evidence-candidate
           path: |
+            ${{ runner.temp }}/baseline/generated/contracts/catalog.json
+            ${{ runner.temp }}/baseline/docs/generated/data-contracts.md
+            ${{ runner.temp }}/baseline/docs/generated/data-contract-authority-atlas.md
             ${{ runner.temp }}/contract-evidence/generated/contracts/catalog.json
             ${{ runner.temp }}/contract-evidence/docs/generated/data-contracts.md
             ${{ runner.temp }}/contract-evidence/docs/generated/data-contract-authority-atlas.md
