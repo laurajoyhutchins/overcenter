@@ -84,3 +84,22 @@ test('fresh exact observation run can authorize final same-revision convergence 
   assert.ok(materializationLists >= 2, 'dispatch identity must be discovered by authoritative workflow-run readback');
   assert.ok(calls.some(request => request.path.endsWith('/actions/runs/101')));
 });
+
+test('production reconciliation GitHub reads use the canonical GET transport contract', async () => {
+  const db = { query:async () => ({ rows:[{ development_branch:'dev', production_branch:'main' }] }) };
+  const withGitHubAppApiClient = async (_repo, callback) => callback({
+    call:async (_provider, request) => {
+      assert.equal(request.method, 'GET');
+      assert.equal(request.headers?.Accept, 'application/vnd.github+json');
+      assert.equal(request.headers?.['X-GitHub-Api-Version'], '2026-03-10');
+      assert.equal(request.headers?.['User-Agent'], 'Overcenter/1.0');
+      if (request.path.includes('/git/ref/heads/')) return { status:200, body:{ object:{ sha:SHA } };
+      throw new Error(`unexpected GitHub request ${request.path}`);
+    },
+  });
+  const service = productionReconciliationFor({ db, withGitHubAppApiClient });
+  await assert.rejects(
+    service.reconcile({ repo:'laurajoyhutchins/overcenter' }),
+    error => error?.code !== undefined,
+  );
+});
