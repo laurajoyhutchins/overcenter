@@ -23,6 +23,7 @@ function fixture(currentEpoch) {
         transition_id:'transition-a',
         repository,
         authority_revision:'1'.repeat(40),
+        authority_derivation:'overcenter-project-graph-v1',
         graph_fingerprint:'f'.repeat(64),
         transition_definition_fingerprint:'d'.repeat(64),
         authority_epoch:1,
