@@ -104,7 +104,7 @@ test('empty project.amend confirms the current exact revision without provider m
   assert.equal(result.authority.revision, initialRevision);
   assert.deepEqual(result.diff, { added:[], changed:[], removed:[] });
   assert.equal(result.graph.revision, initialRevision);
-  assert.deepEqual(calls.map((call) => call[0]), ['read', 'derive']);
+  assert.deepEqual(calls.map((call) => call[0]), ['read', 'read', 'derive']);
 });
 
 test('idempotent transition upsert is a confirmed no-op without confirmation-history or provider mutation', async () => {
