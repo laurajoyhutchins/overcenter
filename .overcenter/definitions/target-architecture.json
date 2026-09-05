@@ -878,6 +878,40 @@
       }
     },
     {
+      "id": "document-outcome-integrity-architecture",
+      "priority": 181,
+      "requires": [
+        "define-immutable-obligation-graph-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "verification-before-completion"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Document Outcome Integrity as the research-grounded semantic assurance layer above Overcenter's structurally sound obligation graph: distinguish execution/workflow soundness from outcome sufficiency; define claims, argument steps, evidence, assumptions, and defeaters; bind every assessment to exact project/graph authority; preserve reasoning findings as non-authoritative until accepted through existing project authoring; and explicitly avoid overloading existing obligation semantic-content terminology, adding a shadow plan database, or requiring a full claim schema before repeated needs justify it.",
+        "acceptance_evidence": [
+          {
+            "kind": "architecture",
+            "requirement": "Canonical Overcenter architecture documentation explains the outcome plane, execution plane, and evidence plane; shows how transitions realize claims and evidence supports claims through explicit argument steps; and distinguishes Outcome Integrity from existing obligation semantic/content identity."
+          },
+          {
+            "kind": "authority",
+            "requirement": "The contract states that Outcome Integrity review is read-only and revision-bound, that reasoning-agent findings and defeaters are non-authoritative, and that accepted repairs flow through existing project.amend/project.define authority with fresh exact-revision confirmation."
+          },
+          {
+            "kind": "research",
+            "requirement": "The documentation records the useful prior-art guidance from assurance cases/GSN/CAE/Assurance 2.0, Hoare-style pre/postcondition reasoning, HTN decomposition semantics, workflow/Petri-net soundness, proof-carrying systems, runtime verification, provenance, and Overcenter's exact-identity binding work without claiming those sources as Overcenter authority."
+          },
+          {
+            "kind": "scope",
+            "requirement": "The first implementation slice remains schema-light: infer provisional claims/relationships from existing project outcome, transition intent, requires, acceptance evidence, and authoritative docs; do not add a mandatory first-class claim/refinement schema or new mutable lifecycle in this documentation transition."
+          }
+        ]
+      }
+    },
+    {
       "id": "enforce-primary-mcp-discovery-boundary",
       "priority": 1300,
       "requires": [],
@@ -943,6 +977,40 @@
           {
             "kind": "verification",
             "requirement": "The repository developer verification path and required GitHub Actions checks pass at the exact final PR head, including the test-audit conformance invariant and the migrated lib suite."
+          }
+        ]
+      }
+    },
+    {
+      "id": "establish-outcome-integrity-semantic-mutation-benchmark",
+      "priority": 179,
+      "requires": [
+        "document-outcome-integrity-architecture"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Create a revision-bound Outcome Integrity benchmark based on structurally valid but semantically defective project graphs and semantic mutation testing, so improvements can be measured by whether they detect planted outcome-sufficiency defects rather than by subjective review quality.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Benchmark results are test evidence for the review implementation, not project authority, and every evaluated case records the exact fixture/revision and review contract version."
+          },
+          {
+            "kind": "fixtures",
+            "requirement": "Benchmark cases include at least missing work, weak/adjacent evidence, hidden assumption, incompatible sibling strategies, semantic justification cycle, stale exact-revision assurance, orphan work, and a case where every leaf success holds while the root outcome is false."
+          },
+          {
+            "kind": "metrics",
+            "requirement": "Report defect recall, finding precision, false-blocker rate, counterexample validity, correct claim/argument path, minimal missing-obligation accuracy, repair minimality, paraphrase stability where applicable, and revision-binding correctness."
+          },
+          {
+            "kind": "mutation",
+            "requirement": "The harness can derive semantic mutants from a known-good graph by operations such as deleting a required obligation, weakening acceptance evidence, removing an assumption, changing refinement meaning, inserting irrelevant work, or introducing contradiction, while preserving structural graph validity where the case intends to test outcome rather than workflow soundness."
           }
         ]
       }
@@ -1229,6 +1297,49 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "implement-outcome-integrity-inspection-v0",
+      "priority": 180,
+      "requires": [
+        "define-immutable-obligation-graph-contract",
+        "document-outcome-integrity-architecture"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Implement Outcome Integrity v0 as an exact-revision, read-only project inspection capability that evaluates whether successful execution of the current authoritative obligation graph is sufficient to establish the intended project outcome, without changing graph lifecycle semantics or creating a second plan authority.",
+        "acceptance_evidence": [
+          {
+            "kind": "compatibility",
+            "requirement": "Existing project.inspect/project graph authority, obligation identity, leases, settlement, evidence, and current lifecycle projections remain authoritative and behaviorally compatible; no shadow graph, plan database, or duplicated evidence state is introduced."
+          },
+          {
+            "kind": "contract",
+            "requirement": "The inspection result is bound to project_ref, exact authority revision, graph derivation/semantic identity when available, review contract version, and selected horizon/root; a revision change invalidates the assessment unless later semantic identity machinery proves safe reuse."
+          },
+          {
+            "kind": "deterministic-analysis",
+            "requirement": "Deterministic checks detect mechanically knowable gaps such as orphan work, missing producers, missing or unowned assumptions, missing evidence bindings, semantic justification cycles, and structurally impossible proof closure, while only objective violations may hard-block execution."
+          },
+          {
+            "kind": "falsification",
+            "requirement": "The review protocol includes both a positive derivation from authoritative premises to the root outcome and a falsification pass that attempts to construct a coherent world where every declared transition success/evidence condition holds but the root outcome remains false."
+          },
+          {
+            "kind": "judgment-boundary",
+            "requirement": "Reasoning review produces structured non-authoritative findings, argument steps, counterexamples/defeaters, and unresolved proof obligations rather than a semantically_valid boolean; accepted repairs must use existing project authoring authority."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Focused and canonical tests pass at the exact final revision, including stale-review invalidation and at least one known semantic counterexample modeled after packet-only disposable-agent execution."
+          }
+        ]
       }
     },
     {
@@ -1966,6 +2077,41 @@
           {
             "kind": "verification",
             "requirement": "Fresh verification evidence at the exact final authority revision must demonstrate the desired outcome and all stated constraints."
+          }
+        ]
+      }
+    },
+    {
+      "id": "verify-outcome-integrity-v0",
+      "priority": 178,
+      "requires": [
+        "establish-outcome-integrity-semantic-mutation-benchmark",
+        "implement-outcome-integrity-inspection-v0"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "verification-before-completion"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Prove the first Outcome Integrity slice can distinguish structurally sound execution from outcome sufficiency, preserve exact-revision and authority boundaries, surface valid semantic defeaters without granting reasoning-agent analysis mutation authority, and produce actionable minimal missing obligations on the benchmark corpus and a live Overcenter project graph.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Changing the authoritative graph revision makes the prior review stale/fail-closed, and any accepted repair is applied only through canonical project authoring with fresh authoritative readback."
+          },
+          {
+            "kind": "benchmark",
+            "requirement": "The exact final implementation revision passes the semantic mutation benchmark with recorded precision/recall/false-blocker results and no benchmark case depends on hidden prior conversation state."
+          },
+          {
+            "kind": "falsification",
+            "requirement": "Verification includes at least one successful semantic counterexample showing that all declared transition-local success conditions can hold while a root outcome is false, plus a repaired graph or obligation set whose positive derivation closes that gap."
+          },
+          {
+            "kind": "live-proof",
+            "requirement": "A fresh disposable session can inspect a live exact-revision Overcenter graph, receive the Outcome Integrity report, trace at least one finding or closed argument to authoritative graph/evidence coordinates, and determine whether the next action is deterministic, judgment-required, or no action without treating the review as authority."
           }
         ]
       }
