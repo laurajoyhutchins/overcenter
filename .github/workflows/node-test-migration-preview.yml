@@ -30,7 +30,7 @@ jobs:
         run: |
           mapfile -t tests < <(find lib -type f -name '*.test.js' -print | sort)
           test "${#tests[@]}" -gt 0
-          node --test "${tests[@]}"
+          node --experimental-loader ./scripts/hatchable-node-test-loader.mjs --test "${tests[@]}"
       - name: Capture exact migration patch
         if: always()
         run: git diff --binary > node-test-migration.patch
