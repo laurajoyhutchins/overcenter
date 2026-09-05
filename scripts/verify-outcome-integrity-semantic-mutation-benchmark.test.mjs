@@ -27,6 +27,7 @@ test('semantic mutation corpus preserves structural validity while planting outc
   assert.ok(mutants.every((mutant) => mutant.structurally_valid === true));
   assert.ok(mutants.every((mutant) => mutant.fixture_revision === fixture.revision));
   assert.ok(mutants.every((mutant) => mutant.review_contract_version === OUTCOME_INTEGRITY_REVIEW_CONTRACT_VERSION));
+  assert.ok(mutants.every((mutant) => mutant.mutation.operation));
 });
 
 test('authoritative-effect-gap keeps a defeater when candidate verification succeeds but dev authority is unchanged', () => {
@@ -37,6 +38,13 @@ test('authoritative-effect-gap keeps a defeater when candidate verification succ
   assert.equal(mutant.observations.candidate_exact_revision_verified, true);
   assert.equal(mutant.observations.authoritative_development_branch_changed, false);
   assert.equal(mutant.expected_defect.required_finding, 'missing-authoritative-integration-effect');
+});
+
+test('all-leaf-success mutant preserves local success while the root outcome stays false', () => {
+  const fixture = createKnownGoodFixture({ revision: '203d4b1b919ca77108fc4188934fdee6d423ff94' });
+  const mutant = deriveSemanticMutants(fixture).find((item) => item.expected_defect.kind === 'vacuous-leaf-success');
+  assert.equal(mutant.observations.every_leaf_success, true);
+  assert.equal(mutant.observations.root_outcome_established, false);
 });
 
 test('benchmark scores required outcome-integrity metrics against revision-bound cases', () => {
@@ -57,7 +65,6 @@ test('benchmark scores required outcome-integrity metrics against revision-bound
   for (const metric of [
     'defect_recall',
     'finding_precision',
-    'false_blocker_rate',
     'counterexample_validity',
     'correct_claim_argument_path',
     'minimal_missing_obligation_accuracy',
@@ -65,4 +72,5 @@ test('benchmark scores required outcome-integrity metrics against revision-bound
     'paraphrase_stability',
     'revision_binding_correctness',
   ]) assert.equal(report.metrics[metric], 1);
+  assert.equal(report.metrics.false_blocker_rate, 0);
 });
