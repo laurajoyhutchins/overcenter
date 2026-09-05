@@ -410,6 +410,16 @@
       "logical_contract": "project.graph.authority-coordinate",
       "significance": "authority"
     },
+    "typescript:src/semantic/project-graph-types.ts#ProjectExecutionEvidenceRequirement": {
+      "significance": "projection",
+      "projection_of": "project.execution-intent"
+    },
+    "typescript:src/semantic/project-graph-types.ts#ProjectExecutionIntent": {
+      "logical_contract": "project.execution-intent",
+      "significance": "authority",
+      "semver_kind": "project-definition-schema",
+      "lifecycle": "current"
+    },
     "typescript:src/semantic/project-transition-status-contracts.ts#PROJECT_TRANSITION_STATES": {
       "logical_contract": "project.transition.states",
       "significance": "authority",
