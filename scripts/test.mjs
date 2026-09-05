@@ -75,6 +75,7 @@ const maintainedTests = [
   'production-reconcile-host.test.mjs',
   'production-runtime-observation-http.test.mjs',
   'test-audit-core.test.mjs',
+  'verify-native-lib-tests.test.mjs',
 ];
 
 const scriptNames = await readdir(new URL('scripts/', root));
