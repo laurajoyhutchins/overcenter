@@ -162,6 +162,52 @@ test('project authoring runtime rejects stale authority before requesting a repo
   assert.equal(mutations, 0);
 });
 
+test('project amendment returns a confirmed exact-revision no-op without provider residue', async () => {
+  const { amendProjectDefinition } = await import('../lib/project-authoring-runtime.js');
+  const revision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+  for (const amendment of [
+    {},
+    { upsert_transitions:[base.transitions[0]] },
+  ]) {
+    let authorityReads = 0;
+    let historyReads = 0;
+    let mutations = 0;
+    let graphReads = 0;
+    const result = await amendProjectDefinition({
+      project_ref:'github:example/project',
+      expected_revision:revision,
+      amendment,
+    }, {
+      resolveAuthority:async () => {
+        authorityReads += 1;
+        return {
+          project_ref:'github:example/project',
+          repository:'example/project',
+          revision,
+          derivation:'overcenter-project-graph-v1',
+        };
+      },
+      readDefinition:async () => base,
+      readProjectObservations:async () => { historyReads += 1; return []; },
+      mutateDefinition:async () => { mutations += 1; return { revision:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }; },
+      deriveProjectGraph:async (authority) => {
+        graphReads += 1;
+        return { schema:'overcenter-project-graph-v1', project_ref:'github:example/project', revision:authority.revision };
+      },
+    });
+
+    assert.equal(authorityReads, 1);
+    assert.equal(historyReads, 0);
+    assert.equal(mutations, 0, 'semantic no-op must not create provider work-surface residue');
+    assert.equal(graphReads, 1);
+    assert.equal(result.ok, true);
+    assert.equal(result.authority.revision, revision);
+    assert.deepEqual(result.diff, { added:[], changed:[], removed:[] });
+    assert.equal(result.graph.revision, revision);
+  }
+});
+
 test('project amendment derives success from refreshed authoritative definition state rather than the staged revision', async () => {
   const { amendProjectDefinition } = await import('../lib/project-authoring-runtime.js');
   const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
