@@ -185,7 +185,7 @@ function migrateSource(file, source) {
       migrated = ["import test from 'node:test';", migrated].join('\n');
     }
     parse(file, migrated);
-    return migrated;
+    return finalizeSource(migrated);
   }
 
   const localHelpers = new Map();
@@ -305,7 +305,7 @@ function migrateSource(file, source) {
   const remainingRunner = reparsed.statements.some((statement) => ts.isFunctionDeclaration(statement) && statement.name && exported(statement) && RUNNER_NAME.test(statement.name.text));
   if (remainingRunner) throw new Error(`${file}: exported legacy runner survived migration`);
   if (/\b(?:results|r)\.push\s*\(\s*await\s+(?:run|test|t)\s*\(/.test(migrated)) throw new Error(`${file}: legacy result aggregation survived migration`);
-  return migrated;
+  return finalizeSource(migrated);
 }
 
 async function filesUnder(directory) {
