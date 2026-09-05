@@ -89,7 +89,25 @@ function relativeModuleSpecifier(file, specifier) {
 }
 
 function rewriteRepoImports(file, source) {
-  return source.replace(/(from\s+['"])((?:api|lib|mcp|pages|scripts)\/[^'"]+)(['"])/g, (_match, prefix, specifier, suffix) => `${prefix}${relativeModuleSpecifier(file, specifier)}${suffix}`);
+  const sf = parse(file, source);
+  const edits = [];
+  const rewriteSpecifier = (node) => {
+    if (!node || !ts.isStringLiteralLike(node)) return;
+    const next = relativeModuleSpecifier(file, node.text);
+    if (next === node.text) return;
+    edits.push({ start:node.getStart(sf), end:node.end, text:JSON.stringify(next) });
+  };
+  for (const statement of sf.statements) {
+    if (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) rewriteSpecifier(statement.moduleSpecifier);
+  }
+  function visit(node) {
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments.length === 1) {
+      rewriteSpecifier(node.arguments[0]);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(sf);
+  return applyEdits(source, edits);
 }
 
 function stripLegacyRunnerImports(file, source) {
@@ -319,6 +337,18 @@ async function filesUnder(directory) {
   return files;
 }
 
+const normalized_modules = [];
+for (const directory of ['api', 'lib', 'mcp', 'pages', 'scripts']) {
+  for (const file of (await filesUnder(directory)).filter((candidate) => /\.(?:js|mjs)$/.test(candidate))) {
+    const source = await readFile(path.join(root, file), 'utf8');
+    const normalized = rewriteRepoImports(file, source);
+    if (normalized !== source) {
+      await writeFile(path.join(root, file), finalizeSource(normalized));
+      normalized_modules.push(file);
+    }
+  }
+}
+
 const ordinary = (await filesUnder('lib')).filter((file) => /\.(?:test|spec)\.js$/.test(file)).sort();
 const explicitLegacyTests = ['lib/project-agent-session-boundary-regression.js'];
 const migrated = [];
@@ -340,5 +370,5 @@ for (const file of [...ordinary, ...explicitLegacyTests]) {
   }
 }
 
-console.log(JSON.stringify({ schema:'node-test-migration-v1', migrated_count:migrated.length, failure_count:failures.length, migrated, failures }, null, 2));
+console.log(JSON.stringify({ schema:'node-test-migration-v1', normalized_module_count:normalized_modules.length, normalized_modules, migrated_count:migrated.length, failure_count:failures.length, migrated, failures }, null, 2));
 if (failures.length) process.exitCode = 1;
