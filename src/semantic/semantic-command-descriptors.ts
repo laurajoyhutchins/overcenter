@@ -255,7 +255,7 @@ const DESCRIPTORS = Object.freeze({
     'Apply an exact repository changeset using only a valid project-transition lease as execution authority. Overcenter derives repository, managed workspace branch, immutable generation base, exact workspace-head fence, retry identity, and GitHub App credentials. Caller-selected Git coordinates are not accepted.',
     githubApplyChangesetSchema,
     'advanced',
-    WORKER_AND_MCP_EXPOSURE,
+    INTERNAL_EXPOSURE,
   ),
   'github.apply_text_replacements':descriptor(
     'github.apply_text_replacements',
@@ -263,7 +263,7 @@ const DESCRIPTORS = Object.freeze({
     'Apply bounded exact text replacements under a project-transition lease. Source text is read from an immutable workspace revision and the later changeset is mechanically fenced to that same workspace observation, so stale reads fail closed before mutation. Repository, branch, head, retry identity, and credentials are derived internally.',
     githubApplyTextReplacementsSchema,
     'advanced',
-    WORKER_AND_MCP_EXPOSURE,
+    INTERNAL_EXPOSURE,
   ),
   'github.pull_request.mark_ready':descriptor(
     'github.pull_request.mark_ready',
