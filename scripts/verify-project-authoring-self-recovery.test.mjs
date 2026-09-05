@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { createProjectAuthoringRecoveryService } from '../lib/project-authoring-recovery.js';
 import { canonicalJson, sha256Text } from '../lib/canonical-json.js';
 import { projectAuthoringIdempotencyKey } from '../lib/project-authoring-github-runtime.js';
+import { createOrchestrationMaintenanceService } from '../lib/orchestration-runs.js';
 
 const BASE='1111111111111111111111111111111111111111';
 const HEAD='2222222222222222222222222222222222222222';
@@ -165,6 +166,26 @@ test('duplicate event wakeups cannot execute the same waiting operation twice', 
   assert.equal(first.outcome,'succeeded');
   assert.equal(second.outcome,'already_claimed');
   assert.equal(executions,1);
+});
+
+test('orchestration.maintain consumes pending authoring recovery when provider events are missed', async()=>{
+  let recoveryCalls=0;
+  const maintenance=createOrchestrationMaintenanceService({
+    store:{
+      async expiredSlots(){return [];},
+      async stuckLeases(){return [];},
+      async unresolvedInvocations(){return [];},
+      async overdueRuns(){return [];},
+    },
+    leases:{},
+    projectAuthoringRecovery:{
+      async maintain(limit){recoveryCalls+=1;assert.equal(limit,20);return [{kind:'project_authoring_reconciliation',outcome:'waiting'}];},
+    },
+  });
+  const result=await maintenance.maintain();
+  assert.equal(recoveryCalls,1);
+  assert.equal(result.actions.length,1);
+  assert.equal(result.actions[0].kind,'project_authoring_reconciliation');
 });
 
 test('exact replay returns the terminal durable result without re-executing authoring', async()=>{
