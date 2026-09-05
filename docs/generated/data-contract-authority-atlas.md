@@ -1604,6 +1604,26 @@ _None._
 - `mcp:mcp/project.inspect.js#inputSchema` (`mcp`)
   - Source: `mcp/project.inspect.js#inputSchema`
 
+## `project.obligation-graph.contract`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- Authority: `javascript:lib/project-obligation-contract.js#PROJECT_OBLIGATION_GRAPH_CONTRACT` (`javascript`)
+- Authority source: `lib/project-obligation-contract.js#PROJECT_OBLIGATION_GRAPH_CONTRACT`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
 ## `project.transition.states`
 
 - Significance: `authority`

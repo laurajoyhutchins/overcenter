@@ -11,6 +11,11 @@
       "significance": "implementation-only",
       "semver_kind": "internal-module-layout"
     },
+    "javascript:lib/project-obligation-contract.js#PROJECT_OBLIGATION_GRAPH_CONTRACT": {
+      "logical_contract": "project.obligation-graph.contract",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
     "mcp:mcp/production.promote.js#inputSchema": {
       "significance": "projection",
       "projection_of": "production.promote.input"
