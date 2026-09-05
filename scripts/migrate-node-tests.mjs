@@ -251,7 +251,7 @@ function migrateSource(file, source) {
     }
     if (ts.isVariableStatement(statement)) {
       const text = statement.getText(sf);
-      if ([...collectors].some((name) => new RegExp(`\b${name}\.(?:filter|every|map|length)\b`).test(text))) {
+      if ([...collectors].some((name) => new RegExp(`\\b${name}\\.(?:filter|every|map|length)\\b`).test(text))) {
         removeStatement(statement);
         continue;
       }
@@ -309,7 +309,7 @@ function migrateSource(file, source) {
     if (survivingCollector) throw new Error(`${file}: collector ${survivingCollector} survived migration`);
   }
   for (const helper of helperNames) {
-    if (helper !== 'test' && new RegExp(`\b${helper}\s*\(`).test(promoted)) throw new Error(`${file}: helper ${helper} survived migration`);
+    if (helper !== 'test' && new RegExp(`\\b${helper}\\s*\\(`).test(promoted)) throw new Error(`${file}: helper ${helper} survived migration`);
   }
   if (/\bawait\s+run[A-Z][A-Za-z0-9_$]*(?:Tests|Spec)\s*\(/.test(promoted)) throw new Error(`${file}: nested legacy suite survived migration`);
 
