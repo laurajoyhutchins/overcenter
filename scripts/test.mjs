@@ -62,6 +62,7 @@ const maintainedTests = [
   'verify-project-authoring-command-contract.test.mjs',
   'verify-project-authoring-work-branch.test.mjs',
   'verify-github-graph-authority.test.mjs',
+  'verify-overcenter-project-graph-capacity.test.mjs',
   'verify-repository-metadata-command.test.mjs',
   'verify-repository-rename-command.test.mjs',
   'verify-repository-register-command.test.mjs',
