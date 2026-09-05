@@ -22,6 +22,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add a canonical semantic command that turns a bounded conversation-derived judgment into an authoritative project-graph amendment without requiring the caller to author repository layout or other mechanical graph bookkeeping.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -66,6 +80,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Add a generic Overcenter GitHub App capability to delete one exact GitHub Actions workflow run without exposing caller identity. The semantic input must bind deletion to repository plus numeric run identity and fail closed if any supplied expected execution identity (at minimum the expected head commit SHA) does not match the authoritative preflight read. Use the existing GitHub App actions:write permission profile, not user-authored GitHub connector writes. Make an already-absent exact run idempotent success. Treat transport loss after DELETE as indeterminate until authoritative readback proves absence. Add TDD coverage for matching deletion, identity mismatch with no mutation, already-absent replay, and post-dispatch uncertainty reconciliation. Expose the narrow capability through Overcenter's canonical command surface with bounded evidence; do not broaden github-actions-storage into an unrelated metadata-deletion bucket. After implementation, deploy through the normal dev-to-main exact-revision promotion/materialization path and use the live production operator to delete the two known Chirograph privacy-incident workflow runs. Verify the runs are no longer retrievable before settling."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add a generic Overcenter GitHub App capability to delete one exact GitHub Actions workflow run without exposing caller identity. The semantic input must bind deletion to repository plus numeric run identity and fail closed if any supplied expected execution identity (at minimum the expected head commit SHA) does not match the authoritative preflight read. Use the existing GitHub App actions:write permission profile, not user-authored GitHub connector writes. Make an already-absent exact run idempotent success. Treat transport loss after DELETE as indeterminate until authoritative readback proves absence. Add TDD coverage for matching deletion, identity mismatch with no mutation, already-absent replay, and post-dispatch uncertainty reconciliation. Expose the narrow capability through Overcenter's canonical command surface with bounded evidence; do not broaden github-actions-storage into an unrelated metadata-deletion bucket. After implementation, deploy through the normal dev-to-main exact-revision promotion/materialization path and use the live production operator to delete the two known Chirograph privacy-incident workflow runs. Verify the runs are no longer retrievable before settling.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -78,6 +106,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add explicit durable operation-attempt epochs so retries and recovery can distinguish attempts while preserving idempotency, execution identity, and mutation certainty.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -90,6 +132,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Add narrow canonical semantic provider-effect commands for exact GitHub work-surface retirement, including github.pull_request.close and github.issue.close or equally narrow typed equivalents. Each command must preflight exact repository and numeric provider object identity, bind expected current state/head and semantic artifact identity where applicable, be idempotent for already-closed objects, preserve monotonic mutation certainty across transport loss, and confirm closure through fresh authoritative GitHub readback. Do not expose a generic arbitrary issue editor. These primitives own provider execution correctness only; project-level code owns the semantic authorization that an artifact is safe to retire."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add narrow canonical semantic provider-effect commands for exact GitHub work-surface retirement, including github.pull_request.close and github.issue.close or equally narrow typed equivalents. Each command must preflight exact repository and numeric provider object identity, bind expected current state/head and semantic artifact identity where applicable, be idempotent for already-closed objects, preserve monotonic mutation certainty across transport loss, and confirm closure through fresh authoritative GitHub readback. Do not expose a generic arbitrary issue editor. These primitives own provider execution correctness only; project-level code owns the semantic authorization that an artifact is safe to retire.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -112,6 +168,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Add only the missing durable facts required by the approved Overcenter metrics contract, using test-driven-development. At minimum provide a low-cardinality execution initiator/origin classification sufficient to distinguish system, scheduler, agent, operator, and recovery boundaries, plus explicit correlation from a typed failure/recovery decision through recovery attempt to recovery outcome. Ensure agent-communication metrics can correlate AGENT_EXECUTION_REQUIRED/action-contract issuance, packet/schema version where materially needed, subsequent semantic coordination calls, lease-authorized effects, settlement, and any new reasoning-boundary entry without storing prompt contents or creating surveillance telemetry. Reuse existing run, invocation, operation, failure, continuation, lease, transition, and receipt identities; do not create a second orchestration journal or duplicate execution truth. Preserve idempotency, exact-revision authority, mutation certainty, recovery semantics, and compact-state design. Backfill only where truth can be derived mechanically; represent unknown historical origin/correlation as unknown rather than guessing. Add regressions proving metrics can distinguish operator paperwork from automated recovery and can measure whether a failure was resolved without a new reasoning boundary."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add only the missing durable facts required by the approved Overcenter metrics contract, using test-driven-development. At minimum provide a low-cardinality execution initiator/origin classification sufficient to distinguish system, scheduler, agent, operator, and recovery boundaries, plus explicit correlation from a typed failure/recovery decision through recovery attempt to recovery outcome. Ensure agent-communication metrics can correlate AGENT_EXECUTION_REQUIRED/action-contract issuance, packet/schema version where materially needed, subsequent semantic coordination calls, lease-authorized effects, settlement, and any new reasoning-boundary entry without storing prompt contents or creating surveillance telemetry. Reuse existing run, invocation, operation, failure, continuation, lease, transition, and receipt identities; do not create a second orchestration journal or duplicate execution truth. Preserve idempotency, exact-revision authority, mutation certainty, recovery semantics, and compact-state design. Backfill only where truth can be derived mechanically; represent unknown historical origin/correlation as unknown rather than guessing. Add regressions proving metrics can distinguish operator paperwork from automated recovery and can measure whether a failure was resolved without a new reasoning boundary.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -126,6 +196,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "verification-before-completion"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add an operator quickstart and recovery runbook for the current canonical Overcenter command surface, authority model, failure classes, and recovery paths.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -140,6 +224,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Build the first Overcenter operator metrics view against the canonical metrics semantic surface, not direct ad hoc database queries. Keep the opening view intentionally small: verified transitions, verified transitions per agent execution boundary, first-pass success, automatic recovery success, operator-action-required rate, indeterminate mutations, p95 READY-to-verified latency, and p95 failure-to-recovered latency. Add a compact agent-communication section showing action-contract/packet coverage, semantic coordination round trips per verified transition, recovery requiring a new reasoning boundary versus deterministic recovery without one, and stale/incomplete packet authority failures; present zero-memory conformance separately as contract health. Add a ranked recurring-failure section and make every metric/failure cohort drill into exact underlying runs, transitions, commands, packet/schema versions where relevant, authority revisions, and evidence. Show coverage/unknowns so historical gaps are visible. Validate the communication metrics against the fresh/disposable zero-memory scenarios plus representative success, stale-authority, deterministic-recovery, indeterminate-effect, and operator-escalation paths; reject aggregates that cannot lead to a concrete failing contract or execution path. The dashboard is a bug-finding and paperwork-reduction instrument, not a management reporting mural. Record exact deployment, graph revision, scenario identities, and expected/observed metric values."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Build the first Overcenter operator metrics view against the canonical metrics semantic surface, not direct ad hoc database queries. Keep the opening view intentionally small: verified transitions, verified transitions per agent execution boundary, first-pass success, automatic recovery success, operator-action-required rate, indeterminate mutations, p95 READY-to-verified latency, and p95 failure-to-recovered latency. Add a compact agent-communication section showing action-contract/packet coverage, semantic coordination round trips per verified transition, recovery requiring a new reasoning boundary versus deterministic recovery without one, and stale/incomplete packet authority failures; present zero-memory conformance separately as contract health. Add a ranked recurring-failure section and make every metric/failure cohort drill into exact underlying runs, transitions, commands, packet/schema versions where relevant, authority revisions, and evidence. Show coverage/unknowns so historical gaps are visible. Validate the communication metrics against the fresh/disposable zero-memory scenarios plus representative success, stale-authority, deterministic-recovery, indeterminate-effect, and operator-escalation paths; reject aggregates that cannot lead to a concrete failing contract or execution path. The dashboard is a bug-finding and paperwork-reduction instrument, not a management reporting mural. Record exact deployment, graph revision, scenario identities, and expected/observed metric values.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -164,6 +262,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Add a narrow auditable semantic binding operation for the judgment boundary where a reasoning agent or operator explicitly decides that an existing human-authored GitHub issue or pull request exactly represents a project obligation. Prefer a name such as project.artifact.bind if it fits the canonical vocabulary. The binding request may name the provider artifact because choosing the association is the judgment, but it must read and bind exact repository plus provider kind and numeric identity, project_ref, transition_id or other exact semantic subject, relationship, and the closure/satisfaction condition that establishes full-coverage equivalence. Store durable Overcenter evidence without making issue or PR prose project authority. Never infer bindings from titles, labels, or prose similarity. Revoke, supersede, or rebind only through explicit auditable semantic mutation with exact authority checks. Add regressions proving an explicitly bound human issue can later become mechanically satisfied while an unbound lookalike remains ambiguous."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add a narrow auditable semantic binding operation for the judgment boundary where a reasoning agent or operator explicitly decides that an existing human-authored GitHub issue or pull request exactly represents a project obligation. Prefer a name such as project.artifact.bind if it fits the canonical vocabulary. The binding request may name the provider artifact because choosing the association is the judgment, but it must read and bind exact repository plus provider kind and numeric identity, project_ref, transition_id or other exact semantic subject, relationship, and the closure/satisfaction condition that establishes full-coverage equivalence. Store durable Overcenter evidence without making issue or PR prose project authority. Never infer bindings from titles, labels, or prose similarity. Revoke, supersede, or rebind only through explicit auditable semantic mutation with exact authority checks. Add regressions proving an explicitly bound human issue can later become mechanically satisfied while an unbound lookalike remains ambiguous.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -177,6 +289,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Implement the intent-first project work-surface convergence operator defined in docs/architecture/work-surface-convergence.md, preferably project.reconcile_work_surface({ project_ref }) unless canonical naming rules require an equivalent. Caller input must not contain issue numbers, PR numbers, branches, candidate SHAs, close reasons, or other mechanical coordinates. Derive current authoritative project graph and settlements, artifact lineage and explicit bindings, and exact GitHub object state; retire only artifacts deterministically classified mechanically safe; leave ambiguous artifacts untouched and return them as judgment-required. Compose the exact provider retirement primitives, preserve mutation certainty and authoritative readback, be idempotent on an already-converged project, and return a bounded convergence receipt. Add regressions for no-op, superseded PR, explicitly bound satisfied issue, ambiguous human issue, provider drift after classification, and indeterminate close transport."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Implement the intent-first project work-surface convergence operator defined in docs/architecture/work-surface-convergence.md, deriving exact provider coordinates and retirement actions from authoritative project truth while leaving ambiguous artifacts judgment-required.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -201,6 +327,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add revision-bound cross-transition context so a fresh agent can consume relevant predecessor context without relying on prior-session memory or stale authority.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -213,6 +353,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add a canonical semantic reporting path for agent execution results and evidence so completion flows through Overcenter instead of ad hoc orchestration bookkeeping.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -303,6 +457,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Use test-driven-development to make project-authoring candidate admission and base reconciliation fail closed without manufacturing stale pull requests. Before integrating a staged project-authoring candidate, run the exact staged definition through the same production graph derivation and evaluation path used by project.inspect; reject an underivable candidate before it can move dev, with bounded diagnostics and an explicit safe recovery path. If dev advances after staging, reconcile or regenerate the candidate against the exact new authority while preserving semantic intent, exact candidate identity/lineage, branch-protection checks, and idempotent retry; do not reset a candidate branch to its base in a way that can auto-close or sever the recorded candidate lifecycle. Add regressions for an underivable candidate that cannot move dev, dev advancing while verification is pending, stale-base reconciliation that preserves lineage, and replay of the same semantic request converging without duplicate candidates. Graph-size capacity is already repaired and is not part of this transition. Preserve exact-revision fencing, mutation certainty, authoritative GitHub readback, and no blind retry of indeterminate effects. Verify the exact final revision in CI and deployed runtime before settlement."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make project-authoring candidate admission and base reconciliation fail closed without manufacturing stale pull requests, preserving exact candidate lineage and semantic intent across dev movement and idempotent retry.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -315,6 +483,20 @@
         "kind": "agent",
         "role": "verification",
         "skill": "Run the shipped project work-surface reconciler against github:laurajoyhutchins/overcenter and backfill historical lineage only where it can be mechanically reconstructed from exact branch/head/base identities, semantic command or operation/idempotency records, integration receipts, repository-owned project definitions, and durable settlements. Reconcile the stale PR and issue inventory found in the September 5, 2026 audit, including superseded project-authoring candidates and temporary verification artifacts. For historical human-authored objects whose relationship cannot be proven mechanically, use reasoning judgment only through the explicit artifact-binding operation rather than hidden heuristics; otherwise leave them ambiguous. Record exact before/after classifications, authority revision, provider identities, actions, skipped ambiguities, and fresh final project.inspect evidence. Acceptance requires zero remaining mechanically safe retirement candidates and an explicit bounded list of remaining human-judgment residue."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Backfill mechanically provable Overcenter artifact lineage and reconcile the stale GitHub work surface until zero mechanically safe retirement candidates remain, while leaving unprovable human-authored relationships explicitly ambiguous.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Final settlement evidence must be bound to the exact repository revision and authoritative project transition."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh verification evidence at the exact final authority revision must demonstrate the desired outcome and all stated constraints."
+          }
+        ]
       }
     },
     {
@@ -395,6 +577,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Define the smallest canonical metrics contract for Overcenter using test-driven-development. Metrics must be derived from authoritative durable execution facts, not from a parallel telemetry truth. Specify stable definitions, numerators, denominators, dimensions, windows, coverage semantics, and drill-down identity for outcome, friction/paperwork, failure, recovery, latency, and agent-communication effectiveness. Make verified project transitions per agent execution boundary the top-level product metric. Include first-pass success, verified transition throughput, operator-action-required rate, administrative semantic commands per verified transition, failure/rejection/indeterminate separation, automatic recovery success, deterministic-recovery-without-new-reasoning-boundary, and p50/p95 latency measures. For project authoring specifically, define authoring_wait_started, authoring_auto_reconciled, authoring_manual_replay_required, authoring_wait_age, and recompute-required counts segmented by reason/trigger, with authoring_manual_replay_required treated as friction that should converge to zero for mechanically resolvable waits. Distinguish event-triggered, maintenance-triggered, and caller-triggered reconciliation without treating event delivery as authority. For agent communication, measure only Overcenter-observable facts: packet/action-contract schema coverage, semantic coordination round trips per verified transition segmented by lifecycle phase, deterministic recovery that re-enters a reasoning boundary versus recovery completed without one, and authority/protocol failures attributable to stale or incomplete agent packets. Treat fresh-session zero-memory conformance as contract-health evidence, not as production outcome telemetry. Do not claim to measure hidden model confusion or ordinary repository investigation. Explicitly separate Hatchable infrastructure telemetry from Overcenter product/process truth. Identify which metrics are derivable from existing runs, command invocations, execution/operation/proof state, scheduled-cycle events, receipts, graph state, authoring operation state, and packet outcomes, and identify only facts that truly require new instrumentation. Add executable contract tests and fail closed on ambiguous denominators, identity, or unknown historical coverage."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Define the smallest canonical Overcenter metrics contract derived from authoritative durable execution facts, centered on verified project transitions per agent execution boundary with explicit friction, failure, recovery, latency, communication, coverage, and drill-down semantics.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -475,6 +671,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Remove compatibility command exposure that is no longer part of the supported agent-facing surface, while preserving any required internal compatibility semantics.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -487,6 +697,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Delete duplicated orchestration controller paths so one canonical deterministic orchestration implementation owns execution correctness.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -511,6 +735,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Delete legacy lane scaffolding that current project-transition semantics and evidence prove is no longer live or required.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -524,6 +762,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Delete obsolete runtime-host scaffolding after the host-independent production materialization and graph-native scheduled execution boundaries make it unnecessary.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -536,6 +788,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Implement the authoritative Overcenter product/process metric derivation layer using test-driven-development. Derive metrics from durable execution state and receipts rather than emitting duplicate counters throughout command code. Support bounded windows such as 24h, 7d, and 30d; compute distributions rather than averages where latency matters; separate expected rejection, execution failure, mutation indeterminate, authority staleness, and agent/reasoning escalation; compute recurring-failure cohorts and stuck-age distributions. Include agent-communication effectiveness from observable protocol facts: packet/action-contract coverage, semantic coordination commands per verified transition segmented before acquisition/during execution/recovery/after confirmation, deterministic recovery with versus without a new reasoning boundary, and stale/incomplete packet authority failures. Keep zero-memory conformance results as separately labeled contract-health evidence rather than mixing them into production rates. Every aggregate must retain bounded exemplar references to exact runs, transitions, commands, packet/schema versions where applicable, authority revisions, and evidence so an operator can drill from a number to the underlying truth. Ensure derivation is read-only, deterministic for the same durable snapshot, and tolerant of historical records that predate newer fields by reporting unknown coverage rather than silently biasing denominators."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Implement deterministic read-only Overcenter product/process metric derivation from durable execution state and receipts, including bounded windows, distributions, failure/recovery cohorts, communication effectiveness, coverage unknowns, and drill-down exemplars.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -573,6 +839,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Extend project.inspect with bounded work-surface convergence diagnostics derived from authoritative project truth, durable artifact lineage/bindings, and exact GitHub observations. Report exact refs and evidence for active artifacts, safely-retirable satisfied/superseded/orphaned artifacts, and ambiguous artifacts requiring judgment, with bounded counts/details for large repositories. Do not mutate GitHub during inspection and do not change transition READY/DONE semantics merely because a projection is stale. Prove the classifier detects the September 5, 2026 residue patterns: superseded project-authoring candidates, temporary Overcenter verification PRs with no live continuation, and explicitly bound issues whose entire obligation is durably completed, while refusing to classify loosely related human issue prose as safe-to-close. Unknown provider state must remain ambiguous."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Extend project.inspect with bounded work-surface convergence diagnostics that classify active, mechanically safe-to-retire, and judgment-required ambiguous GitHub artifacts from authoritative project truth and exact provider observations without mutating GitHub.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -675,6 +955,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Implement mechanically reconstructable lineage between Overcenter semantic work and the GitHub artifacts it creates or manages, following docs/architecture/work-surface-convergence.md. Bind or derive project_ref, transition_id when applicable, semantic command or operation identity, idempotency identity, repository, exact authority revision, exact candidate head and base where applicable, provider object kind and numeric identity, and later integration or settlement evidence. Model supersession and orphaning when exact evidence permits it. Reuse existing operation state, integration receipts, command journals, idempotency facts, branches, project definitions, and settlements instead of creating a parallel artifact database unless reconstruction is impossible. A fresh disposable session must reconstruct lineage without PR prose, issue prose, or chat history. Fail closed on ambiguous ownership or supersession."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Implement mechanically reconstructable lineage between Overcenter semantic work and managed GitHub artifacts so a disposable session can recover project, transition, operation, authority, candidate, provider, integration, and settlement relationships without prose heuristics.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -702,6 +996,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Complete the compact primary agent discovery product using test-driven-development. Compose project.inspect, project.advance, semantic execution reporting, low-ceremony authoring, self-contained execution intent, and existing recovery classification into one self-teaching agent surface. A zero-memory agent must be able to decide the next legal action from current authoritative state: discovery shows decision-relevant frontier meaning; AGENT_EXECUTION_REQUIRED identifies exact objective/acceptance/verification/constraints, lease authority, authorized semantic mutations, completion/reporting command, invalidation conditions, and bounded recovery; WAITING/OCCUPIED/OFF_NOMINAL explain stop/wait/diagnose/escalate; confirmed/project-complete states explicitly consume authority and prohibit repeated work. Derive next_action/action-contract fields mechanically from authoritative state, canonical command descriptors, execution authority, and recovery_operation rather than divergent handler prose; fail closed if no safe action can be derived. As part of this product boundary, restore executor.skill to a compact method selector and migrate prompt-shaped task meaning into canonical typed execution-intent fields, preserving semantic fingerprints and a safe historical compatibility path. Add regressions for execution, stale/expired authority, occupied work, blocked work, deterministic recovery, indeterminate mutation, confirmed completion, and terminal completion."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Complete a compact self-teaching primary agent discovery surface that lets a zero-memory agent derive the next legal action, exact execution contract, authority, reporting path, stop conditions, and bounded recovery from authoritative current state.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -958,6 +1266,28 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Use test-driven-development to make graph workers and project-authoring transactions mechanically self-recovering without requiring a reasoning session to remain alive or manually replay known deterministic work. Preserve the existing graph-worker recovery scope and make the concrete project.define/project.amend external-verification wait the required first slice. Reuse Overcenter's existing operation_state/idempotency/recovery substrate rather than creating a parallel authoring transaction database. Represent a staged, known GitHub candidate that is waiting on checks/reviews/mergeability as a truthful durable external-wait state, distinct from indeterminate mutation. Persist enough bounded recovery identity to continue the exact semantic request: command/request hash and idempotency identity, project_ref, expected authority/base revision, staged exact head, pull request, waiting predicates, and last authoritative reconciliation result. The caller may replay idempotently for status, but caller replay must not be required for progress. Add a deterministic authoring reconciler that rereads current project authority and fresh GitHub state, verifies the exact base and staged head, waits while predicates are unsatisfied, integrates only the exact verified candidate when ready, and performs final authoritative project readback before success. Any base/head movement, closed/replaced candidate, policy ambiguity, failed verification, or uncertain external effect must fail closed into the correct recompute/reconciliation path and must never silently reinterpret or rebase the semantic amendment. Wake reconciliation from GitHub state-change events only as non-authoritative hints, and also reconcile bounded pending authoring operations from the modern orchestration.maintain recovery path so missed/duplicated events cannot strand work. Do not route this through the legacy scheduled-cycle system and do not delegate transaction correctness to GitHub auto-merge. Update the durable command/recovery documentation so WAITING_EXTERNAL_VERIFICATION is a normal self-owned asynchronous authoring state, not an instruction for an agent to remember to return. Add regressions for pending exact-head CI, duplicate wakeups, missed-event maintenance recovery, base movement, head movement, PR closure, failed checks, transport ambiguity after integration, final readback mismatch, and exact idempotent replay."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make graph workers and project.define/project.amend authoring transactions mechanically self-recovering so external-verification waits complete without requiring an initiating reasoning session to remain alive or manually replay the semantic request.",
+        "acceptance_evidence": [
+          {
+            "kind": "durable-state",
+            "requirement": "Pending exact project authoring work is represented as truthful WAITING_EXTERNAL_VERIFICATION in Overcenter's existing operation/idempotency/recovery substrate, with bounded identity sufficient to resume the exact semantic request: request/idempotency identity, project_ref, expected authority/base revision, staged exact head, pull request when present, waiting predicates, and last authoritative reconciliation result."
+          },
+          {
+            "kind": "fail-closed",
+            "requirement": "Base/head movement, closed or replaced candidate, policy ambiguity, failed verification, or uncertain external effect cannot silently reinterpret or rebase the amendment; each enters the correct recompute, reconciliation, waiting, or indeterminate recovery state without an agent babysitting deterministic progress."
+          },
+          {
+            "kind": "recovery",
+            "requirement": "A deterministic authoring reconciler rereads current project authority and fresh GitHub state, verifies exact base and staged head, integrates only the exact verified candidate, performs final authoritative project readback, wakes from provider events only as hints, and is also driven by modern orchestration.maintain so missed or duplicate events cannot strand work; no legacy scheduled-cycle path or GitHub auto-merge owns correctness."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Regressions cover pending exact-head CI, duplicate wakeups, missed-event maintenance recovery, base movement, head movement, PR closure, failed checks, transport ambiguity after integration, final readback mismatch, and exact idempotent replay, proving caller replay is optional for status but not required for progress."
+          }
+        ]
       }
     },
     {
