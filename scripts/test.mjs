@@ -68,6 +68,7 @@ const maintainedTests = [
   'verify-public-github-metadata.test.mjs',
   'verify-repository-registration-policy.test.mjs',
   'production-reconcile-operation.test.mjs',
+  'production-reconcile-host.test.mjs',
 ];
 
 const scriptNames = await readdir(new URL('scripts/', root));
