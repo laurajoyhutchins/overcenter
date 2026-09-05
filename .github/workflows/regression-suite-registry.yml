@@ -53,7 +53,7 @@ jobs:
       - name: Syntax-check migration
         run: git diff --check
       - name: Execute migrated lib tests through node:test
-        run: find lib -name '*.test.js' -print0 | sort -z | xargs -0 node --test
+        run: find lib -name '*.test.js' -print0 | sort -z | xargs -0 node --import ./scripts/register-node-test-host-boundary.mjs --test
       - name: Capture exact migration patch
         if: always()
         run: git diff --binary > node-test-migration.patch
