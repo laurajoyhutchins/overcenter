@@ -72,6 +72,48 @@ function semanticConflictRuntime(initialDefinition, liveExecutionAuthorities) {
   return Object.freeze({ runtime, mutationCount:() => mutationCount });
 }
 
+test('staged underivable candidate is rejected before GitHub integration', async () => {
+  let authorityReads = 0;
+  let integrations = 0;
+  const derivedRevisions = [];
+  const runtime = createProjectAuthoringProductionRuntime({
+    resolveAuthority:async () => authority(++authorityReads < 3 ? initialRevision : authoritativeRevision),
+    readDefinitionFacts:async ({ revision }) => facts(revision, revision === initialRevision ? baseDefinition : amendedDefinition),
+    readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
+    readSourceRevision:async () => initialRevision,
+    applyChangeset:async () => ({ ok:true, new_head:stagedRevision }),
+    deriveProjectGraph:async ({ authority:observed }) => {
+      derivedRevisions.push(observed.revision);
+      if (observed.revision === stagedRevision) {
+        const error = new Error('candidate graph requires a missing transition');
+        error.code = 'OVERCENTER_PROJECT_GRAPH_DERIVATION_INVALID';
+        error.details = { node_id:'second', dependency:'missing' };
+        throw error;
+      }
+      return { schema:'overcenter-project-graph-v1', revision:observed.revision };
+    },
+    integrateChangeset:async () => {
+      integrations += 1;
+      return { ok:true, outcome:'merged' };
+    },
+  });
+
+  await assert.rejects(
+    () => runtime.amend({
+      project_ref:projectRef,
+      expected_revision:initialRevision,
+      amendment:{ upsert_transitions:[{ id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] },
+    }),
+    (error) => error?.code === 'PROJECT_AUTHORING_CANDIDATE_DERIVATION_INVALID'
+      && error?.may_have_mutated === true
+      && error?.details?.staged_revision === stagedRevision
+      && error?.details?.cause_code === 'OVERCENTER_PROJECT_GRAPH_DERIVATION_INVALID',
+  );
+
+  assert.equal(integrations, 0);
+  assert.equal(derivedRevisions.includes(stagedRevision), true);
+});
+
 test('runtime composition grants exact source mutation authority and confirms success through refreshed repository authority', async () => {
   const calls = [];
   let authorityReads = 0;
