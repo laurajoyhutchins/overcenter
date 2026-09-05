@@ -135,9 +135,11 @@ A completed settlement must still agree with fresh authoritative project state b
 
 ### Projection
 
-A **projection** is a convenient representation of authoritative state in another system. Linear issues and operator dashboards are examples.
+A **projection** is a convenient representation of authoritative state in another system. Linear issues and operator dashboards are examples. GitHub issues and pull requests may also act as work-surface projections or execution candidates without becoming project authority.
 
 A projection may make work easier to see or route. It must not silently become the source of graph definition, lifecycle truth, completion, or execution authority.
+
+Projection lifecycle is nevertheless part of system health. When Overcenter can mechanically prove that one of its managed projections is satisfied, superseded, or orphaned, deterministic software should retire it or expose it as safely retirable. When that relationship cannot be proven, Overcenter must surface the ambiguity rather than infer closure from titles, prose, or labels.
 
 ### Authority coordinate
 
@@ -152,7 +154,7 @@ Overcenter deliberately splits responsibility instead of creating one giant sour
 | System | Authoritative for | Not authoritative for |
 | --- | --- | --- |
 | **GitHub** | Repository content, refs, repository-owned project definitions, and GitHub-native facts | Overcenter runs, leases, settlements, or recovery state |
-| **Overcenter** | Runs, leases, execution authority, command journals, mutation certainty, settlements, receipts, and recovery state | Repository source or provider-owned facts |
+| **Overcenter** | Runs, leases, execution authority, command journals, mutation certainty, settlements, receipts, recovery state, and semantic relationships it creates between its operations and provider artifacts | Repository source or provider-owned facts |
 | **Linear**, when configured | A projection of actionable or judgment-requiring work | Graph definition, dependencies, lifecycle truth, completion, evidence, or execution authority |
 | **Runtime host** | The physical execution environment and host-owned deployment facts | Repository desired state or orchestration authority merely because code runs there |
 | **External providers** | Facts they natively own, such as their own object or execution state | Overcenter project definition unless explicitly adopted through a repository-owned derivation |
@@ -197,6 +199,8 @@ project.inspect
 
 Agents should not normally choreograph `start -> claim -> retry -> reconcile -> settle -> recompute frontier` themselves. Those mechanics belong behind semantic boundaries as the software becomes capable of deriving them safely.
 
+The same rule applies after execution: callers should not have to rediscover which stale issue or pull request can be closed. Work-surface diagnosis and mechanically safe retirement belong behind deterministic project-level convergence boundaries.
+
 ## Fail-closed rules
 
 Overcenter treats uncertainty as a state to preserve, not a gap to fill with optimism.
@@ -207,6 +211,7 @@ Overcenter treats uncertainty as a state to preserve, not a gap to fill with opt
 - **Missing evidence:** do not claim completion that cannot be proven from durable evidence and fresh authoritative state.
 - **Lease expiry:** expired execution authority cannot be used to commit a late mutation.
 - **Projection drift:** repair or regenerate projections from authority; do not repair authority from projections.
+- **Work-surface ambiguity:** if Overcenter cannot mechanically bind an exact issue or pull request to the semantic fact that would justify retirement, leave it untouched and surface judgment-required state.
 
 ## What should not become authority
 
@@ -227,6 +232,7 @@ They can suggest a change or trigger an authoritative read. They do not replace 
 
 - [`project-graph-authority-contract.md`](../project-graph-authority-contract.md) defines authoritative graph derivation in detail.
 - [`project-horizon-authority-contract.md`](../project-horizon-authority-contract.md) defines authority-bound target scopes and completion.
+- [`work-surface-convergence.md`](work-surface-convergence.md) defines how Overcenter diagnoses and safely retires stale GitHub work artifacts without making them project authority.
 - [`execution-evidence-v1-design.md`](../execution-evidence-v1-design.md) describes the execution-evidence data product.
 - [`recovery-kernel-and-self-healing.md`](recovery-kernel-and-self-healing.md) describes deterministic diagnosis and recovery boundaries.
 
