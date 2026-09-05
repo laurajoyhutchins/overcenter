@@ -47,6 +47,16 @@
       }
     },
     {
+      "id": "add-github-workflow-dispatch-semantic-command",
+      "priority": 95,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "add-operator-quickstart-and-recovery-runbook",
       "priority": 74,
       "requires": [
