@@ -74,6 +74,46 @@ async function generate(flags) {
   return { ok:true, catalog:catalogPath, docs:docsPath, atlas:atlasPath, summary:catalog.summary };
 }
 
+function diagnosticCatalogDelta(actualSource, expectedSource) {
+  const actual = JSON.parse(actualSource);
+  const expected = JSON.parse(expectedSource);
+  const keyed = (items, key) => new Map((items || []).map((item) => [item?.[key], item]));
+  const delta = (actualItems, expectedItems, key) => {
+    const before = keyed(actualItems, key);
+    const added = [];
+    const changed = [];
+    for (let index = 0; index < (expectedItems || []).length; index += 1) {
+      const item = expectedItems[index];
+      const identity = item?.[key];
+      const prior = before.get(identity);
+      if (!prior) {
+        added.push({
+          identity,
+          previous:index > 0 ? canonicalJson(expectedItems[index - 1]) : null,
+          record:canonicalJson(item),
+          next:index + 1 < expectedItems.length ? canonicalJson(expectedItems[index + 1]) : null,
+        });
+      } else if (canonicalJson(prior) !== canonicalJson(item)) {
+        changed.push({ identity, before:canonicalJson(prior), after:canonicalJson(item) });
+      }
+    }
+    return { added, changed };
+  };
+  return {
+    discovered_sources:delta(actual.discovered_sources, expected.discovered_sources, 'source_identity'),
+    logical_contracts:delta(actual.logical_contracts, expected.logical_contracts, 'id'),
+    actual_summary:actual.summary,
+    expected_summary:expected.summary,
+  };
+}
+
+function diagnosticRelevantLines(source) {
+  const lines = source.split('\n');
+  return lines.flatMap((line, index) => /production\.reconcile|Registered logical contracts|Classified sources|Unclassified sources|classified sources|unclassified sources/.test(line)
+    ? [{ line:index + 1, previous:index > 0 ? lines[index - 1] : null, value:line, next:index + 1 < lines.length ? lines[index + 1] : null }]
+    : []);
+}
+
 async function checkPrecomputed(flags) {
   const repoRoot = resolve(flags['repo-root'] || '.');
   const catalogPath = artifactPath(repoRoot, required(flags, 'catalog'));
@@ -94,7 +134,16 @@ async function checkPrecomputed(flags) {
   if (actualCatalog !== expectedCatalog) stale.push(catalogPath);
   if (actualDocs !== expectedDocs) stale.push(docsPath);
   if (actualAtlas !== expectedAtlas) stale.push(atlasPath);
-  if (stale.length) fail('CONTRACT_GENERATED_ARTIFACT_STALE', 'generated contract evidence is stale', { stale });
+  if (stale.length) {
+    process.stderr.write(`${JSON.stringify({
+      contract_evidence_diagnostic:{
+        catalog:diagnosticCatalogDelta(actualCatalog, expectedCatalog),
+        docs_expected:diagnosticRelevantLines(expectedDocs),
+        atlas_expected:diagnosticRelevantLines(expectedAtlas),
+      },
+    })}\n`);
+    fail('CONTRACT_GENERATED_ARTIFACT_STALE', 'generated contract evidence is stale', { stale });
+  }
   return { ok:true };
 }
 
