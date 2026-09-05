@@ -44,6 +44,7 @@ jobs:
       - name: Run contract evidence tests
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
       - name: Generate candidate contract evidence once
+        if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
           node scripts/contract-evidence/cli.mjs generate \
@@ -53,6 +54,7 @@ jobs:
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
       - name: Upload generated contract evidence for refresh
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: contract-evidence-generated
