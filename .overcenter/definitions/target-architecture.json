@@ -619,6 +619,18 @@
       }
     },
     {
+      "id": "fix-production-reconcile-authoritative-runtime-observation",
+      "priority": 174,
+      "requires": [
+        "add-production-reconcile-convergence-operator"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Use test-driven-development to repair the live production.reconcile host after PR #527. First add a regression that fails because a fresh invocation cannot observe an already-current immutable Hatchable deployment; then wire observeRuntime to authoritative immutable runtime evidence using the existing production runtime observation/materialization contract rather than process-local freshRuntimeEvidence. Also add a regression for GitHub workflow_dispatch returning 204 with no body and make reconciliation use the existing github.workflow.dispatch identity-confirming capability instead of assuming the dispatch response contains a run id. Preserve repo-only public input, exact-head fencing, mutation certainty, no blind retry, existing production.promote behavior, and fail-closed semantics. Prove the deployed production.reconcile({repo}) returns same-revision already-converged/no-op evidence against current GitHub production and immutable Hatchable state before settling."
+      }
+    },
+    {
       "id": "generate-contract-authority-atlas",
       "priority": 153,
       "requires": [
