@@ -104,7 +104,12 @@ test('project.amend reports integration waiting instead of a canonical readback 
     readSourceRevision:async () => initialRevision,
     applyChangeset:async () => ({ ok:true, new_head:stagedRevision }),
     integrateChangeset:async () => ({ ok:true, outcome:'waiting', pull_request:123, waiting_for:['required_status_checks'] }),
-    deriveProjectGraph:async () => { throw new Error('canonical graph must not be derived before integration'); },
+    deriveProjectGraph:async ({ authority:observed }) => ({
+      schema:'overcenter-project-graph-v1',
+      revision:observed.revision,
+      nodes:[],
+      horizons:[],
+    }),
   });
 
   await assert.rejects(

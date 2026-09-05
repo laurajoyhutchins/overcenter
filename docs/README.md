@@ -26,14 +26,16 @@ For exact command inputs and outputs, use the current contracts under [`../mcp/`
 
 - [`operator-recovery.md`](operator-recovery.md) — the **current** operator path for diagnosis, continuation reconstruction, bounded maintenance, mutation certainty, and authoritative readback.
 - [`architecture/recovery-kernel-and-self-healing.md`](architecture/recovery-kernel-and-self-healing.md) — the **approved future-state design** for higher-level health, recovery, fault packets, quarantine, and scheduled healing.
+- [`architecture/work-surface-convergence.md`](architecture/work-surface-convergence.md) — the **accepted design** for diagnosing and safely retiring stale GitHub issues and pull requests from authoritative project truth without making those objects project authority.
 - [`implementation/recovery-kernel-plan.md`](implementation/recovery-kernel-plan.md) — the **active implementation plan** for closing the gap between the current operator path and that architecture.
 
 When operating an incident, use the current operator guide and executable contracts. Do not infer that a command is available merely because it appears in an approved design document.
 
 ## Understand the architecture
 
-- [`architecture/ontology-and-authority.md`](architecture/ontology-and-authority.md) — projects, transitions, frontiers, horizons, lifecycle phases, runs, leases, evidence, receipts, settlements, projections, and authority coordinates.
+- [`architecture/ontology-and-authority.md`](architecture/ontology-and-authority.md) — projects, transitions, frontiers, horizons, lifecycle phases, runs, leases, evidence, receipts, settlements, projections, work-surface convergence, and authority coordinates.
 - [`architecture/recovery-kernel-and-self-healing.md`](architecture/recovery-kernel-and-self-healing.md) — approved recovery-kernel architecture and the intended direction for deterministic diagnosis and self-healing.
+- [`architecture/work-surface-convergence.md`](architecture/work-surface-convergence.md) — accepted design for artifact lineage, active/satisfied/superseded/orphaned/ambiguous classification, project health diagnostics, and intent-first projection reconciliation.
 - [`execution-evidence-v1-design.md`](execution-evidence-v1-design.md) — the execution-evidence data product and its authority model.
 
 ## Document status
@@ -51,6 +53,7 @@ Current notable records:
 
 - [`design/2026-08-28-typescript-semantic-kernel.md`](design/2026-08-28-typescript-semantic-kernel.md) — **Accepted design decision**.
 - [`architecture/recovery-kernel-and-self-healing.md`](architecture/recovery-kernel-and-self-healing.md) — **Accepted future-state architecture**; use the operator recovery guide for the shipped path.
+- [`architecture/work-surface-convergence.md`](architecture/work-surface-convergence.md) — **Accepted design decision**; implementation is tracked by the repository-owned project graph.
 - [`implementation/typescript-semantic-kernel-plan.md`](implementation/typescript-semantic-kernel-plan.md) — **Completed implementation record** for the initial proof slice.
 - [`implementation/orchestration-advance.md`](implementation/orchestration-advance.md) — **Historical implementation plan**; the operation has shipped and the current agent contract is documented elsewhere.
 - [`implementation/recovery-kernel-plan.md`](implementation/recovery-kernel-plan.md) — **Active implementation plan**.

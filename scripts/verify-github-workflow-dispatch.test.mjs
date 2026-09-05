@@ -2,9 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { dispatchGitHubWorkflowWithGitHubApp } from '../lib/github-workflow-dispatch.js';
+import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
 
 const repo = 'laurajoyhutchins/overcenter';
 const expectedHead = '0123456789abcdef0123456789abcdef01234567';
+
+test('workflow dispatch is admitted by the canonical worker-command boundary', () => {
+  assert.ok(CANONICAL_COMMANDS.includes('github.workflow.dispatch'));
+});
 
 function fakeWithApp({ observedHead = expectedHead, dispatchStatus = 204, runs = [] } = {}) {
   const calls = [];
