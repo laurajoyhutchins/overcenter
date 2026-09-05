@@ -9,10 +9,11 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
+const expected = ['github.actions_run.delete', 'github.apply_changeset', 'github.apply_text_replacements', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
 const expectedSurface = new Map([
   ['github.apply_changeset', 'advanced'],
   ['github.apply_text_replacements', 'advanced'],
+  ['github.actions_run.delete', 'advanced'],
   ['github.pull_request.mark_ready', 'advanced'],
   ['github.release.create', 'advanced'],
   ['orchestration.diagnose', 'operator'],
@@ -27,6 +28,7 @@ const expectedSurface = new Map([
 const expectedExposure = new Map([
   ['github.apply_changeset', { worker:true, mcp:false }],
   ['github.apply_text_replacements', { worker:true, mcp:false }],
+  ['github.actions_run.delete', { worker:true, mcp:false }],
   ['github.pull_request.mark_ready', { worker:true, mcp:false }],
   ['github.release.create', { worker:true, mcp:false }],
   ['orchestration.diagnose', { worker:true, mcp:false }],
