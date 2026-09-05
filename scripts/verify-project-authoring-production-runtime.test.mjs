@@ -490,8 +490,11 @@ test('in-flight obligation settles across an unrelated project.amend and current
     repository:'example/project',
     transition_id:'B',
   });
-  assert.equal(retained.authority.revision, migrationRevision1);
+  assert.equal(retained.authority.revision, migrationRevision2);
+  assert.equal(retained.graph_revision_change.previous_authority.revision, migrationRevision1);
   assert.equal(retained.graph_revision_change.current_authority.revision, migrationRevision2);
+  assert.equal(retained.transition_revision_fingerprint, lease.transition_revision_fingerprint);
+  assert.equal(retained.transition_dependency_fingerprint, lease.transition_dependency_fingerprint);
 
   const settlement = await harness.projectTransitions.settle({
     lease_ref:lease.lease_ref,
