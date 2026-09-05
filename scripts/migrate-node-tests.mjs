@@ -84,6 +84,31 @@ function humanName(identifier) {
   return identifier.replace(/^test/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim() || identifier;
 }
 
+function directRegistrations(runner, sf) {
+  for (const statement of runner.body.statements) {
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (declarationName(declaration) !== 'tests' || !declaration.initializer || !ts.isArrayLiteralExpression(declaration.initializer)) continue;
+        if (declaration.initializer.elements.length === 0) continue;
+        if (declaration.initializer.elements.every((element) => ts.isIdentifier(element) && /^test[A-Z]/.test(element.text))) {
+          return declaration.initializer.elements.map((element) => ({ name:humanName(element.text), fn:element.text }));
+        }
+      }
+    }
+    if (ts.isForOfStatement(statement) && ts.isArrayLiteralExpression(statement.expression)) {
+      const entries = [];
+      for (const element of statement.expression.elements) {
+        if (!ts.isArrayLiteralExpression(element) || element.elements.length !== 2) { entries.length = 0; break; }
+        const [name, fn] = element.elements;
+        if (!ts.isStringLiteral(name) || !ts.isIdentifier(fn) || !/^test[A-Z]/.test(fn.text)) { entries.length = 0; break; }
+        entries.push({ name:name.text, fn:fn.text });
+      }
+      if (entries.length) return entries;
+    }
+  }
+  return null;
+}
+
 function migrateSource(file, source) {
   const sf = parse(file, source);
   const runners = sf.statements.filter((statement) => ts.isFunctionDeclaration(statement) && statement.name && exported(statement) && RUNNER_NAME.test(statement.name.text));
@@ -95,6 +120,17 @@ function migrateSource(file, source) {
     if (statement === runner) continue;
     const name = functionLikeHelper(statement);
     if (name) topLevelHelpers.set(name, statement);
+  }
+
+  const direct = directRegistrations(runner, sf);
+  if (direct) {
+    const registrations = direct.map(({ name, fn }) => `test(${JSON.stringify(name)}, ${fn});`).join('\n');
+    const edits = [{ start:runner.getFullStart(), end:runner.end, text:`\n${registrations}\n` }];
+    for (const statement of topLevelHelpers.values()) edits.push({ start:statement.getFullStart(), end:statement.end, text:'' });
+    let migrated = rewriteRepoImports(file, applyEdits(source, edits));
+    if (!/from\\s+['\"]node:test['\"]/.test(migrated)) migrated = `import test from 'node:test';\\n${migrated}`;
+    parse(file, migrated);
+    return migrated;
   }
 
   const localHelpers = new Map();
