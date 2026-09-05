@@ -179,6 +179,18 @@
       }
     },
     {
+      "id": "admit-github-workflow-dispatch-canonical-command",
+      "priority": 96,
+      "requires": [
+        "add-github-workflow-dispatch-semantic-command"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "aggregate-postgres-contract-evidence",
       "priority": 146,
       "requires": [
