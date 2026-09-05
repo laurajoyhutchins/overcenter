@@ -97,7 +97,7 @@ test('production reconciliation GitHub reads use the canonical GET transport con
     },
   });
   const service = productionReconciliationFor({ db, withGitHubAppApiClient });
-  await assert.rejects(service.reconcile({ repo:'laurajoyhutchins/overcenter' }), error => error?.code === 'PRODUCTION_RECONCILIATION_SOURCE_UNVERIFIED');
+  await assert.rejects(service.reconcile({ repo:'laurajoyhutchins/overcenter' }), error => error?.code === 'PRODUCTION_RECONCILIATION_SOURCE_NOT_VERIFIED');
   assert.ok(calls.length >= 3);
   for (const request of calls) {
     assert.equal(request.method, 'GET');
