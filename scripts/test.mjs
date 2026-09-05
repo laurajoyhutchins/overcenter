@@ -75,6 +75,7 @@ const maintainedTests = [
   'production-reconcile-host.test.mjs',
   'production-runtime-observation-http.test.mjs',
   'test-audit-core.test.mjs',
+  'hatchable-node-test-loader.test.mjs',
   'verify-native-lib-tests.test.mjs',
 ];
 
