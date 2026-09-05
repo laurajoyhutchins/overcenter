@@ -112,6 +112,10 @@ function humanName(identifier) {
   return identifier.replace(/^test/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim() || identifier;
 }
 
+function finalizeSource(source) {
+  return `${source.trimEnd()}\n`;
+}
+
 function stripCollectorBookkeeping(file, source, collectors) {
   const sf = parse(file, source);
   const edits = [];
