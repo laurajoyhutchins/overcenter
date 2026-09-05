@@ -8,6 +8,7 @@ export const CANONICAL_COMMANDS = Object.freeze([
   'project.amend',
   'project.advance',
   'project.inspect',
+  'production.reconcile',
   'production.promote',
   'release.publish',
   'skill.activate',
