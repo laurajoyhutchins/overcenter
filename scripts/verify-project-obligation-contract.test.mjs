@@ -318,7 +318,7 @@ test('legacy graph evaluator rejects impossible DONE history and allows explaina
   );
 
   const blocked = evaluateProjectGraph({ nodes:[
-    { id:'A', priority:1, requires:[], executor, phase_bindings:{}, lifecycle:lifecycle({ condition:'BLOCKED' }) },
+    { id:'A', priority:1, requires:[], executor, phase_bindings:{}, lifecycle:lifecycle({ condition:'HOLD' }) },
     { id:'B', priority:0, requires:['A'], executor, phase_bindings:{}, lifecycle:lifecycle() },
   ] });
   assert.equal(blocked.complete, false);
