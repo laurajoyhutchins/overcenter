@@ -9,13 +9,14 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
+const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
 const expectedSurface = new Map([
   ['github.apply_changeset', 'advanced'],
   ['github.apply_text_replacements', 'advanced'],
   ['github.pull_request.mark_ready', 'advanced'],
   ['github.release.create', 'advanced'],
   ['orchestration.diagnose', 'operator'],
+  ['production.reconcile', 'primary'],
   ['production.promote', 'primary'],
   ['project.advance', 'primary'],
   ['project.amend', 'primary'],
@@ -32,7 +33,7 @@ const expectedExposure = new Map([
   ['orchestration.diagnose', { worker:true, mcp:false }],
   ['work.settle', { worker:true, mcp:false }],
 ]);
-const primaryMcpFiles = ['production.promote.js', 'project.advance.js', 'project.amend.js', 'project.define.js', 'project.inspect.js', 'release.publish.js'];
+const primaryMcpFiles = ['production.reconcile.js', 'production.promote.js', 'project.advance.js', 'project.amend.js', 'project.define.js', 'project.inspect.js', 'release.publish.js'];
 
 async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -62,7 +63,7 @@ test('representative commands have one authoritative semantic descriptor', () =>
 
 test('primary semantic surface is mechanically identifiable from descriptors', () => {
   const primary = expected.filter((command) => semanticCommandDescriptor(command).surface === 'primary');
-  assert.deepEqual(primary, ['production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish']);
+  assert.deepEqual(primary, ['production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish']);
 });
 
 test('top-level MCP discovery exposes only the primary semantic product surface', async () => {
@@ -78,6 +79,17 @@ test('every worker-exposed primary semantic command is admitted canonically', ()
     return descriptor.surface === 'primary' && descriptor.exposure.worker;
   });
   for (const command of primaryWorkerCommands) assert.ok(admitted.has(command), `${command} is worker-exposed primary intent but is not canonically admitted`);
+});
+
+test('production reconciliation exposes repo intent without mechanical coordinates', () => {
+  const descriptor = semanticCommandDescriptor('production.reconcile');
+  assert.equal(descriptor.surface, 'primary');
+  assert.deepEqual(descriptor.semantic_fields, ['repo']);
+  assert.deepEqual(descriptor.required_fields, ['repo']);
+  assert.deepEqual(descriptor.exposure, { worker:true, mcp:true });
+  for (const field of ['candidate_sha','verification_run_id','production_branch','runtime_ref','idempotency_key']) {
+    assert.equal(descriptor.semantic_fields.includes(field), false, `${field} leaked through production.reconcile intent`);
+  }
 });
 
 test('production promotion intent is exposed after its runtime host exists', () => {

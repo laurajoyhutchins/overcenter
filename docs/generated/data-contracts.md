@@ -10,6 +10,7 @@
 - `github.release.create.input` — authority `semantic-command:github.release.create#input`; SemVer `semantic-command-contract`
 - `orchestration.diagnose.input` — authority `semantic-command:orchestration.diagnose#input`; SemVer `semantic-command-contract`
 - `production.promote.input` — authority `semantic-command:production.promote#input`; SemVer `semantic-command-contract`; 1 projection
+- `production.reconcile.input` — authority `semantic-command:production.reconcile#input`; SemVer `semantic-command-contract`; 1 projection
 - `project.advance.input` — authority `semantic-command:project.advance#input`; SemVer `semantic-command-contract`; 1 projection
 - `project.amend.input` — authority `semantic-command:project.amend#input`; SemVer `semantic-command-contract`; 1 projection
 - `project.define.input` — authority `semantic-command:project.define#input`; SemVer `semantic-command-contract`; 1 projection
