@@ -60,11 +60,51 @@ const workSettleSchema = Object.freeze({
     evidence:{type:'array',items:{type:'object',required:['kind','ref'],properties:{kind:{type:'string'},ref:{type:'string'}},additionalProperties:false}},
     reason:{type:['string','null']},
     promotion_condition:{type:['string','null']},
-    requeue_class:{type:['string','null'],enum:[...WORK_REQUEUE_CLASSES,null]},
-    operating_condition:{type:['string','null'],enum:[...OPERATING_CONDITIONS,null]},
-    continuation:{type:['object','null']},
+    requeue_class:{
+      type:['string','null'],
+      enum:[...WORK_REQUEUE_CLASSES,null],
+      description:'Requeue policy. resume_progress requires a durable checkpoint in the effective continuation; stale_candidate requires an exact candidate in the effective continuation.',
+    },
+    operating_condition:{
+      type:['string','null'],
+      enum:[...OPERATING_CONDITIONS,null],
+      description:'When omitted or null, runtime defaults to HOLD for blocked settlement and NOMINAL otherwise.',
+    },
+    continuation:{
+      type:['object','null'],
+      description:'Caller continuation is merged with persisted checkpoint and evidence state to form the effective continuation used by requeue requirements.',
+    },
     lifecycle_facts:lifecycleFacts,
   },
+  allOf:[
+    {
+      if:{required:['disposition'],properties:{disposition:{const:'blocked'}}},
+      then:{required:['reason','promotion_condition']},
+    },
+    {
+      if:{required:['disposition'],properties:{disposition:{const:'blocked'}}},
+      then:{properties:{operating_condition:{type:['string','null'],enum:['HOLD','FAULT','INDETERMINATE','OPERATOR_HOLD',null]}}},
+    },
+    {
+      if:{required:['disposition'],properties:{disposition:{enum:['completed','requeue']}}},
+      then:{properties:{operating_condition:{type:['string','null'],enum:['NOMINAL',null]}}},
+    },
+    {
+      if:{required:['requeue_class'],properties:{requeue_class:{not:{type:'null'}}}},
+      then:{properties:{disposition:{const:'requeue'}}},
+    },
+    {
+      if:{required:['lifecycle_facts'],properties:{lifecycle_facts:{not:{type:'null'}}}},
+      then:{properties:{disposition:{const:'completed'}}},
+    },
+    {
+      if:{
+        required:['disposition','requeue_class'],
+        properties:{disposition:{const:'requeue'},requeue_class:{const:'wait_for_observable_change'}},
+      },
+      then:{required:['reason']},
+    },
+  ],
   additionalProperties:false,
 });
 
