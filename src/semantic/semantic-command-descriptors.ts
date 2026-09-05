@@ -114,6 +114,17 @@ const githubApplyTextReplacementsSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const githubActionsRunDeleteSchema = Object.freeze({
+  type:'object',
+  required:['repo','workflow_run_id','expected_head_sha'],
+  properties:{
+    repo:{type:'string',minLength:3,maxLength:256,pattern:'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$',description:'Repository in owner/repo form.'},
+    workflow_run_id:{type:'integer',minimum:1,description:'Exact numeric GitHub Actions workflow run id.'},
+    expected_head_sha:{type:'string',pattern:'^[0-9a-fA-F]{40}$',description:'Exact workflow run head commit SHA observed before deletion. Any mismatch rejects before mutation.'},
+  },
+  additionalProperties:false,
+});
+
 const githubPullRequestMarkReadySchema = Object.freeze({
   type:'object',
   required:['repo','pull_request','expected_head'],
@@ -262,6 +273,14 @@ const DESCRIPTORS = Object.freeze({
     'github_apply_text_replacements',
     'Apply bounded exact text replacements under a project-transition lease. Source text is read from an immutable workspace revision and the later changeset is mechanically fenced to that same workspace observation, so stale reads fail closed before mutation. Repository, branch, head, retry identity, and credentials are derived internally.',
     githubApplyTextReplacementsSchema,
+    'advanced',
+    INTERNAL_EXPOSURE,
+  ),
+  'github.actions_run.delete':descriptor(
+    'github.actions_run.delete',
+    'github_actions_run_delete',
+    'Delete one exact GitHub Actions workflow run through the installed GitHub App. The command binds the effect to repository, numeric workflow-run identity, and expected head commit SHA; mismatches fail closed before deletion, absent runs replay successfully, and dispatched mutations are not considered successful until authoritative readback proves absence.',
+    githubActionsRunDeleteSchema,
     'advanced',
     INTERNAL_EXPOSURE,
   ),

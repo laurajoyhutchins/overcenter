@@ -187,6 +187,7 @@
 - `javascript:lib/work-surface-policy.js#workSurfacePolicyConfig`
 - `repo-data:.overcenter/definitions/target-architecture.json#overcenter-project-definition-v1`
 - `repo-data:.overcenter/project-definitions.json#project-definition-discovery-v1`
+- `semantic-command:github.actions_run.delete#input`
 - `semantic-command:github.pull_request.mark_ready#input`
 - `typescript:src/adapters/mcp/production-promotion.ts#ProductionPromotionMcpRuntime`
 - `typescript:src/adapters/mcp/project-advance.ts#ProjectAdvanceMcpRuntime`
