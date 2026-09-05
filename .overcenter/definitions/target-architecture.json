@@ -279,6 +279,65 @@
       }
     },
     {
+      "id": "add-project-transition-convergence-driver",
+      "priority": 181,
+      "requires": [
+        "add-semantic-agent-execution-reporting",
+        "automate-candidate-base-reconciliation",
+        "fix-production-reconcile-authoritative-runtime-observation",
+        "make-agent-execution-packets-self-contained",
+        "make-graph-workers-self-recovering",
+        "replace-production-promotion-pseudo-lease-with-execution-authority"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Use test-driven-development to extend the canonical graph-native orchestration path with deterministic project-transition convergence. Build on project.advance/orchestration.drive/orchestration.maintain and existing GitHub integration, exact-revision verification, settlement, production.reconcile, operation/idempotency, and recovery primitives rather than adding a shadow workflow engine. Once a reasoning agent has supplied the implementation judgment and bounded execution result, Overcenter must durably continue all mechanically resolvable work required to make that transition verified DONE: reconcile compatible base movement, invalidate stale evidence, await and reread exact-head checks, integrate only the exact verified candidate, verify the merged revision, settle the authoritative transition, and when the transition acceptance contract requires deployment or live runtime proof, drive exact production convergence and verify the declared postcondition. Durable external waits must make caller polling optional. Ordinary branch movement or provider latency must not re-enter a reasoning boundary. Genuine semantic conflict, failed acceptance evidence, indeterminate mutation, or owner-only action must fail closed into one typed AGENT_EXECUTION_REQUIRED or OPERATOR_ACTION_REQUIRED boundary with exact authority, mutation certainty, evidence, and next judgment. Add regressions reproducing the PR #574 repeated dev-drift/CI-refresh loop, missed/duplicate wakeups, exact-head invalidation, post-merge verification, settlement, production convergence, and a semantic conflict that correctly stops for judgment."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add one deterministic project-transition convergence driver that can continue an implemented transition from candidate through compatible base reconciliation, exact-revision verification, integration, settlement, and acceptance-contract-required production/runtime proof without a reasoning agent babysitting mechanically knowable waits or retries.",
+        "acceptance_evidence": [
+          {
+            "kind": "architecture",
+            "requirement": "The implementation extends the existing project.advance/orchestration.drive/orchestration.maintain, operation/idempotency/recovery, GitHub integration, settlement, and production semantic boundaries; it must not introduce a second orchestration journal, shadow graph, duplicate evidence store, or separate workflow truth."
+          },
+          {
+            "kind": "base-reconciliation",
+            "requirement": "When the target branch advances by a compatible non-conflicting change while candidate verification is pending, Overcenter preserves the exact semantic candidate lineage, reconciles or regenerates against current authority, invalidates stale evidence, and continues without requiring a reasoning session to notice the drift or manually replay the loop."
+          },
+          {
+            "kind": "exact-revision",
+            "requirement": "CI, integration, merge verification, settlement evidence, promotion, materialization, and final runtime claims are mechanically bound to the exact revision they describe; evidence for an older candidate or mutable reference cannot authorize a later effect."
+          },
+          {
+            "kind": "external-wait",
+            "requirement": "Provider checks, mergeability waits, deployment/materialization waits, and other mechanically observable delays are represented durably and resumed by event hints plus maintenance/recovery so caller polling may inspect status but is never required for forward progress."
+          },
+          {
+            "kind": "judgment-boundary",
+            "requirement": "Ordinary branch movement, provider latency, idempotent replay, and known deterministic recovery do not consume a new reasoning boundary. Semantic conflict, failed acceptance evidence requiring diagnosis, indeterminate mutation, or owner-only action stops with one typed self-contained escalation carrying exact authority, mutation certainty, bounded evidence, and the next judgment required."
+          },
+          {
+            "kind": "live-proof",
+            "requirement": "Reproduce the PR #574 class of repeated dev movement during CI and demonstrate that, after the implementation judgment is handed off, Overcenter autonomously refreshes/reverifies/integrates/settles and completes any required production proof without agent polling; also demonstrate a true semantic conflict that deterministically stops for reasoning instead of being auto-rebased."
+          },
+          {
+            "kind": "production",
+            "requirement": "When the transition execution intent requires deployment or live-runtime acceptance evidence, the driver composes the canonical production convergence path and cannot report DONE until development, production, and immutable runtime evidence satisfy the declared same-revision postcondition. Transitions without such requirements must not incur unnecessary production effects."
+          },
+          {
+            "kind": "settlement",
+            "requirement": "After exact candidate integration, the driver obtains fresh verification on the authoritative merged revision and settles only the same project transition under valid execution authority; stale PR-head evidence or a superseded lease cannot produce DONE."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Focused regressions and the canonical exact-revision repository suite pass on the exact final revision, and deployed runtime evidence proves recovery remains live across missed or duplicate wakeups and process/session loss."
+          }
+        ]
+      }
+    },
+    {
       "id": "add-project-work-surface-reconcile",
       "priority": 175,
       "requires": [
