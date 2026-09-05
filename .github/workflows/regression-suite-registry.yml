@@ -32,3 +32,34 @@ jobs:
         run: npm run verify
       - name: Test project inspect runtime host
         run: node --input-type=module -e "import { runProjectInspectOvercenterHostTests } from './lib/project-inspect-overcenter-host.test.js'; await runProjectInspectOvercenterHostTests();"
+
+  node-test-migration-preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install canonical dependencies
+        run: npm ci
+      - name: Migrate legacy tests and normalize repo imports in disposable checkout
+        run: node scripts/migrate-node-tests.mjs
+      - name: Syntax-check migration
+        run: git diff --check
+      - name: Execute migrated lib tests through node:test
+        run: find lib -name '*.test.js' -print0 | sort -z | xargs -0 node --import ./scripts/register-node-test-host-boundary.mjs --test
+      - name: Capture exact migration patch
+        if: always()
+        run: git diff --binary > node-test-migration.patch
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: node-test-migration-patch
+          path: node-test-migration.patch
+          if-no-files-found: error
