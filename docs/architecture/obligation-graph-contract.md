@@ -143,6 +143,24 @@ A lease authorizes an execution attempt against an exact observed obligation/dep
 
 This separation is necessary for concurrent `project.amend`: publishing a new graph meaning cannot retroactively rewrite the contract under which another worker was validly authorized. Later work in this workstream will classify whether an in-flight authority is unaffected, semantically compatible, or conflicting with the amendment.
 
+## Outcome Integrity is a separate contract
+
+The term **semantic content** in this document is identity terminology. It does not mean that a structurally valid obligation graph is sufficient to accomplish the intended project outcome.
+
+A finite acyclic all-of DAG may execute every obligation correctly and still omit required work, depend on a hidden assumption, use evidence that does not establish the intended claim, or compose locally correct obligations into an insufficient plan.
+
+Outcome Integrity is the separate revision-bound, read-only assurance layer defined in `docs/architecture/outcome-integrity.md`. It asks whether authoritative obligations, assumptions, argument steps, and evidence collectively establish the intended outcome.
+
+Outcome Integrity does not:
+
+- enter obligation semantic identity merely because a review mentions a claim;
+- replace exact Git authority or graph provenance;
+- create a new transition lifecycle state;
+- authorize repository or provider mutation;
+- create a shadow plan database or duplicate evidence store.
+
+Reasoning-agent findings and defeaters are non-authoritative analysis. An accepted repair becomes project truth only through the existing project-authoring boundary and fresh authoritative readback.
+
 ## Compatibility with existing Overcenter contracts
 
 This is an additive semantic clarification, not a wholesale storage migration.
