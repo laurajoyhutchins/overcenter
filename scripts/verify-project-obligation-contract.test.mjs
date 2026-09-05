@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-
-async function loadContract() {
-  try {
-    return await import('./project-obligation-contract.js');
-  } catch (error) {
-    return { __load_error:error };
-  }
-}
+import {
+  PROJECT_OBLIGATION_GRAPH_CONTRACT,
+  PROJECT_OBLIGATION_GRAPH_PROFILE,
+  assertExactObligationAuthorityCoordinate,
+  assertPredecessorClosedObligationSet,
+  projectObligationGraphSemanticInput,
+  projectObligationSemanticInput,
+} from '../lib/project-obligation-contract.js';
 
 const transition = (overrides = {}) => ({
   id:'B',
@@ -26,11 +26,9 @@ const transition = (overrides = {}) => ({
   ...overrides,
 });
 
-test('obligation graph profile preserves finite acyclic all-of semantics', async () => {
-  const contract = await loadContract();
-  assert.equal(contract.__load_error, undefined, 'project-obligation-contract.js must exist');
-  assert.equal(contract.PROJECT_OBLIGATION_GRAPH_PROFILE, 'overcenter-obligation-dag-v1');
-  assert.deepEqual(contract.PROJECT_OBLIGATION_GRAPH_CONTRACT.workflow, {
+test('obligation graph profile preserves finite acyclic all-of semantics', () => {
+  assert.equal(PROJECT_OBLIGATION_GRAPH_PROFILE, 'overcenter-obligation-dag-v1');
+  assert.deepEqual(PROJECT_OBLIGATION_GRAPH_CONTRACT.workflow, {
     dependency_semantics:'all',
     acyclic:true,
     transition_fires_at_most_once:true,
@@ -38,10 +36,8 @@ test('obligation graph profile preserves finite acyclic all-of semantics', async
   });
 });
 
-test('obligation semantic input separates logical key and runtime state from semantic content', async () => {
-  const contract = await loadContract();
-  assert.equal(contract.__load_error, undefined, 'project-obligation-contract.js must exist');
-  const input = contract.projectObligationSemanticInput(transition());
+test('obligation semantic input separates logical key and runtime state from semantic content', () => {
+  const input = projectObligationSemanticInput(transition());
   assert.deepEqual(input, {
     schema:'project-obligation-semantics-v1',
     requires:['A'],
@@ -56,10 +52,8 @@ test('obligation semantic input separates logical key and runtime state from sem
   assert.equal(Object.hasOwn(input, 'evidence'), false);
 });
 
-test('graph semantic input is stable across transition and dependency ordering', async () => {
-  const contract = await loadContract();
-  assert.equal(contract.__load_error, undefined, 'project-obligation-contract.js must exist');
-  const left = contract.projectObligationGraphSemanticInput({
+test('graph semantic input is stable across transition and dependency ordering', () => {
+  const left = projectObligationGraphSemanticInput({
     project_ref:'github:owner/repo',
     authority:{ revision:'a'.repeat(40) },
     transitions:[
@@ -68,7 +62,7 @@ test('graph semantic input is stable across transition and dependency ordering',
       transition({ id:'B', priority:42, requires:['A'] }),
     ],
   });
-  const right = contract.projectObligationGraphSemanticInput({
+  const right = projectObligationGraphSemanticInput({
     project_ref:'github:different/repo',
     authority:{ revision:'b'.repeat(40) },
     transitions:[
@@ -81,27 +75,23 @@ test('graph semantic input is stable across transition and dependency ordering',
   assert.deepEqual(left.transitions.map((item) => item.key), ['A', 'B', 'C']);
 });
 
-test('satisfied obligations must be predecessor closed', async () => {
-  const contract = await loadContract();
-  assert.equal(contract.__load_error, undefined, 'project-obligation-contract.js must exist');
+test('satisfied obligations must be predecessor closed', () => {
   const transitions = [
     transition({ id:'A', requires:[] }),
     transition({ id:'B', requires:['A'] }),
     transition({ id:'C', requires:['B'] }),
   ];
-  assert.deepEqual(contract.assertPredecessorClosedObligationSet(transitions, ['A', 'B']), ['A', 'B']);
+  assert.deepEqual(assertPredecessorClosedObligationSet(transitions, ['A', 'B']), ['A', 'B']);
   assert.throws(
-    () => contract.assertPredecessorClosedObligationSet(transitions, ['B']),
+    () => assertPredecessorClosedObligationSet(transitions, ['B']),
     (error) => error?.code === 'PROJECT_OBLIGATION_PREDECESSOR_CLOSURE_INVALID'
       && error?.details?.transition_id === 'B'
       && error?.details?.missing_requirement === 'A',
   );
 });
 
-test('historical obligation claims require exact authority provenance', async () => {
-  const contract = await loadContract();
-  assert.equal(contract.__load_error, undefined, 'project-obligation-contract.js must exist');
-  assert.deepEqual(contract.assertExactObligationAuthorityCoordinate({
+test('historical obligation claims require exact authority provenance', () => {
+  assert.deepEqual(assertExactObligationAuthorityCoordinate({
     kind:'github',
     repository:'owner/repo',
     revision:'A'.repeat(40),
@@ -113,7 +103,7 @@ test('historical obligation claims require exact authority provenance', async ()
     derivation:'overcenter-project-graph-v1',
   });
   assert.throws(
-    () => contract.assertExactObligationAuthorityCoordinate({
+    () => assertExactObligationAuthorityCoordinate({
       kind:'github', repository:'owner/repo', revision:'abc123', derivation:'overcenter-project-graph-v1',
     }),
     (error) => error?.code === 'PROJECT_OBLIGATION_AUTHORITY_INVALID',
