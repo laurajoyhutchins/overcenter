@@ -22,3 +22,40 @@ test('Overcenter production reconciliation host exposes repo-only convergence wh
   assert.equal(result.repo, 'laurajoyhutchins/overcenter');
   assert.deepEqual(calls[0], ['roles', 'laurajoyhutchins/overcenter']);
 });
+
+test('historical successful materialization cannot authorize current runtime convergence', async () => {
+  const calls = [];
+  let materializationLists = 0;
+  const db = {
+    query: async () => ({ rows:[{ development_branch:'dev', production_branch:'main' }] }),
+  };
+  const withGitHubAppApiClient = async (_repo, callback) => callback({
+    call: async (_provider, request) => {
+      calls.push(request);
+      if (request.path.includes('/git/ref/heads/')) {
+        return { body:{ object:{ sha:SHA } } };
+      }
+      if (request.path.includes('/actions/workflows/exact-revision-v8.yml/runs')) {
+        return { body:{ workflow_runs:[{ id:1, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } };
+      }
+      if (request.path.includes('/actions/workflows/production-materialization.yml/runs')) {
+        materializationLists += 1;
+        return { body:{ workflow_runs:[{ id:2, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } };
+      }
+      if (request.path.includes('/actions/workflows/production-materialization.yml/dispatches')) {
+        return { body:{ workflow_run:{ id:99 } } };
+      }
+      throw new Error(`unexpected GitHub request ${request.path}`);
+    },
+  });
+  const service = productionReconciliationFor({
+    db,
+    withGitHubAppApiClient,
+    productionPromotion:{ promote:async () => { throw new Error('already-current Git must not promote'); } },
+  });
+  const result = await service.reconcile({ repo:'laurajoyhutchins/overcenter' });
+  assert.equal(result.outcome, 'materialization_pending');
+  assert.equal(result.materialization_run_ref, 'github-actions-run:99');
+  assert.ok(materializationLists >= 1);
+  assert.ok(calls.some(request => request.path.includes('/dispatches')), 'a fresh exact runtime observation must be dispatched');
+});
