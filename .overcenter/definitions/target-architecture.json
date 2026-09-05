@@ -57,6 +57,18 @@
       }
     },
     {
+      "id": "add-metrics-origin-and-recovery-correlation-facts",
+      "priority": 173,
+      "requires": [
+        "define-authoritative-overcenter-metrics-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Add only the missing durable facts required by the approved Overcenter metrics contract, using test-driven-development. At minimum provide a low-cardinality execution initiator/origin classification sufficient to distinguish system, scheduler, agent, operator, and recovery boundaries, and explicit correlation from a typed failure/recovery decision through recovery attempt to recovery outcome. Reuse existing run, invocation, operation, failure, continuation, and receipt identities; do not create a second orchestration journal or duplicate execution truth. Preserve idempotency, exact-revision authority, mutation certainty, recovery semantics, and compact-state design. Backfill only where truth can be derived mechanically; represent unknown historical origin/correlation as unknown rather than guessing. Add regressions proving metrics can distinguish operator paperwork from automated recovery and can measure whether a failure was resolved without a new reasoning boundary."
+      }
+    },
+    {
       "id": "add-operator-quickstart-and-recovery-runbook",
       "priority": 74,
       "requires": [
@@ -68,6 +80,18 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "verification-before-completion"
+      }
+    },
+    {
+      "id": "add-overcenter-metrics-failure-drilldown-dashboard",
+      "priority": 171,
+      "requires": [
+        "expose-overcenter-metrics-semantic-surface"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Build the first Overcenter operator metrics view against the canonical metrics semantic surface, not direct ad hoc database queries. Keep the opening view intentionally small: verified transitions, verified transitions per agent execution boundary, first-pass success, automatic recovery success, operator-action-required rate, indeterminate mutations, p95 READY-to-verified latency, and p95 failure-to-recovered latency. Add a ranked recurring-failure section and make every metric/failure cohort drill into exact underlying runs, transitions, commands, authority revisions, and evidence. Show coverage/unknowns so historical gaps are visible. The dashboard is a bug-finding and paperwork-reduction instrument, not a management reporting mural. Add regression coverage for data-shape compatibility and verify the deployed view against live Overcenter metrics."
       }
     },
     {
@@ -255,6 +279,16 @@
       }
     },
     {
+      "id": "define-authoritative-overcenter-metrics-contract",
+      "priority": 174,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Define the smallest canonical metrics contract for Overcenter using test-driven-development. Metrics must be derived from authoritative durable execution facts, not from a parallel telemetry truth. Specify stable definitions, numerators, denominators, dimensions, windows, and drill-down identity for five families: outcome, friction/paperwork, failure, recovery, and latency. Make verified project transitions per agent execution boundary the top-level product metric. Include first-pass success, verified transition throughput, operator-action-required rate, administrative commands per verified transition, failure/rejection/indeterminate separation, automatic recovery success, deterministic-recovery-without-new-reasoning-boundary, and p50/p95 latency measures. Explicitly separate Hatchable infrastructure telemetry from Overcenter product/process truth. Identify which metrics are derivable from existing orchestration_runs, orchestration_command_invocations, execution_state, operation_state, proof_state, scheduled_cycle_events, receipts, and graph state, and identify only facts that truly require new instrumentation. Add executable contract tests for definitions and fail closed on ambiguous denominators or identity."
+      }
+    },
+    {
       "id": "define-immutable-obligation-graph-contract",
       "priority": 180,
       "requires": [],
@@ -345,6 +379,18 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "derive-overcenter-product-metrics",
+      "priority": 173,
+      "requires": [
+        "define-authoritative-overcenter-metrics-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Implement the authoritative Overcenter product/process metric derivation layer using test-driven-development. Derive metrics from durable execution state and receipts rather than emitting duplicate counters throughout command code. Support bounded windows such as 24h, 7d, and 30d; compute distributions rather than averages where latency matters; separate expected rejection, execution failure, mutation indeterminate, authority staleness, and agent/reasoning escalation; compute recurring-failure cohorts and stuck-age distributions. Every aggregate must retain bounded exemplar references to exact runs, transitions, commands, authority revisions, and evidence so an operator can drill from a number to the underlying truth. Ensure metric derivation is read-only, deterministic for the same durable snapshot, and tolerant of historical records that predate newer fields by reporting unknown coverage rather than silently biasing denominators."
       }
     },
     {
@@ -497,6 +543,19 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "expose-overcenter-metrics-semantic-surface",
+      "priority": 172,
+      "requires": [
+        "add-metrics-origin-and-recovery-correlation-facts",
+        "derive-overcenter-product-metrics"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Expose the derived Overcenter metrics through one compact read-only semantic surface, using test-driven-development. Prefer an orchestration.metrics-style command/service with bounded time-window input and stable response schema rather than raw SQL-shaped rows or a new mutable metrics store. Return product metrics, failure/recovery cohorts, latency distributions, coverage/unknown counts, and bounded drill-down exemplars. Keep infrastructure counters from Hatchable clearly separate. Integrate with canonical command descriptors and admin/operator access without expanding the primary agent execution surface unnecessarily. Add exact contract tests, live deployed verification, and readback proving the surface reflects authoritative current data without mutating orchestration state."
       }
     },
     {
