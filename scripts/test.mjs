@@ -23,7 +23,6 @@ async function javascriptFiles(directory) {
 
 const maintainedTests = [
   'codex-agent-execution-workflow.test.mjs',
-  'outcome-integrity-benchmark.test.mjs',
   'verify-github-workflow-dispatch.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
@@ -62,7 +61,7 @@ const maintainedTests = [
   'verify-project-definition-changeset-writer.test.mjs',
   'verify-project-authoring-command-contract.test.mjs',
   'verify-project-authoring-work-branch.test.mjs',
-  'verify-github-graph-authority.test.mjs',
+  'verify-github-graph-authority.test.test.mjs',
   'verify-overcenter-project-graph-capacity.test.mjs',
   'verify-repository-metadata-command.test.mjs',
   'verify-repository-rename-command.test.mjs',
@@ -72,6 +71,7 @@ const maintainedTests = [
   'verify-public-release.test.mjs',
   'verify-public-github-metadata.test.mjs',
   'verify-repository-registration-policy.test.mjs',
+  'verify-outcome-integrity-semantic-mutation-benchmark.test.mjs',
   'production-reconcile-operation.test.mjs',
   'production-reconcile-host.test.mjs',
   'production-runtime-observation-http.test.mjs',
