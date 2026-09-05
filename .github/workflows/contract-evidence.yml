@@ -52,6 +52,11 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+      - name: Emit candidate contract evidence diff
+        run: |
+          diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
+          diff -u docs/generated/data-contracts.md "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" || true
+          diff -u docs/generated/data-contract-authority-atlas.md "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md" || true
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
