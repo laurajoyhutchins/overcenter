@@ -51,9 +51,21 @@ function awaitedCall(node) {
   return ts.isAwaitExpression(node) && ts.isCallExpression(node.expression) ? node.expression : null;
 }
 
-function isOtherSuiteCall(call, currentRunner) {
-  const name = call && callIdentifier(call);
-  return Boolean(name && name !== currentRunner && RUNNER_NAME.test(name));
+function containsOtherSuiteCall(node, currentRunner) {
+  let found = false;
+  function visit(candidate) {
+    if (found) return;
+    if (ts.isCallExpression(candidate)) {
+      const name = callIdentifier(candidate);
+      if (name && name !== currentRunner && RUNNER_NAME.test(name)) {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(candidate, visit);
+  }
+  visit(node);
+  return found;
 }
 
 function applyEdits(source, edits) {
@@ -78,6 +90,22 @@ function relativeModuleSpecifier(file, specifier) {
 
 function rewriteRepoImports(file, source) {
   return source.replace(/(from\s+['"])((?:api|lib|mcp|pages|scripts)\/[^'"]+)(['"])/g, (_match, prefix, specifier, suffix) => `${prefix}${relativeModuleSpecifier(file, specifier)}${suffix}`);
+}
+
+function stripLegacyRunnerImports(file, source) {
+  const sf = parse(file, source);
+  const edits = [];
+  for (const statement of sf.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause?.namedBindings || !ts.isNamedImports(statement.importClause.namedBindings)) continue;
+    const elements = statement.importClause.namedBindings.elements;
+    const legacy = elements.filter((element) => RUNNER_NAME.test(element.name.text));
+    if (legacy.length === 0) continue;
+    if (legacy.length !== elements.length || statement.importClause.name) {
+      throw new Error(`${file}: mixed legacy runner import requires explicit migration`);
+    }
+    edits.push({ start: statement.getFullStart(), end: statement.end, text: '' });
+  }
+  return applyEdits(source, edits);
 }
 
 function humanName(identifier) {
@@ -127,7 +155,8 @@ function migrateSource(file, source) {
     const registrations = direct.map(({ name, fn }) => `test(${JSON.stringify(name)}, ${fn});`).join('\n');
     const edits = [{ start:runner.getFullStart(), end:runner.end, text:`\n${registrations}\n` }];
     for (const statement of topLevelHelpers.values()) edits.push({ start:statement.getFullStart(), end:statement.end, text:'' });
-    let migrated = rewriteRepoImports(file, applyEdits(source, edits));
+    let migrated = stripLegacyRunnerImports(file, applyEdits(source, edits));
+    migrated = rewriteRepoImports(file, migrated);
     if (!migrated.includes("from 'node:test'") && !migrated.includes('from "node:test"')) {
       migrated = ["import test from 'node:test';", migrated].join('\n');
     }
@@ -174,20 +203,16 @@ function migrateSource(file, source) {
       removeStatement(statement);
       continue;
     }
+    if (containsOtherSuiteCall(statement, runnerName)) {
+      removeStatement(statement);
+      continue;
+    }
     if (ts.isVariableStatement(statement)) {
       const text = statement.getText(sf);
       if ([...collectors].some((name) => new RegExp(`\\b${name}\\.(?:filter|every|map|length)\\b`).test(text))) {
         removeStatement(statement);
         continue;
       }
-      const containsSuiteAwait = statement.declarationList.declarations.some((declaration) => isOtherSuiteCall(awaitedCall(declaration.initializer), runnerName));
-      if (containsSuiteAwait) {
-        removeStatement(statement);
-        continue;
-      }
-    }
-    if (ts.isExpressionStatement(statement) && isOtherSuiteCall(awaitedCall(statement.expression), runnerName)) {
-      removeStatement(statement);
     }
   }
 
@@ -223,8 +248,7 @@ function migrateSource(file, source) {
   visit(runner.body);
 
   let promoted = source.slice(bodyStart, bodyEnd);
-  const normalizedBodyEdits = bodyEdits.map((edit) => ({ ...edit }));
-  promoted = applyEdits(promoted, normalizedBodyEdits);
+  promoted = applyEdits(promoted, bodyEdits);
 
   for (const collector of collectors) {
     if (new RegExp(`\\b${collector}\\b`).test(promoted)) throw new Error(`${file}: collector ${collector} survived migration`);
@@ -236,7 +260,7 @@ function migrateSource(file, source) {
 
   const fileEdits = [{ start: runner.getFullStart(), end: runner.end, text: promoted.trim() ? `\n${promoted.trim()}\n` : '' }];
   for (const statement of topLevelHelpers.values()) fileEdits.push({ start: statement.getFullStart(), end: statement.end, text: '' });
-  let migrated = applyEdits(source, fileEdits);
+  let migrated = stripLegacyRunnerImports(file, applyEdits(source, fileEdits));
   migrated = rewriteRepoImports(file, migrated);
   if (!/from\s+['"]node:test['"]/.test(migrated)) migrated = `import test from 'node:test';\n${migrated}`;
 
@@ -268,8 +292,7 @@ for (const file of [...ordinary, ...explicitLegacyTests]) {
     : file === 'lib/project-agent-session-boundary-regression.js'
       ? 'lib/project-agent-session-boundary.test.js'
       : file;
-  const output = migrateSource(target, source)
-    .replace("import { runProjectAgentSessionBoundaryTests } from './project-agent-session-boundary-regression.js';\n", '');
+  const output = migrateSource(target, source);
   if (target !== file) await rename(path.join(root, file), path.join(root, target));
   await writeFile(path.join(root, target), output);
   migrated.push({ from:file, to:target });
