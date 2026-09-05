@@ -25,6 +25,20 @@
       }
     },
     {
+      "id": "add-derived-agent-action-contract",
+      "priority": 98,
+      "requires": [
+        "add-semantic-agent-execution-reporting",
+        "make-agent-execution-packets-self-contained",
+        "make-project-inspect-decision-oriented"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Implement the canonical derived action contract for agent-facing Overcenter states using test-driven-development. Every primary agent-visible outcome must tell a zero-memory agent the next legal action from authoritative current state without requiring remembered protocol: execution-required packets identify the exact obligation, acceptance/verification contract, lease authority, authorized semantic mutations, completion/reporting command, invalidation conditions, and bounded recovery path; WAITING/OCCUPIED/OFF_NOMINAL states explain whether to stop, wait, diagnose, or escalate; confirmed/completed states explicitly consume execution authority and tell the agent not to repeat the obligation. Derive this guidance mechanically from project state, semantic command descriptors, execution authority, and the existing recovery classifier rather than hand-writing divergent prose in handlers. Reuse canonical command schemas and recovery_operation vocabulary. Fail closed when a safe next action cannot be derived. Keep packets compact and typed; prose may explain typed facts but must not be the authority. Add regressions covering execution, stale/expired authority, occupied work, deterministic recovery, indeterminate mutation, blocked work, confirmed completion, and terminal project completion."
+      }
+    },
+    {
       "id": "add-exact-github-actions-run-deletion",
       "priority": 100,
       "requires": [],
@@ -65,7 +79,7 @@
       "executor": {
         "kind": "agent",
         "role": "implementation",
-        "skill": "Add only the missing durable facts required by the approved Overcenter metrics contract, using test-driven-development. At minimum provide a low-cardinality execution initiator/origin classification sufficient to distinguish system, scheduler, agent, operator, and recovery boundaries, and explicit correlation from a typed failure/recovery decision through recovery attempt to recovery outcome. Reuse existing run, invocation, operation, failure, continuation, and receipt identities; do not create a second orchestration journal or duplicate execution truth. Preserve idempotency, exact-revision authority, mutation certainty, recovery semantics, and compact-state design. Backfill only where truth can be derived mechanically; represent unknown historical origin/correlation as unknown rather than guessing. Add regressions proving metrics can distinguish operator paperwork from automated recovery and can measure whether a failure was resolved without a new reasoning boundary."
+        "skill": "Add only the missing durable facts required by the approved Overcenter metrics contract, using test-driven-development. At minimum provide a low-cardinality execution initiator/origin classification sufficient to distinguish system, scheduler, agent, operator, and recovery boundaries, plus explicit correlation from a typed failure/recovery decision through recovery attempt to recovery outcome. Ensure agent-communication metrics can correlate AGENT_EXECUTION_REQUIRED/action-contract issuance, packet/schema version where materially needed, subsequent semantic coordination calls, lease-authorized effects, settlement, and any new reasoning-boundary entry without storing prompt contents or creating surveillance telemetry. Reuse existing run, invocation, operation, failure, continuation, lease, transition, and receipt identities; do not create a second orchestration journal or duplicate execution truth. Preserve idempotency, exact-revision authority, mutation certainty, recovery semantics, and compact-state design. Backfill only where truth can be derived mechanically; represent unknown historical origin/correlation as unknown rather than guessing. Add regressions proving metrics can distinguish operator paperwork from automated recovery and can measure whether a failure was resolved without a new reasoning boundary."
       }
     },
     {
@@ -91,7 +105,7 @@
       "executor": {
         "kind": "agent",
         "role": "implementation",
-        "skill": "Build the first Overcenter operator metrics view against the canonical metrics semantic surface, not direct ad hoc database queries. Keep the opening view intentionally small: verified transitions, verified transitions per agent execution boundary, first-pass success, automatic recovery success, operator-action-required rate, indeterminate mutations, p95 READY-to-verified latency, and p95 failure-to-recovered latency. Add a ranked recurring-failure section and make every metric/failure cohort drill into exact underlying runs, transitions, commands, authority revisions, and evidence. Show coverage/unknowns so historical gaps are visible. The dashboard is a bug-finding and paperwork-reduction instrument, not a management reporting mural. Add regression coverage for data-shape compatibility and verify the deployed view against live Overcenter metrics."
+        "skill": "Build the first Overcenter operator metrics view against the canonical metrics semantic surface, not direct ad hoc database queries. Keep the opening view intentionally small: verified transitions, verified transitions per agent execution boundary, first-pass success, automatic recovery success, operator-action-required rate, indeterminate mutations, p95 READY-to-verified latency, and p95 failure-to-recovered latency. Add a compact agent-communication section showing action-contract/packet coverage, semantic coordination round trips per verified transition, recovery requiring a new reasoning boundary versus deterministic recovery without one, and stale/incomplete packet authority failures; present zero-memory conformance separately as contract health if available. Add a ranked recurring-failure section and make every metric/failure cohort drill into exact underlying runs, transitions, commands, packet/schema versions where relevant, authority revisions, and evidence. Show coverage/unknowns so historical gaps are visible. The dashboard is a bug-finding and paperwork-reduction instrument, not a management reporting mural. Add regression coverage for data-shape compatibility and verify the deployed view against live Overcenter metrics."
       }
     },
     {
@@ -309,7 +323,7 @@
       "executor": {
         "kind": "agent",
         "role": "implementation",
-        "skill": "Define the smallest canonical metrics contract for Overcenter using test-driven-development. Metrics must be derived from authoritative durable execution facts, not from a parallel telemetry truth. Specify stable definitions, numerators, denominators, dimensions, windows, and drill-down identity for five families: outcome, friction/paperwork, failure, recovery, and latency. Make verified project transitions per agent execution boundary the top-level product metric. Include first-pass success, verified transition throughput, operator-action-required rate, administrative commands per verified transition, failure/rejection/indeterminate separation, automatic recovery success, deterministic-recovery-without-new-reasoning-boundary, and p50/p95 latency measures. Explicitly separate Hatchable infrastructure telemetry from Overcenter product/process truth. Identify which metrics are derivable from existing orchestration_runs, orchestration_command_invocations, execution_state, operation_state, proof_state, scheduled_cycle_events, receipts, and graph state, and identify only facts that truly require new instrumentation. Add executable contract tests for definitions and fail closed on ambiguous denominators or identity."
+        "skill": "Define the smallest canonical metrics contract for Overcenter using test-driven-development. Metrics must be derived from authoritative durable execution facts, not from a parallel telemetry truth. Specify stable definitions, numerators, denominators, dimensions, windows, coverage semantics, and drill-down identity for outcome, friction/paperwork, failure, recovery, latency, and agent-communication effectiveness. Make verified project transitions per agent execution boundary the top-level product metric. Include first-pass success, verified transition throughput, operator-action-required rate, administrative semantic commands per verified transition, failure/rejection/indeterminate separation, automatic recovery success, deterministic-recovery-without-new-reasoning-boundary, and p50/p95 latency measures. For agent communication, measure only Overcenter-observable facts: packet/action-contract schema coverage, semantic coordination round trips per verified transition segmented by lifecycle phase, deterministic recovery that re-enters a reasoning boundary versus recovery completed without one, and authority/protocol failures attributable to stale or incomplete agent packets. Treat fresh-session zero-memory conformance as contract-health evidence, not as production outcome telemetry. Do not claim to measure hidden model confusion or ordinary repository investigation. Explicitly separate Hatchable infrastructure telemetry from Overcenter product/process truth. Identify which metrics are derivable from existing runs, command invocations, execution/operation/proof state, scheduled-cycle events, receipts, graph state, and packet outcomes, and identify only facts that truly require new instrumentation. Add executable contract tests and fail closed on ambiguous denominators, identity, or unknown historical coverage."
       }
     },
     {
@@ -414,7 +428,7 @@
       "executor": {
         "kind": "agent",
         "role": "implementation",
-        "skill": "Implement the authoritative Overcenter product/process metric derivation layer using test-driven-development. Derive metrics from durable execution state and receipts rather than emitting duplicate counters throughout command code. Support bounded windows such as 24h, 7d, and 30d; compute distributions rather than averages where latency matters; separate expected rejection, execution failure, mutation indeterminate, authority staleness, and agent/reasoning escalation; compute recurring-failure cohorts and stuck-age distributions. Every aggregate must retain bounded exemplar references to exact runs, transitions, commands, authority revisions, and evidence so an operator can drill from a number to the underlying truth. Ensure metric derivation is read-only, deterministic for the same durable snapshot, and tolerant of historical records that predate newer fields by reporting unknown coverage rather than silently biasing denominators."
+        "skill": "Implement the authoritative Overcenter product/process metric derivation layer using test-driven-development. Derive metrics from durable execution state and receipts rather than emitting duplicate counters throughout command code. Support bounded windows such as 24h, 7d, and 30d; compute distributions rather than averages where latency matters; separate expected rejection, execution failure, mutation indeterminate, authority staleness, and agent/reasoning escalation; compute recurring-failure cohorts and stuck-age distributions. Include agent-communication effectiveness from observable protocol facts: packet/action-contract coverage, semantic coordination commands per verified transition segmented before acquisition/during execution/recovery/after confirmation, deterministic recovery with versus without a new reasoning boundary, and stale/incomplete packet authority failures. Keep zero-memory conformance results as separately labeled contract-health evidence rather than mixing them into production rates. Every aggregate must retain bounded exemplar references to exact runs, transitions, commands, packet/schema versions where applicable, authority revisions, and evidence so an operator can drill from a number to the underlying truth. Ensure derivation is read-only, deterministic for the same durable snapshot, and tolerant of historical records that predate newer fields by reporting unknown coverage rather than silently biasing denominators."
       }
     },
     {
@@ -518,6 +532,21 @@
       }
     },
     {
+      "id": "establish-zero-memory-agent-conformance-suite",
+      "priority": 96,
+      "requires": [
+        "add-derived-agent-action-contract",
+        "migrate-agent-work-meaning-out-of-skill",
+        "prove-disposable-agent-resume-round-trip",
+        "prove-fresh-agent-round-trip"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "Build the zero-memory conformance suite for Overcenter agent communication. Deliberately destroy conversational/session context between discovery, acquisition, execution, interruption/recovery, and settlement boundaries and prove that a competent fresh agent can choose the next legal action from authoritative Overcenter packets plus repository evidence only. Include opaque transition ids, stale/conflicting external prose, session loss immediately after acquisition, authority movement, lease expiry, occupied work, blocked settlement, deterministic recovery, indeterminate external effects, and already-completed obligations. The suite must fail if hidden coordinator context, prior chat memory, issue text, Linear text, or undocumented command conventions are necessary merely to recover the work contract or protocol. Repository investigation needed to solve the engineering problem remains allowed; the test is that Overcenter restores intent, authority, acceptance, recovery, reporting, and stop conditions. Record exact packet/schema versions and evidence for every scenario."
+      }
+    },
+    {
       "id": "expose-compact-primary-agent-discovery",
       "priority": 85,
       "requires": [
@@ -579,7 +608,7 @@
       "executor": {
         "kind": "agent",
         "role": "implementation",
-        "skill": "Expose the derived Overcenter metrics through one compact read-only semantic surface, using test-driven-development. Prefer an orchestration.metrics-style command/service with bounded time-window input and stable response schema rather than raw SQL-shaped rows or a new mutable metrics store. Return product metrics, failure/recovery cohorts, latency distributions, coverage/unknown counts, and bounded drill-down exemplars. Keep infrastructure counters from Hatchable clearly separate. Integrate with canonical command descriptors and admin/operator access without expanding the primary agent execution surface unnecessarily. Add exact contract tests, live deployed verification, and readback proving the surface reflects authoritative current data without mutating orchestration state."
+        "skill": "Expose the derived Overcenter metrics through one compact read-only semantic surface, using test-driven-development. Prefer an orchestration.metrics-style command/service with bounded time-window input and stable response schema rather than raw SQL-shaped rows or a new mutable metrics store. Return top-level product outcomes, paperwork/friction, agent-communication effectiveness, failure/recovery cohorts, latency distributions, coverage/unknown counts, and bounded drill-down exemplars. Agent-communication output must stay grounded in observable protocol facts and clearly distinguish production metrics from zero-memory conformance/contract-health evidence. Keep Hatchable infrastructure counters clearly separate. Integrate with canonical command descriptors and admin/operator access without expanding the primary agent execution surface unnecessarily. Add exact contract tests, live deployed verification, and readback proving the surface reflects authoritative current data without mutating orchestration state."
       }
     },
     {
@@ -852,6 +881,18 @@
       }
     },
     {
+      "id": "migrate-agent-work-meaning-out-of-skill",
+      "priority": 97,
+      "requires": [
+        "make-agent-execution-packets-self-contained"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Migrate Overcenter project definitions away from using executor.skill as an untyped prompt bus once the self-contained execution-intent contract exists. Keep executor.skill as a compact method/strategy selector such as test-driven-development or verification-before-completion, and move task meaning into the canonical typed execution-intent fields for objective, acceptance, verification, and constraints. Inventory current graph transitions whose skill strings contain implementation objectives, constraints, deployment steps, or settlement requirements; migrate them without weakening meaning or changing unrelated dependency structure. Preserve semantic identity/fingerprint rules so execution-relevant or acceptance-relevant changes invalidate stale authority while formatting or representation-only changes do not. Add validation preventing newly authored prompt-shaped skill payloads from becoming the fallback contract again, with an explicit compatibility/migration path for historical definitions."
+      }
+    },
+    {
       "id": "move-production-promotion-correlation-to-invocation-context",
       "priority": 88,
       "requires": [
@@ -1118,6 +1159,19 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "verification-before-completion"
+      }
+    },
+    {
+      "id": "validate-agent-communication-metrics-product",
+      "priority": 170,
+      "requires": [
+        "add-overcenter-metrics-failure-drilldown-dashboard",
+        "establish-zero-memory-agent-conformance-suite"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "Validate that the Overcenter metrics product can actually diagnose agent-communication and orchestration-friction failures rather than merely display counters. Run controlled disposable-session scenarios from the zero-memory conformance suite plus representative successful, stale-authority, deterministic-recovery, indeterminate-effect, and operator-escalation paths. Verify the metrics surface and dashboard classify each path correctly, retain drill-down to exact authoritative evidence, expose unknown coverage instead of inventing history, and make the main engineering question answerable: where are reasoning boundaries being spent on coordination/reconstruction that deterministic Overcenter behavior should remove? Reject metrics that cannot lead from an aggregate to a concrete failing contract or execution path. Record exact deployment, graph revision, scenario identities, and expected/observed metric values."
       }
     },
     {
