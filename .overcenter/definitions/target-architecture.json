@@ -515,19 +515,31 @@
       "executor": {
         "kind": "agent",
         "role": "implementation",
-        "skill": "Use test-driven-development to make project-authoring candidate admission and base reconciliation fail closed without manufacturing stale pull requests. Before integrating a staged project-authoring candidate, run the exact staged definition through the same production graph derivation and evaluation path used by project.inspect; reject an underivable candidate before it can move dev, with bounded diagnostics and an explicit safe recovery path. If dev advances after staging, reconcile or regenerate the candidate against the exact new authority while preserving semantic intent, exact candidate identity/lineage, branch-protection checks, and idempotent retry; do not reset a candidate branch to its base in a way that can auto-close or sever the recorded candidate lifecycle. Add regressions for an underivable candidate that cannot move dev, dev advancing while verification is pending, stale-base reconciliation that preserves lineage, and replay of the same semantic request converging without duplicate candidates. Graph-size capacity is already repaired and is not part of this transition. Preserve exact-revision fencing, mutation certainty, authoritative GitHub readback, and no blind retry of indeterminate effects. Verify the exact final revision in CI and deployed runtime before settlement."
+        "skill": "test-driven-development"
       },
       "execution_intent": {
         "schema": "project-execution-intent-v1",
-        "desired_outcome": "Make project-authoring candidate admission and base reconciliation fail closed without manufacturing stale pull requests, preserving exact candidate lineage and semantic intent across dev movement and idempotent retry.",
+        "desired_outcome": "Make project-authoring and integration candidate reconciliation mechanically converge through authorized candidate/base movement without stale staged-SHA dead ends. The initial staged revision is an identity checkpoint, not a forever-fixed integration head: when the same candidate branch advances through an Overcenter-authorized deterministic derivative commit such as regenerated contract evidence, Overcenter must reread the current candidate, prove it descends from the staged candidate and preserves the authoritative project definition and semantic intent, invalidate verification bound to older candidate identities, require fresh exact-head verification, and then continue integration against the exact verified current head. Routine base movement should likewise be reconciled mechanically when semantics remain derivable. Arbitrary or unrecognized candidate-head movement, semantic graph drift, non-derivable changes, conflicting base movement, or uncertain external effects must fail closed and route to explicit reconciliation or agent judgment rather than being silently adopted.",
         "acceptance_evidence": [
           {
-            "kind": "tests",
-            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+            "kind": "fail_closed",
+            "requirement": "Tests prove arbitrary branch movement, semantic project-definition drift, non-derivable candidate changes, conflicting base movement, and uncertain mutation are not auto-adopted and produce a typed reconciliation or judgment boundary with no unauthorized integration."
+          },
+          {
+            "kind": "idempotency",
+            "requirement": "Retry and replay converge on one exact current candidate and at most one repository integration effect; already-integrated state is observed idempotently rather than restaged or remerged."
+          },
+          {
+            "kind": "identity",
+            "requirement": "Candidate adoption is mechanically fenced by exact Git identity and provenance: the adopted head must be a descendant/authorized derivative of the staged candidate, preserve the authoritative project definition and semantic intent, and never reuse verification evidence bound to an older SHA."
+          },
+          {
+            "kind": "regression",
+            "requirement": "An executable regression reproduces project.amend staging followed by an Overcenter-authorized deterministic generated-evidence-only commit on the same candidate branch, then proves reconciliation adopts the derived head, requires fresh exact-head verification, and integrates without a stale-staged-SHA HEAD_MISMATCH dead end."
           },
           {
             "kind": "verification",
-            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+            "requirement": "Fresh repository verification, exact-revision verification, and relevant generated-contract evidence pass on the exact final candidate revision before integration, and final project.inspect observes the resulting authoritative revision."
           }
         ]
       }
