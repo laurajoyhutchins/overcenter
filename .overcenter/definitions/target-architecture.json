@@ -25,6 +25,40 @@
       }
     },
     {
+      "id": "add-deterministic-repository-transform-executor",
+      "priority": 93,
+      "requires": [
+        "generalize-exact-revision-repository-executor"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add deterministic repository transformation as an internal repository-executor class behind project advancement so mechanically expressible bulk edits run against an exact checkout with pinned tooling and declared network capabilities instead of consuming repeated reasoning-agent file edits.",
+        "acceptance_evidence": [
+          {
+            "kind": "contract",
+            "requirement": "A canonical content-addressed repository-transform plan binds the exact source revision, transition/lease authority, transform engine and implementation identity, recipe, path/output bounds, network policy, and required verification; replay with the same plan has one stable transform fingerprint."
+          },
+          {
+            "kind": "execution",
+            "requirement": "At least one deterministic transform engine executes through the generalized repository-executor contract with network disabled by default, while the engine model remains pluggable enough for exact text, structural/AST, and repository-native migration implementations without adding language toolchains to the Overcenter server."
+          },
+          {
+            "kind": "identity",
+            "requirement": "The executor returns a candidate Git tree identity plus bounded verification evidence, Overcenter applies the resulting changes only through its existing mutation authority, and post-apply readback proves the authoritative committed tree equals the candidate tree before the effect can support settlement."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Tests prove deterministic replay, match/cardinality preconditions, output bounds, stale-authority rejection, candidate-tree mismatch rejection, network-policy enforcement, and that no executor process can directly push or settle repository work."
+          }
+        ]
+      }
+    },
+    {
       "id": "add-exact-github-actions-run-deletion",
       "priority": 100,
       "requires": [],
@@ -396,6 +430,42 @@
       }
     },
     {
+      "id": "delegate-agent-discovered-mechanical-work",
+      "priority": 92,
+      "requires": [
+        "add-deterministic-repository-transform-executor",
+        "add-semantic-agent-execution-reporting",
+        "make-agent-execution-packets-self-contained"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Allow a bounded reasoning-agent execution to return a precise mechanical repository-transform request when investigation converts fuzzy implementation work into deterministic work, so Overcenter can redispatch that work to the deterministic transform executor instead of teaching the agent to perform repetitive edits itself.",
+        "acceptance_evidence": [
+          {
+            "kind": "continuation",
+            "requirement": "A valid delegation ends the reasoning boundary cleanly, dispatches the deterministic executor through current project advancement semantics, preserves exact-revision/lease/evidence continuity, and resumes toward settlement without requiring a fresh agent to reconstruct prior scratch context."
+          },
+          {
+            "kind": "semantic-boundary",
+            "requirement": "The agent execution result/reporting contract can express a bounded request to delegate to repository transformation without exposing leases, GitHub mutation choreography, executor-provider selection, or other kernel bookkeeping to the reasoning agent."
+          },
+          {
+            "kind": "validation",
+            "requirement": "Overcenter deterministically validates that the requested transform is within the original transition meaning and current execution authority, derives or validates the canonical transform fingerprint, and fails closed to bounded agent/operator judgment when the request is ambiguous, broader than the transition, or cannot be mechanically represented."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Regression coverage demonstrates a multi-file mechanical task being recognized by a disposable agent, delegated, transformed deterministically, applied through Overcenter authority, verified against the candidate tree, and continued without manual repetitive file edits or orchestration ceremony."
+          }
+        ]
+      }
+    },
+    {
       "id": "delete-compatibility-command-exposure",
       "priority": 83,
       "requires": [
@@ -752,6 +822,41 @@
           {
             "kind": "regression",
             "requirement": "Focused tests reproduce GitHub workflow_dispatch returning 204 with no run id and prove identity is recovered by authoritative exact-run readback through the canonical dispatch capability."
+          }
+        ]
+      }
+    },
+    {
+      "id": "generalize-exact-revision-repository-executor",
+      "priority": 94,
+      "requires": [
+        "add-codex-github-actions-executor",
+        "make-agent-execution-packets-self-contained"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Extract the working Codex GitHub Actions execution slice into an executor-neutral exact-revision repository executor contract so Overcenter can provision authoritative repository work independently of a reasoning agent's disposable VM, filesystem, or network access, without making GitHub Actions or Codex part of the semantic product ontology.",
+        "acceptance_evidence": [
+          {
+            "kind": "architecture",
+            "requirement": "A typed internal repository-executor contract separates Overcenter execution semantics from executor-provider implementation and represents exact source revision, transition and lease authority, declared execution capabilities including network policy, bounded outputs, and executor identity/fingerprint."
+          },
+          {
+            "kind": "authority",
+            "requirement": "Repository execution materializes the exact authority revision and the untrusted execution phase has no repository mutation authority; external mutation remains exclusively behind Overcenter authority and fails closed on stale or mismatched execution identity."
+          },
+          {
+            "kind": "compatibility",
+            "requirement": "The existing Codex GitHub Actions path is implemented as one provider of the generalized executor contract without changing the ordinary primary MCP surface or weakening current packet-only execution guarantees."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Regression coverage proves exact-revision fencing, credential isolation, executor/provider substitution, bounded output validation, and fail-closed behavior when source revision, lease authority, executor identity, or declared capabilities do not match."
           }
         ]
       }
