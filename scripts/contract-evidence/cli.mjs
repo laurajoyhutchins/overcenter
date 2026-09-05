@@ -61,6 +61,44 @@ async function compileFor(flags) {
   };
 }
 
+function exactReplacement(path, before, after) {
+  if (before === after) return null;
+  let prefix = 0;
+  const maxPrefix = Math.min(before.length, after.length);
+  while (prefix < maxPrefix && before[prefix] === after[prefix]) prefix += 1;
+  let suffix = 0;
+  const beforeRemaining = before.length - prefix;
+  const afterRemaining = after.length - prefix;
+  const maxSuffix = Math.min(beforeRemaining, afterRemaining);
+  while (suffix < maxSuffix && before[before.length - 1 - suffix] === after[after.length - 1 - suffix]) suffix += 1;
+  return {
+    path,
+    old:before.slice(prefix, before.length - suffix),
+    new_text:after.slice(prefix, after.length - suffix),
+    expected_count:1,
+  };
+}
+
+async function emitTemporaryReplacementPlan(repoRoot, outputs) {
+  const specs = [
+    ['generated/contracts/catalog.json', outputs.catalog],
+    ['docs/generated/data-contracts.md', outputs.docs],
+    ['docs/generated/data-contract-authority-atlas.md', outputs.atlas],
+  ];
+  const replacements = [];
+  for (const [path, generatedPath] of specs) {
+    const committedPath = join(repoRoot, path);
+    if (resolve(committedPath) === resolve(generatedPath)) continue;
+    const [before, after] = await Promise.all([
+      readFile(committedPath, 'utf8'),
+      readFile(generatedPath, 'utf8'),
+    ]);
+    const replacement = exactReplacement(path, before, after);
+    if (replacement) replacements.push(replacement);
+  }
+  process.stderr.write(`CONTRACT_EVIDENCE_REPLACEMENTS=${JSON.stringify(replacements)}\n`);
+}
+
 async function generate(flags) {
   const { repoRoot, catalog } = await compileFor(flags);
   const catalogPath = artifactPath(repoRoot, required(flags, 'catalog'));
@@ -71,6 +109,7 @@ async function generate(flags) {
     writeFile(docsPath, renderCatalogMarkdown(catalog) + '\n', 'utf8'),
     writeFile(atlasPath, renderAuthorityAtlasMarkdown(catalog) + '\n', 'utf8'),
   ]);
+  await emitTemporaryReplacementPlan(repoRoot, { catalog:catalogPath, docs:docsPath, atlas:atlasPath });
   return { ok:true, catalog:catalogPath, docs:docsPath, atlas:atlasPath, summary:catalog.summary };
 }
 
