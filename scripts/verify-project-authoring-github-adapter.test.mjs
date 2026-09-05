@@ -73,6 +73,69 @@ test('GitHub-backed authoring fences mutation then confirms the intended definit
   assert.match(calls[1][5], /^project-amend-v1:[0-9a-f]{64}$/);
 });
 
+test('empty project.amend confirms the current exact revision without provider mutation', async () => {
+  let authorityReads = 0;
+  let mutationCalls = 0;
+  const calls = [];
+  const adapter = createProjectAuthoringGithubAdapter({
+    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:(authorityReads += 1, initialRevision), derivation:'overcenter-project-graph-v1' }),
+    readDefinitionFacts:async ({ revision }) => {
+      calls.push(['read', revision]);
+      return facts(revision);
+    },
+    applyChangeset:async () => {
+      mutationCalls += 1;
+      throw new Error('no-op amendment must not reach provider mutation');
+    },
+    deriveProjectGraph:async ({ authority }) => {
+      calls.push(['derive', authority.revision]);
+      return { schema:'overcenter-project-graph-v1', revision:authority.revision };
+    },
+  });
+
+  const result = await adapter.amend({
+    project_ref:projectRef,
+    expected_revision:initialRevision,
+    amendment:{},
+  });
+
+  assert.equal(authorityReads, 1);
+  assert.equal(mutationCalls, 0);
+  assert.equal(result.authority.revision, initialRevision);
+  assert.deepEqual(result.diff, { added:[], changed:[], removed:[] });
+  assert.equal(result.graph.revision, initialRevision);
+  assert.deepEqual(calls.map((call) => call[0]), ['read', 'read', 'derive']);
+});
+
+test('idempotent transition upsert is a confirmed no-op without confirmation-history or provider mutation', async () => {
+  let mutationCalls = 0;
+  let historyReads = 0;
+  const adapter = createProjectAuthoringGithubAdapter({
+    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' }),
+    readDefinitionFacts:async ({ revision }) => facts(revision),
+    readProjectObservations:async () => {
+      historyReads += 1;
+      return [];
+    },
+    applyChangeset:async () => {
+      mutationCalls += 1;
+      throw new Error('idempotent upsert must not reach provider mutation');
+    },
+    deriveProjectGraph:async ({ authority }) => ({ schema:'overcenter-project-graph-v1', revision:authority.revision }),
+  });
+
+  const result = await adapter.amend({
+    project_ref:projectRef,
+    expected_revision:initialRevision,
+    amendment:{ upsert_transitions:[baseDefinition.transitions[0]] },
+  });
+
+  assert.equal(historyReads, 0);
+  assert.equal(mutationCalls, 0);
+  assert.equal(result.authority.revision, initialRevision);
+  assert.deepEqual(result.diff, { added:[], changed:[], removed:[] });
+});
+
 test('semantic idempotency is internal, stable for replay, and separates material intent', async () => {
   const same = { project_ref:projectRef, expected_revision:initialRevision, amendment:{ upsert_transitions:[] } };
   const first = await projectAuthoringIdempotencyKey(same);
