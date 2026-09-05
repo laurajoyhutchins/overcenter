@@ -116,6 +116,16 @@ test('maintenance resumes waiting authoring and settles the same operation witho
   assert.deepEqual(success.resolution.result,result);
 });
 
+test('initial staged base movement is retained for recompute instead of becoming indeterminate', async()=>{
+  const stale=new Error('base moved after staging'); stale.code='PROJECT_AUTHORING_INTEGRATION_RECOMPUTE_REQUIRED'; stale.may_have_mutated=true; stale.details={ observed_revision:'4'.repeat(40), staged_revision:HEAD };
+  const { service, calls }=serviceHarness({ executeAuthoring:async()=>{ throw stale; } });
+  await assert.rejects(()=>service.execute('project.amend',REQUEST),(error)=>error.code==='PROJECT_AUTHORING_INTEGRATION_RECOMPUTE_REQUIRED');
+  const pause=calls.filter(([name])=>name==='pausePrepared').at(-1)?.[1];
+  assert.equal(pause.recovery_payload.phase,'RECOMPUTE_REQUIRED');
+  assert.equal(pause.may_have_mutated,true);
+  assert.equal(calls.some(([name])=>name==='markIndeterminate'),false);
+});
+
 test('authority movement during recovery is fail-closed and never abandons the staged candidate', async()=>{
   const stale=new Error('authority moved'); stale.code='PROJECT_AUTHORING_AUTHORITY_STALE'; stale.may_have_mutated=false; stale.details={ observed_revision:'4'.repeat(40) };
   const { service, calls }=serviceHarness({ pending:[await waitingOperation()], executeAuthoring:async()=>{ throw stale; } });
