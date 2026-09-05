@@ -3,6 +3,16 @@
   "project_ref": "github:laurajoyhutchins/overcenter",
   "transitions": [
     {
+      "id": "add-codex-github-actions-executor",
+      "priority": 94,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "add-conversation-to-graph-semantic-command",
       "priority": 91,
       "requires": [
@@ -30,6 +40,16 @@
       "requires": [
         "bind-command-effect-completion-identity"
       ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "add-github-workflow-dispatch-semantic-command",
+      "priority": 95,
+      "requires": [],
       "executor": {
         "kind": "agent",
         "role": "implementation",
