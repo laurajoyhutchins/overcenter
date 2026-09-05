@@ -5,6 +5,7 @@ import pg from 'pg';
 
 import { createCompactProviderOperationPostgresStore } from '../lib/compact-provider-operation-store.js';
 import { createCompactGithubChangesetReceiptStore } from '../lib/compact-github-changeset-receipt-store.js';
+import { createCompactPortfolioReconcileReceiptStore } from '../lib/compact-portfolio-reconcile-receipt-store.js';
 
 const { Client } = pg;
 const root = new URL('../', import.meta.url);
@@ -144,9 +145,14 @@ test('changeset compatibility receipts recover prepared work from operation_stat
     assert.equal(prepared.row.tree_sha, '2'.repeat(40));
     assert.equal(prepared.row.commit_sha, '3'.repeat(40));
     assert.deepEqual(prepared.row.changed_paths, [{ path:'README.md', operation:'update' }]);
+    assert.equal(prepared.row.attempt_token, 'attempt-a');
 
     const receipt = { ok:true, repo:normalized.repo, branch:normalized.branch, commit_sha:'3'.repeat(40), idempotent_replay:true };
-    await receipts.succeed(normalized, receipt);
+    assert.equal(await receipts.succeed(normalized, 'attempt-b', receipt), false);
+    const stillPrepared = await receipts.claim(normalized, digest, 'attempt-c');
+    assert.equal(stillPrepared.kind, 'existing');
+    assert.equal(stillPrepared.row.state, 'prepared');
+    assert.equal(await receipts.succeed(normalized, prepared.row.attempt_token, receipt), true);
     const succeeded = await receipts.claim(normalized, digest, 'attempt-c');
     assert.equal(succeeded.kind, 'existing');
     assert.equal(succeeded.row.state, 'succeeded');
@@ -154,6 +160,61 @@ test('changeset compatibility receipts recover prepared work from operation_stat
 
     const tables = await client.query(`SELECT to_regclass('github_changeset_receipts') AS changesets`);
     assert.equal(tables.rows[0].changesets, null);
+  } finally {
+    await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
+    await client.end();
+  }
+});
+
+test('portfolio reconciliation completion cannot adopt a successor attempt identity', async () => {
+  const client = postgresClient();
+  await client.connect();
+  try {
+    await prepareSchema(client);
+    const key = 'portfolio-completion-fence-1';
+    const digest = '7'.repeat(64);
+    const receipt = { ok:true, idempotency_key:key };
+    const first = createCompactPortfolioReconcileReceiptStore(binding(client), {
+      now:() => '2026-09-01T23:00:00.000Z',
+    });
+    const successor = createCompactPortfolioReconcileReceiptStore(binding(client), {
+      now:() => '2026-09-01T23:01:00.000Z',
+    });
+
+    const claimed = await first.claim(key, digest);
+    assert.equal(claimed.kind, 'claimed');
+    const firstState = await client.query(
+      `SELECT recovery_payload->>'attempt_token' AS attempt_token FROM operation_state WHERE command=$1 AND idempotency_scope=$2 AND idempotency_key=$3`,
+      ['portfolio.reconcile_work_surface', 'portfolio:work-surface', key],
+    );
+    const firstAttempt = firstState.rows[0].attempt_token;
+    assert.ok(firstAttempt);
+
+    const reclaimed = await successor.claim(key, digest);
+    assert.equal(reclaimed.kind, 'claimed');
+    const successorState = await client.query(
+      `SELECT recovery_payload->>'attempt_token' AS attempt_token FROM operation_state WHERE command=$1 AND idempotency_scope=$2 AND idempotency_key=$3`,
+      ['portfolio.reconcile_work_surface', 'portfolio:work-surface', key],
+    );
+    assert.notEqual(successorState.rows[0].attempt_token, firstAttempt);
+
+    await assert.rejects(
+      first.succeed(key, digest, receipt),
+      error => error?.code === 'IDEMPOTENCY_IN_PROGRESS',
+    );
+    const afterStaleCompletion = await client.query(
+      `SELECT state, recovery_payload->>'attempt_token' AS attempt_token FROM operation_state WHERE command=$1 AND idempotency_scope=$2 AND idempotency_key=$3`,
+      ['portfolio.reconcile_work_surface', 'portfolio:work-surface', key],
+    );
+    assert.notEqual(afterStaleCompletion.rows[0].state, 'succeeded');
+    assert.equal(afterStaleCompletion.rows[0].attempt_token, successorState.rows[0].attempt_token);
+
+    await successor.succeed(key, digest, receipt);
+    const settled = await client.query(
+      `SELECT state FROM operation_state WHERE command=$1 AND idempotency_scope=$2 AND idempotency_key=$3`,
+      ['portfolio.reconcile_work_surface', 'portfolio:work-surface', key],
+    );
+    assert.equal(settled.rows[0].state, 'succeeded');
   } finally {
     await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
     await client.end();
