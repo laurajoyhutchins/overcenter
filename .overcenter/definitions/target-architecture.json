@@ -231,7 +231,7 @@
       "executor": {
         "kind": "agent",
         "role": "implementation",
-        "skill": "test-driven-development"
+        "skill": "Use test-driven-development to repair project.amend admission. Remove arbitrary transition-count ceilings instead of replacing 100 with another magic number. Any remaining limit must name and test the real resource or correctness constraint it protects. Before integrating a staged project-authoring candidate, run the exact candidate definition through the same production graph derivation and evaluation path used by project.inspect. Reject an underivable candidate before integration with bounded diagnostics. Add regressions proving valid graphs over 100 transitions are accepted and an invalid candidate cannot move dev then break project.inspect. Preserve exact-revision fencing, branch protection, idempotent retry, and authoritative reconciliation. Verify the exact final revision in CI and deployed runtime before settlement."
       }
     },
     {
