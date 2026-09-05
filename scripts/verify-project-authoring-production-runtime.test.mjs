@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProjectAuthoringProductionRuntime, createProjectAuthoringProductionRuntimeFromHost } from '../lib/project-authoring-production-runtime.js';
 import { createProjectAuthoringHostRuntime } from '../lib/project-authoring-host-runtime.js';
+import { applyProjectTransitionObservations } from '../lib/project-transition-observations.js';
+import { evaluateProjectGraph } from '../lib/project-graph.js';
+import { createProjectTransitionLeaseService } from '../lib/project-transition-leases.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const stagedRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -337,4 +340,248 @@ test('project.amend does not treat a live lease from another Git revision as a c
   });
   assert.equal(result.ok, true);
   assert.equal(harness.mutationCount(), 1);
+});
+
+const migrationRevision1 = '1111111111111111111111111111111111111111';
+const migrationRevision2 = '2222222222222222222222222222222222222222';
+const migrationStages = ['ENABLE', 'ACQUIRE', 'EXECUTE', 'COMMIT', 'CONFIRM'];
+
+function migrationLifecycle(complete = false) {
+  return {
+    current_stage:complete ? 'CONFIRM' : 'ENABLE',
+    condition:'NOMINAL',
+    responsibilities:Object.fromEntries(migrationStages.map((stage) => [
+      stage,
+      { applicable:true, satisfied:complete },
+    ])),
+  };
+}
+
+function concurrentMigrationHarness(initialDefinition) {
+  let currentDefinition = initialDefinition;
+  let currentRevision = migrationRevision1;
+  let mutationCount = 0;
+  let lastSettlement = null;
+  const leases = new Map();
+  const slots = new Map();
+  const run = { run_id:'migration-run', status:'active', deadline_at:'2026-09-05T18:00:00Z' };
+
+  const graph = () => ({
+    schema:'project-graph-authority-v1',
+    project_ref:projectRef,
+    authority:{
+      definition:{ kind:'github', repository:'example/project', revision:currentRevision, derivation:'overcenter-project-graph-v1' },
+      observations:[],
+    },
+    nodes:currentDefinition.transitions.map((transition) => ({
+      ...transition,
+      phase_bindings:transition.phase_bindings ?? {},
+      lifecycle:migrationLifecycle(transition.id === 'A'),
+    })),
+    horizons:[],
+  });
+
+  const store = {
+    async getRun(id) { return id === run.run_id ? run : null; },
+    async getLease(id) { return leases.get(id) || null; },
+    async getLeaseByAcquireIdempotency(key) {
+      return [...leases.values()].find((lease) => lease.acquire_idempotency_key === key) || null;
+    },
+    async getSlot(key) { return slots.get(key) || null; },
+    async insertLease(row) { leases.set(row.lease_id, { ...row }); return leases.get(row.lease_id); },
+    async insertSlot(row) {
+      if (slots.has(row.slot_key)) { const error = new Error('occupied'); error.code = 'UNIQUE_VIOLATION'; throw error; }
+      slots.set(row.slot_key, { ...row });
+      return slots.get(row.slot_key);
+    },
+    async updateLease(id, patch) {
+      const row = { ...leases.get(id), ...patch };
+      leases.set(id, row);
+      return row;
+    },
+    async getActiveLeasesForTransition(ref, transitionId, observedAt) {
+      return [...leases.values()].filter((lease) => lease.project_ref === ref
+        && lease.transition_id === transitionId
+        && lease.status === 'active'
+        && Date.parse(lease.expires_at) > Date.parse(observedAt));
+    },
+    async settleLeaseAtomically(input) {
+      lastSettlement = input;
+      const row = {
+        ...leases.get(input.lease_id),
+        status:'settled',
+        disposition:input.disposition,
+        settle_idempotency_key:input.settle_idempotency_key,
+        settled_at:input.settled_at,
+        graph_revision_change:input.graph_revision_change || null,
+      };
+      leases.set(input.lease_id, row);
+      if (slots.get(input.slot_key)?.lease_id === input.lease_id) slots.delete(input.slot_key);
+      return row;
+    },
+    async deleteSlot(key, id) { if (slots.get(key)?.lease_id === id) slots.delete(key); },
+  };
+
+  const projectTransitions = createProjectTransitionLeaseService({
+    store,
+    readProjectGraph:async () => graph(),
+    now:() => '2026-09-05T15:00:00Z',
+    uuid:() => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  });
+
+  const projectAuthoring = createProjectAuthoringProductionRuntime({
+    resolveAuthority:async () => authority(currentRevision),
+    readDefinitionFacts:async ({ revision }) => facts(revision, currentDefinition),
+    readProjectObservations:async () => [],
+    readProjectExecutionAuthorities:async () => [...leases.values()].filter((lease) => lease.status === 'active'),
+    readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
+    readSourceRevision:async () => currentRevision,
+    applyChangeset:async (request) => {
+      mutationCount += 1;
+      const definitionChange = request.changes.find((change) => change.path.startsWith('.overcenter/definitions/'));
+      currentDefinition = JSON.parse(definitionChange.content);
+      currentRevision = migrationRevision2;
+      return { ok:true, new_head:migrationRevision2 };
+    },
+    deriveProjectGraph:async ({ authority:observed }) => ({ schema:'overcenter-project-graph-v1', revision:observed.revision }),
+  });
+
+  return {
+    projectTransitions,
+    projectAuthoring,
+    graph,
+    mutationCount:() => mutationCount,
+    lastSettlement:() => lastSettlement,
+    forceDefinition(definition, revision = migrationRevision2) { currentDefinition = definition; currentRevision = revision; },
+  };
+}
+
+test('in-flight obligation settles across an unrelated project.amend and current frontier is derived under the new graph', async () => {
+  const definition = {
+    schema:'overcenter-project-definition-v1',
+    project_ref:projectRef,
+    transitions:[
+      semanticTransition('A'),
+      semanticTransition('B', { requires:['A'], priority:10 }),
+      semanticTransition('C', { priority:5 }),
+    ],
+  };
+  const harness = concurrentMigrationHarness(definition);
+  const lease = await harness.projectTransitions.acquire({
+    run_id:'migration-run',
+    project_ref:projectRef,
+    transition_id:'B',
+    lease_seconds:600,
+    idempotency_key:'migration-acquire-b',
+  });
+  assert.equal(lease.authority.revision, migrationRevision1);
+
+  const amendment = await harness.projectAuthoring.amend({
+    project_ref:projectRef,
+    expected_revision:migrationRevision1,
+    amendment:{ upsert_transitions:[semanticTransition('C', { role:'verification', priority:5 })] },
+  });
+  assert.equal(amendment.authority.revision, migrationRevision2);
+  assert.equal(harness.mutationCount(), 1);
+
+  const retained = await harness.projectTransitions.require({
+    lease_ref:lease.lease_ref,
+    run_id:'migration-run',
+    repository:'example/project',
+    transition_id:'B',
+  });
+  assert.equal(retained.authority.revision, migrationRevision1);
+  assert.equal(retained.graph_revision_change.current_authority.revision, migrationRevision2);
+
+  const settlement = await harness.projectTransitions.settle({
+    lease_ref:lease.lease_ref,
+    run_id:'migration-run',
+    disposition:'completed',
+    evidence:[{ kind:'migration-proof', ref:'B@G1' }],
+    reason:'B completed under its G1 execution authority after disjoint G2 amendment',
+    idempotency_key:'migration-settle-b',
+  });
+  assert.equal(settlement.disposition, 'completed');
+  assert.equal(settlement.graph_revision_change.previous_authority.revision, migrationRevision1);
+  assert.equal(settlement.graph_revision_change.current_authority.revision, migrationRevision2);
+
+  const durable = harness.lastSettlement();
+  assert.equal(durable.authority_revision, migrationRevision1);
+  assert.deepEqual(durable.evidence, [{ kind:'migration-proof', ref:'B@G1' }]);
+  assert.equal(durable.graph_revision_change.current_authority.revision, migrationRevision2);
+
+  const current = harness.graph();
+  const observedNodes = await applyProjectTransitionObservations({
+    project_ref:projectRef,
+    authority:current.authority.definition,
+    nodes:current.nodes,
+    observations:[{
+      schema:'project-transition-observation-v1',
+      kind:'project_transition_confirmation',
+      project_ref:projectRef,
+      transition_id:'B',
+      transition_definition_fingerprint:durable.transition_definition_fingerprint,
+      disposition:'completed',
+      authority:{
+        kind:'github',
+        repository:'example/project',
+        revision:durable.authority_revision,
+        derivation:durable.authority_derivation,
+      },
+      provenance:{
+        kind:'project_transition_settlement',
+        lease_ref:lease.lease_ref,
+        run_id:'migration-run',
+        settled_at:durable.settled_at,
+      },
+    }],
+  });
+  const evaluated = evaluateProjectGraph({ ...current, nodes:observedNodes });
+  assert.equal(evaluated.nodes.find((node) => node.id === 'B').state, 'DONE');
+  assert.deepEqual(evaluated.frontier.map((node) => node.id), ['C']);
+});
+
+test('semantic prerequisite change touching live work cannot silently settle old authority into the new graph', async () => {
+  const definition = {
+    schema:'overcenter-project-definition-v1',
+    project_ref:projectRef,
+    transitions:[
+      semanticTransition('A'),
+      semanticTransition('X'),
+      semanticTransition('B', { requires:['A'], priority:10 }),
+    ],
+  };
+  const harness = concurrentMigrationHarness(definition);
+  const lease = await harness.projectTransitions.acquire({
+    run_id:'migration-run',
+    project_ref:projectRef,
+    transition_id:'B',
+    lease_seconds:600,
+    idempotency_key:'migration-conflict-acquire-b',
+  });
+  const changedB = semanticTransition('B', { requires:['A', 'X'], priority:10 });
+
+  await assert.rejects(
+    () => harness.projectAuthoring.amend({
+      project_ref:projectRef,
+      expected_revision:migrationRevision1,
+      amendment:{ upsert_transitions:[changedB] },
+    }),
+    (error) => error?.code === 'PROJECT_AUTHORING_LIVE_SEMANTIC_CONFLICT'
+      && error?.may_have_mutated === false
+      && error?.details?.conflicting_live_transition_ids?.includes('B'),
+  );
+  assert.equal(harness.mutationCount(), 0);
+
+  harness.forceDefinition({ ...definition, transitions:definition.transitions.map((transition) => transition.id === 'B' ? changedB : transition) });
+  await assert.rejects(
+    () => harness.projectTransitions.settle({
+      lease_ref:lease.lease_ref,
+      run_id:'migration-run',
+      disposition:'completed',
+      idempotency_key:'migration-conflict-settle-b',
+    }),
+    (error) => error?.code === 'PROJECT_TRANSITION_AUTHORITY_STALE'
+      && error?.details?.reason === 'dependency-changed',
+  );
 });
