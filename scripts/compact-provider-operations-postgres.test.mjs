@@ -144,9 +144,14 @@ test('changeset compatibility receipts recover prepared work from operation_stat
     assert.equal(prepared.row.tree_sha, '2'.repeat(40));
     assert.equal(prepared.row.commit_sha, '3'.repeat(40));
     assert.deepEqual(prepared.row.changed_paths, [{ path:'README.md', operation:'update' }]);
+    assert.equal(prepared.row.attempt_token, 'attempt-a');
 
     const receipt = { ok:true, repo:normalized.repo, branch:normalized.branch, commit_sha:'3'.repeat(40), idempotent_replay:true };
-    await receipts.succeed(normalized, receipt);
+    assert.equal(await receipts.succeed(normalized, 'attempt-b', receipt), false);
+    const stillPrepared = await receipts.claim(normalized, digest, 'attempt-c');
+    assert.equal(stillPrepared.kind, 'existing');
+    assert.equal(stillPrepared.row.state, 'prepared');
+    assert.equal(await receipts.succeed(normalized, prepared.row.attempt_token, receipt), true);
     const succeeded = await receipts.claim(normalized, digest, 'attempt-c');
     assert.equal(succeeded.kind, 'existing');
     assert.equal(succeeded.row.state, 'succeeded');
