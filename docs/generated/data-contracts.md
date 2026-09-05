@@ -163,6 +163,7 @@
 - `javascript:lib/project-authoring-mcp-contract.js#PROJECT_DEFINE_INPUT_SCHEMA`
 - `javascript:lib/project-graph.js#PROJECT_NODE_STATES`
 - `javascript:lib/project-horizon.js#PROJECT_HORIZON_KINDS`
+- `javascript:lib/project-obligation-contract.js#PROJECT_OBLIGATION_GRAPH_CONTRACT`
 - `javascript:lib/project-transition-lease-store.js#projectTransitionLeasePersistence`
 - `javascript:lib/project-version-impact.js#PROJECT_VERSION_IMPACT_LEVELS`
 - `javascript:lib/regression-suite-registry.js#REGRESSION_GROUP_ORDER`
