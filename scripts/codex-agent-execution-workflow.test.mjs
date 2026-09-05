@@ -19,16 +19,14 @@ test('Codex agent execution is manual, exact-revision, and subscription authenti
   assert.match(workflow, /runs-on:\s*\[self-hosted,\s*codex\]/);
   assert.match(workflow, /permissions:\s*\n\s*contents:\s*read/);
   assert.match(workflow, /HATCHABLE_TOKEN/);
-  assert.match(workflow, /codex login status/);
-  assert.match(workflow, /env -u OPENAI_API_KEY -u CODEX_API_KEY/);
-  assert.match(workflow, /codex exec/);
-  assert.match(workflow, /--ephemeral/);
-  assert.match(workflow, /--sandbox workspace-write/);
-  assert.match(workflow, /--output-schema/);
+  assert.match(workflow, /codex-project-agent-execution\.mjs prepare/);
+  assert.match(workflow, /codex-project-agent-execution\.mjs execute/);
+  assert.match(workflow, /codex-project-agent-execution\.mjs apply/);
+  assert.match(workflow, /steps\.prepare\.outputs\.revision/);
   assert.doesNotMatch(workflow, /openai\/codex-action/);
 });
 
-test('deterministic wrapper acquires the packet and applies Codex edits through the lease', async () => {
+test('deterministic wrapper owns authority, ChatGPT auth enforcement, and lease-scoped mutation', async () => {
   const source = await repositoryText('scripts/codex-project-agent-execution.mjs');
 
   assert.match(source, /connectHatchableRemoteMcp/);
@@ -39,6 +37,16 @@ test('deterministic wrapper acquires the packet and applies Codex edits through 
   assert.match(source, /github\.apply_changeset/);
   assert.match(source, /lease_ref/);
   assert.match(source, /git diff/);
+  assert.match(source, /delete childEnv\.OPENAI_API_KEY/);
+  assert.match(source, /delete childEnv\.CODEX_API_KEY/);
+  assert.match(source, /delete childEnv\.HATCHABLE_TOKEN/);
+  assert.match(source, /\['login',\s*'status'\]/);
+  assert.match(source, /Logged in using ChatGPT/);
+  assert.match(source, /\['exec'/);
+  assert.match(source, /--ephemeral/);
+  assert.match(source, /--sandbox/);
+  assert.match(source, /workspace-write/);
+  assert.match(source, /--output-schema/);
 });
 
 test('Codex output has a bounded machine-readable contract', async () => {
