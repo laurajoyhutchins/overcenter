@@ -49,6 +49,17 @@ test('deterministic wrapper owns authority, ChatGPT auth enforcement, and lease-
   assert.match(source, /--output-schema/);
 });
 
+test('Codex execution isolation rejects identity gaps and unrepresentable workspace changes', async () => {
+  const source = await repositoryText('scripts/codex-project-agent-execution.mjs');
+
+  assert.match(source, /const SHA256 = \/\^\[0-9a-f\]\{64\}\$\//);
+  assert.match(source, /transition_definition_fingerprint/);
+  assert.match(source, /lstat/);
+  assert.match(source, /--no-renames/);
+  assert.doesNotMatch(source, /const childEnv = \{ \.\.\.process\.env \}/);
+  assert.doesNotMatch(source, /boundedReceipt = \{[\s\S]{0,500}lease_ref:/);
+});
+
 test('Codex output has a bounded machine-readable contract', async () => {
   const schema = await repositoryText('schemas/codex-agent-execution-result.schema.json');
   const parsed = JSON.parse(schema || '{}');
