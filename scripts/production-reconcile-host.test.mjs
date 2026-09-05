@@ -62,7 +62,7 @@ test('historical successful materialization cannot authorize current runtime con
   assert.ok(materializationLists >= 1);
   const dispatch = calls.find(request => request.path.includes('/dispatches'));
   assert.ok(dispatch, 'a fresh exact runtime observation must be dispatched');
-  assert.equal(dispatch.body.inputs.observe_only, true);
+  assert.deepEqual(dispatch.body.inputs, { exact_revision:SHA });
   assert.ok(calls.some(request => request.path.endsWith('/actions/runs/99')), 'only the exact dispatched run may be polled for freshness');
 });
 
