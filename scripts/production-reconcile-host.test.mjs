@@ -93,7 +93,7 @@ test('production reconciliation GitHub reads use the canonical GET transport con
       assert.equal(request.headers?.Accept, 'application/vnd.github+json');
       assert.equal(request.headers?.['X-GitHub-Api-Version'], '2026-03-10');
       assert.equal(request.headers?.['User-Agent'], 'Overcenter/1.0');
-      if (request.path.includes('/git/ref/heads/')) return { status:200, body:{ object:{ sha:SHA } };
+      if (request.path.includes('/git/ref/heads/')) return { status:200, body:{ object:{ sha:SHA } } };
       throw new Error(`unexpected GitHub request ${request.path}`);
     },
   });
