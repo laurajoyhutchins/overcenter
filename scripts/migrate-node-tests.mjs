@@ -128,7 +128,9 @@ function migrateSource(file, source) {
     const edits = [{ start:runner.getFullStart(), end:runner.end, text:`\n${registrations}\n` }];
     for (const statement of topLevelHelpers.values()) edits.push({ start:statement.getFullStart(), end:statement.end, text:'' });
     let migrated = rewriteRepoImports(file, applyEdits(source, edits));
-    if (!/from\\s+['\"]node:test['\"]/.test(migrated)) migrated = `import test from 'node:test';\\n${migrated}`;
+    if (!migrated.includes("from 'node:test'") && !migrated.includes('from "node:test"')) {
+      migrated = ["import test from 'node:test';", migrated].join('\n');
+    }
     parse(file, migrated);
     return migrated;
   }
