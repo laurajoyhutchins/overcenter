@@ -30,6 +30,7 @@ const maintainedTests = [
   'verify-compact-correctness-boundary.test.mjs',
   'verify-work-lease-config.test.mjs',
   'verify-project-horizon.test.mjs',
+  'verify-project-obligation-contract.test.mjs',
   'verify-project-advance-worker-binding.test.mjs',
   'verify-production-promotion-receipt-fence.test.mjs',
   'verify-production-promotion-invocation-context.test.mjs',
