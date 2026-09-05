@@ -1,0 +1,37 @@
+name: Node test migration preview
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate-and-prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Migrate legacy lib tests in disposable checkout
+        run: node scripts/migrate-node-tests.mjs
+      - name: Syntax-check migration
+        run: git diff --check
+      - name: Execute migrated lib tests through node:test
+        run: find lib -name '*.test.js' -print0 | sort -z | xargs -0 node --test
+      - name: Capture exact migration patch
+        if: always()
+        run: git diff --binary > node-test-migration.patch
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: node-test-migration-patch
+          path: node-test-migration.patch
+          if-no-files-found: error
