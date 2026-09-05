@@ -50,6 +50,8 @@ jobs:
         if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
+          cp generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/catalog.committed.json"
+          cp docs/generated/data-contracts.md "$RUNNER_TEMP/contract-evidence/data-contracts.committed.md"
           node scripts/contract-evidence/cli.mjs generate \
             --repo-root . \
             --config scripts/contract-evidence/overcenter/config.mjs \
@@ -62,6 +64,8 @@ jobs:
         with:
           name: contract-evidence-generated
           path: |
+            ${{ runner.temp }}/contract-evidence/catalog.committed.json
+            ${{ runner.temp }}/contract-evidence/data-contracts.committed.md
             ${{ runner.temp }}/contract-evidence/generated/contracts/catalog.json
             ${{ runner.temp }}/contract-evidence/docs/generated/data-contracts.md
             ${{ runner.temp }}/contract-evidence/docs/generated/data-contract-authority-atlas.md
