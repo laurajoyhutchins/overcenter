@@ -163,6 +163,8 @@ const productionPromoteSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const productionReconcileSchema = productionPromoteSchema;
+
 const releasePublishSchema = Object.freeze({
   type:'object',
   required:['plan','body'],
@@ -288,6 +290,14 @@ const DESCRIPTORS = Object.freeze({
     orchestrationDiagnoseSchema,
     'operator',
     INTERNAL_EXPOSURE,
+  ),
+  'production.reconcile':descriptor(
+    'production.reconcile',
+    'production.reconcile',
+    'Converge the repository\'s verified development revision into declared production state by repository identity only. Overcenter derives branch roles, exact revisions, verification, promotion, serialized runtime materialization, recovery, and final same-revision evidence.',
+    productionReconcileSchema,
+    'primary',
+    WORKER_AND_MCP_EXPOSURE,
   ),
   'production.promote':descriptor(
     'production.promote',

@@ -13,6 +13,15 @@ Promote the current verified development revision by repository identity only. T
 - Semantic fields: `repo`
 - Exposure: worker=yes, MCP=yes
 
+### production.reconcile
+
+Converge the repository's verified development revision into declared production state by repository identity only. Overcenter derives branch roles, exact revisions, verification, promotion, serialized runtime materialization, recovery, and final same-revision evidence.
+
+- MCP name: `production.reconcile`
+- Required fields: `repo`
+- Semantic fields: `repo`
+- Exposure: worker=yes, MCP=yes
+
 ### project.advance
 
 Advance authoritative repository-owned project work in an independent agent session. Omit transition_id for deterministic best-available selection, or nominate one exact transition without fallback. Resume by passing the durable resume_ref returned by a prior call; when agent execution is complete, return its bounded execution_result through this same command. Overcenter owns run identity, lease acquisition, settlement, exact authority, recovery, and continuation.
