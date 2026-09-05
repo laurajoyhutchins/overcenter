@@ -53,7 +53,9 @@
     {
       "id": "add-production-reconcile-convergence-operator",
       "priority": 172,
-      "requires": [],
+      "requires": [
+        "pin-project-transition-mutation-workspace-authority"
+      ],
       "executor": {
         "kind": "agent",
         "role": "implementation",
@@ -785,6 +787,16 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "pin-project-transition-mutation-workspace-authority",
+      "priority": 5000,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Fix project-transition mutation authority so one acquired lease has one immutable Git mutation workspace identity for its lifetime. Preserve semantic graph-revision continuation for orchestration reasoning, but do not let `executionAuthority.require({lease_ref})` or `deriveProjectTransitionGithubWorkspace` substitute a later graph authority revision for the lease's issuance `authority_revision`. Add a regression reproducing the observed failure: acquire at revision A, allow a semantically compatible graph revision B, require the same lease again, and prove lease-scoped GitHub workspace branch/digest/authority_revision remain derived from A; a second lease-scoped changeset must continue on the same managed branch/head rather than create a branch for B. Fail closed if pinned issuance authority cannot be reconstructed. Preserve graph_revision_change/current graph evidence separately from mutation authority. Use TDD and run focused plus canonical verification before settlement."
       }
     },
     {
