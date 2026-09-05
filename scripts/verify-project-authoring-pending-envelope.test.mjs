@@ -34,7 +34,7 @@ function pendingError() {
   return error;
 }
 
-test('pending project authoring preserves staged coordinates and retry semantics', () => {
+test('pending project authoring preserves staged coordinates and advertises self-owned recovery', () => {
   const error = pendingError();
   const sanitized = sanitizeWorkerBoundaryError('project.amend', error, {
     defaultError: 'PROJECT_AMEND_ERROR',
@@ -51,15 +51,15 @@ test('pending project authoring preserves staged coordinates and retry semantics
   assert.equal(response.body.retryable, true);
   assert.equal(response.body.rejection, true);
   assert.equal(response.body.may_have_mutated, true);
-  assert.equal(response.body.recommended_action, 'retry_same_request');
+  assert.equal(response.body.recommended_action, 'await_automatic_recovery');
   assert.equal(response.body.failure_state, 'WAITING_EXTERNAL_VERIFICATION');
-  assert.equal(response.body.automatic_recovery_allowed, false);
+  assert.equal(response.body.automatic_recovery_allowed, true);
   assert.equal(response.body.escalation_required, false);
   assert.equal(response.body.details.staged_revision, STAGED_SHA);
   assert.equal(response.body.staged_revision, STAGED_SHA);
   assert.equal(response.body.integration.pull_request, 999);
   assert.equal(response.body.integration.expected_head, STAGED_SHA);
-  assert.equal(response.body.recovery_operation.command, 'project.amend');
-  assert.equal(response.body.recovery_operation.mode, 'retry_same_request_after_external_verification');
-  assert.equal(response.body.recovery_operation.use_original_request, true);
+  assert.equal(response.body.recovery_operation.command, 'orchestration.maintain');
+  assert.equal(response.body.recovery_operation.mode, 'reconcile_project_authoring');
+  assert.equal(response.body.recovery_operation.caller_replay_optional, true);
 });
