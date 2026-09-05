@@ -1290,6 +1290,46 @@
       }
     },
     {
+      "id": "identify-repeated-agent-choreography-as-operator-candidates",
+      "priority": 169,
+      "requires": [
+        "derive-overcenter-product-metrics",
+        "route-unresolved-faults-to-agent-judgment"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Promote GitHub issue #140 into the authoritative project graph by adding a read-only analysis of bounded durable execution and recovery history that identifies recurring agent-mediated choreography suitable for deterministic semantic operators, invariants, or recovery recipes. Distinguish stable mechanical sequences from genuine judgment boundaries, suppress patterns already covered by an existing semantic operator, retain bounded exemplar evidence and failure/recovery branches, and measure whether a recurring fault stops crossing a reasoning boundary after mechanization. Candidate output is advisory design evidence only: it must not self-modify Overcenter, register commands, expand permissions, mutate project truth, or let fuzzy/model inference become execution authority. Any accepted mechanization graduates through normal project authoring, implementation, exact verification, and settlement.",
+        "acceptance_evidence": [
+          {
+            "kind": "analysis",
+            "requirement": "Synthetic and production-shaped histories containing both repeated deterministic choreography and judgment-heavy work cause only the mechanizable pattern to be proposed, with normalized sequence, recurrence count, bounded exemplars, and the remaining judgment boundary."
+          },
+          {
+            "kind": "authority",
+            "requirement": "The analyzer is read-only over existing execution evidence/metrics and cannot create commands, mutate graph state, change permissions, or make an inferred candidate executable."
+          },
+          {
+            "kind": "deduplication",
+            "requirement": "Patterns already covered by an existing semantic operator or deterministic recovery path are suppressed instead of generating duplicate operator proposals."
+          },
+          {
+            "kind": "learning",
+            "requirement": "For a recurring fault class, evidence can show the before/after change from repeated reasoning-boundary recovery to deterministic recovery after an approved mechanization lands, without inventing a new immune-memory ledger."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Relevant automated tests and exact-final-revision verification pass, and the output can be consumed by normal project authoring/design review without becoming project truth by itself."
+          }
+        ],
+        "source_ref": "https://github.com/laurajoyhutchins/overcenter/issues/140"
+      }
+    },
+    {
       "id": "ignore-stale-historical-project-transition-leases",
       "priority": 129,
       "requires": [],
@@ -1974,6 +2014,47 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "route-unresolved-faults-to-agent-judgment",
+      "priority": 172,
+      "requires": [
+        "add-metrics-origin-and-recovery-correlation-facts",
+        "add-semantic-agent-execution-reporting",
+        "make-agent-execution-packets-self-contained",
+        "make-graph-workers-self-recovering"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add one canonical adaptive-recovery boundary that invokes a fresh reasoning agent only after deterministic recovery cannot safely converge and a typed semantic judgment is genuinely required. Build the reasoning packet from existing deterministic fault/evidence machinery and bind it to the exact fault identity, project and graph authority revision, relevant transition-definition identity, runtime/source provenance, mutation certainty, and acceptance evidence. The reasoning result is advisory or semantic intent only: it cannot grant execution authority, prove healing, or directly bypass existing mutation boundaries. Any resulting effect must reacquire exact current authority through existing Overcenter semantic commands, and recovery counts as healed only after fresh deterministic verification or authoritative readback. Preserve zero-memory/disposable-agent execution, fail closed when authority changes while reasoning is in flight, distinguish operator-only cases, and do not create a second anomaly ledger, immune-memory store, agent-owned recovery state, or parallel recovery engine.",
+        "acceptance_evidence": [
+          {
+            "kind": "contract",
+            "requirement": "A production-path regression proves only typed unresolved/escalation cases that require semantic judgment cross the reasoning boundary; known-safe deterministic recoveries remain inside the existing recovery kernel and consume no reasoning session."
+          },
+          {
+            "kind": "identity",
+            "requirement": "The agent packet carries stable fault/evidence references plus exact authority coordinates. A graph/source/transition identity change during reasoning cannot authorize an effect against the new state; the proposed response remains advisory until current authority is reread and reacquired."
+          },
+          {
+            "kind": "metrics",
+            "requirement": "Use the existing execution/recovery correlation model to record whether recovery crossed a new reasoning boundary, without adding a duplicate telemetry or execution ledger."
+          },
+          {
+            "kind": "verification",
+            "requirement": "End-to-end evidence covers unresolved fault -> self-contained reasoning packet -> semantic report/proposal -> existing authority-bound recovery or graph mutation -> exact verification/readback -> settlement, and proves a successful command without invariant convergence is not reported healed."
+          },
+          {
+            "kind": "zero-memory",
+            "requirement": "A fresh disposable reasoning session can understand the fault and propose the bounded next semantic action from the returned packet alone, without transcript reconstruction. Replacing the session mid-response does not lose authoritative recovery state."
+          }
+        ]
       }
     },
     {
