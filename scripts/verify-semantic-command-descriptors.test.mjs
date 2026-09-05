@@ -63,7 +63,7 @@ test('representative commands have one authoritative semantic descriptor', () =>
 
 test('primary semantic surface is mechanically identifiable from descriptors', () => {
   const primary = expected.filter((command) => semanticCommandDescriptor(command).surface === 'primary');
-  assert.deepEqual(primary, ['production.reconcile', 'production.promote', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish']);
+  assert.deepEqual(primary, ['production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish']);
 });
 
 test('top-level MCP discovery exposes only the primary semantic product surface', async () => {
