@@ -581,6 +581,41 @@
       }
     },
     {
+      "id": "bind-project-transition-settlement-to-authoritative-effect",
+      "priority": 182,
+      "requires": [
+        "pin-project-transition-mutation-workspace-authority",
+        "preserve-project-transition-settlement-evidence"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Bind project-transition completion to the authoritative effect required by the declared postcondition. For repository-mutating work, a verified candidate branch or successful local execution is not sufficient settlement evidence when the intended outcome lives in GitHub authority: deterministic Overcenter machinery must perform or continue the required provider integration, preserve mutation certainty across transport loss, and authoritatively read back the exact resulting repository state before completed settlement is allowed. Keep candidate verification distinct from authoritative effect confirmation; do not require a reasoning agent to remember or manually perform merge choreography, and do not add a new lifecycle state unless later evidence proves one is necessary.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Successful settlement evidence identifies the exact authoritative subject and proves fresh readback that the required provider effect is present at the authority owning the transition postcondition; candidate-only evidence cannot satisfy this predicate."
+          },
+          {
+            "kind": "recovery",
+            "requirement": "Integration or provider-effect transport loss preserves monotonic mutation certainty, never blind-retries an indeterminate effect, and resumes through deterministic reconciliation without requiring a fresh reasoning boundary."
+          },
+          {
+            "kind": "regression",
+            "requirement": "A regression reproduces the September 5, 2026 Outcome Integrity documentation incident: lease-scoped work creates and exactly verifies the intended candidate, but the authoritative development branch is still unchanged; completed settlement must be rejected or held pending deterministic continuation until authoritative integration is confirmed."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Focused and canonical tests pass for the exact final revision, including already-integrated idempotent continuation and a negative case where verified candidate evidence exists but authoritative effect confirmation does not."
+          }
+        ]
+      }
+    },
+    {
       "id": "bind-targeted-execution",
       "priority": 115,
       "requires": [
@@ -1065,11 +1100,15 @@
       },
       "execution_intent": {
         "schema": "project-execution-intent-v1",
-        "desired_outcome": "Create a revision-bound Outcome Integrity benchmark based on structurally valid but semantically defective project graphs and semantic mutation testing, so improvements can be measured by whether they detect planted outcome-sufficiency defects rather than by subjective review quality.",
+        "desired_outcome": "Create a revision-bound Outcome Integrity benchmark based on structurally valid but semantically defective project graphs and semantic mutation testing, so improvements can be measured by whether they detect planted outcome-sufficiency defects rather than by subjective review quality. Include the observed authoritative-effect gap where lease-scoped work and exact candidate verification succeed while the authoritative repository branch remains unchanged, so local execution success cannot masquerade as project completion.",
         "acceptance_evidence": [
           {
             "kind": "authority",
             "requirement": "Benchmark results are test evidence for the review implementation, not project authority, and every evaluated case records the exact fixture/revision and review contract version."
+          },
+          {
+            "kind": "dogfood",
+            "requirement": "A benchmark fixture modeled on the September 5, 2026 Outcome Integrity documentation transition makes candidate creation and exact candidate verification true while the authoritative development branch remains unchanged; the reviewer must preserve an active defeater or identify the missing authoritative integration/effect obligation rather than mark the root outcome established."
           },
           {
             "kind": "fixtures",
