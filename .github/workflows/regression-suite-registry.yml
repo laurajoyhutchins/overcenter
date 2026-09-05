@@ -26,6 +26,8 @@ jobs:
           cache: npm
       - name: Install canonical dependencies
         run: npm ci
+      - name: Classify node:test migration surface
+        run: node scripts/classify-node-test-migration.mjs
       - name: Verify repository through the developer front door
         env:
           GITHUB_TOKEN: ${{ github.token }}
