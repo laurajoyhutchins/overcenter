@@ -309,6 +309,8 @@
 - `typescript:src/semantic/project-graph-types.ts#PhaseBindings`
 - `typescript:src/semantic/project-graph-types.ts#PhaseInputSource`
 - `typescript:src/semantic/project-graph-types.ts#ProjectBindingPhase`
+- `typescript:src/semantic/project-graph-types.ts#ProjectExecutionEvidenceRequirement`
+- `typescript:src/semantic/project-graph-types.ts#ProjectExecutionIntent`
 - `typescript:src/semantic/project-graph-types.ts#ProjectNodeState`
 - `typescript:src/semantic/project-inspect-operation.ts#ProjectInspectIntent`
 - `typescript:src/semantic/project-inspect-operation.ts#ProjectInspectPorts`
