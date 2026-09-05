@@ -25,6 +25,7 @@
 - `execution.lifecycle.operating-conditions` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#OPERATING_CONDITIONS`; SemVer `lifecycle-semantics`; 1 projection
 - `execution.lifecycle.productive-stages` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#PRODUCTIVE_STAGES`; SemVer `lifecycle-semantics`; 1 projection
 - `execution.lifecycle.work-settlement-dispositions` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#WORK_SETTLEMENT_DISPOSITIONS`; SemVer `lifecycle-semantics`; 1 projection
+- `overcenter.metrics.contract` — authority `javascript:lib/overcenter-metrics-contract.js#OVERCENTER_METRICS_CONTRACT`
 - `project.execution-intent` — authority `typescript:src/semantic/project-graph-types.ts#ProjectExecutionIntent`; SemVer `project-definition-schema`; 1 projection
 - `project.graph.authority-coordinate` — authority `typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphAuthorityCoordinate`
 - `project.obligation-graph.contract` — authority `javascript:lib/project-obligation-contract.js#PROJECT_OBLIGATION_GRAPH_CONTRACT`
@@ -161,7 +162,6 @@
 - `javascript:lib/orchestration-runs.js#orchestrationRunInternals`
 - `javascript:lib/orchestration-status.js#ORCHESTRATION_HEALTH_CONDITION_KEYS`
 - `javascript:lib/orchestration-status.js#ORCHESTRATION_HISTORICAL_CONDITION_KEYS`
-- `javascript:lib/overcenter-metrics-contract.js#OVERCENTER_METRICS_CONTRACT`
 - `javascript:lib/portfolio-reconcile-work-surface.js#portfolioReconcileConfig`
 - `javascript:lib/portfolio-reconcile-work-surface.js#portfolioReconcileInternals`
 - `javascript:lib/project-authoring-mcp-contract.js#PROJECT_AMEND_INPUT_SCHEMA`

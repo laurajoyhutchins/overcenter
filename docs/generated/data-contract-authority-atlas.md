@@ -1348,6 +1348,26 @@ _None._
 - `postgres:public.orchestration_skill_activations#status` (`postgres`)
   - Source: `public.orchestration_skill_activations#status`
 
+## `overcenter.metrics.contract`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- Authority: `javascript:lib/overcenter-metrics-contract.js#OVERCENTER_METRICS_CONTRACT` (`javascript`)
+- Authority source: `lib/overcenter-metrics-contract.js#OVERCENTER_METRICS_CONTRACT`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
 ## `portfolio.reconcile-receipt.persistence`
 
 - Significance: `durable-internal`
