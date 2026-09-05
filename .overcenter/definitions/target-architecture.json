@@ -15,6 +15,28 @@
       }
     },
     {
+      "id": "add-exact-github-actions-run-deletion",
+      "priority": 100,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Add a generic Overcenter GitHub App capability to delete one exact GitHub Actions workflow run without exposing caller identity. The semantic input must bind deletion to repository plus numeric run identity and fail closed if any supplied expected execution identity (at minimum the expected head commit SHA) does not match the authoritative preflight read. Use the existing GitHub App actions:write permission profile, not user-authored GitHub connector writes. Make an already-absent exact run idempotent success. Treat transport loss after DELETE as indeterminate until authoritative readback proves absence. Add TDD coverage for matching deletion, identity mismatch with no mutation, already-absent replay, and post-dispatch uncertainty reconciliation. Expose the narrow capability through Overcenter's canonical command surface with bounded evidence; do not broaden github-actions-storage into an unrelated metadata-deletion bucket. After implementation, deploy through the normal dev-to-main exact-revision promotion/materialization path and use the live production operator to delete the two known Chirograph privacy-incident workflow runs. Verify the runs are no longer retrievable before settling."
+      }
+    },
+    {
+      "id": "add-explicit-operation-attempt-epochs",
+      "priority": 168,
+      "requires": [
+        "bind-command-effect-completion-identity"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "add-operator-quickstart-and-recovery-runbook",
       "priority": 74,
       "requires": [
@@ -123,6 +145,16 @@
     {
       "id": "automate-candidate-base-reconciliation",
       "priority": 126,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "bind-command-effect-completion-identity",
+      "priority": 170,
       "requires": [],
       "executor": {
         "kind": "agent",
@@ -367,6 +399,18 @@
       }
     },
     {
+      "id": "expose-invocation-attach-and-peek",
+      "priority": 163,
+      "requires": [
+        "bind-command-effect-completion-identity"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "expose-orchestration-advance",
       "priority": 105,
       "requires": [
@@ -384,6 +428,18 @@
       "priority": 152,
       "requires": [
         "aggregate-postgres-contract-evidence"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "fail-closed-before-unrecorded-provider-effects",
+      "priority": 169,
+      "requires": [
+        "bind-command-effect-completion-identity"
       ],
       "executor": {
         "kind": "agent",
@@ -613,6 +669,18 @@
       }
     },
     {
+      "id": "make-waiting-a-durable-suspension-primitive",
+      "priority": 164,
+      "requires": [
+        "persist-operation-recovery-policy"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "move-production-promotion-correlation-to-invocation-context",
       "priority": 88,
       "requires": [
@@ -638,6 +706,32 @@
       }
     },
     {
+      "id": "persist-operation-recovery-policy",
+      "priority": 166,
+      "requires": [
+        "add-explicit-operation-attempt-epochs",
+        "fail-closed-before-unrecorded-provider-effects",
+        "pin-orchestration-kernel-revision-and-protocol"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "pin-orchestration-kernel-revision-and-protocol",
+      "priority": 167,
+      "requires": [
+        "bind-command-effect-completion-identity"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "polish-public-readme",
       "priority": 140,
       "requires": [],
@@ -645,6 +739,19 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "verification-before-completion"
+      }
+    },
+    {
+      "id": "preserve-append-only-operation-attempt-trace",
+      "priority": 162,
+      "requires": [
+        "add-explicit-operation-attempt-epochs",
+        "persist-operation-recovery-policy"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
       }
     },
     {
