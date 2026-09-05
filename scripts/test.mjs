@@ -72,6 +72,7 @@ const maintainedTests = [
   'verify-public-github-metadata.test.mjs',
   'verify-repository-registration-policy.test.mjs',
   'verify-outcome-integrity-semantic-mutation-benchmark.test.mjs',
+  'verify-project-artifact-lineage.test.mjs',
   'production-reconcile-operation.test.mjs',
   'production-reconcile-host.test.mjs',
   'production-runtime-observation-http.test.mjs',
