@@ -25,6 +25,50 @@ function authority(revision, ref = projectRef) {
   return { project_ref:ref, kind:'github', repository:'example/project', revision, derivation:'overcenter-project-graph-v1' };
 }
 
+function semanticTransition(id, { requires = [], role = 'implementation', priority = 1 } = {}) {
+  return {
+    id,
+    priority,
+    requires,
+    executor:{ kind:'agent', role, skill:'test-driven-development' },
+    phase_bindings:{},
+  };
+}
+
+function liveExecution(transitionId, revision = 'dddddddddddddddddddddddddddddddddddddddd') {
+  return Object.freeze({
+    lease_id:`lease-${transitionId}`,
+    transition_id:transitionId,
+    authority_revision:revision,
+    transition_revision_fingerprint:'e'.repeat(64),
+    transition_definition_fingerprint:'f'.repeat(64),
+    transition_dependency_fingerprint:'1'.repeat(64),
+  });
+}
+
+function semanticConflictRuntime(initialDefinition, liveExecutionAuthorities) {
+  let currentDefinition = initialDefinition;
+  let mutated = false;
+  let mutationCount = 0;
+  const runtime = createProjectAuthoringProductionRuntime({
+    resolveAuthority:async () => authority(mutated ? authoritativeRevision : initialRevision),
+    readDefinitionFacts:async ({ revision }) => facts(revision, currentDefinition),
+    readProjectObservations:async () => [],
+    readProjectExecutionAuthorities:async () => liveExecutionAuthorities,
+    readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
+    readSourceRevision:async () => initialRevision,
+    applyChangeset:async (request) => {
+      mutationCount += 1;
+      const definitionChange = request.changes.find((change) => change.path.startsWith('.overcenter/definitions/'));
+      currentDefinition = JSON.parse(definitionChange.content);
+      mutated = true;
+      return { ok:true, new_head:stagedRevision };
+    },
+    deriveProjectGraph:async ({ authority:observed }) => ({ schema:'overcenter-project-graph-v1', revision:observed.revision }),
+  });
+  return Object.freeze({ runtime, mutationCount:() => mutationCount });
+}
+
 test('runtime composition grants exact source mutation authority and confirms success through refreshed repository authority', async () => {
   const calls = [];
   let authorityReads = 0;
@@ -212,4 +256,85 @@ test('authoritative advancement rejects a stale semantic replay before a second 
   assert.equal(requests.length, 1);
   assert.equal(first.authority.revision, authoritativeRevision);
   assert.equal(first.graph.revision, authoritativeRevision);
+});
+
+test('project.amend allows an unrelated obligation change while a disjoint transition is executing', async () => {
+  const definition = {
+    schema:'overcenter-project-definition-v1',
+    project_ref:projectRef,
+    transitions:[semanticTransition('A'), semanticTransition('C')],
+  };
+  const harness = semanticConflictRuntime(definition, [liveExecution('A')]);
+  const result = await harness.runtime.amend({
+    project_ref:projectRef,
+    expected_revision:initialRevision,
+    amendment:{ upsert_transitions:[semanticTransition('C', { role:'verification' })] },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(harness.mutationCount(), 1);
+});
+
+test('project.amend rejects a semantic change to a live obligation before mutation', async () => {
+  const definition = {
+    schema:'overcenter-project-definition-v1',
+    project_ref:projectRef,
+    transitions:[semanticTransition('A')],
+  };
+  const harness = semanticConflictRuntime(definition, [liveExecution('A')]);
+  await assert.rejects(
+    () => harness.runtime.amend({
+      project_ref:projectRef,
+      expected_revision:initialRevision,
+      amendment:{ upsert_transitions:[semanticTransition('A', { role:'verification' })] },
+    }),
+    (error) => error?.code === 'PROJECT_AUTHORING_LIVE_SEMANTIC_CONFLICT'
+      && error?.may_have_mutated === false
+      && error?.details?.conflicting_live_transition_ids?.includes('A'),
+  );
+  assert.equal(harness.mutationCount(), 0);
+});
+
+test('project.amend rejects a dependency change whose change region contains a live downstream obligation', async () => {
+  const definition = {
+    schema:'overcenter-project-definition-v1',
+    project_ref:projectRef,
+    transitions:[
+      semanticTransition('A'),
+      semanticTransition('D'),
+      semanticTransition('B', { requires:['A'] }),
+      semanticTransition('C', { requires:['B'] }),
+    ],
+  };
+  const harness = semanticConflictRuntime(definition, [liveExecution('C')]);
+  await assert.rejects(
+    () => harness.runtime.amend({
+      project_ref:projectRef,
+      expected_revision:initialRevision,
+      amendment:{ upsert_transitions:[semanticTransition('B', { requires:['A', 'D'] })] },
+    }),
+    (error) => error?.code === 'PROJECT_AUTHORING_LIVE_SEMANTIC_CONFLICT'
+      && error?.may_have_mutated === false
+      && error?.details?.dependency_changed_transition_ids?.includes('B')
+      && error?.details?.affected_transition_ids?.includes('C')
+      && error?.details?.conflicting_live_transition_ids?.includes('C'),
+  );
+  assert.equal(harness.mutationCount(), 0);
+});
+
+test('project.amend does not treat a live lease from another Git revision as a conflict when obligation semantics are unchanged', async () => {
+  const definition = {
+    schema:'overcenter-project-definition-v1',
+    project_ref:projectRef,
+    transitions:[semanticTransition('A', { priority:1 })],
+  };
+  const harness = semanticConflictRuntime(definition, [
+    liveExecution('A', '2222222222222222222222222222222222222222'),
+  ]);
+  const result = await harness.runtime.amend({
+    project_ref:projectRef,
+    expected_revision:initialRevision,
+    amendment:{ upsert_transitions:[semanticTransition('A', { priority:999 })] },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(harness.mutationCount(), 1);
 });
