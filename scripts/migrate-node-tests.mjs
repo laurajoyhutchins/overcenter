@@ -114,6 +114,10 @@ function humanName(identifier) {
   return identifier.replace(/^test/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim() || identifier;
 }
 
+function normalizeFinalNewline(source) {
+  return `${source.replace(/\s+$/u, '')}\n`;
+}
+
 function statementReferencesCollector(statement, collectors) {
   let found = false;
   function visit(node) {
@@ -329,7 +333,7 @@ for (const file of [...ordinary, ...explicitLegacyTests]) {
       ? 'lib/project-agent-session-boundary.test.js'
       : file;
   try {
-    const output = migrateSource(target, source);
+    const output = normalizeFinalNewline(migrateSource(target, source));
     if (target !== file) await rename(path.join(root, file), path.join(root, target));
     await writeFile(path.join(root, target), output);
     migrated.push({ from:file, to:target });
@@ -342,8 +346,8 @@ try {
   const authPath = path.join(root, 'lib/github-app-auth.js');
   const authSource = await readFile(authPath, 'utf8');
   const auth = migrateEmbeddedAuthSuite(authSource);
-  await writeFile(authPath, auth.production);
-  await writeFile(path.join(root, 'lib/github-app-auth.test.js'), auth.testSource);
+  await writeFile(authPath, normalizeFinalNewline(auth.production));
+  await writeFile(path.join(root, 'lib/github-app-auth.test.js'), normalizeFinalNewline(auth.testSource));
   migrated.push({ from:'lib/github-app-auth.js#runGitHubAppAuthRegressionTests', to:'lib/github-app-auth.test.js' });
 } catch (error) {
   failures.push({ file:'lib/github-app-auth.js', target:'lib/github-app-auth.test.js', error:String(error?.message || error) });
