@@ -408,6 +408,16 @@
       }
     },
     {
+      "id": "establish-exhaustive-test-audit-harness",
+      "priority": 50,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      }
+    },
+    {
       "id": "establish-root-developer-entrypoint",
       "priority": 1200,
       "requires": [],
