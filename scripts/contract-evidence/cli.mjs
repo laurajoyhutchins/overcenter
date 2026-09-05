@@ -100,7 +100,7 @@ function diagnosticCatalogDelta(actualSource, expectedSource) {
     return { added, changed };
   };
   return {
-    discovered_sources:delta(actual.discovered_sources, expected.discovered_sources, 'source_identity'),
+    candidates:delta(actual.candidates, expected.candidates, 'source_identity'),
     logical_contracts:delta(actual.logical_contracts, expected.logical_contracts, 'id'),
     actual_summary:actual.summary,
     expected_summary:expected.summary,
