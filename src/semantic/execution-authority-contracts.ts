@@ -82,6 +82,8 @@ export interface ProjectTransitionExecutionAuthority {
   readonly project_ref: string;
   readonly transition_id: string;
   readonly authority: unknown | null;
+  readonly current_authority: unknown | null;
+  readonly graph_revision_change: unknown | null;
   readonly graph_fingerprint: string | null;
   readonly transition_definition_fingerprint: string | null;
 }
