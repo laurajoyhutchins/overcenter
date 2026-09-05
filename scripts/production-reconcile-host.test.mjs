@@ -45,7 +45,7 @@ test('historical successful materialization cannot authorize current runtime con
       throw new Error(`unexpected GitHub request ${request.path}`);
     },
   });
-  const service = productionReconciliationFor({ db, withGitHubAppApiClient, productionPromotion:{ promote:async () => { throw new Error('already-current Git must not promote'); } } });
+  const service = productionReconciliationFor({ db, withGitHubAppApiClient, productionPromotion:{ promote:async () => { throw new Error('already-current Git must not promote'); } }, pollAttempts:2, pollDelayMs:0, sleep:async () => {} });
   const result = await service.reconcile({ repo:'laurajoyhutchins/overcenter' });
   assert.equal(result.outcome, 'materialization_pending');
   assert.equal(result.materialization_run_ref, 'github-actions-run:99');
@@ -73,14 +73,38 @@ test('fresh exact observation run can authorize final same-revision convergence 
       }
       if (request.path.includes('/actions/workflows/production-materialization.yml/dispatches')) return { status:204, body:null };
       if (request.path.endsWith('/actions/runs/101')) return { body:{ id:101, head_sha:SHA, event:'workflow_dispatch', status:'completed', conclusion:'success' } };
+      if (request.path.endsWith('/actions/runs/101/jobs')) return { body:{ jobs:[{ name:'materialize', steps:[{ name:'Materialize exact production revision', status:'completed', conclusion:'skipped' }] }] } };
       throw new Error(`unexpected GitHub request ${request.path}`);
     },
   });
   const service = productionReconciliationFor({ db, withGitHubAppApiClient, productionPromotion:{ promote:async () => { throw new Error('already-current Git must not promote'); } }, sleep:async () => {} });
   const result = await service.reconcile({ repo:'laurajoyhutchins/overcenter' });
-  assert.equal(result.outcome, 'converged');
+  assert.equal(result.outcome, 'already_converged');
   assert.equal(result.runtime_revision, SHA);
   assert.equal(result.runtime_verification_ref, 'github-actions-run:101');
   assert.ok(materializationLists >= 2, 'dispatch identity must be discovered by authoritative workflow-run readback');
   assert.ok(calls.some(request => request.path.endsWith('/actions/runs/101')));
+  assert.ok(calls.some(request => request.path.endsWith('/actions/runs/101/jobs')), 'the exact run jobs must prove that materialization was skipped');
+});
+
+test('production reconciliation GitHub reads use the canonical GET transport contract', async () => {
+  const calls = [];
+  const db = { query:async () => ({ rows:[{ development_branch:'dev', production_branch:'main' }] }) };
+  const withGitHubAppApiClient = async (_repo, callback) => callback({
+    call:async (_provider, request) => {
+      calls.push(request);
+      if (request.path.includes('/git/ref/heads/')) return { status:200, body:{ object:{ sha:SHA } } };
+      if (request.path.includes('/actions/workflows/exact-revision-v8.yml/runs')) return { status:200, body:{ workflow_runs:[] } };
+      throw new Error(`unexpected GitHub request ${request.path}`);
+    },
+  });
+  const service = productionReconciliationFor({ db, withGitHubAppApiClient });
+  await assert.rejects(service.reconcile({ repo:'laurajoyhutchins/overcenter' }), error => error?.code === 'PRODUCTION_RECONCILIATION_SOURCE_NOT_VERIFIED');
+  assert.ok(calls.length >= 3);
+  for (const request of calls) {
+    assert.equal(request.method, 'GET');
+    assert.equal(request.headers?.Accept, 'application/vnd.github+json');
+    assert.equal(request.headers?.['X-GitHub-Api-Version'], '2026-03-10');
+    assert.equal(request.headers?.['User-Agent'], 'Overcenter/1.0');
+  }
 });
