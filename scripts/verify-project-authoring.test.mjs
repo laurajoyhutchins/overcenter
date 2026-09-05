@@ -228,7 +228,11 @@ test('project authoring rejects readback whose derived graph revision does not m
     () => amendProjectDefinition({
       project_ref:'github:example/project',
       expected_revision:initialRevision,
-      amendment:{ upsert_transitions:[] },
+      amendment:{
+        upsert_transitions:[
+          { id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } },
+        ],
+      },
     }, {
       resolveAuthority:async () => ({
         project_ref:'github:example/project',
