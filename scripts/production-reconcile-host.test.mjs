@@ -32,14 +32,16 @@ test('historical successful materialization cannot authorize current runtime con
   const withGitHubAppApiClient = async (_repo, callback) => callback({
     call: async (_provider, request) => {
       calls.push(request);
-      if (request.path.includes('/git/ref/heads/')) return { body:{ object:{ sha:SHA } } };
-      if (request.path.includes('/actions/workflows/exact-revision-v8.yml/runs')) return { body:{ workflow_runs:[{ id:1, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } };
+      if (request.path.includes('/git/ref/heads/')) return { status:200, body:{ object:{ sha:SHA } } };
+      if (request.path.includes('/actions/workflows/exact-revision-v8.yml/runs')) return { status:200, body:{ workflow_runs:[{ id:1, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } };
       if (request.path.includes('/actions/workflows/production-materialization.yml/runs')) {
         materializationLists += 1;
-        return { body:{ workflow_runs:[{ id:2, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } };
+        return materializationLists === 1
+          ? { status:200, body:{ workflow_runs:[{ id:2, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } }
+          : { status:200, body:{ workflow_runs:[{ id:99, head_sha:SHA, head_branch:'main', event:'workflow_dispatch', status:'queued', conclusion:null, created_at:new Date().toISOString() }] } };
       }
-      if (request.path.includes('/actions/workflows/production-materialization.yml/dispatches')) return { body:{ workflow_run_id:99 } };
-      if (request.path.endsWith('/actions/runs/99')) return { body:{ id:99, head_sha:SHA, event:'workflow_dispatch', status:'queued', conclusion:null } };
+      if (request.path.includes('/actions/workflows/production-materialization.yml/dispatches')) return { status:204, body:null };
+      if (request.path.endsWith('/actions/runs/99')) return { body:{ id:99, head_sha:SHA, head_branch:'main', event:'workflow_dispatch', status:'queued', conclusion:null } };
       throw new Error(`unexpected GitHub request ${request.path}`);
     },
   });
@@ -61,8 +63,8 @@ test('fresh exact observation run can authorize final same-revision convergence 
   const withGitHubAppApiClient = async (_repo, callback) => callback({
     call:async (_provider, request) => {
       calls.push(request);
-      if (request.path.includes('/git/ref/heads/')) return { body:{ object:{ sha:SHA } } };
-      if (request.path.includes('/actions/workflows/exact-revision-v8.yml/runs')) return { body:{ workflow_runs:[{ id:1, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } };
+      if (request.path.includes('/git/ref/heads/')) return { status:200, body:{ object:{ sha:SHA } } };
+      if (request.path.includes('/actions/workflows/exact-revision-v8.yml/runs')) return { status:200, body:{ workflow_runs:[{ id:1, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } };
       if (request.path.includes('/actions/workflows/production-materialization.yml/runs')) {
         materializationLists += 1;
         return materializationLists === 1
