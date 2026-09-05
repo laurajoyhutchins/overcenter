@@ -878,6 +878,40 @@
       }
     },
     {
+      "id": "document-outcome-integrity-architecture",
+      "priority": 181,
+      "requires": [
+        "define-immutable-obligation-graph-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "verification-before-completion"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Document Outcome Integrity as the research-grounded semantic assurance layer above Overcenter's structurally sound obligation graph: distinguish execution/workflow soundness from outcome sufficiency; define claims, argument steps, evidence, assumptions, and defeaters; bind every assessment to exact project/graph authority; preserve reasoning findings as non-authoritative until accepted through existing project authoring; and explicitly avoid overloading existing obligation semantic-content terminology, adding a shadow plan database, or requiring a full claim schema before repeated needs justify it.",
+        "acceptance_evidence": [
+          {
+            "kind": "architecture",
+            "requirement": "Canonical Overcenter architecture documentation explains the outcome plane, execution plane, and evidence plane; shows how transitions realize claims and evidence supports claims through explicit argument steps; and distinguishes Outcome Integrity from existing obligation semantic/content identity."
+          },
+          {
+            "kind": "authority",
+            "requirement": "The contract states that Outcome Integrity review is read-only and revision-bound, that reasoning-agent findings and defeaters are non-authoritative, and that accepted repairs flow through existing project.amend/project.define authority with fresh exact-revision confirmation."
+          },
+          {
+            "kind": "research",
+            "requirement": "The documentation records the useful prior-art guidance from assurance cases/GSN/CAE/Assurance 2.0, Hoare-style pre/postcondition reasoning, HTN decomposition semantics, workflow/Petri-net soundness, proof-carrying systems, runtime verification, provenance, and Overcenter's exact-identity binding work without claiming those sources as Overcenter authority."
+          },
+          {
+            "kind": "scope",
+            "requirement": "The first implementation slice remains schema-light: infer provisional claims/relationships from existing project outcome, transition intent, requires, acceptance evidence, and authoritative docs; do not add a mandatory first-class claim/refinement schema or new mutable lifecycle in this documentation transition."
+          }
+        ]
+      }
+    },
+    {
       "id": "enforce-primary-mcp-discovery-boundary",
       "priority": 1300,
       "requires": [],
@@ -943,6 +977,40 @@
           {
             "kind": "verification",
             "requirement": "The repository developer verification path and required GitHub Actions checks pass at the exact final PR head, including the test-audit conformance invariant and the migrated lib suite."
+          }
+        ]
+      }
+    },
+    {
+      "id": "establish-outcome-integrity-semantic-mutation-benchmark",
+      "priority": 179,
+      "requires": [
+        "document-outcome-integrity-architecture"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Create a revision-bound Outcome Integrity benchmark based on structurally valid but semantically defective project graphs and semantic mutation testing, so improvements can be measured by whether they detect planted outcome-sufficiency defects rather than by subjective review quality.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Benchmark results are test evidence for the review implementation, not project authority, and every evaluated case records the exact fixture/revision and review contract version."
+          },
+          {
+            "kind": "fixtures",
+            "requirement": "Benchmark cases include at least missing work, weak/adjacent evidence, hidden assumption, incompatible sibling strategies, semantic justification cycle, stale exact-revision assurance, orphan work, and a case where every leaf success holds while the root outcome is false."
+          },
+          {
+            "kind": "metrics",
+            "requirement": "Report defect recall, finding precision, false-blocker rate, counterexample validity, correct claim/argument path, minimal missing-obligation accuracy, repair minimality, paraphrase stability where applicable, and revision-binding correctness."
+          },
+          {
+            "kind": "mutation",
+            "requirement": "The harness can derive semantic mutants from a known-good graph by operations such as deleting a required obligation, weakening acceptance evidence, removing an assumption, changing refinement meaning, inserting irrelevant work, or introducing contradiction, while preserving structural graph validity where the case intends to test outcome rather than workflow soundness."
           }
         ]
       }
@@ -1032,6 +1100,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Expose bounded invocation attach and peek semantics so callers can reconnect to authoritative command execution state without reconstructing it from prior session context.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1058,6 +1140,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Expose the derived Overcenter metrics through one compact read-only semantic surface, using test-driven-development. Prefer an orchestration.metrics-style command/service with bounded time-window input and stable response schema rather than raw SQL-shaped rows or a new mutable metrics store. Return top-level product outcomes, paperwork/friction, agent-communication effectiveness, failure/recovery cohorts, latency distributions, coverage/unknown counts, and bounded drill-down exemplars. Agent-communication output must stay grounded in observable protocol facts and clearly distinguish production metrics from zero-memory conformance/contract-health evidence. Keep Hatchable infrastructure counters clearly separate. Integrate with canonical command descriptors and admin/operator access without expanding the primary agent execution surface unnecessarily. Add exact contract tests, live deployed verification, and readback proving the surface reflects authoritative current data without mutating orchestration state."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Expose derived Overcenter metrics through one compact read-only semantic surface with bounded windows, stable schema, outcome/friction/communication/failure/recovery/latency metrics, coverage unknowns, and exact drill-down exemplars without creating a second metrics truth.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1204,6 +1300,49 @@
       }
     },
     {
+      "id": "implement-outcome-integrity-inspection-v0",
+      "priority": 180,
+      "requires": [
+        "define-immutable-obligation-graph-contract",
+        "document-outcome-integrity-architecture"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Implement Outcome Integrity v0 as an exact-revision, read-only project inspection capability that evaluates whether successful execution of the current authoritative obligation graph is sufficient to establish the intended project outcome, without changing graph lifecycle semantics or creating a second plan authority.",
+        "acceptance_evidence": [
+          {
+            "kind": "compatibility",
+            "requirement": "Existing project.inspect/project graph authority, obligation identity, leases, settlement, evidence, and current lifecycle projections remain authoritative and behaviorally compatible; no shadow graph, plan database, or duplicated evidence state is introduced."
+          },
+          {
+            "kind": "contract",
+            "requirement": "The inspection result is bound to project_ref, exact authority revision, graph derivation/semantic identity when available, review contract version, and selected horizon/root; a revision change invalidates the assessment unless later semantic identity machinery proves safe reuse."
+          },
+          {
+            "kind": "deterministic-analysis",
+            "requirement": "Deterministic checks detect mechanically knowable gaps such as orphan work, missing producers, missing or unowned assumptions, missing evidence bindings, semantic justification cycles, and structurally impossible proof closure, while only objective violations may hard-block execution."
+          },
+          {
+            "kind": "falsification",
+            "requirement": "The review protocol includes both a positive derivation from authoritative premises to the root outcome and a falsification pass that attempts to construct a coherent world where every declared transition success/evidence condition holds but the root outcome remains false."
+          },
+          {
+            "kind": "judgment-boundary",
+            "requirement": "Reasoning review produces structured non-authoritative findings, argument steps, counterexamples/defeaters, and unresolved proof obligations rather than a semantically_valid boolean; accepted repairs must use existing project authoring authority."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Focused and canonical tests pass at the exact final revision, including stale-review invalidation and at least one known semantic counterexample modeled after packet-only disposable-agent execution."
+          }
+        ]
+      }
+    },
+    {
       "id": "make-agent-execution-packets-self-contained",
       "priority": 92,
       "requires": [
@@ -1312,6 +1451,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make production promotion exact-head fencing truthful so verification evidence, selected source identity, provider mutation, and resulting promotion receipt are mechanically bound to the same Git revision.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1344,6 +1497,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Use test-driven-development to make project.amend effect-free when the canonical candidate definition is semantically identical to current authoritative project state. An empty amendment and an idempotent upsert must return a confirmed no-op bound to the current authority revision without creating a branch, commit, pull request, integration candidate, or other provider mutation. Preserve exact-revision fencing, authoritative confirmation-history validation for real changes, retry identity, and mutation-certainty semantics. Add a regression reproducing the September 5, 2026 empty project.amend that created zero-change PR #545, and prove the repaired path leaves no work-surface residue."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make project.amend effect-free when the canonical candidate definition is semantically identical to current authoritative project state, returning a confirmed exact-revision no-op without creating provider work-surface residue.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1403,6 +1570,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Use test-driven-development to make project.inspect a compact decision-oriented view of current authoritative project state. Preserve its existing transition/frontier decision scope and add authoritative visibility for unresolved project-authoring transactions. A disposable session inspecting a project must be able to see when Overcenter already owns a pending project.define/project.amend operation, including a stable transaction/recovery reference, staged exact revision, pull request when one exists, waiting predicates, expected authority/base revision, and whether deterministic automatic recovery is armed. Derive this projection from current durable operation state plus fresh authority where required; do not reconstruct it from journal chronology or prior conversation. Do not expose secrets, full semantic requests, or redundant GitHub objects. Distinguish waiting external verification, recompute-required authority drift, indeterminate external effect, and terminal authoring success so an agent can know whether to wait, inspect, escalate, or start new work without manually replaying an amendment merely to discover its status. Fail closed when current authoring state cannot be related to the inspected project unambiguously."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make project.inspect a compact decision-oriented view of current authoritative project state that exposes unresolved authoring transaction state and tells a disposable session whether to wait, inspect, escalate, or start work without replaying prior requests.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1415,6 +1596,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make project.inspect snapshot-correct so all returned project state is derived from one authoritative revision and cannot mix facts from different graph revisions.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1459,6 +1654,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make WAITING a durable suspension primitive with explicit recovery identity and conditions, so deterministic work can resume without relying on an agent session remaining alive.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1484,6 +1693,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Move scheduled execution onto the authoritative project graph so scheduled workers select, execute, recover, and settle graph transitions through canonical Overcenter semantics rather than legacy lanes.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1498,6 +1721,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Persist the recovery policy required to deterministically decide whether and how an interrupted operation may resume, retry, reconcile, or escalate.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1543,6 +1780,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Preserve an append-only trace of operation attempts sufficient to justify recovery and mutation-certainty decisions without making the trace a second source of current execution truth.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1588,6 +1839,20 @@
         "kind": "agent",
         "role": "verification",
         "skill": "Prove disposable-session resume/recovery zero-memory conformance before completion. Acquire agent work, then deliberately destroy conversational context at multiple boundaries including immediately after acquisition and after an intermediate effect/checkpoint. A fresh session must recover the current obligation, exact authority, acceptance/verification contract, legal continuation, reporting/settlement path, and stop conditions from durable Overcenter state and repository evidence only. Cover authority movement, lease expiry, occupied work, blocked settlement, deterministic recovery, indeterminate external effect requiring authoritative reconciliation, and an already-completed obligation that must not be repeated. Include an explicit project-authoring asynchronous completion scenario: invoke project.define or project.amend so Overcenter stages and reads back an exact candidate while required GitHub verification is still pending, then terminate the initiating agent before the predicate changes. After exact-head verification becomes satisfied, deterministic Overcenter machinery must reconcile and integrate the same staged candidate without another reasoning boundary or manual replay of the semantic authoring request; a fresh project.inspect must expose the new authoritative graph and terminal authoring outcome. Prove duplicate wakeups are idempotent, a missed event is recovered by bounded maintenance, and base/head movement or failed verification prevents automatic integration. Fail if prior chat memory, hidden coordinator state, issue/Linear prose, an undocumented command convention, GitHub auto-merge, or caller memory of the original amendment is required for correctness. Record exact packet/schema versions, operation/request identity, expected base, staged head, GitHub evidence, final authority revision, commands, settlement evidence, and final state for each scenario."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Prove disposable-session resume and recovery zero-memory conformance across acquisition, intermediate effects, authority movement, lease expiry, occupied/blocked work, deterministic recovery, indeterminate effects, completed obligations, and asynchronous project authoring without relying on prior chat or caller memory.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Final settlement evidence must be bound to the exact repository revision and authoritative project transition."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh verification evidence at the exact final authority revision must demonstrate the desired outcome and all stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1600,6 +1865,20 @@
         "kind": "agent",
         "role": "verification",
         "skill": "Prove fresh-agent zero-memory conformance before completion. Start from a new session with no prior conversation or coordinator state, use only compact primary Overcenter discovery plus authoritative repository evidence, acquire one executable transition, determine its objective/acceptance/verification/constraints and legal next action from the returned packet, execute through lease-authorized semantic operations, and settle/confirm it without consulting issue text, Linear text, hidden prompts, or undocumented command conventions merely to reconstruct the work contract. Include an opaque transition id and stale/conflicting external prose. Distinguish allowed repository investigation needed to solve the engineering problem from forbidden reconstruction of Overcenter protocol. Record exact packet/schema version, graph/authority revision, transition fingerprint, commands, settlement evidence, and final state."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Prove fresh-agent zero-memory conformance by completing one opaque transition from compact Overcenter discovery and authoritative repository evidence alone, without issue/Linear/chat prose or undocumented protocol conventions to reconstruct the work contract.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Final settlement evidence must be bound to the exact repository revision and authoritative project transition."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh verification evidence at the exact final authority revision must demonstrate the desired outcome and all stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1657,6 +1936,20 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Replace the production-promotion pseudo-lease with canonical execution authority so promotion effects are fenced and evidenced by the same authority model as other deterministic mutations.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1741,6 +2034,20 @@
         "kind": "agent",
         "role": "verification",
         "skill": "verification-before-completion"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Verify the compact agent-facing Overcenter surface is complete, self-teaching, authority-bound, and sufficient for fresh/disposable sessions across normal, waiting, recovery, and terminal states.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Final settlement evidence must be bound to the exact repository revision and authoritative project transition."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh verification evidence at the exact final authority revision must demonstrate the desired outcome and all stated constraints."
+          }
+        ]
       }
     },
     {
@@ -1758,6 +2065,55 @@
         "kind": "agent",
         "role": "verification",
         "skill": "verification-before-completion"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Verify the planned deletion wave removed obsolete compatibility, duplicate-controller, lane, branch/verification, runtime-host, and scheduled-execution scaffolding without regressing supported behavior.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Final settlement evidence must be bound to the exact repository revision and authoritative project transition."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh verification evidence at the exact final authority revision must demonstrate the desired outcome and all stated constraints."
+          }
+        ]
+      }
+    },
+    {
+      "id": "verify-outcome-integrity-v0",
+      "priority": 178,
+      "requires": [
+        "establish-outcome-integrity-semantic-mutation-benchmark",
+        "implement-outcome-integrity-inspection-v0"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "verification-before-completion"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Prove the first Outcome Integrity slice can distinguish structurally sound execution from outcome sufficiency, preserve exact-revision and authority boundaries, surface valid semantic defeaters without granting reasoning-agent analysis mutation authority, and produce actionable minimal missing obligations on the benchmark corpus and a live Overcenter project graph.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Changing the authoritative graph revision makes the prior review stale/fail-closed, and any accepted repair is applied only through canonical project authoring with fresh authoritative readback."
+          },
+          {
+            "kind": "benchmark",
+            "requirement": "The exact final implementation revision passes the semantic mutation benchmark with recorded precision/recall/false-blocker results and no benchmark case depends on hidden prior conversation state."
+          },
+          {
+            "kind": "falsification",
+            "requirement": "Verification includes at least one successful semantic counterexample showing that all declared transition-local success conditions can hold while a root outcome is false, plus a repaired graph or obligation set whose positive derivation closes that gap."
+          },
+          {
+            "kind": "live-proof",
+            "requirement": "A fresh disposable session can inspect a live exact-revision Overcenter graph, receive the Outcome Integrity report, trace at least one finding or closed argument to authoritative graph/evidence coordinates, and determine whether the next action is deterministic, judgment-required, or no action without treating the review as authority."
+          }
+        ]
       }
     },
     {
