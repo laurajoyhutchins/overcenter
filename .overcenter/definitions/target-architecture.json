@@ -569,6 +569,32 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Establish a revision-bound, exhaustive audit harness for every Overcenter test and standardize legacy library tests onto native node:test so test discovery, execution, coverage, and exact-revision verification no longer depend on bespoke embedded runners or a parallel regression registry.",
+        "acceptance_evidence": [
+          {
+            "kind": "census",
+            "requirement": "At one exact Git revision, the repository-wide test census is complete: every supported test file and literal test case is discovered, unresolved test shapes are zero, and stable audit IDs are bound to that revision."
+          },
+          {
+            "kind": "cleanup",
+            "requirement": "Obsolete regression-registry and migration-only scaffolding introduced solely for the conversion are removed or made unnecessary before settlement; production tests are not semantically weakened merely to satisfy the migration."
+          },
+          {
+            "kind": "exact-revision",
+            "requirement": "Exact-revision verification retains identity-bound evidence while test execution is sourced from the canonical node:test path rather than the deployed legacy regression registry."
+          },
+          {
+            "kind": "native-test-execution",
+            "requirement": "All migrated lib test cases execute directly through Node 22 node:test with no exported legacy suite runners, result collectors, nested custom runner aggregation, or bespoke test registration required for execution."
+          },
+          {
+            "kind": "verification",
+            "requirement": "The repository developer verification path and required GitHub Actions checks pass at the exact final PR head, including the test-audit conformance invariant and the migrated lib suite."
+          }
+        ]
       }
     },
     {
