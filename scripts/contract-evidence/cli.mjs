@@ -74,25 +74,6 @@ async function generate(flags) {
   return { ok:true, catalog:catalogPath, docs:docsPath, atlas:atlasPath, summary:catalog.summary };
 }
 
-function diagnosticCatalogDelta(actualSource, expectedSource) {
-  const actual = JSON.parse(actualSource);
-  const expected = JSON.parse(expectedSource);
-  const identity = (value) => value?.source_identity || value?.id || null;
-  const changed = (field) => {
-    const left = new Map((actual[field] || []).map((value) => [identity(value), value]));
-    const right = new Map((expected[field] || []).map((value) => [identity(value), value]));
-    return [...new Set([...left.keys(), ...right.keys()])]
-      .filter((key) => JSON.stringify(left.get(key)) !== JSON.stringify(right.get(key)))
-      .map((key) => ({ key, actual:left.get(key) ?? null, expected:right.get(key) ?? null }));
-  };
-  return {
-    summary:{ actual:actual.summary, expected:expected.summary },
-    candidates:changed('candidates'),
-    logical_contracts:changed('logical_contracts'),
-    unclassified_changed:JSON.stringify(actual.unclassified_source_identities) !== JSON.stringify(expected.unclassified_source_identities),
-  };
-}
-
 async function checkPrecomputed(flags) {
   const repoRoot = resolve(flags['repo-root'] || '.');
   const catalogPath = artifactPath(repoRoot, required(flags, 'catalog'));
@@ -113,10 +94,7 @@ async function checkPrecomputed(flags) {
   if (actualCatalog !== expectedCatalog) stale.push(catalogPath);
   if (actualDocs !== expectedDocs) stale.push(docsPath);
   if (actualAtlas !== expectedAtlas) stale.push(atlasPath);
-  if (stale.length) {
-    if (actualCatalog !== expectedCatalog) process.stderr.write(`CONTRACT_CATALOG_DELTA ${JSON.stringify(diagnosticCatalogDelta(actualCatalog, expectedCatalog))}\n`);
-    fail('CONTRACT_GENERATED_ARTIFACT_STALE', 'generated contract evidence is stale', { stale });
-  }
+  if (stale.length) fail('CONTRACT_GENERATED_ARTIFACT_STALE', 'generated contract evidence is stale', { stale });
   return { ok:true };
 }
 
@@ -146,10 +124,7 @@ async function check(flags) {
   if (actualCatalog !== expectedCatalog) stale.push(catalogPath);
   if (actualDocs !== expectedDocs) stale.push(docsPath);
   if (actualAtlas !== expectedAtlas) stale.push(atlasPath);
-  if (stale.length) {
-    if (actualCatalog !== expectedCatalog) process.stderr.write(`CONTRACT_CATALOG_DELTA ${JSON.stringify(diagnosticCatalogDelta(actualCatalog, expectedCatalog))}\n`);
-    fail('CONTRACT_GENERATED_ARTIFACT_STALE', 'generated contract evidence is stale', { stale });
-  }
+  if (stale.length) fail('CONTRACT_GENERATED_ARTIFACT_STALE', 'generated contract evidence is stale', { stale });
   return { ok:true, summary:catalog.summary };
 }
 
