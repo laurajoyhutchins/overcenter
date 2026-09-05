@@ -306,6 +306,7 @@ async function filesUnder(directory) {
 const ordinary = (await filesUnder('lib')).filter((file) => /\.(?:test|spec)\.js$/.test(file)).sort();
 const explicitLegacyTests = ['lib/project-agent-session-boundary-regression.js'];
 const migrated = [];
+const failures = [];
 for (const file of [...ordinary, ...explicitLegacyTests]) {
   const source = await readFile(path.join(root, file), 'utf8');
   const target = file === 'lib/github-text-transport.spec.js'
@@ -313,10 +314,15 @@ for (const file of [...ordinary, ...explicitLegacyTests]) {
     : file === 'lib/project-agent-session-boundary-regression.js'
       ? 'lib/project-agent-session-boundary.test.js'
       : file;
-  const output = migrateSource(target, source);
-  if (target !== file) await rename(path.join(root, file), path.join(root, target));
-  await writeFile(path.join(root, target), output);
-  migrated.push({ from:file, to:target });
+  try {
+    const output = migrateSource(target, source);
+    if (target !== file) await rename(path.join(root, file), path.join(root, target));
+    await writeFile(path.join(root, target), output);
+    migrated.push({ from:file, to:target });
+  } catch (error) {
+    failures.push({ file, target, error:String(error?.message || error) });
+  }
 }
 
-console.log(JSON.stringify({ schema:'node-test-migration-v1', migrated_count:migrated.length, migrated }, null, 2));
+console.log(JSON.stringify({ schema:'node-test-migration-v1', migrated_count:migrated.length, failure_count:failures.length, migrated, failures }, null, 2));
+if (failures.length) process.exitCode = 1;
