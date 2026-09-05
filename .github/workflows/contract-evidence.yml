@@ -52,6 +52,67 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+      - name: Emit exact contract evidence replacement plan
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          import { canonicalJson } from './packages/contract-evidence/index.mjs';
+          const root=process.env.RUNNER_TEMP + '/contract-evidence';
+          const current=JSON.parse(await readFile('generated/contracts/catalog.json','utf8'));
+          const next=JSON.parse(await readFile(root + '/generated/contracts/catalog.json','utf8'));
+          const replacements=[];
+          function planArray(field,key){
+            const before=current[field]||[];
+            const after=next[field]||[];
+            const beforeBy=new Map(before.map((value,index)=>[value[key],{value,index}]));
+            const afterBy=new Map(after.map((value,index)=>[value[key],{value,index}]));
+            const removed=before.filter(value=>!afterBy.has(value[key]));
+            if(removed.length) throw new Error(`${field} removals require explicit handling: ${removed.map(value=>value[key]).join(',')}`);
+            for(const value of after){
+              const prior=beforeBy.get(value[key]);
+              if(prior && canonicalJson(prior.value)!==canonicalJson(value)) replacements.push({path:'generated/contracts/catalog.json',old:canonicalJson(prior.value),new_text:canonicalJson(value),expected_count:1,reason:`${field} changed ${value[key]}`});
+            }
+            const added=after.filter(value=>!beforeBy.has(value[key]));
+            let offset=0;
+            while(offset<added.length){
+              const first=added[offset];
+              const firstIndex=afterBy.get(first[key]).index;
+              const group=[first];
+              offset+=1;
+              while(offset<added.length && afterBy.get(added[offset][key]).index===firstIndex+group.length){ group.push(added[offset]); offset+=1; }
+              let anchorIndex=firstIndex-1;
+              while(anchorIndex>=0 && !beforeBy.has(after[anchorIndex][key])) anchorIndex-=1;
+              if(anchorIndex>=0){
+                const anchor=after[anchorIndex];
+                replacements.push({path:'generated/contracts/catalog.json',old:canonicalJson(beforeBy.get(anchor[key]).value),new_text:[canonicalJson(beforeBy.get(anchor[key]).value),...group.map(canonicalJson)].join(','),expected_count:1,reason:`${field} add ${group.map(value=>value[key]).join(',')}`});
+              } else {
+                let successor=firstIndex+group.length;
+                while(successor<after.length && !beforeBy.has(after[successor][key])) successor+=1;
+                if(successor>=after.length) throw new Error(`${field} has no stable anchor`);
+                const anchor=after[successor];
+                replacements.push({path:'generated/contracts/catalog.json',old:canonicalJson(beforeBy.get(anchor[key]).value),new_text:[...group.map(canonicalJson),canonicalJson(beforeBy.get(anchor[key]).value)].join(','),expected_count:1,reason:`${field} prepend ${group.map(value=>value[key]).join(',')}`});
+              }
+            }
+          }
+          function planValue(field){ if(canonicalJson(current[field])!==canonicalJson(next[field])) replacements.push({path:'generated/contracts/catalog.json',old:canonicalJson(current[field]),new_text:canonicalJson(next[field]),expected_count:1,reason:`${field} changed`}); }
+          async function planText(path,nextPath){
+            const before=await readFile(path,'utf8'); const after=await readFile(nextPath,'utf8'); if(before===after) return;
+            let prefix=0; while(prefix<before.length && prefix<after.length && before[prefix]===after[prefix]) prefix+=1;
+            let suffix=0; while(suffix<before.length-prefix && suffix<after.length-prefix && before[before.length-1-suffix]===after[after.length-1-suffix]) suffix+=1;
+            const start=before.lastIndexOf('\n',Math.max(0,prefix-1))+1;
+            let beforeEnd=before.indexOf('\n',before.length-suffix); if(beforeEnd<0) beforeEnd=before.length; else beforeEnd+=1;
+            let afterEnd=after.indexOf('\n',after.length-suffix); if(afterEnd<0) afterEnd=after.length; else afterEnd+=1;
+            replacements.push({path,old:before.slice(start,beforeEnd),new_text:after.slice(start,afterEnd),expected_count:1,reason:`${path} generated projection changed`});
+          }
+          planArray('candidates','source_identity');
+          planArray('logical_contracts','id');
+          planValue('unclassified_source_identities');
+          planValue('summary');
+          await planText('docs/generated/data-contracts.md',root + '/docs/generated/data-contracts.md');
+          await planText('docs/generated/data-contract-authority-atlas.md',root + '/docs/generated/data-contract-authority-atlas.md');
+          console.log('OVERCENTER_CONTRACT_REPLACEMENTS=' + JSON.stringify(replacements));
+          console.log('OVERCENTER_CONTRACT_SUMMARY=' + JSON.stringify({before:current.summary,after:next.summary}));
+          NODE
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
