@@ -71,6 +71,18 @@ Horizon evaluation expands each target node through its prerequisite closure and
 
 See `docs/project-horizon-authority-contract.md` for the horizon contract.
 
+## Outcome Integrity review
+
+Outcome Integrity is derived inspection over an exact authoritative graph plus exact evidence and observations. It is not graph-definition authority.
+
+An Outcome Integrity review must identify the project, exact definition revision, graph derivation contract, review contract/version, selected horizon or root outcome, and the evidence coordinates used by the argument. By default, a changed authority revision makes the prior review stale. Reuse across revisions may be introduced only when deterministic semantic identity proves that every relevant reviewed meaning and evidence binding is unchanged.
+
+Deterministic findings may identify objective gaps such as missing producers, unowned assumptions, stale evidence bindings, orphan work, semantic justification cycles, or mechanically impossible proof closure. Reasoning-agent findings and defeaters remain non-authoritative judgment artifacts. They cannot mutate the graph, invalidate a lease by themselves, or mark a transition or project complete.
+
+An accepted repair flows through `project.amend` or `project.define` and is established only after fresh authoritative graph readback. The amended revision is a new review subject.
+
+This review layer does not introduce a shadow outcome graph, a plan database, a review lifecycle, or duplicated evidence state. See `docs/architecture/outcome-integrity.md` for the full contract.
+
 ## Commit and confirm
 
 A graph amendment is a desired-state change, not proof that the new graph is authoritative.
