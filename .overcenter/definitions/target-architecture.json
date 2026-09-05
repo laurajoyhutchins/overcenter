@@ -221,6 +221,28 @@
       }
     },
     {
+      "id": "content-address-graph-and-obligation-semantics",
+      "priority": 179,
+      "requires": [
+        "define-immutable-obligation-graph-contract"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Implement canonical semantic identity for the Overcenter project graph and its individual obligations using test-driven-development. Derive a deterministic graph fingerprint from canonical graph semantics and a deterministic obligation fingerprint from the exact execution/acceptance/dependency semantics of one logical transition, while keeping the Git authority revision as separate provenance rather than replacing it. Canonicalization must be stable across irrelevant JSON/node/dependency ordering and formatting, and must change when execution-relevant or acceptance-relevant semantics change. Do not include mutable lifecycle state, leases, run IDs, timestamps, current READY/DONE projections, or evidence instances in semantic identity. Reuse/extend existing graph, transition-definition, transition-revision, and dependency fingerprint machinery instead of creating parallel weaker hashes. Add red-green regressions for stable identity, unrelated-representation stability, semantic change invalidation, dependency change invalidation, and same semantic graph derived from different Git revisions."
+      }
+    },
+    {
+      "id": "define-immutable-obligation-graph-contract",
+      "priority": 180,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Define the smallest canonical Overcenter obligation-graph contract, grounded explicitly in the research in laurajoyhutchins/overcenter-research: research/petri-nets-workflow-correctness.md, research/bazel-nix-graph-derivation.md, research/calm-monotonic-state.md, and research/foundationdb-transaction-semantics.md. Preserve the current finite acyclic all-of DAG semantics and do not turn Overcenter into a general Petri-net or token engine. Specify the separation among immutable obligation graph facts, realizations/evidence, live execution authority, and derived current projections. Specify stable logical transition keys separately from semantic/content identities. Define which semantic fields must participate in graph and obligation identity, which runtime/lifecycle fields must not, and the invariants required for predecessor closure, monotonic historical truth, and exact authority provenance. Prefer a narrow typed contract/ADR plus executable contract tests over broad refactoring. Run focused tests and settle only with exact commit/test evidence."
+      }
+    },
+    {
       "id": "define-primary-agent-session-contract",
       "priority": 100,
       "requires": [
@@ -301,6 +323,18 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "derive-project-state-from-obligations-and-evidence",
+      "priority": 178,
+      "requires": [
+        "content-address-graph-and-obligation-semantics"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Move the project-graph model one safe slice toward the research-backed obligation model: graph definitions describe immutable obligations and causal requirements; READY, WAITING, EXECUTING, BLOCKED/OFF_NOMINAL, and DONE/SATISFIED are derived projections from authoritative obligation semantics plus valid realizations/evidence and live execution authority. Do not attempt a wholesale storage rewrite. Introduce the narrowest deterministic derivation boundary that makes historical completion facts coordinate-scoped and prevents current status from becoming graph-definition identity. Enforce predecessor-closed satisfaction for the current all-of DAG and make incomplete + empty frontier require an explicit live/off-nominal blocker or fail closed as an invariant violation. Preserve existing public command behavior unless a contract change is mechanically necessary. Add focused tests for predecessor closure, derived readiness, stale evidence under changed obligation identity, and explainable empty-frontier behavior."
       }
     },
     {
@@ -588,6 +622,18 @@
       }
     },
     {
+      "id": "make-project-amend-semantic-conflict-aware",
+      "priority": 177,
+      "requires": [
+        "content-address-graph-and-obligation-semantics"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Make project.amend reason about live execution using semantic conflict/dependency identity rather than treating any whole-graph revision movement as a global fence. Ground the design in the FoundationDB conflict-set and Petri/workflow dynamic-change research. An amendment creates a new immutable graph meaning; execution authority already issued under the prior graph remains historically valid under its exact obligation/dependency fingerprint and must not be retroactively rewritten. Classify live authorities affected by the amendment at least as unaffected/compatible versus conflicting, with ordinary amendment allowed to coexist with unrelated in-flight work. A changed prerequisite, execution contract, or acceptance semantics that invalidates the assumptions under which work was acquired must fail closed or enter an explicit drain/replan/recovery path; never silently reinterpret old work as the new obligation. Compute any change-region view as a derived aid from exact semantic conflicts, not as a broad global lock. Extend existing project-transition stale reconciliation/fingerprint machinery rather than duplicating it."
+      }
+    },
+    {
       "id": "make-project-authoring-low-ceremony",
       "priority": 94,
       "requires": [
@@ -782,6 +828,19 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "test-driven-development"
+      }
+    },
+    {
+      "id": "prove-concurrent-amendment-migration-semantics",
+      "priority": 176,
+      "requires": [
+        "derive-project-state-from-obligations-and-evidence",
+        "make-project-amend-semantic-conflict-aware"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "Add the first end-to-end regression that proves the obligation-graph and project.amend concurrency model across disposable sessions. Start worker W on obligation B under graph G1, then amend an unrelated region to G2 and prove W retains valid execution authority and can settle through semantic compatibility while the current frontier is recomputed under G2. Then amend a semantic prerequisite/execution/acceptance assumption that B depended on and prove the old authority cannot be silently settled as B@G2: Overcenter must fail closed or require the explicit drain/replan/recovery path. Verify graph identity, obligation/dependency fingerprints, predecessor-closed satisfaction, durable evidence attribution, and exact authority provenance in the resulting receipts/state. The test must demonstrate that project.amend does not require global quiescence and also cannot retroactively change an in-flight worker's contract."
       }
     },
     {
