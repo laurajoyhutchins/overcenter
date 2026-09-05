@@ -3,6 +3,12 @@ name: Production materialization
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      exact_revision:
+        description: Exact production revision to reconcile
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,10 +20,13 @@ concurrency:
 jobs:
   materialize:
     runs-on: ubuntu-latest
+    env:
+      EXACT_REVISION: ${{ inputs.exact_revision || github.sha }}
+      PRODUCTION_BRANCH: main
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.exact_revision || github.sha }}
           fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -28,11 +37,14 @@ jobs:
         run: npm ci
       - name: Build runtime artifact
         run: npm run build:runtime
+      - name: Fence exact production head
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/production-materialization-head-fence.mjs
       - name: Materialize exact production revision
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
-          EXACT_REVISION: ${{ github.sha }}
-          PRODUCTION_BRANCH: main
           HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
           OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
         run: node scripts/production-materialization-dist-http.mjs
