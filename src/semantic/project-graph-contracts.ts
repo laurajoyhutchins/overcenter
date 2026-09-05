@@ -81,6 +81,7 @@ export function normalizeProjectExecutionIntent(raw: unknown, nodeId: string, fa
   if (new Set(evidenceKeys).size !== evidenceKeys.length) {
     fail('INVALID_PROJECT_GRAPH', 'execution_intent.acceptance_evidence contains duplicates', { node_id: nodeId });
   }
+  acceptanceEvidence.sort((left, right) => left.kind.localeCompare(right.kind) || left.requirement.localeCompare(right.requirement));
   const sourceRef = raw.source_ref == null ? undefined : boundedText(raw.source_ref, 'execution_intent.source_ref', 512, fail);
   return Object.freeze({
     schema:'project-execution-intent-v1',
