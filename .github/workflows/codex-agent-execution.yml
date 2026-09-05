@@ -1,0 +1,89 @@
+name: Codex agent execution
+
+on:
+  workflow_dispatch:
+    inputs:
+      transition_id:
+        description: Exact Overcenter project transition to execute
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codex-agent-${{ github.repository }}-${{ inputs.transition_id }}
+  cancel-in-progress: false
+
+jobs:
+  execute:
+    runs-on: [self-hosted, codex]
+    timeout-minutes: 28
+    steps:
+      - name: Check out executor control code
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: control/package-lock.json
+
+      - name: Install executor dependencies
+        run: npm ci --prefix control
+
+      - name: Acquire exact Overcenter execution packet
+        id: prepare
+        run: node control/scripts/codex-project-agent-execution.mjs prepare
+        env:
+          HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
+          OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ secrets.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
+          CODEX_TRANSITION_ID: ${{ inputs.transition_id }}
+          CODEX_PACKET_PATH: ${{ runner.temp }}/overcenter-codex-packet.json
+          CODEX_PROMPT_PATH: ${{ runner.temp }}/overcenter-codex-prompt.txt
+
+      - name: Check out exact execution revision
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.prepare.outputs.repository }}
+          ref: ${{ steps.prepare.outputs.revision }}
+          path: workspace
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Execute disposable Codex agent
+        run: node control/scripts/codex-project-agent-execution.mjs execute
+        env:
+          CODEX_PACKET_PATH: ${{ runner.temp }}/overcenter-codex-packet.json
+          CODEX_PROMPT_PATH: ${{ runner.temp }}/overcenter-codex-prompt.txt
+          CODEX_RESULT_PATH: ${{ runner.temp }}/overcenter-codex-result.json
+          CODEX_EVENTS_PATH: ${{ runner.temp }}/overcenter-codex-events.jsonl
+          CODEX_RESULT_SCHEMA: ${{ github.workspace }}/control/schemas/codex-agent-execution-result.schema.json
+          CODEX_WORKSPACE: ${{ github.workspace }}/workspace
+
+      - name: Apply Codex changes through Overcenter authority
+        id: apply
+        run: node control/scripts/codex-project-agent-execution.mjs apply
+        env:
+          HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
+          OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ secrets.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
+          CODEX_PACKET_PATH: ${{ runner.temp }}/overcenter-codex-packet.json
+          CODEX_RESULT_PATH: ${{ runner.temp }}/overcenter-codex-result.json
+          CODEX_APPLY_RECEIPT_PATH: ${{ runner.temp }}/overcenter-codex-apply-receipt.json
+          CODEX_WORKSPACE: ${{ github.workspace }}/workspace
+
+      - name: Publish bounded execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-execution-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/overcenter-codex-result.json
+            ${{ runner.temp }}/overcenter-codex-events.jsonl
+            ${{ runner.temp }}/overcenter-codex-apply-receipt.json
