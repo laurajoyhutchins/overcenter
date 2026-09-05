@@ -43,32 +43,15 @@ jobs:
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
       - name: Run contract evidence tests
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
-      - name: Restore final workflow input before generation
-        if: always()
-        run: git checkout 1bd6866346f9871da8a04173d3bff541eee6dba8 -- .github/workflows/contract-evidence.yml
       - name: Generate candidate contract evidence once
-        if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
-          cp generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/catalog.committed.json"
-          cp docs/generated/data-contracts.md "$RUNNER_TEMP/contract-evidence/data-contracts.committed.md"
           node scripts/contract-evidence/cli.mjs generate \
             --repo-root . \
             --config scripts/contract-evidence/overcenter/config.mjs \
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Upload generated contract evidence for refresh
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: contract-evidence-generated
-          path: |
-            ${{ runner.temp }}/contract-evidence/catalog.committed.json
-            ${{ runner.temp }}/contract-evidence/data-contracts.committed.md
-            ${{ runner.temp }}/contract-evidence/generated/contracts/catalog.json
-            ${{ runner.temp }}/contract-evidence/docs/generated/data-contracts.md
-            ${{ runner.temp }}/contract-evidence/docs/generated/data-contract-authority-atlas.md
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
