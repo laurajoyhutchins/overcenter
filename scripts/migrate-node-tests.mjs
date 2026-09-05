@@ -112,6 +112,26 @@ function humanName(identifier) {
   return identifier.replace(/^test/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim() || identifier;
 }
 
+function stripCollectorBookkeeping(file, source, collectors) {
+  const sf = parse(file, source);
+  const edits = [];
+  for (const statement of sf.statements) {
+    if (ts.isExpressionStatement(statement) && ts.isCallExpression(statement.expression) && callIdentifier(statement.expression) === 'test') continue;
+    let referencesCollector = false;
+    function visit(node) {
+      if (referencesCollector) return;
+      if (ts.isIdentifier(node) && collectors.has(node.text)) {
+        referencesCollector = true;
+        return;
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(statement);
+    if (referencesCollector) edits.push({ start:statement.getFullStart(), end:statement.end, text:'' });
+  }
+  return applyEdits(source, edits);
+}
+
 function directRegistrations(runner, sf) {
   for (const statement of runner.body.statements) {
     if (ts.isVariableStatement(statement)) {
@@ -249,6 +269,7 @@ function migrateSource(file, source) {
 
   let promoted = source.slice(bodyStart, bodyEnd);
   promoted = applyEdits(promoted, bodyEdits);
+  promoted = stripCollectorBookkeeping(file, promoted, collectors);
 
   for (const collector of collectors) {
     if (new RegExp(`\\b${collector}\\b`).test(promoted)) throw new Error(`${file}: collector ${collector} survived migration`);
