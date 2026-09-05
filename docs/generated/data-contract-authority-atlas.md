@@ -1540,6 +1540,27 @@ _None._
 - `mcp:mcp/project.amend.js#inputSchema` (`mcp`)
   - Source: `mcp/project.amend.js#inputSchema`
 
+## `project.amend.validation-boundary`
+
+- Significance: `boundary-internal`
+- Lifecycle: `current`
+- SemVer: `internal-module-layout`
+- Authority: `typescript:src/semantic/project-authoring-runtime.ts#ProjectAuthoringAmendmentValidation` (`typescript`)
+- Authority source: `src/semantic/project-authoring-runtime.ts#ProjectAuthoringAmendmentValidation`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
 ## `project.define.input`
 
 - Significance: `public`

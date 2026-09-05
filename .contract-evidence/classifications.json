@@ -391,6 +391,12 @@
       "significance": "authority",
       "semver_kind": "lifecycle-semantics"
     },
+    "typescript:src/semantic/project-authoring-runtime.ts#ProjectAuthoringAmendmentValidation": {
+      "logical_contract": "project.amend.validation-boundary",
+      "significance": "boundary-internal",
+      "semver_kind": "internal-module-layout",
+      "lifecycle": "current"
+    },
     "typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphAuthorityCoordinate": {
       "logical_contract": "project.graph.authority-coordinate",
       "significance": "authority"

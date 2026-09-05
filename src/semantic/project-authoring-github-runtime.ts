@@ -4,6 +4,7 @@ import type { CanonicalProjectDefinition } from './project-authoring.js';
 import { amendProjectDefinition, defineProjectDefinition } from './project-authoring-runtime.js';
 import type {
   ProjectAmendRequest,
+  ProjectAuthoringAmendmentValidation,
   ProjectAuthoringAuthority,
   ProjectAuthoringMutationRequest,
   ProjectDefineRequest,
@@ -73,6 +74,10 @@ type ReadProjectObservations = (
   }>,
 ) => Promise<unknown>;
 
+type ValidateAmendment = (
+  input: ProjectAuthoringAmendmentValidation,
+) => Promise<void>;
+
 type ResolveMutationAuthority = (
   input: Readonly<{
     operation: ProjectDefinitionMutationOperation;
@@ -88,6 +93,7 @@ export type ProjectAuthoringGithubDependencies = Readonly<{
   applyChangeset?: ApplyChangeset;
   deriveProjectGraph?: DeriveProjectGraph;
   readProjectObservations?: ReadProjectObservations;
+  validateAmendment?: ValidateAmendment;
   resolveMutationAuthority?: ResolveMutationAuthority;
 }>;
 
@@ -294,6 +300,9 @@ export function createProjectAuthoringGithubAdapter(dependencies: ProjectAuthori
   const readProjectObservations = typeof dependencies.readProjectObservations === 'function'
     ? dependencies.readProjectObservations
     : null;
+  const validateAmendment = typeof dependencies.validateAmendment === 'function'
+    ? dependencies.validateAmendment
+    : null;
   const resolveMutationAuthority = typeof dependencies.resolveMutationAuthority === 'function'
     ? dependencies.resolveMutationAuthority
     : null;
@@ -404,6 +413,7 @@ export function createProjectAuthoringGithubAdapter(dependencies: ProjectAuthori
               }),
             }
           : {}),
+        ...(validateAmendment ? { validateAmendment } : {}),
         async mutateDefinition(request) {
           if (!selectedPath) {
             fail('PROJECT_AUTHORING_DEFINITION_UNRESOLVED', 'definition path was not resolved from authoritative facts');

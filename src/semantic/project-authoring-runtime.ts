@@ -19,10 +19,19 @@ export type ProjectAuthoringMutationRequest = Readonly<{
   diff: ProjectDefinitionDiff;
 }>;
 
+export type ProjectAuthoringAmendmentValidation = Readonly<{
+  project_ref: string;
+  authority: ProjectAuthoringAuthority;
+  current_definition: CanonicalProjectDefinition;
+  candidate_definition: CanonicalProjectDefinition;
+  diff: ProjectDefinitionDiff;
+}>;
+
 export type ProjectAuthoringRuntimeDependencies = Readonly<{
   resolveAuthority(input: Readonly<{ project_ref: string }>): Promise<ProjectAuthoringAuthority>;
   readDefinition(authority: ProjectAuthoringAuthority): Promise<unknown>;
   readProjectObservations?(authority: ProjectAuthoringAuthority): Promise<unknown>;
+  validateAmendment?(input: ProjectAuthoringAmendmentValidation): Promise<void>;
   mutateDefinition(request: ProjectAuthoringMutationRequest): Promise<Readonly<{ revision: string }>>;
   deriveProjectGraph(authority: ProjectAuthoringAuthority): Promise<unknown>;
 }>;
@@ -324,6 +333,15 @@ export async function amendProjectDefinition(
   const currentDefinition = await dependencies.readDefinition(authority);
   const amendmentInput = await amendmentWithAuthoritativeHistory(projectRef, authority, currentDefinition, input.amendment, dependencies);
   const amendment = applyProjectDefinitionAmendment(currentDefinition, amendmentInput);
+  if (typeof dependencies.validateAmendment === 'function') {
+    await dependencies.validateAmendment(Object.freeze({
+      project_ref:projectRef,
+      authority,
+      current_definition:canonicalProjectDefinition(currentDefinition),
+      candidate_definition:amendment.definition,
+      diff:amendment.diff,
+    }));
+  }
   const mutation = await mutateProjectDefinition({
     project_ref: projectRef,
     repository: authority.repository,
