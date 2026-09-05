@@ -728,6 +728,32 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Use test-driven-development to repair the live production.reconcile host after PR #527. First add a regression that fails because a fresh invocation cannot observe an already-current immutable Hatchable deployment; then wire observeRuntime to authoritative immutable runtime evidence using the existing production runtime observation/materialization contract rather than process-local freshRuntimeEvidence. Also add a regression for GitHub workflow_dispatch returning 204 with no body and make reconciliation use the existing github.workflow.dispatch identity-confirming capability instead of assuming the dispatch response contains a run id. Preserve repo-only public input, exact-head fencing, mutation certainty, no blind retry, existing production.promote behavior, and fail-closed semantics. Prove the deployed production.reconcile({repo}) returns same-revision already-converged/no-op evidence against current GitHub production and immutable Hatchable state before settling."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Repair production.reconcile so a disposable repo-only invocation derives Git and runtime authority safely, reuses the canonical production promotion and GitHub workflow-dispatch contracts, observes authoritative immutable runtime evidence instead of process-local cache, and proves current production convergence without unnecessary mutation.",
+        "acceptance_evidence": [
+          {
+            "kind": "composition",
+            "requirement": "The production reconciliation host does not maintain a second Git/V8 observation contract weaker than the already-proven production promotion path, and final runtime evidence is bound to an exact current authority coordinate."
+          },
+          {
+            "kind": "deployment",
+            "requirement": "An immutable Hatchable source-materialization receipt binds the deployed runtime to the exact promoted Git production SHA."
+          },
+          {
+            "kind": "exact-revision",
+            "requirement": "The final integrated dev revision passes required repository checks and exact push-triggered V8 verification before production movement."
+          },
+          {
+            "kind": "live-proof",
+            "requirement": "Deployed production.reconcile called with only {repo} returns verified same-revision convergence evidence against current Git production and runtime, with an already-current state requiring no unnecessary production mutation."
+          },
+          {
+            "kind": "regression",
+            "requirement": "Focused tests reproduce GitHub workflow_dispatch returning 204 with no run id and prove identity is recovered by authoritative exact-run readback through the canonical dispatch capability."
+          }
+        ]
       }
     },
     {
