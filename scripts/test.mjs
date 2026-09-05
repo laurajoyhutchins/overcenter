@@ -23,6 +23,7 @@ async function javascriptFiles(directory) {
 
 const maintainedTests = [
   'codex-agent-execution-workflow.test.mjs',
+  'outcome-integrity-benchmark.test.mjs',
   'verify-github-workflow-dispatch.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
