@@ -1605,6 +1605,28 @@ _None._
 - `mcp:mcp/project.define.js#inputSchema` (`mcp`)
   - Source: `mcp/project.define.js#inputSchema`
 
+## `project.execution-intent`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- SemVer: `project-definition-schema`
+- Authority: `typescript:src/semantic/project-graph-types.ts#ProjectExecutionIntent` (`typescript`)
+- Authority source: `src/semantic/project-graph-types.ts#ProjectExecutionIntent`
+- Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `typescript:src/semantic/project-graph-types.ts#ProjectExecutionEvidenceRequirement` (`typescript`)
+  - Source: `src/semantic/project-graph-types.ts#ProjectExecutionEvidenceRequirement`
+
 ## `project.graph.authority-coordinate`
 
 - Significance: `authority`

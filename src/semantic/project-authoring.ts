@@ -1,6 +1,6 @@
-import { normalizeProjectExecutor, normalizeProjectPhaseBindings } from './project-graph-contracts.js';
+import { normalizeProjectExecutionIntent, normalizeProjectExecutor, normalizeProjectPhaseBindings } from './project-graph-contracts.js';
 import { normalizeProjectVersionImpact } from './project-version-impact.js';
-import type { Executor, PhaseBindings } from './project-graph-types.js';
+import type { Executor, PhaseBindings, ProjectExecutionIntent } from './project-graph-types.js';
 import type { ProjectVersionImpact } from './project-version-impact.js';
 
 export const PROJECT_DEFINITION_SCHEMA = 'overcenter-project-definition-v1' as const;
@@ -12,6 +12,7 @@ type CanonicalTransition = Readonly<{
   priority: number;
   requires: readonly string[];
   executor: Executor;
+  execution_intent?: ProjectExecutionIntent;
   version_impact?: ProjectVersionImpact;
   phase_bindings?: PhaseBindings;
 }>;
@@ -52,7 +53,7 @@ function exactKeys(input: Record<string, unknown>, allowed: readonly string[], f
 
 function normalizeTransition(raw: unknown, index: number): CanonicalTransition {
   const input = record(raw, `transitions[${index}]`);
-  exactKeys(input, ['id','priority','requires','executor','version_impact','phase_bindings'], `transitions[${index}]`);
+  exactKeys(input, ['id','priority','requires','executor','execution_intent','version_impact','phase_bindings'], `transitions[${index}]`);
   const id = text(input.id, `transitions[${index}].id`);
   if (!Number.isInteger(input.priority)) fail(`transitions[${index}].priority must be an integer`, { id });
   if (!Array.isArray(input.requires)) fail(`transitions[${index}].requires must be an array`, { id });
@@ -61,6 +62,7 @@ function normalizeTransition(raw: unknown, index: number): CanonicalTransition {
   if (requires.includes(id)) fail('transition cannot depend on itself', { id });
   const contractFail: Fail = (message, details) => fail(message, details);
   const executor = normalizeProjectExecutor(input.executor, id, (_code, message, details) => contractFail(message, details));
+  const executionIntent = normalizeProjectExecutionIntent(input.execution_intent, id, (_code, message, details) => contractFail(message, details));
   const versionImpact = normalizeProjectVersionImpact(input.version_impact, id, (_code, message, details) => contractFail(message, details));
   const phaseBindings = normalizeProjectPhaseBindings(input.phase_bindings, id, (_code, message, details) => contractFail(message, details));
   return Object.freeze({
@@ -68,6 +70,7 @@ function normalizeTransition(raw: unknown, index: number): CanonicalTransition {
     priority: input.priority as number,
     requires: Object.freeze([...requires].sort()),
     executor,
+    ...(executionIntent ? { execution_intent:executionIntent } : {}),
     ...(versionImpact ? { version_impact:versionImpact } : {}),
     ...(Object.keys(phaseBindings).length ? { phase_bindings:phaseBindings } : {}),
   });
