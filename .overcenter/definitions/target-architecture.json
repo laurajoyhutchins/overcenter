@@ -269,6 +269,29 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Use test-driven-development to repair project.amend admission. Remove arbitrary transition-count ceilings instead of replacing 100 with another magic number. Any remaining limit must name and test the real resource or correctness constraint it protects. Before integrating a staged project-authoring candidate, run the exact candidate definition through the same production graph derivation and evaluation path used by project.inspect. Reject an underivable candidate before integration with bounded diagnostics. Add regressions proving valid graphs over 100 transitions are accepted and an invalid candidate cannot move dev then break project.inspect. Preserve exact-revision fencing, branch protection, idempotent retry, and authoritative reconciliation. Verify the exact final revision in CI and deployed runtime before settlement."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Project authoring accepts valid large graphs without arbitrary transition-count ceilings and rejects staged underivable graph candidates before integration, with exact source and runtime evidence proving the behavior.",
+        "acceptance_evidence": [
+          {
+            "kind": "runtime",
+            "requirement": "The exact merged Git revision is immutably materialized in the Overcenter production runtime and live project.inspect succeeds at that authority revision."
+          },
+          {
+            "kind": "source",
+            "requirement": "The exact merged Git revision contains both the graph-cap removal and the pre-integration candidate derivation gate."
+          },
+          {
+            "kind": "verification",
+            "requirement": "A valid project definition with more than the previous arbitrary ceiling derives successfully."
+          },
+          {
+            "kind": "verification",
+            "requirement": "An underivable staged project amendment is rejected before GitHub integration."
+          }
+        ],
+        "source_ref": "github:pull:556"
       }
     },
     {
