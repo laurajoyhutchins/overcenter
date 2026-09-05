@@ -958,6 +958,28 @@
         "kind": "agent",
         "role": "implementation",
         "skill": "Use test-driven-development to make graph workers and project-authoring transactions mechanically self-recovering without requiring a reasoning session to remain alive or manually replay known deterministic work. Preserve the existing graph-worker recovery scope and make the concrete project.define/project.amend external-verification wait the required first slice. Reuse Overcenter's existing operation_state/idempotency/recovery substrate rather than creating a parallel authoring transaction database. Represent a staged, known GitHub candidate that is waiting on checks/reviews/mergeability as a truthful durable external-wait state, distinct from indeterminate mutation. Persist enough bounded recovery identity to continue the exact semantic request: command/request hash and idempotency identity, project_ref, expected authority/base revision, staged exact head, pull request, waiting predicates, and last authoritative reconciliation result. The caller may replay idempotently for status, but caller replay must not be required for progress. Add a deterministic authoring reconciler that rereads current project authority and fresh GitHub state, verifies the exact base and staged head, waits while predicates are unsatisfied, integrates only the exact verified candidate when ready, and performs final authoritative project readback before success. Any base/head movement, closed/replaced candidate, policy ambiguity, failed verification, or uncertain external effect must fail closed into the correct recompute/reconciliation path and must never silently reinterpret or rebase the semantic amendment. Wake reconciliation from GitHub state-change events only as non-authoritative hints, and also reconcile bounded pending authoring operations from the modern orchestration.maintain recovery path so missed/duplicated events cannot strand work. Do not route this through the legacy scheduled-cycle system and do not delegate transaction correctness to GitHub auto-merge. Update the durable command/recovery documentation so WAITING_EXTERNAL_VERIFICATION is a normal self-owned asynchronous authoring state, not an instruction for an agent to remember to return. Add regressions for pending exact-head CI, duplicate wakeups, missed-event maintenance recovery, base movement, head movement, PR closure, failed checks, transport ambiguity after integration, final readback mismatch, and exact idempotent replay."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make graph workers and project.define/project.amend authoring transactions mechanically self-recovering so external-verification waits complete without requiring an initiating reasoning session to remain alive or manually replay the semantic request.",
+        "acceptance_evidence": [
+          {
+            "kind": "durable-state",
+            "requirement": "Pending exact project authoring work is represented as truthful WAITING_EXTERNAL_VERIFICATION in Overcenter's existing operation/idempotency/recovery substrate, with bounded identity sufficient to resume the exact semantic request: request/idempotency identity, project_ref, expected authority/base revision, staged exact head, pull request when present, waiting predicates, and last authoritative reconciliation result."
+          },
+          {
+            "kind": "fail-closed",
+            "requirement": "Base/head movement, closed or replaced candidate, policy ambiguity, failed verification, or uncertain external effect cannot silently reinterpret or rebase the amendment; each enters the correct recompute, reconciliation, waiting, or indeterminate recovery state without an agent babysitting deterministic progress."
+          },
+          {
+            "kind": "recovery",
+            "requirement": "A deterministic authoring reconciler rereads current project authority and fresh GitHub state, verifies exact base and staged head, integrates only the exact verified candidate, performs final authoritative project readback, wakes from provider events only as hints, and is also driven by modern orchestration.maintain so missed or duplicate events cannot strand work; no legacy scheduled-cycle path or GitHub auto-merge owns correctness."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Regressions cover pending exact-head CI, duplicate wakeups, missed-event maintenance recovery, base movement, head movement, PR closure, failed checks, transport ambiguity after integration, final readback mismatch, and exact idempotent replay, proving caller replay is optional for status but not required for progress."
+          }
+        ]
       }
     },
     {
