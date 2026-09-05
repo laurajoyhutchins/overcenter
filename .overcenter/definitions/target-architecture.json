@@ -1019,6 +1019,42 @@
       }
     },
     {
+      "id": "preflight-chatgpt-codex-auth-before-lease",
+      "priority": 97,
+      "requires": [
+        "add-codex-github-actions-executor",
+        "admit-github-workflow-dispatch-canonical-command"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make the GitHub Actions Codex executor consume ChatGPT subscription-backed Codex usage safely by requiring a persistent self-hosted runner whose Codex CLI is logged in with ChatGPT, and fail before acquiring any Overcenter execution lease when that subscription-backed authentication is unavailable. Document the one-time runner bootstrap and explicitly avoid API-key billing or persisting ChatGPT refresh credentials in GitHub Actions secrets/caches.",
+        "acceptance_evidence": [
+          {
+            "kind": "auth",
+            "requirement": "The executor verifies `codex login status` reports ChatGPT authentication and ensures CODEX_API_KEY and OpenAI API-key credentials are not inherited by codex exec."
+          },
+          {
+            "kind": "operations",
+            "requirement": "Repository documentation gives the supported persistent self-hosted-runner bootstrap: install/update Codex CLI, perform ChatGPT login once under the runner OS account, verify login status, ensure the runner uses that same account/CODEX_HOME, and apply the `codex` runner label."
+          },
+          {
+            "kind": "regression",
+            "requirement": "A runner with missing or non-ChatGPT Codex authentication fails before project.advance is invoked, proving no project-transition lease is acquired by an executor that cannot use subscription-backed Codex."
+          },
+          {
+            "kind": "security",
+            "requirement": "The implementation does not store or cache ~/.codex/auth.json or ChatGPT OAuth refresh credentials in GitHub Actions artifacts, caches, repository files, or Actions secrets."
+          }
+        ],
+        "source_ref": "ChatGPT Plus-backed Codex GitHub Actions execution"
+      }
+    },
+    {
       "id": "preserve-append-only-operation-attempt-trace",
       "priority": 162,
       "requires": [
