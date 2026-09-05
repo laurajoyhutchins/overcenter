@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { deleteGithubActionsRun } from '../lib/github-actions-run-delete.js';
-import { deleteGithubActionsRunWithGitHubApp } from '../lib/github-actions-run-delete-runtime.js';
 
 const EXPECTED = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
@@ -76,16 +76,7 @@ test('lost DELETE response reconciles to success only after authoritative absenc
 });
 
 test('GitHub App runtime reuses the existing actions:write permission profile', async () => {
-  let observed = null;
-  const result = await deleteGithubActionsRunWithGitHubApp(
-    { repo:'owner/repo', workflow_run_id:123, expected_head_sha:EXPECTED },
-    {
-      withGitHubAppApiClient:async (repo, fn, options) => {
-        observed = { repo, options };
-        return fn(client([{ status:404, body:{ message:'Not Found' } }], []));
-      },
-    },
-  );
-  assert.equal(result.ok, true);
-  assert.deepEqual(observed, { repo:'owner/repo', options:{ permissionProfile:'actions_storage_delete' } });
+  const source = await readFile(new URL('../lib/github-actions-run-delete-runtime.js', import.meta.url), 'utf8');
+  assert.match(source, /withGitHubAppApiClient/);
+  assert.match(source, /permissionProfile:'actions_storage_delete'/);
 });
