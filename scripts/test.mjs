@@ -22,6 +22,8 @@ async function javascriptFiles(directory) {
 }
 
 const maintainedTests = [
+  'codex-agent-execution-workflow.test.mjs',
+  'verify-github-workflow-dispatch.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
   'verify-transition-first-dashboard.test.mjs',
@@ -68,6 +70,9 @@ const maintainedTests = [
   'verify-public-release.test.mjs',
   'verify-public-github-metadata.test.mjs',
   'verify-repository-registration-policy.test.mjs',
+  'production-reconcile-operation.test.mjs',
+  'production-reconcile-host.test.mjs',
+  'production-runtime-observation-http.test.mjs',
   'verify-node-test-standardization.test.mjs',
 ];
 
