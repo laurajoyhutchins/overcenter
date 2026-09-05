@@ -81,6 +81,17 @@ test('every worker-exposed primary semantic command is admitted canonically', ()
   for (const command of primaryWorkerCommands) assert.ok(admitted.has(command), `${command} is worker-exposed primary intent but is not canonically admitted`);
 });
 
+test('production reconciliation exposes repo intent without mechanical coordinates', () => {
+  const descriptor = semanticCommandDescriptor('production.reconcile');
+  assert.equal(descriptor.surface, 'primary');
+  assert.deepEqual(descriptor.semantic_fields, ['repo']);
+  assert.deepEqual(descriptor.required_fields, ['repo']);
+  assert.deepEqual(descriptor.exposure, { worker:true, mcp:true });
+  for (const field of ['candidate_sha','verification_run_id','production_branch','runtime_ref','idempotency_key']) {
+    assert.equal(descriptor.semantic_fields.includes(field), false, `${field} leaked through production.reconcile intent`);
+  }
+});
+
 test('production promotion intent is exposed after its runtime host exists', () => {
   const descriptor = semanticCommandDescriptor('production.promote');
   assert.equal(descriptor.surface, 'primary');

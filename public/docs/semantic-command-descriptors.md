@@ -4,6 +4,15 @@
 
 ## Primary surface
 
+### production.reconcile
+
+Converge the repository's verified development revision into declared production state by repository identity only. Overcenter derives branch roles, exact revisions, verification, promotion, serialized runtime materialization, recovery, and final same-revision evidence.
+
+- MCP name: `production.reconcile`
+- Required fields: `repo`
+- Semantic fields: `repo`
+- Exposure: worker=yes, MCP=yes
+
 ### production.promote
 
 Promote the current verified development revision by repository identity only. The runtime host derives provider-specific branch heads, exact-revision evidence, retry identity, and production readback behind this primary semantic boundary.
