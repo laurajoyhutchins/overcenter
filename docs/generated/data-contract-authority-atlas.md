@@ -1473,6 +1473,28 @@ _None._
 - `mcp:mcp/production.promote.js#inputSchema` (`mcp`)
   - Source: `mcp/production.promote.js#inputSchema`
 
+## `production.reconcile.input`
+
+- Significance: `public`
+- Lifecycle: `unclassified`
+- SemVer: `semantic-command-contract`
+- Authority: `semantic-command:production.reconcile#input` (`semantic-command`)
+- Authority source: `src/semantic/semantic-command-descriptors.ts#production.reconcile`
+- Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `mcp:mcp/production.reconcile.js#inputSchema` (`mcp`)
+  - Source: `mcp/production.reconcile.js#inputSchema`
+
 ## `project.advance.input`
 
 - Significance: `public`

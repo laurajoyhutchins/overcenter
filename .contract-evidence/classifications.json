@@ -20,6 +20,10 @@
       "significance": "projection",
       "projection_of": "production.promote.input"
     },
+    "mcp:mcp/production.reconcile.js#inputSchema": {
+      "significance": "projection",
+      "projection_of": "production.reconcile.input"
+    },
     "mcp:mcp/project.advance.js#inputSchema": {
       "significance": "projection",
       "projection_of": "project.advance.input"
@@ -185,6 +189,11 @@
     },
     "semantic-command:production.promote#input": {
       "logical_contract": "production.promote.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    },
+    "semantic-command:production.reconcile#input": {
+      "logical_contract": "production.reconcile.input",
       "significance": "public",
       "semver_kind": "semantic-command-contract"
     },
