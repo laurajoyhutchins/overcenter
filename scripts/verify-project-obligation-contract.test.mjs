@@ -5,6 +5,8 @@ import {
   PROJECT_OBLIGATION_GRAPH_PROFILE,
   assertExactObligationAuthorityCoordinate,
   assertPredecessorClosedObligationSet,
+  projectObligationFingerprint,
+  projectObligationGraphFingerprint,
   projectObligationGraphSemanticInput,
   projectObligationSemanticInput,
 } from '../lib/project-obligation-contract.js';
@@ -108,4 +110,87 @@ test('historical obligation claims require exact authority provenance', () => {
     }),
     (error) => error?.code === 'PROJECT_OBLIGATION_AUTHORITY_INVALID',
   );
+});
+
+test('obligation fingerprint ignores logical key, priority, and mutable runtime representation', async () => {
+  const baseline = await projectObligationFingerprint(transition());
+  const representationallyDifferent = await projectObligationFingerprint(transition({
+    id:'renamed-logical-key',
+    priority:-999,
+    lifecycle:{ current_stage:'CONFIRM', condition:'NOMINAL' },
+    state:'DONE',
+    unmet_requirements:['runtime-noise'],
+    lease_ref:'lease-2',
+    run_id:'run-2',
+    evidence:[{ kind:'receipt', ref:'different' }],
+    observed_at:'2026-09-05T06:00:00Z',
+  }));
+  assert.equal(representationallyDifferent, baseline);
+});
+
+test('obligation fingerprint changes when execution or acceptance semantics change', async () => {
+  const baseline = await projectObligationFingerprint(transition());
+  assert.notEqual(await projectObligationFingerprint(transition({
+    executor:{ kind:'agent', role:'verification', skill:'test-driven-development' },
+  })), baseline);
+  assert.notEqual(await projectObligationFingerprint(transition({
+    version_impact:{ kind:'minor' },
+  })), baseline);
+  assert.notEqual(await projectObligationFingerprint(transition({
+    phase_bindings:{ CONFIRM:{ primitive:'verify.transition', evidence:['result', 'receipt'] } },
+  })), baseline);
+});
+
+test('dependency changes invalidate obligation and graph fingerprints', async () => {
+  const baselineObligation = await projectObligationFingerprint(transition({ requires:['A'] }));
+  const changedObligation = await projectObligationFingerprint(transition({ requires:['A', 'C'] }));
+  assert.notEqual(changedObligation, baselineObligation);
+
+  const baselineGraph = await projectObligationGraphFingerprint({
+    transitions:[
+      transition({ id:'A', requires:[] }),
+      transition({ id:'B', requires:['A'] }),
+      transition({ id:'C', requires:[] }),
+    ],
+  });
+  const changedGraph = await projectObligationGraphFingerprint({
+    transitions:[
+      transition({ id:'A', requires:[] }),
+      transition({ id:'B', requires:['A', 'C'] }),
+      transition({ id:'C', requires:[] }),
+    ],
+  });
+  assert.notEqual(changedGraph, baselineGraph);
+});
+
+test('graph fingerprint is stable across ordering, formatting noise, priority, and Git authority revision', async () => {
+  const left = await projectObligationGraphFingerprint({
+    project_ref:'github:owner/repo',
+    authority:{ kind:'github', repository:'owner/repo', revision:'a'.repeat(40), derivation:'overcenter-project-graph-v1' },
+    transitions:[
+      transition({ id:'C', priority:1, requires:['B', 'A'] }),
+      transition({ id:'A', priority:99, requires:[] }),
+      transition({ id:'B', priority:42, requires:['A'] }),
+    ],
+  });
+  const right = await projectObligationGraphFingerprint({
+    project_ref:'github:owner/repo',
+    authority:{ kind:'github', repository:'owner/repo', revision:'b'.repeat(40), derivation:'overcenter-project-graph-v1' },
+    transitions:[
+      transition({ id:'B', priority:-10, requires:['A'], state:'DONE' }),
+      transition({ id:'C', priority:500, requires:['A', 'B'], run_id:'different-run' }),
+      transition({ id:'A', priority:0, requires:[], evidence:[{ kind:'different' }] }),
+    ],
+  });
+  assert.equal(right, left);
+});
+
+test('graph fingerprint retains logical obligation keys even though individual fingerprints do not', async () => {
+  const left = await projectObligationGraphFingerprint({
+    transitions:[transition({ id:'A', requires:[] })],
+  });
+  const right = await projectObligationGraphFingerprint({
+    transitions:[transition({ id:'renamed', requires:[] })],
+  });
+  assert.notEqual(right, left);
 });
