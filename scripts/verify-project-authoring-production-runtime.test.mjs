@@ -72,6 +72,31 @@ function semanticConflictRuntime(initialDefinition, liveExecutionAuthorities) {
   return Object.freeze({ runtime, mutationCount:() => mutationCount });
 }
 
+test('project.amend confirms a semantic no-op without creating provider work-surface residue', async () => {
+  let mutations = 0;
+  let authorityReads = 0;
+  const runtime = createProjectAuthoringProductionRuntime({
+    resolveAuthority:async () => { authorityReads += 1; return authority(initialRevision); },
+    readDefinitionFacts:async ({ revision }) => facts(revision, baseDefinition),
+    readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
+    readSourceRevision:async () => initialRevision,
+    applyChangeset:async () => { mutations += 1; throw new Error('semantic no-op must not create a changeset'); },
+    deriveProjectGraph:async ({ authority:observed }) => ({ schema:'overcenter-project-graph-v1', revision:observed.revision }),
+  });
+
+  const result = await runtime.amend({
+    project_ref:projectRef,
+    expected_revision:initialRevision,
+    amendment:{ upsert_transitions:[baseDefinition.transitions[0]] },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.authority.revision, initialRevision);
+  assert.deepEqual(result.diff, { added:[], changed:[], removed:[] });
+  assert.equal(mutations, 0);
+  assert.equal(authorityReads, 1);
+});
+
 test('staged underivable candidate is rejected before GitHub integration', async () => {
   let authorityReads = 0;
   let integrations = 0;
