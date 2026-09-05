@@ -51,6 +51,16 @@
       }
     },
     {
+      "id": "add-production-reconcile-convergence-operator",
+      "priority": 172,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Implement the approved intent-first production.reconcile({ repo }) convergence operator using test-driven-development. Add the durable design spec and implementation plan under docs/superpowers. Compose the existing exact-SHA production promotion and deterministic production materialization safety contracts behind a pure coordinator and Overcenter host adapter; do not reimplement them more weakly. Public input must be repo-only: no caller-selected branch, SHA, verification run, Hatchable project/version, runtime ref, or idempotency key. The first regression must prove a disposable caller with only {repo} can take verified dev + stale production + stale runtime through promotion, authoritative production reread, exact same-SHA materialization, immutable runtime verification, and final convergence evidence, with materialization forbidden until post-promotion readback proves the selected SHA. Also cover already-converged no-op, production-current/runtime-stale, missing verification, production head drift, indeterminate promotion preventing materialization, immutable deployment mismatch, final readback drift, and schema rejection of mechanical coordinates. Preserve may_have_mutated semantics, never blind-retry indeterminate effects, and require fresh final evidence that Git production revision and verified immutable runtime revision are the same SHA. Document production.reconcile as the normal operator-facing path while retaining lower-level primitives. Do not claim to solve Hatchable #161. Run focused red-green tests plus the relevant canonical suite and settle only with exact commit/test evidence."
+      }
+    },
+    {
       "id": "add-release-publish-semantic-command",
       "priority": 94,
       "requires": [
