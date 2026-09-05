@@ -54,16 +54,22 @@ test('historical successful materialization cannot authorize current runtime con
   assert.ok(calls.some(request => request.path.endsWith('/actions/runs/99')), 'only the exact dispatched run may be polled for freshness');
 });
 
-test('fresh exact observation run can authorize final same-revision convergence', async () => {
+test('fresh exact observation run can authorize final same-revision convergence after GitHub returns 204 without a run id', async () => {
   const calls = [];
+  let materializationLists = 0;
   const db = { query:async () => ({ rows:[{ development_branch:'dev', production_branch:'main' }] }) };
   const withGitHubAppApiClient = async (_repo, callback) => callback({
     call:async (_provider, request) => {
       calls.push(request);
       if (request.path.includes('/git/ref/heads/')) return { body:{ object:{ sha:SHA } } };
       if (request.path.includes('/actions/workflows/exact-revision-v8.yml/runs')) return { body:{ workflow_runs:[{ id:1, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } };
-      if (request.path.includes('/actions/workflows/production-materialization.yml/runs')) return { body:{ workflow_runs:[{ id:2, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } };
-      if (request.path.includes('/actions/workflows/production-materialization.yml/dispatches')) return { body:{ workflow_run_id:101 } };
+      if (request.path.includes('/actions/workflows/production-materialization.yml/runs')) {
+        materializationLists += 1;
+        return materializationLists === 1
+          ? { status:200, body:{ workflow_runs:[{ id:2, head_sha:SHA, event:'push', status:'completed', conclusion:'success' }] } }
+          : { status:200, body:{ workflow_runs:[{ id:101, head_sha:SHA, head_branch:'main', event:'workflow_dispatch', status:'completed', conclusion:'success', created_at:new Date().toISOString() }] } };
+      }
+      if (request.path.includes('/actions/workflows/production-materialization.yml/dispatches')) return { status:204, body:null };
       if (request.path.endsWith('/actions/runs/101')) return { body:{ id:101, head_sha:SHA, event:'workflow_dispatch', status:'completed', conclusion:'success' } };
       throw new Error(`unexpected GitHub request ${request.path}`);
     },
@@ -73,5 +79,6 @@ test('fresh exact observation run can authorize final same-revision convergence'
   assert.equal(result.outcome, 'converged');
   assert.equal(result.runtime_revision, SHA);
   assert.equal(result.runtime_verification_ref, 'github-actions-run:101');
+  assert.ok(materializationLists >= 2, 'dispatch identity must be discovered by authoritative workflow-run readback');
   assert.ok(calls.some(request => request.path.endsWith('/actions/runs/101')));
 });
