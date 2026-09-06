@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { projectTransitionAuthoritativeEffectConfirmationFor } from '../lib/project-transition-authoritative-effect.js';
+import { deriveProjectTransitionGithubWorkspace } from '../lib/project-transition-github-workspace.js';
 
 const SHA = {
   authority:'1111111111111111111111111111111111111111',
