@@ -1,6 +1,7 @@
 import { db as hatchableDb } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { projectAdvanceFor } from 'lib/project-advance-overcenter-host.js';
+import { createPostgresProjectTransitionAuthoritativeEffectConfirmationService } from 'lib/project-transition-authoritative-effect.js';
 import { createPostgresSubjectAwareOrchestrationRunService } from 'lib/orchestration-finish-runtime.js';
 import {
   createPostgresOrchestrationAdvanceService,
@@ -21,10 +22,17 @@ export default {
     const runs = createPostgresTargetAwareOrchestrationRunService({ db });
     const advance = createPostgresOrchestrationAdvanceService({ db });
     const finish = createPostgresSubjectAwareOrchestrationRunService({ db });
+    const authoritativeEffect = createPostgresProjectTransitionAuthoritativeEffectConfirmationService({ db });
     const response = await executeCorrelatedCommand(
       'project.advance',
       args || {},
-      (input) => projectAdvanceFor({ db, runs, advance, finish }).advance(input),
+      (input) => projectAdvanceFor({
+        db,
+        runs,
+        advance,
+        finish,
+        confirmAuthoritativeEffect:(request) => authoritativeEffect.confirm(request),
+      }).advance(input),
       {
         statusForFailure:statusForOrchestrationAdvanceRuntimeError,
         defaultError:'PROJECT_ADVANCE_ERROR',
