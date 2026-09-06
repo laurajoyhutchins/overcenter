@@ -1,4 +1,4 @@
-import { db as hatchableDb } from 'hatchable';
+import { composeHatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { projectAdvanceFor } from 'lib/project-advance-overcenter-host.js';
 import { createPostgresProjectTransitionAuthoritativeEffectConfirmationService } from 'lib/project-transition-authoritative-effect-github-runtime.js';
@@ -18,7 +18,7 @@ export default {
   description:descriptor.description,
   inputSchema:descriptor.input_schema,
   async handler(args,ctx) {
-    const db = ctx?.db || hatchableDb;
+    const { db } = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
     const runs = createPostgresTargetAwareOrchestrationRunService({ db });
     const advance = createPostgresOrchestrationAdvanceService({ db });
     const finish = createPostgresSubjectAwareOrchestrationRunService({ db });

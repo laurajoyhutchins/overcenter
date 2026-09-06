@@ -1,4 +1,4 @@
-import { db as hatchableDb } from 'hatchable';
+import { composeHatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { productionReconciliationFor } from 'lib/production-reconcile-overcenter-host.js';
 import { semanticCommandDescriptor } from 'lib/semantic-command-descriptors.js';
@@ -11,7 +11,7 @@ export default {
   description:descriptor.description,
   inputSchema:descriptor.input_schema,
   async handler(args,ctx) {
-    const db = ctx?.db || hatchableDb;
+    const { db } = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
     const response = await executeCorrelatedCommand(
       'production.reconcile',
       args || {},

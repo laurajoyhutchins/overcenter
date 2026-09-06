@@ -1,4 +1,4 @@
-import { db as hatchableDb } from 'hatchable';
+import { composeHatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { createGitHubProjectGraphRuntime } from 'lib/project-graph-github-runtime.js';
 import { projectInspectForGitHub } from 'lib/project-inspect-github-runtime.js';
@@ -12,7 +12,7 @@ export default {
   description:descriptor.description,
   inputSchema:descriptor.input_schema,
   async handler(args,ctx) {
-    const db = ctx?.db || hatchableDb;
+    const { db } = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
     const response = await executeCorrelatedCommand(
       'project.inspect',
       args || {},
