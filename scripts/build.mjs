@@ -47,6 +47,11 @@ async function verifyRuntimeMirrors() {
   }
   if (mismatches.length) {
     console.error(`Generated semantic runtime drift: ${mismatches.join(', ')}`);
+    if (mismatches.includes('project-authoring-candidate-reconciliation.js')) {
+      console.error('--- generated project-authoring-candidate-reconciliation.js ---');
+      console.error(await readFile(new URL('dist/lib/project-authoring-candidate-reconciliation.js', root), 'utf8'));
+      console.error('--- end generated project-authoring-candidate-reconciliation.js ---');
+    }
     process.exit(1);
   }
 }
