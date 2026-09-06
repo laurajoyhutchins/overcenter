@@ -35,6 +35,7 @@ async function prepareSchema(client) {
   await client.query(await migration('053_execution_state.sql'));
   await client.query(await migration('054_operation_state.sql'));
   await client.query(await migration('057_operation_state_updated_at.sql'));
+  await client.query(await migration('059_operation_state_attempt_epoch.sql'));
 }
 
 test('portfolio reconcile idempotency survives with its bespoke receipt table physically absent', async () => {
