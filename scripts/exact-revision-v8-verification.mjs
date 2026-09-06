@@ -372,7 +372,7 @@ export async function verifyExactRevisionV8(input, adapters) {
         reject('VERIFICATION_RUNTIME_REACHABILITY_UNAVAILABLE', 'production reachability verifier is unavailable');
       }
       const productionReachability = await adapters.runtime.runProductionReachability({
-        project,
+        project:productionProject,
         repository,
         revision,
         deployment_version: deployment.version,
