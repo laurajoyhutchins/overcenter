@@ -1,0 +1,47 @@
+name: GCP hosted shadow deployment
+
+on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Fence this bootstrap deployment to the reviewed parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "d604b575de789dd9eb728854b638f78aa126b8db"
+          echo "Deploying exact source revision $(git rev-parse HEAD)"
+
+      - name: Authenticate to Google Cloud from an existing repository credential
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS || secrets.GOOGLE_CREDENTIALS || secrets.GCP_SA_KEY || secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+
+      - name: Prove deployment authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud auth list --filter=status:ACTIVE --format='value(account)' | grep -q .
+          gcloud config set project project-6b810532-a302-48dc-b56 >/dev/null
+          gcloud projects describe project-6b810532-a302-48dc-b56 --format='value(projectId)' | grep -Fx project-6b810532-a302-48dc-b56
+
+      - name: Deploy and verify private Cloud Run shadow runtime
+        shell: bash
+        run: ./scripts/gcp/deploy-shadow.sh
