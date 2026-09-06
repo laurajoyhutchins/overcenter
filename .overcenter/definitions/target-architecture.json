@@ -2077,9 +2077,7 @@
     {
       "id": "make-waiting-a-durable-suspension-primitive",
       "priority": 164,
-      "requires": [
-        "persist-operation-recovery-policy"
-      ],
+      "requires": [],
       "executor": {
         "kind": "agent",
         "role": "implementation",
