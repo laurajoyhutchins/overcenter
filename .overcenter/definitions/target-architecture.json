@@ -2393,6 +2393,34 @@
       }
     },
     {
+      "id": "repair-blocked-frontier-suspension-semantics",
+      "priority": 200,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Prevent resumable candidate, CI, verification, integration, or deployment waits from freezing the entire project frontier through blocked-settlement suspension. Preserve blocked as a durable suspension only for a real promotion condition that should make the same semantic transition ineligible. Add regression coverage for the observed dogfood case where every READY transition has a compatible blocked settlement for resumable work and generic project.advance returns WAITING despite useful repair/continuation work. Make the control plane represent resumable waits and continuation mechanically so workers can safely drain independent work without repeated duplicate reacquisition or global deadlock.",
+        "acceptance_evidence": [
+          {
+            "kind": "runtime",
+            "requirement": "After canonical integration and production materialization, a fresh generic project.advance no longer returns WAITING solely because resumable work was previously settled blocked; it either assigns a safe transition or returns a truthful wait with no executable continuation."
+          },
+          {
+            "kind": "tests",
+            "requirement": "A focused regression reproduces the all-frontier-suspended dogfood failure and passes with the repair, while true durable blocked promotion conditions remain suspended."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh exact-revision repository verification passes for the final repair revision."
+          }
+        ]
+      }
+    },
+    {
       "id": "repair-cross-epoch-authoritative-effect-confirmation",
       "priority": 300,
       "requires": [],
