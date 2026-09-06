@@ -2115,6 +2115,34 @@
       }
     },
     {
+      "id": "resolve-public-project-lease-ref-for-execution-authority",
+      "priority": 190,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Repair execution authority so the exact opaque public lease_ref returned by project.advance can authorize lease-scoped repository effects even when its plink identifier differs from the durable project-transition lease UUID. Resolve the public reference through Overcenter-owned authority rather than stripping the prefix and treating it as the lease UUID. Preserve exact project/transition/source/workspace fencing, idempotency, mutation certainty, and fail-closed behavior. Add a regression reproducing the live dogfood failure where github.apply_changeset receives project.advance's exact plink ref and currently returns EXECUTION_AUTHORITY_INVALID with may_have_mutated:false; after deployment, repeat that canonical scenario and prove the effect is authorized without exposing or requiring the private lease UUID.",
+        "acceptance_evidence": [
+          {
+            "kind": "runtime",
+            "requirement": "Fresh production dogfood proves github.apply_changeset accepts the exact opaque lease_ref returned by project.advance, while authoritative readback confirms the same durable transition lease supplied execution authority."
+          },
+          {
+            "kind": "tests",
+            "requirement": "A focused regression with distinct public plink identity and durable lease UUID fails before the repair and passes after it, while invalid, stale, wrong-repository, wrong-source, and wrong-workspace authority remain fail-closed."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Exact-revision repository and semantic-kernel verification pass for the final source revision, generated runtime artifacts are current, and production is materialized from that exact revision."
+          }
+        ]
+      }
+    },
+    {
       "id": "retire-stage-lane-semantics",
       "priority": 85,
       "requires": [
