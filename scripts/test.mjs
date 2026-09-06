@@ -34,6 +34,7 @@ const maintainedTests = [
   'verify-work-lease-config.test.mjs',
   'verify-project-horizon.test.mjs',
   'verify-project-obligation-contract.test.mjs',
+  'verify-project-transition-certificate-contract.test.mjs',
   'verify-project-advance-worker-binding.test.mjs',
   'verify-project-transition-authoritative-effect-settlement.test.mjs',
   'verify-project-transition-authoritative-effect-runtime.test.mjs',
