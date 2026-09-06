@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "b8c7e7deea4990d202411e2e4de11c0cbacdb21f"
+          test "$(git rev-parse HEAD^)" = "bd4f08285742373444cba8c814b3047cd6c793fe"
           echo "Deploying exact source revision $(git rev-parse HEAD)"
 
       - name: Authenticate to Google Cloud with GitHub OIDC
@@ -49,4 +49,4 @@ jobs:
         shell: bash
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-        run: ./scripts/gcp/deploy-shadow.sh
+        run: bash ./scripts/gcp/deploy-shadow.sh
