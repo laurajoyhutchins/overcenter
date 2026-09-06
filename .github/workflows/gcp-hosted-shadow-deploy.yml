@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "613ae009bf260807a62564396eebd7ba93974351"
+          test "$(git rev-parse HEAD^)" = "b8c7e7deea4990d202411e2e4de11c0cbacdb21f"
           echo "Deploying exact source revision $(git rev-parse HEAD)"
 
       - name: Authenticate to Google Cloud with GitHub OIDC
@@ -39,12 +39,11 @@ jobs:
       - name: Install Google Cloud CLI
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
 
-      - name: Prove deployment authority
+      - name: Prove deployment identity
         shell: bash
         run: |
           set -euo pipefail
-          gcloud auth list --filter=status:ACTIVE --format='value(account)' | grep -q .
-          gcloud projects describe "${{ vars.GCP_PROJECT_ID }}" --format='value(projectId)' | grep -Fx "${{ vars.GCP_PROJECT_ID }}"
+          gcloud auth list --filter=status:ACTIVE --format='value(account)' | grep -Fx "${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}"
 
       - name: Deploy and verify private Cloud Run shadow runtime
         shell: bash
