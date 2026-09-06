@@ -126,5 +126,6 @@ test('project.advance primary MCP transport composes execution completion runtim
   const source = await readFile(new URL('../mcp/project.advance.js', import.meta.url), 'utf8');
   assert.match(source, /createPostgresSubjectAwareOrchestrationRunService/);
   assert.match(source, /const finish = createPostgresSubjectAwareOrchestrationRunService\(\{ db \}\);/);
-  assert.match(source, /projectAdvanceFor\(\{ db, runs, advance, finish \}\)/);
+  assert.match(source, /createPostgresProjectTransitionAuthoritativeEffectConfirmationService/);
+  assert.match(source, /confirmAuthoritativeEffect:\(request\) => authoritativeEffect\.confirm\(request\)/);
 });
