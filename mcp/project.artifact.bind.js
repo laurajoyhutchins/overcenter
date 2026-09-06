@@ -1,4 +1,6 @@
 import { db as hatchableDb } from 'hatchable';
+import { semanticCommandDescriptor } from 'lib/semantic-command-descriptors.js';
 import { executeSemanticWorkerCommand } from 'lib/worker-transport.js';
 export const access='admin';
-export default {name:'project.artifact.bind',description:'Explicitly bind one exact GitHub issue or pull request to one exact project transition under exact project authority. The association is judgment, never inferred from provider prose.',inputSchema:{type:'object',required:['project_ref','transition_id','expected_revision','provider','relationship','satisfaction'],properties:{project_ref:{type:'string'},transition_id:{type:'string'},expected_revision:{type:'string'},provider:{type:'object'},relationship:{type:'string'},satisfaction:{type:'object'}},additionalProperties:false},async handler(args,ctx){const response=await executeSemanticWorkerCommand('project.artifact.bind',args||{},{db:ctx?.db||hatchableDb});return response.body;}};
+const descriptor=semanticCommandDescriptor('project.artifact.bind');
+export default {name:descriptor.mcp_name,description:descriptor.description,inputSchema:descriptor.input_schema,async handler(args,ctx){const response=await executeSemanticWorkerCommand('project.artifact.bind',args||{},{db:ctx?.db||hatchableDb});return response.body;}};

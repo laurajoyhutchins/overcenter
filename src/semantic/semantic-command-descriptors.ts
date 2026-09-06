@@ -267,6 +267,11 @@ const projectAmendSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const projectArtifactBindSchema=Object.freeze({
+  type:'object',required:['project_ref','transition_id','expected_revision','provider','relationship','satisfaction'],additionalProperties:false,
+  properties:{project_ref:{type:'string',pattern:'^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},transition_id:{type:'string',minLength:1,maxLength:256},expected_revision:{type:'string',pattern:'^[0-9a-fA-F]{40}$'},provider:{type:'object',required:['repository','kind','id'],additionalProperties:false,properties:{repository:{type:'string',pattern:'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},kind:{type:'string',enum:['issue','pull_request']},id:{type:'integer',minimum:1}}},relationship:{type:'string',const:'full-coverage-equivalence'},satisfaction:{type:'object',required:['kind','requires_exact_binding'],additionalProperties:false,properties:{kind:{type:'string',const:'provider-closed'},requires_exact_binding:{type:'boolean',const:true}}}},
+});
+
 function descriptor(
   command: string,
   mcpName: string,
@@ -347,6 +352,7 @@ const DESCRIPTORS = Object.freeze({
     'primary',
     WORKER_AND_MCP_EXPOSURE,
   ),
+  'project.artifact.bind':descriptor('project.artifact.bind','project.artifact.bind','Explicitly bind one exact GitHub issue or pull request to one exact project transition under exact project authority. Associations are explicit judgment and are never inferred from provider prose.',projectArtifactBindSchema,'advanced',WORKER_AND_MCP_EXPOSURE),
   'project.advance':descriptor(
     'project.advance',
     'project.advance',
