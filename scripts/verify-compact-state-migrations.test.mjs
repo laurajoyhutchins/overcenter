@@ -34,9 +34,9 @@ test('operation_state enforces canonical idempotency and mutation certainty', as
 });
 
 test('operation attempts have explicit monotonic epochs without changing idempotency identity', async () => {
-  const sql = await migration('059_operation_attempt_epoch.sql');
-  assert.match(sql, /add\s+column\s+if\s+not\s+exists\s+attempt_epoch\s+bigint\s+not\s+null\s+default\s+1/i);
-  assert.match(sql, /attempt_epoch\s*>=\s*1/i);
+  const sql = await migration('059_operation_state_attempt_epoch.sql');
+  assert.match(sql, /add\s+column\s+attempt_epoch\s+bigint\s+not\s+null\s+default\s+1/i);
+  assert.match(sql, /attempt_epoch\s*>\s*0/i);
   assert.doesNotMatch(sql, /unique[\s\S]*attempt_epoch/i);
 });
 
