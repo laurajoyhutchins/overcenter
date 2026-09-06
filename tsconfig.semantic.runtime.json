@@ -21,6 +21,7 @@
     "src/semantic/orchestration-drive.ts",
     "src/semantic/production-materialization-operation.ts",
     "src/semantic/project-authoring-command-contract.ts",
+    "src/semantic/project-authoring-candidate-reconciliation.ts",
     "src/semantic/project-authoring-github-runtime.ts",
     "src/semantic/project-authoring-runtime.ts",
     "src/semantic/project-authoring-work-branch.ts",
