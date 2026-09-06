@@ -18,6 +18,7 @@ const mirrorFiles = [
   'mutation-certainty.js',
   'orchestration-drive.js',
   'production-materialization-operation.js',
+  'project-artifact-binding.js',
   'project-authoring-command-contract.js',
   'project-authoring-github-runtime.js',
   'project-authoring-runtime.js',
