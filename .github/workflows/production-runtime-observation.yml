@@ -1,0 +1,58 @@
+name: Production runtime observation
+
+on:
+  workflow_dispatch:
+    inputs:
+      exact_revision:
+        description: Exact production revision to observe
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    env:
+      EXACT_REVISION: ${{ inputs.exact_revision }}
+      PRODUCTION_BRANCH: main
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
+      OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.exact_revision }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install canonical dependencies
+        run: npm ci
+      - name: Observe immutable production runtime
+        id: observe
+        shell: bash
+        run: |
+          set +e
+          node scripts/production-runtime-observation-http.mjs > "$RUNNER_TEMP/production-runtime-observation.json" 2> "$RUNNER_TEMP/production-runtime-observation.err"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            cat "$RUNNER_TEMP/production-runtime-observation.json"
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          elif grep -q '"error":"PRODUCTION_RUNTIME_OBSERVATION_MISMATCH"' "$RUNNER_TEMP/production-runtime-observation.err"; then
+            cat "$RUNNER_TEMP/production-runtime-observation.err"
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          else
+            cat "$RUNNER_TEMP/production-runtime-observation.err" >&2
+            exit "$status"
+          fi
+      - name: Confirm current runtime
+        if: ${{ steps.observe.outputs.current == 'true' }}
+        run: echo 'Immutable Hatchable runtime is current.'
+      - name: Confirm stale runtime
+        if: ${{ steps.observe.outputs.current == 'false' }}
+        run: echo 'Immutable Hatchable runtime is stale.'
