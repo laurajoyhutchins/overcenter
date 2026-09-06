@@ -67,6 +67,8 @@ Formatting and other mechanical cleanup must be batched. If an existing branch a
 
 This is intentionally narrow. A substantive follow-up such as `fix: repair operator behavior` remains allowed. The guard prevents file-by-file formatter/style commit streams without turning commit-message classification into a general workflow policy.
 
+The rejection is actionable: replay the same lease-scoped `github.apply_changeset` request with `coalesce_mechanical: true`. Overcenter then requires the exact current workspace head, verifies that head is the immediately preceding mechanical commit, builds the combined tree from that head, creates one replacement commit with the prior commit's parent, and force-updates only that exact managed workspace ref. Stale heads, non-mechanical heads, different lease authority, or ambiguous transport fail closed; successful replay remains idempotent.
+
 ## Atomicity boundary
 
 The command creates Git objects before it mutates the branch ref: one tree carrying complete text content for create/update entries, one commit, then one branch create/update. GitHub materializes the corresponding blobs as part of tree creation. GitHub may retain unreachable objects if the final ref operation fails. The branch itself never receives a partial subset of the changeset: it either remains unchanged or points to the single complete changeset commit.
