@@ -1,4 +1,4 @@
-import { db as hatchableDb } from 'hatchable';
+import { hatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 import { commandFailure } from 'lib/command-response.js';
 import { executeSemanticWorkerCommand } from 'lib/worker-transport.js';
 import { createWorkerCommandHandler } from 'lib/worker-command-handler.js';
@@ -8,7 +8,7 @@ export const access = 'admin';
 export const methods = ['POST'];
 
 export default createWorkerCommandHandler({
-  db:hatchableDb,
+  providers:hatchableRuntimeProviders,
   commandFailure,
   projectAuthoringFor,
   executeSemanticWorkerCommand,
