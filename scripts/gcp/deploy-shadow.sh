@@ -22,6 +22,11 @@ gcloud config set project "$PROJECT_ID" >/dev/null
 
 # Deployment IAM is provisioned once by bootstrap-github-oidc.sh. Ordinary
 # deployments deliberately cannot mutate project IAM.
+#
+# /health performs SELECT 1 against Postgres. Making it the startup probe means
+# Cloud Run only marks the revision ready after both the HTTP runtime and Cloud
+# SQL connection are proven healthy. This avoids granting CI token-minting power
+# solely for an out-of-band smoke request.
 gcloud run deploy "$SERVICE" \
   --source . \
   --project="$PROJECT_ID" \
@@ -30,6 +35,7 @@ gcloud run deploy "$SERVICE" \
   --add-cloudsql-instances="$CONNECTION_NAME" \
   --set-env-vars="PGHOST=/cloudsql/${CONNECTION_NAME},PGDATABASE=${DB_NAME},PGUSER=${DB_USER}" \
   --set-secrets="PGPASSWORD=${PASSWORD_SECRET}:latest" \
+  --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
   --no-allow-unauthenticated \
   --min-instances=0 \
   --max-instances=1 \
@@ -45,17 +51,28 @@ if [[ -z "$SERVICE_URL" ]]; then
   exit 1
 fi
 
-IDENTITY_TOKEN="$(gcloud auth print-identity-token)"
-HEALTH="$(curl --fail --silent --show-error \
-  -H "Authorization: Bearer ${IDENTITY_TOKEN}" \
-  "${SERVICE_URL}/health")"
+LATEST_READY_REVISION="$(gcloud run services describe "$SERVICE" \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --format='value(status.latestReadyRevisionName)')"
+LATEST_CREATED_REVISION="$(gcloud run services describe "$SERVICE" \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --format='value(status.latestCreatedRevisionName)')"
+
+if [[ -z "$LATEST_READY_REVISION" || "$LATEST_READY_REVISION" != "$LATEST_CREATED_REVISION" ]]; then
+  echo "Cloud Run latest revision is not ready" >&2
+  echo "latestCreated=${LATEST_CREATED_REVISION:-<none>} latestReady=${LATEST_READY_REVISION:-<none>}" >&2
+  exit 1
+fi
 
 printf '%s\n' \
   "Overcenter GCP shadow runtime ready" \
   "Project:          ${PROJECT_ID}" \
   "Region:           ${REGION}" \
   "Service:          ${SERVICE}" \
+  "Revision:         ${LATEST_READY_REVISION}" \
   "Runtime identity: ${RUNTIME_SA}" \
   "Cloud SQL:        ${CONNECTION_NAME}" \
   "URL:              ${SERVICE_URL}" \
-  "Health:           ${HEALTH}"
+  "Health:           Cloud Run /health startup probe passed (Postgres SELECT 1)"
