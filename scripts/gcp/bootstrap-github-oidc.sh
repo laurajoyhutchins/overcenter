@@ -37,12 +37,13 @@ fi
 DEPLOYER_SA="${DEPLOYER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 BUILD_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 
-# These APIs are the complete host-side dependency set for source deployment,
-# keyless GitHub authentication, Cloud SQL attachment, and secret injection.
+# Complete host-side dependency set for source deployment, keyless GitHub
+# authentication, Cloud SQL attachment, secret injection, and project metadata.
 gcloud services enable \
   run.googleapis.com \
   cloudbuild.googleapis.com \
   artifactregistry.googleapis.com \
+  cloudresourcemanager.googleapis.com \
   iamcredentials.googleapis.com \
   sts.googleapis.com \
   secretmanager.googleapis.com \
@@ -62,12 +63,18 @@ for role in roles/run.sourceDeveloper roles/serviceusage.serviceUsageConsumer ro
     --condition=None >/dev/null
 done
 
-# A source deployment builds with the project's Compute Engine default service
-# account. Grant its build role once here, never during ordinary deployments.
+# Source deployments build as the project's Compute Engine default service
+# account. The build identity owns build permissions; the deployer only gets
+# permission to select/impersonate it for this deployment boundary.
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${BUILD_SA}" \
   --role="roles/run.builder" \
   --condition=None >/dev/null
+
+gcloud iam service-accounts add-iam-policy-binding "$BUILD_SA" \
+  --project="$PROJECT_ID" \
+  --member="serviceAccount:${DEPLOYER_SA}" \
+  --role="roles/iam.serviceAccountUser" >/dev/null
 
 # The deployer may select the dedicated runtime identity, but does not inherit
 # that identity's database or secret permissions.
@@ -135,6 +142,7 @@ printf '%s\n' \
   "Google project:   ${PROJECT_ID}" \
   "Project number:   ${PROJECT_NUMBER}" \
   "Deploy identity:  ${DEPLOYER_SA}" \
+  "Build identity:   ${BUILD_SA}" \
   "Runtime identity: ${RUNTIME_SA}" \
   "WIF provider:     ${WIF_PROVIDER}" \
   "GitHub repo:      ${GITHUB_REPOSITORY}" \
