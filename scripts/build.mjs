@@ -19,6 +19,7 @@ const mirrorFiles = [
   'orchestration-drive.js',
   'production-materialization-operation.js',
   'project-authoring-command-contract.js',
+  'project-authoring-candidate-reconciliation.js',
   'project-authoring-github-runtime.js',
   'project-authoring-runtime.js',
   'project-authoring-work-branch.js',
