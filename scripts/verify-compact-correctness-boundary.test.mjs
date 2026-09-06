@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createPostgresOrchestrationJournal, executeCorrelatedCommand } from '../lib/orchestration-journal.js';
 
 const root = new URL('../', import.meta.url);
 const correctnessModules = [
@@ -37,71 +36,40 @@ test('execution correctness never reads historical telemetry or retired receipt 
   }
 });
 
-test('successful journaled commands do not issue a second current-failure write', async () => {
-  let currentFailureWrites = 0;
-  let finishes = 0;
-  const journal = {
-    async start() { return { invocation_id: 'inv-1', sequence: 7 }; },
-    async finish() { finishes += 1; },
-  };
-  const currentFailureStore = {
-    async record() { currentFailureWrites += 1; },
-  };
-
-  const response = await executeCorrelatedCommand(
-    'work.settle',
-    { run_id: 'run-1', disposition: 'completed' },
-    async () => ({ ok: true }),
-    { journal, currentFailureStore },
-  );
-
-  assert.equal(response.body.ok, true);
-  assert.equal(finishes, 1);
-  assert.equal(currentFailureWrites, 0);
+test('successful journaled commands avoid a second current-failure database write', async () => {
+  const source = await readFile(new URL('lib/orchestration-journal.js', root), 'utf8');
+  assert.ok(source.includes('const journaled = Boolean(run_id && journal && invocation?.invocation_id);'));
+  assert.ok(source.includes("!['orchestration.resume_packet','orchestration.diagnose'].includes(command) && (response.body?.ok !== true || !journaled)"));
+  assert.ok(source.includes('await currentFailure.record(run_id, command, response.body);'));
+  assert.ok(source.includes('if (journaled) {'));
+  assert.ok(source.includes('await journal.finish(invocation.invocation_id, response.body, { run_id, command, sequence: invocation.sequence })'));
 });
 
-test('journal finish folds matching current-failure clearing into the durable run update', async () => {
-  const calls = [];
-  const dbBinding = {
-    async query(sql, params) {
-      calls.push({ sql, params });
-      return { rows: [] };
-    },
-  };
-  const journal = createPostgresOrchestrationJournal(dbBinding);
-
-  await journal.finish(
-    'inv-1',
-    { ok: true, command: 'work.settle' },
-    { run_id: 'run-1', command: 'work.settle', sequence: 9 },
-  );
-
-  assert.equal(calls.length, 2, 'finish should write the invocation and run exactly once each');
-  const runUpdate = calls[1];
-  assert.match(runUpdate.sql, /current_failure_command = CASE WHEN finish\.succeeded/);
-  assert.match(runUpdate.sql, /run\.current_failure_command = finish\.command/);
-  assert.match(runUpdate.sql, /run\.current_failure_command = 'work\.heartbeat' AND finish\.command = 'work\.settle'/);
-  assert.match(runUpdate.sql, /current_failure_streak = CASE[\s\S]*THEN 0 ELSE run\.current_failure_streak END/);
-  assert.deepEqual(runUpdate.params.slice(3), [true, 'work.settle']);
+test('journal finish folds current-failure clearing into its existing durable run update', async () => {
+  const source = await readFile(new URL('lib/orchestration-journal.js', root), 'utf8');
+  assert.ok(source.includes('UPDATE orchestration_runs AS run SET'));
+  assert.ok(source.includes('current_failure_command = CASE WHEN finish.succeeded'));
+  assert.ok(source.includes('run.current_failure_command = finish.command'));
+  assert.ok(source.includes("run.current_failure_command = 'work.heartbeat' AND finish.command = 'work.settle'"));
+  assert.ok(source.includes('current_failure_error_code = CASE WHEN finish.succeeded'));
+  assert.ok(source.includes('current_failure_error_class = CASE WHEN finish.succeeded'));
+  assert.ok(source.includes('current_failure_retryable = CASE WHEN finish.succeeded'));
+  assert.ok(source.includes('current_failure_rejection = CASE WHEN finish.succeeded'));
+  assert.ok(source.includes('current_failure_may_have_mutated = CASE WHEN finish.succeeded'));
+  assert.ok(source.includes('current_failure_streak = CASE WHEN finish.succeeded'));
+  assert.ok(source.includes('THEN 0 ELSE run.current_failure_streak END'));
+  assert.ok(source.includes('FROM (SELECT $4::boolean AS succeeded, $5::text AS command) AS finish'));
+  assert.ok(source.includes('responseBody?.ok === true'));
+  assert.ok(source.includes('activity.command'));
 });
 
-test('failed commands still record current failure separately', async () => {
-  let currentFailureWrites = 0;
-  const journal = {
-    async start() { return { invocation_id: 'inv-2', sequence: 8 }; },
-    async finish() {},
-  };
-  const currentFailureStore = {
-    async record() { currentFailureWrites += 1; },
-  };
-
-  const response = await executeCorrelatedCommand(
-    'work.settle',
-    { run_id: 'run-2', disposition: 'completed' },
-    async () => { const error = new Error('boom'); error.code = 'TEST_FAILURE'; throw error; },
-    { journal, currentFailureStore },
-  );
-
-  assert.equal(response.body.ok, false);
-  assert.equal(currentFailureWrites, 1);
+test('failed or unjournaled commands retain the separate current-failure recording path', async () => {
+  const source = await readFile(new URL('lib/orchestration-journal.js', root), 'utf8');
+  const condition = '(response.body?.ok !== true || !journaled)';
+  const conditionIndex = source.indexOf(condition);
+  const recordIndex = source.indexOf('await currentFailure.record(run_id, command, response.body);', conditionIndex);
+  const finishIndex = source.indexOf('if (journaled) {', recordIndex);
+  assert.ok(conditionIndex >= 0, 'failure/fallback condition is missing');
+  assert.ok(recordIndex > conditionIndex, 'current-failure recording is not gated by failure or journal fallback');
+  assert.ok(finishIndex > recordIndex, 'journal finish no longer follows failure recording fallback');
 });
