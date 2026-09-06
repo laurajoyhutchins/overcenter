@@ -75,29 +75,31 @@ test('semantic execution cone imports provider SDKs only from explicit adapters'
 });
 
 test('semantic runtime composition requires explicit substitutable capabilities', async () => {
-  const { createSemanticRuntime } = await import(pathToFileURL(join(root, 'lib/semantic-runtime.js')));
+  const { createRuntimeProviders } = await import(pathToFileURL(join(root, 'lib/runtime-providers.js')));
   const providers = {
     db: { query: async () => ({ rows: [] }) },
     secrets: { get: async name => `secret:${name}` },
-    githubAuth: { withGitHubAppApiClient: async (_repo, callback) => callback({}) },
+    githubAppAuth: { withApiClient: async (_repo, callback) => callback({}) },
     storage: {
       put: async () => 'object://ref',
       get: async () => ({ buffer: new Uint8Array(), contentType: 'application/octet-stream' }),
       del: async () => {},
     },
+    api: { call: async () => ({}) },
   };
-  const runtime = createSemanticRuntime(providers);
+  const runtime = createRuntimeProviders(providers);
   assert.equal(runtime.db, providers.db);
   assert.equal(runtime.secrets, providers.secrets);
-  assert.equal(runtime.githubAuth, providers.githubAuth);
+  assert.equal(runtime.githubAppAuth, providers.githubAppAuth);
   assert.equal(runtime.storage, providers.storage);
+  assert.equal(runtime.api, providers.api);
 
-  for (const missing of ['db', 'secrets', 'githubAuth', 'storage']) {
+  for (const missing of ['db', 'secrets', 'githubAppAuth', 'storage', 'api']) {
     const incomplete = { ...providers };
     delete incomplete[missing];
     assert.throws(
-      () => createSemanticRuntime(incomplete),
-      error => error?.code === 'RUNTIME_PROVIDER_REQUIRED' && error?.details?.provider === missing,
+      () => createRuntimeProviders(incomplete),
+      error => error?.code === 'RUNTIME_PROVIDER_MISSING' && error?.details?.provider === missing,
       `missing ${missing} must fail closed`,
     );
   }
