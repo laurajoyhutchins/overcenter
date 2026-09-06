@@ -54,20 +54,13 @@ jobs:
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
       - name: Verify committed generated evidence
         run: |
-          if ! node scripts/contract-evidence/cli.mjs check \
+          node scripts/contract-evidence/cli.mjs check \
             --expected-catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --expected-docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --expected-atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md" \
             --catalog generated/contracts/catalog.json \
             --docs docs/generated/data-contracts.md \
-            --atlas docs/generated/data-contract-authority-atlas.md; then
-            diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
-            diff -u docs/generated/data-contracts.md "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" || true
-            diff -u docs/generated/data-contract-authority-atlas.md "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md" || true
-            node --input-type=module -e "import{readFile}from'node:fs/promises';const a=JSON.parse(await readFile('generated/contracts/catalog.json','utf8')),e=JSON.parse(await readFile(process.env.RUNNER_TEMP+'/contract-evidence/generated/contracts/catalog.json','utf8'));const m=(x,k)=>new Map((x||[]).map(v=>[v[k],v])),d=(x,y,k)=>{const A=m(x,k),B=m(y,k);return{added:[...B].filter(([i])=>!A.has(i)).map(([,v])=>v),removed:[...A].filter(([i])=>!B.has(i)).map(([,v])=>v),changed:[...B].filter(([i,v])=>A.has(i)&&JSON.stringify(A.get(i))!==JSON.stringify(v)).map(([,v])=>v)}},s=(x,y)=>({added:(y||[]).filter(v=>!(x||[]).includes(v)),removed:(x||[]).filter(v=>!(y||[]).includes(v))});console.log('CONTRACT_EVIDENCE_SEMANTIC_DELTA='+JSON.stringify({candidates:d(a.candidates,e.candidates,'source_identity'),logical_contracts:d(a.logical_contracts,e.logical_contracts,'id'),classified_source_identities:s(a.classified_source_identities,e.classified_source_identities),unclassified_source_identities:s(a.unclassified_source_identities,e.unclassified_source_identities),summary:e.summary}))"
-            exit 1
-          fi
-      # Generated evidence remains local to this read-only verification job.
+            --atlas docs/generated/data-contract-authority-atlas.md
       - name: Enforce historical unclassified ratchet
         run: |
           git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
