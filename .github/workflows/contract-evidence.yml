@@ -54,13 +54,18 @@ jobs:
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
       - name: Verify committed generated evidence
         run: |
-          node scripts/contract-evidence/cli.mjs check \
+          if ! node scripts/contract-evidence/cli.mjs check \
             --expected-catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --expected-docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --expected-atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md" \
             --catalog generated/contracts/catalog.json \
             --docs docs/generated/data-contracts.md \
-            --atlas docs/generated/data-contract-authority-atlas.md
+            --atlas docs/generated/data-contract-authority-atlas.md; then
+            diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
+            diff -u docs/generated/data-contracts.md "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" || true
+            diff -u docs/generated/data-contract-authority-atlas.md "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md" || true
+            exit 1
+          fi
       - name: Enforce historical unclassified ratchet
         run: |
           git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
