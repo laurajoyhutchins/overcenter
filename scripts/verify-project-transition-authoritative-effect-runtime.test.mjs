@@ -93,6 +93,48 @@ test('authoritative-effect confirmation remains unconfirmed while only the exact
   assert.deepEqual(result, { confirmed:false, reason:'authoritative_effect_not_observed' });
 });
 
+test('authoritative-effect confirmation deterministically integrates an exact open candidate before authoritative readback', async () => {
+  let reads = 0;
+  const integrations = [];
+  const { service } = fixture({
+    async readPullRequests() {
+      reads += 1;
+      if (reads === 1) return [{ number:599, state:'open', merged_at:null, merge_commit_sha:null, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
+      return [{ number:599, state:'closed', merged_at:'2026-09-06T00:49:52Z', merge_commit_sha:SHA.merge, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
+    },
+    async integrateCandidate(input) {
+      integrations.push(input);
+      return { ok:true, outcome:'merged', merge_commit_sha:SHA.merge };
+    },
+  });
+  const result = await service.confirm({
+    run_id:'run-1',
+    target:{ project_ref:'github:laurajoyhutchins/overcenter', horizon:{ kind:'transition', ref:'transition-1' } },
+    execution_result:executionResult,
+  });
+  assert.equal(integrations.length, 1);
+  assert.deepEqual(integrations[0], { repository:'laurajoyhutchins/overcenter', pull_request:599, expected_head:SHA.candidate });
+  assert.equal(result.confirmed, true);
+  assert.ok(result.evidence.some((entry) => entry.kind === 'authority_readback' && entry.ref.endsWith(`@${SHA.development}`)));
+});
+
+test('authoritative-effect confirmation refuses to claim completion while deterministic integration is pending', async () => {
+  const { service } = fixture({
+    async readPullRequests() {
+      return [{ number:599, state:'open', merged_at:null, merge_commit_sha:null, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
+    },
+    async integrateCandidate() {
+      return { ok:true, outcome:'merge_submitted', merge_request_uuid:'merge-1' };
+    },
+  });
+  const result = await service.confirm({
+    run_id:'run-1',
+    target:{ project_ref:'github:laurajoyhutchins/overcenter', horizon:{ kind:'transition', ref:'transition-1' } },
+    execution_result:executionResult,
+  });
+  assert.deepEqual(result, { confirmed:false, reason:'authoritative_effect_pending', recovery:{ mechanism:'github_integration_reconcile', merge_request_uuid:'merge-1' } });
+});
+
 test('authoritative-effect confirmation rejects a merged candidate that is not in current development authority', async () => {
   const { service } = fixture({
     async compareCommits() { return { status:'diverged', behind_by:1 }; },
