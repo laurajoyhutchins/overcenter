@@ -40,6 +40,15 @@ Amend canonical repository-owned project graph facts at an exact observed Git re
 - Semantic fields: `project_ref`, `expected_revision`, `amendment`
 - Exposure: worker=yes, MCP=yes
 
+### project.artifact.bind
+
+Explicitly bind one exact GitHub issue or pull request to one exact project obligation as a full-coverage equivalence judgment. Overcenter revalidates exact project authority, reads exact provider identity, and persists append-only binding evidence; titles, labels, and prose never create bindings.
+
+- MCP name: `project.artifact.bind`
+- Required fields: `project_ref`, `expected_revision`, `transition_id`, `provider`, `relationship`, `satisfaction_condition`
+- Semantic fields: `project_ref`, `expected_revision`, `transition_id`, `provider`, `relationship`, `satisfaction_condition`
+- Exposure: worker=yes, MCP=yes
+
 ### project.define
 
 Define canonical repository-owned project graph facts at an exact observed Git revision. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.
