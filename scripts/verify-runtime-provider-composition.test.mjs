@@ -44,7 +44,7 @@ async function semanticRoots() {
   const mcp = (await readdir(join(root, 'mcp')))
     .filter(name => name.endsWith('.js'))
     .map(name => `mcp/${name}`);
-  return ['api/worker-command.js', 'lib/worker-command-handler.js', 'lib/worker-transport.js', ...mcp];
+  return ['api/worker-command.js', 'api/scheduled-execution/bootstrap.js', 'api/scheduled-execution/command.js', 'lib/worker-command-handler.js', 'lib/worker-transport.js', ...mcp];
 }
 
 async function providerViolations() {
