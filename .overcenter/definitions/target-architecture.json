@@ -2421,6 +2421,36 @@
       }
     },
     {
+      "id": "repair-blocked-frontier-suspension-semantics-v2",
+      "priority": 200,
+      "requires": [
+        "repair-blocked-frontier-suspension-semantics"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Repair the still-reproducible production frontier deadlock after repair-blocked-frontier-suspension-semantics was confirmed DONE. At authority 262c81a52e16e7055675ed80ed8a02bf83019bd3, fresh generic project.advance still returns WAITING while project.inspect reports READY frontier transitions suspended with wait_reason blocked_settlement_promotion. Change canonical suspension and eligibility semantics so settlements representing resumable candidate, CI, verification, integration, deployment, or other mechanically continuable work cannot durably suppress a transition from generic project.advance selection. Preserve suspension only for a true durable promotion condition with no executable continuation.",
+        "acceptance_evidence": [
+          {
+            "kind": "runtime",
+            "requirement": "After canonical integration and production materialization, fresh project.inspect and generic project.advance against github:laurajoyhutchins/overcenter at the same current authority prove that resumable blocked-settlement history no longer freezes the frontier; project.advance assigns safe work or returns a truthful wait only when no executable continuation exists."
+          },
+          {
+            "kind": "tests",
+            "requirement": "A focused regression reproduces the exact post-repair dogfood state where otherwise READY frontier transitions have prior blocked settlements for resumable work and generic selection returns WAITING; after the fix generic selection exposes executable continuation, while a true durable blocked promotion case remains suspended."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh exact-revision repository verification passes for the final implementation revision."
+          }
+        ]
+      }
+    },
+    {
       "id": "repair-cross-epoch-authoritative-effect-confirmation",
       "priority": 300,
       "requires": [],
