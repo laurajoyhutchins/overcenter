@@ -10,6 +10,16 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+async function withPinnedClient(db, operation) {
+  if (typeof db.connect !== 'function') return operation(db);
+  const client = await db.connect();
+  try {
+    return await operation(client);
+  } finally {
+    client.release();
+  }
+}
+
 export async function discoverPostgresMigrations(migrationsDir) {
   const names = (await readdir(migrationsDir))
     .filter(name => /^\d+.*\.sql$/.test(name))
@@ -56,22 +66,24 @@ export async function applyPostgresMigrations({ db, migrationsDir }) {
       continue;
     }
 
-    await db.query('BEGIN');
-    try {
-      await db.query(migration.sql);
-      await db.query(
-        'INSERT INTO overcenter_schema_migrations(name, sha256) VALUES ($1, $2)',
-        [migration.name, migration.sha256],
-      );
-      await db.query('COMMIT');
-      applied.push(migration.name);
-    } catch (error) {
-      await db.query('ROLLBACK').catch(() => {});
-      throw Object.assign(error, {
-        migration: migration.name,
-        migration_sha256: migration.sha256,
-      });
-    }
+    await withPinnedClient(db, async client => {
+      await client.query('BEGIN');
+      try {
+        await client.query(migration.sql);
+        await client.query(
+          'INSERT INTO overcenter_schema_migrations(name, sha256) VALUES ($1, $2)',
+          [migration.name, migration.sha256],
+        );
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw Object.assign(error, {
+          migration: migration.name,
+          migration_sha256: migration.sha256,
+        });
+      }
+    });
+    applied.push(migration.name);
   }
 
   return Object.freeze({ applied: Object.freeze(applied), skipped: Object.freeze(skipped) });
