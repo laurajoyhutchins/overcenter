@@ -1,0 +1,68 @@
+name: Production runtime observation
+
+on:
+  workflow_dispatch:
+    inputs:
+      exact_revision:
+        description: Exact production revision to observe
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: overcenter-production-runtime-observation
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    env:
+      EXACT_REVISION: ${{ inputs.exact_revision }}
+      PRODUCTION_BRANCH: main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.exact_revision }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install canonical dependencies
+        run: npm ci
+      - name: Fence exact production head
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/production-materialization-head-fence.mjs
+      - name: Observe immutable production runtime
+        id: observe
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
+          OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
+        shell: bash
+        run: |
+          set +e
+          node scripts/production-runtime-observation-http.mjs > "$RUNNER_TEMP/runtime-observation.json" 2> "$RUNNER_TEMP/runtime-observation.err"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            cat "$RUNNER_TEMP/runtime-observation.json"
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          elif grep -q '"error":"PRODUCTION_RUNTIME_OBSERVATION_MISMATCH"' "$RUNNER_TEMP/runtime-observation.err"; then
+            cat "$RUNNER_TEMP/runtime-observation.err"
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          else
+            cat "$RUNNER_TEMP/runtime-observation.err" >&2
+            exit "$status"
+          fi
+      - name: Runtime current
+        if: ${{ steps.observe.outputs.current == 'true' }}
+        run: 'true'
+      - name: Runtime stale
+        if: ${{ steps.observe.outputs.current == 'false' }}
+        run: 'true'
