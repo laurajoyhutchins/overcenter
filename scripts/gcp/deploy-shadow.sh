@@ -66,6 +66,14 @@ if [[ -z "$LATEST_READY_REVISION" || "$LATEST_READY_REVISION" != "$LATEST_CREATE
   exit 1
 fi
 
+# Prove the shadow surface is still private from an external caller. Cloud Run
+# rejects an unauthenticated request before it reaches the application.
+UNAUTHENTICATED_STATUS="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${SERVICE_URL}/health")"
+if [[ "$UNAUTHENTICATED_STATUS" != "403" ]]; then
+  echo "Expected private Cloud Run service to reject unauthenticated /health with 403; got ${UNAUTHENTICATED_STATUS}" >&2
+  exit 1
+fi
+
 printf '%s\n' \
   "Overcenter GCP shadow runtime ready" \
   "Project:          ${PROJECT_ID}" \
@@ -75,4 +83,5 @@ printf '%s\n' \
   "Runtime identity: ${RUNTIME_SA}" \
   "Cloud SQL:        ${CONNECTION_NAME}" \
   "URL:              ${SERVICE_URL}" \
-  "Health:           Cloud Run /health startup probe passed (Postgres SELECT 1)"
+  "Health:           Cloud Run /health startup probe passed (Postgres SELECT 1)" \
+  "Exposure:         private (unauthenticated /health returned 403)"
