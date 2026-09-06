@@ -15,7 +15,7 @@ function fixture(overrides = {}) {
     verifyDevelopmentRevision: async (_repo, revision) => { state.calls.push(['verify', revision]); return { revision, verified:true, verification_ref:'github-actions-run:42' }; },
     observeRuntime: async (_repo, revision) => { state.calls.push(['runtime', revision, state.runtime.revision]); return state.runtime; },
     promote: async (intent) => { state.calls.push(['promote', Object.keys(intent).sort()]); state.production = DEV; return { ok:true, source_revision:DEV, production_revision:DEV, verification_ref:'github-actions-run:42' }; },
-    reconcileRuntime: async (_repo, revision) => { state.calls.push(['reconcile-runtime', revision]); state.runtime = runtime(DEV, 507); return { state:'succeeded', revision:DEV, verification_ref:state.runtime.verification_ref, deployment_version:507 }; },
+    reconcileRuntime: async (_repo, revision) => { state.calls.push(['reconcile-runtime', revision]); state.runtime = runtime(DEV, 507); return { state:'succeeded', revision:DEV, verification_ref:state.runtime.verification_ref, deployment_version:507, mutation_attempted:true }; },
     verifyFinalState: async (_repo, revision) => { state.calls.push(['final', revision]); return { development_revision:state.development, production_revision:state.production, runtime:state.runtime }; },
   };
   Object.assign(ports, typeof overrides === 'function' ? overrides(state) : overrides);
