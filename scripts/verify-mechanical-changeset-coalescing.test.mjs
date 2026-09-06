@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyGithubChangeset } from '../lib/github-apply-changeset.js';
+import { register } from 'node:module';
+
+register('./node-lib-alias-loader.mjs', import.meta.url);
+const { applyGithubChangeset } = await import('../lib/github-apply-changeset.js');
 
 const sha = (n) => Number(n).toString(16).padStart(40, '0');
 
