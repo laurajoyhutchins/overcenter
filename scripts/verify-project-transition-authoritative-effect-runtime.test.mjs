@@ -113,9 +113,64 @@ test('authoritative-effect confirmation deterministically integrates an exact op
     execution_result:executionResult,
   });
   assert.equal(integrations.length, 1);
-  assert.deepEqual(integrations[0], { repository:'laurajoyhutchins/overcenter', pull_request:599, expected_head:SHA.candidate });
+  assert.deepEqual(integrations[0], {
+    repository:'laurajoyhutchins/overcenter',
+    pull_request:599,
+    workspace_branch:'work/transition-1-abc',
+    development_branch:'dev',
+    expected_base:SHA.authority,
+    expected_head:SHA.candidate,
+  });
   assert.equal(result.confirmed, true);
   assert.ok(result.evidence.some((entry) => entry.kind === 'authority_readback' && entry.ref.endsWith(`@${SHA.development}`)));
+});
+
+test('authoritative-effect confirmation creates and integrates a missing exact candidate PR without a reasoning boundary', async () => {
+  let reads = 0;
+  const integrations = [];
+  const { service } = fixture({
+    async readPullRequests() {
+      reads += 1;
+      if (reads === 1) return [];
+      return [{ number:600, state:'closed', merged_at:'2026-09-06T00:49:52Z', merge_commit_sha:SHA.merge, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
+    },
+    async integrateCandidate(input) {
+      integrations.push(input);
+      return { ok:true, outcome:'merged', pull_request:600, merge_commit_sha:SHA.merge };
+    },
+  });
+  const result = await service.confirm({
+    run_id:'run-1',
+    target:{ project_ref:'github:laurajoyhutchins/overcenter', horizon:{ kind:'transition', ref:'transition-1' } },
+    execution_result:executionResult,
+  });
+  assert.equal(integrations.length, 1);
+  assert.deepEqual(integrations[0], {
+    repository:'laurajoyhutchins/overcenter',
+    pull_request:null,
+    workspace_branch:'work/transition-1-abc',
+    development_branch:'dev',
+    expected_base:SHA.authority,
+    expected_head:SHA.candidate,
+  });
+  assert.equal(result.confirmed, true);
+});
+
+test('authoritative-effect confirmation fails closed before integration when the development base moved after candidate verification', async () => {
+  let integrations = 0;
+  const moved = '5555555555555555555555555555555555555555';
+  const { service } = fixture({
+    async readPullRequests() { return []; },
+    async readBranchHead() { return moved; },
+    async integrateCandidate() { integrations += 1; return { ok:true, outcome:'merged' }; },
+  });
+  const result = await service.confirm({
+    run_id:'run-1',
+    target:{ project_ref:'github:laurajoyhutchins/overcenter', horizon:{ kind:'transition', ref:'transition-1' } },
+    execution_result:executionResult,
+  });
+  assert.equal(integrations, 0);
+  assert.deepEqual(result, { confirmed:false, reason:'authoritative_base_moved', observed_development_head:moved, verified_base:SHA.authority });
 });
 
 test('authoritative-effect confirmation refuses to claim completion while deterministic integration is pending', async () => {
