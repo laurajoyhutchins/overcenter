@@ -67,6 +67,8 @@ Formatting and other mechanical cleanup must be batched. If an existing branch a
 
 This is intentionally narrow. A substantive follow-up such as `fix: repair operator behavior` remains allowed. The guard prevents file-by-file formatter/style commit streams without turning commit-message classification into a general workflow policy.
 
+Lease-scoped workers recover from that rejection through canonical `github.coalesce_mechanical_changeset`, passing only the original `lease_ref`, pending `changes`, and mechanical `commit_message`. Overcenter derives the managed workspace, proves its current head was produced by the same lease, preserves that head's single parent, builds the combined tree, exact-head fences the replacement, and authoritatively rereads the branch. A stale head, an unrelated lease, a non-mechanical head, or caller-selected Git coordinates fail closed. The recovery replaces only the lease-managed workspace head; it does not weaken the guard or require cleanup to masquerade as substantive work.
+
 ## Atomicity boundary
 
 The command creates Git objects before it mutates the branch ref: one tree carrying complete text content for create/update entries, one commit, then one branch create/update. GitHub materializes the corresponding blobs as part of tree creation. GitHub may retain unreachable objects if the final ref operation fails. The branch itself never receives a partial subset of the changeset: it either remains unchanged or points to the single complete changeset commit.
