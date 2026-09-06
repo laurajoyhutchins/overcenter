@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { observeProductionRuntimeViaWorkflow } from './production-reconcile-overcenter-host.js';
-import { dispatchGitHubWorkflowWithGitHubApp } from './github-workflow-dispatch.js';
+import { observeProductionRuntimeViaWorkflow } from '../lib/production-reconcile-overcenter-host.js';
+import { dispatchGitHubWorkflowWithGitHubApp } from '../lib/github-workflow-dispatch.js';
 
 const SHA = '0123456789abcdef0123456789abcdef01234567';
 const RUN_ID = 4242;
