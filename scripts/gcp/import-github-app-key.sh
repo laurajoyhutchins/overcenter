@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_ID="${GCP_PROJECT_ID:-project-6b810532-a302-48dc-b56}"
 RUNTIME_SA="${OVERCENTER_RUNTIME_SERVICE_ACCOUNT:-overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com}"
 SECRET="${OVERCENTER_GITHUB_APP_PRIVATE_KEY_SECRET:-overcenter-github-app-private-key}"
-APP_ID="${GITHUB_APP_ID:-4616688}"
+APP_ID="${OVERCENTER_GITHUB_APP_ID:-4616688}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-laurajoyhutchins/overcenter}"
 
 for command in gcloud gh openssl; do
@@ -64,9 +64,9 @@ gcloud secrets add-iam-policy-binding "$SECRET" \
   --member="serviceAccount:${RUNTIME_SA}" \
   --role="roles/secretmanager.secretAccessor" >/dev/null
 
-# App ID is configuration, not a secret. Persist it as a GitHub Actions variable
-# so deployment configuration does not need to hard-code it.
-gh variable set GITHUB_APP_ID --repo "$GITHUB_REPOSITORY" --body "$APP_ID"
+# App ID is configuration, not a secret. GitHub reserves variable names that
+# begin with GITHUB_, so persist it under an Overcenter-owned name.
+gh variable set OVERCENTER_GITHUB_APP_ID --repo "$GITHUB_REPOSITORY" --body "$APP_ID"
 
 printf '%s\n' \
   "Overcenter GitHub App credential ready" \
