@@ -36,6 +36,8 @@ jobs:
           cache: npm
       - name: Install canonical dependencies
         run: npm ci
+      - name: Verify invocation attach and peek semantics
+        run: node --test scripts/verify-invocation-attach-peek.test.mjs
       - name: Build runtime artifact
         run: npm run build:runtime
       - name: Verify project authoring authority contracts
