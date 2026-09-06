@@ -127,6 +127,7 @@ const githubApplyChangesetSchema = Object.freeze({
     lease_ref:{type:'string',minLength:1,maxLength:128,description:'Project-transition lease reference from AGENT_EXECUTION_REQUIRED.'},
     changes:{type:'array',minItems:1,items:githubChangesetChangeSchema,description:'Complete repository changes. Repository, branch, base, expected head, retry identity, and credential authority are derived from the lease.'},
     commit_message:{type:'string',minLength:1,maxLength:10000},
+    coalesce_mechanical_head:{type:'boolean',description:'Canonical recovery for MECHANICAL_CHANGESET_MUST_COALESCE. When true, replace the immediately preceding same-lease mechanical workspace head with one combined mechanical commit under exact-head fencing.'},
   },
   additionalProperties:false,
 });
@@ -294,7 +295,7 @@ const DESCRIPTORS = Object.freeze({
   'github.apply_changeset':descriptor(
     'github.apply_changeset',
     'github_apply_changeset',
-    'Apply an exact repository changeset using only a valid project-transition lease as execution authority. Overcenter derives repository, managed workspace branch, immutable generation base, exact workspace-head fence, retry identity, and GitHub App credentials. Caller-selected Git coordinates are not accepted.',
+    'Apply an exact repository changeset using only a valid project-transition lease as execution authority. Overcenter derives repository, managed workspace branch, immutable generation base, exact workspace-head fence, retry identity, and GitHub App credentials. Caller-selected Git coordinates are not accepted. If a mechanical follow-up is rejected with MECHANICAL_CHANGESET_MUST_COALESCE, replay the intended cleanup with coalesce_mechanical_head=true; Overcenter will only rewrite the immediately preceding same-lease mechanical head.',
     githubApplyChangesetSchema,
     'advanced',
     INTERNAL_EXPOSURE,
