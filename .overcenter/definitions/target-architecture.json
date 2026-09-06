@@ -2458,7 +2458,9 @@
     {
       "id": "retire-legacy-scheduled-cycle-crons",
       "priority": 250,
-      "requires": [],
+      "requires": [
+        "fix-production-reconcile-authoritative-runtime-observation"
+      ],
       "executor": {
         "kind": "agent",
         "role": "implementation",
