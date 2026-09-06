@@ -279,6 +279,45 @@
       }
     },
     {
+      "id": "add-project-graph-overview-and-conversation-ux",
+      "priority": 176,
+      "requires": [
+        "add-conversation-to-graph-semantic-command",
+        "derive-project-explanation-model"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add a primary human-facing Overcenter project experience that makes the authoritative graph legible without requiring users to operate the raw DAG: show the project goal and current state, ready/working/waiting/blocked/done work, main blockers and downstream impact, recent meaningful changes, high-value next actions, and a conversational read/query entrypoint grounded in the deterministic explanation model.",
+        "acceptance_evidence": [
+          {
+            "kind": "conversation",
+            "requirement": "A user can ask ordinary questions including what is stuck, why, what changed, what finishing a transition unlocks, whether work is still necessary, what is repeatedly failing, and what should happen next; read answers are grounded, and any requested graph mutation is previewed and executed only through canonical semantic authoring commands."
+          },
+          {
+            "kind": "grounding",
+            "requirement": "Every displayed status, explanation, recommendation, and conversational answer comes from canonical graph/explanation/metrics semantic surfaces with exact authority and evidence drill-down; the UI must not create a parallel project-state model or infer truth from GitHub issue prose, Linear projection, or chat history."
+          },
+          {
+            "kind": "observability",
+            "requirement": "Reuse the existing Overcenter metrics and failure-drilldown work for execution-health signals instead of introducing duplicate telemetry. Surface recurring failures, deterministic-recovery opportunities, and agent-paperwork hotspots when canonical metrics make them available."
+          },
+          {
+            "kind": "surface",
+            "requirement": "The opening project view presents a compact actionable status summary before graph internals: current goal/state, ready work, active work, blocked work, judgment-required work where applicable, main blockers, and high-impact next actions. The raw DAG remains available as diagnostic drill-down rather than the conceptual entry fee."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh end-to-end scenarios at the exact final revision demonstrate the overview and conversational query path against real authoritative project state, including a blocked transition, an occupied transition, a recent semantic change, an unknown fact, and a mutation request that preserves Overcenter authority and fail-closed behavior."
+          }
+        ]
+      }
+    },
+    {
       "id": "add-project-transition-convergence-driver",
       "priority": 181,
       "requires": [
@@ -988,6 +1027,45 @@
           {
             "kind": "verification",
             "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
+      }
+    },
+    {
+      "id": "derive-project-explanation-model",
+      "priority": 177,
+      "requires": [
+        "make-agent-execution-packets-self-contained",
+        "make-project-inspect-snapshot-correct"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Add a deterministic project explanation model over authoritative graph and runtime facts so callers can obtain grounded answers to ordinary project questions such as what is blocked, why it is blocked, what a transition unlocks, what changed, what became stale, what is safe to do next, and which blockers have the greatest downstream impact without reconstructing those answers in an agent prompt.",
+        "acceptance_evidence": [
+          {
+            "kind": "contract",
+            "requirement": "Expose a bounded typed explanation/query contract whose outputs are mechanically bound to the exact project authority revision and exact transition or project subjects they describe; natural-language phrasing remains a projection layer rather than execution authority."
+          },
+          {
+            "kind": "derivation",
+            "requirement": "Blocker chains, prerequisite reasons, downstream unlock impact, readiness, staleness, and change explanations are derived deterministically from authoritative project graph facts plus typed runtime overlays such as occupancy, confirmation, execution, recovery, and evidence state; no title or prose heuristics may establish project truth."
+          },
+          {
+            "kind": "product-language",
+            "requirement": "The primary returned concepts use ordinary project language such as ready, working, waiting, blocked, done, changed, stale, reason, impact, and evidence. Internal proof-system terminology must not be required for normal operation."
+          },
+          {
+            "kind": "provenance",
+            "requirement": "Every explanation can drill down to the exact graph facts, runtime identities, authority revision, and evidence supporting the claim, and distinguishes unavailable or unknown facts from false facts."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Focused regressions and exact-revision verification cover multi-hop blockers, shared prerequisites, occupied frontier work, stale evidence after semantic change, high-fan-out impact ranking, unknown runtime state, and deterministic replay of the same explanation at the same authority revision."
           }
         ]
       }
