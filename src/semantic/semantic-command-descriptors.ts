@@ -184,6 +184,15 @@ const githubReleaseSchema = Object.freeze({
   },
 });
 
+const invocationObservationSchema = Object.freeze({
+  type:'object',
+  required:['invocation_ref'],
+  properties:{
+    invocation_ref:{type:'string',minLength:1,maxLength:128,pattern:'^\\S+$',description:'Opaque durable invocation reference returned by Overcenter command execution.'},
+  },
+  additionalProperties:false,
+});
+
 const orchestrationDiagnoseSchema = Object.freeze({
   type:'object',
   required:['run_id'],
@@ -322,6 +331,22 @@ const DESCRIPTORS = Object.freeze({
     githubReleaseSchema,
     'advanced',
     INTERNAL_EXPOSURE,
+  ),
+  'invocation.peek':descriptor(
+    'invocation.peek',
+    'invocation.peek',
+    'Read one exact durable command invocation as a bounded authoritative snapshot. No work is selected and no execution state is mutated.',
+    invocationObservationSchema,
+    'primary',
+    WORKER_AND_MCP_EXPOSURE,
+  ),
+  'invocation.attach':descriptor(
+    'invocation.attach',
+    'invocation.attach',
+    'Reconnect to one exact durable command invocation and its owning run state by opaque invocation reference. Returns a resume reference only while that run remains active; no prior session context is required.',
+    invocationObservationSchema,
+    'primary',
+    WORKER_AND_MCP_EXPOSURE,
   ),
   'orchestration.diagnose':descriptor(
     'orchestration.diagnose',
