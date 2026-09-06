@@ -1,7 +1,7 @@
 import { db as hatchableDb } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { projectAdvanceFor } from 'lib/project-advance-overcenter-host.js';
-import { createPostgresProjectTransitionAuthoritativeEffectConfirmationService } from 'lib/project-transition-authoritative-effect.js';
+import { createPostgresProjectTransitionAuthoritativeEffectConfirmationService } from 'lib/project-transition-authoritative-effect-github-runtime.js';
 import { createPostgresSubjectAwareOrchestrationRunService } from 'lib/orchestration-finish-runtime.js';
 import {
   createPostgresOrchestrationAdvanceService,
