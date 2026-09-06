@@ -1,6 +1,6 @@
 import { db as hatchableDb } from 'hatchable';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { projectArtifactBindingFor } from 'lib/project-artifact-binding.js';
+import { projectArtifactBindingFor } from 'lib/project-artifact-binding-github-runtime.js';
 import { semanticCommandDescriptor } from 'lib/semantic-command-descriptors.js';
 
 const descriptor = semanticCommandDescriptor('project.artifact.bind');

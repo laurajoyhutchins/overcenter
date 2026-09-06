@@ -14,6 +14,7 @@ test('explicit issue binding is exact, durable, and mechanically satisfiable', a
   const service = createProjectArtifactBindingService({
     readProjectGraph:async () => graph(),
     readProviderArtifact:async () => ({ repository:'laurajoyhutchins/overcenter', kind:'issue', number:42, state:'closed', merged:false }),
+    bindingRefFor:async () => 'sha256:test-binding',
     appendBindingObservation:async (binding) => { writes.push(binding); return { observation_ref:'binding:1' }; },
   });
   const result = await service.bind({ project_ref:PROJECT, expected_revision:REV, transition_id:'target-obligation', provider:{ kind:'issue', number:42 }, relationship:'full_coverage_equivalence', satisfaction_condition:'closed' });
@@ -33,6 +34,7 @@ test('binding fails closed on authority drift before durable mutation', async ()
   const service = createProjectArtifactBindingService({
     readProjectGraph:async () => ({ ...graph(), authority:{ definition:{ ...graph().authority.definition, revision:'1111111111111111111111111111111111111111' } } }),
     readProviderArtifact:async () => { throw new Error('must not read provider after drift'); },
+    bindingRefFor:async () => 'sha256:test-binding',
     appendBindingObservation:async () => { writes += 1; },
   });
   await assert.rejects(() => service.bind({ project_ref:PROJECT, expected_revision:REV, transition_id:'target-obligation', provider:{ kind:'issue', number:42 }, relationship:'full_coverage_equivalence', satisfaction_condition:'closed' }), (error) => error.code === 'PROJECT_ARTIFACT_BINDING_AUTHORITY_STALE');
