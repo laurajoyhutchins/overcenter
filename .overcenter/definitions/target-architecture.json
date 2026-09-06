@@ -956,6 +956,7 @@
       "id": "delete-proven-dead-legacy-lane-scaffolding",
       "priority": 99,
       "requires": [
+        "delete-compatibility-command-exposure",
         "verify-target-architecture-completion"
       ],
       "executor": {
