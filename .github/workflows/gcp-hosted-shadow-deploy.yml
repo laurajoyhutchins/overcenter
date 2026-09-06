@@ -1,0 +1,57 @@
+name: GCP hosted shadow deployment
+
+on:
+  push:
+    branches:
+      - dev
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Prove exact checked-out revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          case "$GITHUB_REF_NAME" in
+            dev|work/gcp-cloud-run-cloud-sql-bootstrap) ;;
+            *) echo "Unexpected deployment ref: $GITHUB_REF_NAME" >&2; exit 1 ;;
+          esac
+          echo "Deploying exact source revision $GITHUB_SHA from $GITHUB_REF_NAME"
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          request_reason: Overcenter shadow deployment ${{ github.sha }}
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+
+      - name: Prove deployment identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud auth list --filter=status:ACTIVE --format='value(account)' | grep -Fx "${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}"
+
+      - name: Deploy and verify private Cloud Run shadow runtime
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: bash ./scripts/gcp/deploy-shadow.sh

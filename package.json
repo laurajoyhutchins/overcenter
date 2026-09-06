@@ -13,6 +13,8 @@
     "build": "node scripts/build.mjs",
     "build:runtime": "node scripts/build.mjs runtime",
     "build:portable": "node scripts/build.mjs portable",
+    "gcp-build": "npm run build:portable",
+    "start": "node scripts/cloud-run.mjs",
     "dev": "node scripts/dev.mjs",
     "verify": "node scripts/verify.mjs",
     "typecheck": "node scripts/build.mjs typecheck",
