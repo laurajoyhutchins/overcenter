@@ -1,4 +1,4 @@
-export type ProjectAuthoringCandidateReconciliationInput = Readonly<{
+type ProjectAuthoringCandidateReconciliationInput = Readonly<{
   staged_revision: string;
   current_revision: string;
   verified_revision: string;
@@ -9,7 +9,7 @@ export type ProjectAuthoringCandidateReconciliationInput = Readonly<{
   descendant_of_staged: boolean;
 }>;
 
-export type ProjectAuthoringCandidateReconciliation = Readonly<{
+type ProjectAuthoringCandidateReconciliation = Readonly<{
   candidate_revision: string;
   staged_revision: string;
   advanced: boolean;
