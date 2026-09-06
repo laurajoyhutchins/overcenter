@@ -212,3 +212,55 @@ test('authoritative-effect confirmation rejects a merged candidate that is not i
   });
   assert.deepEqual(result, { confirmed:false, reason:'authoritative_effect_not_in_development' });
 });
+
+test('authoritative-effect confirmation accepts the exact merged candidate from a prior lease epoch for the unchanged transition definition', async () => {
+  const currentAuthority = {
+    subject:'project_transition',
+    lease_ref:'lease-2',
+    run_id:'run-1',
+    repository:'laurajoyhutchins/overcenter',
+    project_ref:'github:laurajoyhutchins/overcenter',
+    transition_id:'transition-1',
+    transition_definition_fingerprint:'f'.repeat(64),
+    authority:{ kind:'github', repository:'laurajoyhutchins/overcenter', revision:'5555555555555555555555555555555555555555' },
+  };
+  const historicalAuthority = {
+    ...currentAuthority,
+    lease_ref:'lease-1',
+    run_id:'run-prior',
+    authority:{ kind:'github', repository:'laurajoyhutchins/overcenter', revision:SHA.authority },
+  };
+  const service = projectTransitionAuthoritativeEffectConfirmationFor({
+    async readLeaseRef() { return 'lease-2'; },
+    executionAuthority:{ async require() { return currentAuthority; } },
+    async readHistoricalAuthorities(input) {
+      assert.deepEqual(input, {
+        project_ref:'github:laurajoyhutchins/overcenter',
+        transition_id:'transition-1',
+        transition_definition_fingerprint:'f'.repeat(64),
+      });
+      return [historicalAuthority];
+    },
+    async deriveWorkspace(authority) {
+      return authority.lease_ref === 'lease-1'
+        ? { repository:'laurajoyhutchins/overcenter', branch:'work/transition-1-prior', authority_revision:SHA.authority }
+        : { repository:'laurajoyhutchins/overcenter', branch:'work/transition-1-current', authority_revision:currentAuthority.authority.revision };
+    },
+    async resolveBranchRoles() { return { development_branch:'dev' }; },
+    async readPullRequests({ head }) {
+      if (head !== 'work/transition-1-prior') return [];
+      return [{ number:615, state:'closed', merged_at:'2026-09-06T02:17:33Z', merge_commit_sha:SHA.merge, head:{ sha:SHA.candidate, ref:head }, base:{ ref:'dev' } }];
+    },
+    async readBranchHead() { return SHA.development; },
+    async compareCommits() { return { status:'ahead', behind_by:0 }; },
+  });
+
+  const result = await service.confirm({
+    run_id:'run-1',
+    target:{ project_ref:'github:laurajoyhutchins/overcenter', horizon:{ kind:'transition', ref:'transition-1' } },
+    execution_result:executionResult,
+  });
+
+  assert.equal(result.confirmed, true);
+  assert.equal(result.evidence[0].ref, `github:laurajoyhutchins/overcenter#615@${SHA.merge}`);
+});
