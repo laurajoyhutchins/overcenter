@@ -21,7 +21,7 @@ The Cloud SQL public IP is not an application coordinate. Cloud Run connects thr
 
 ## Phase 1: shadow runtime
 
-`./scripts/gcp/deploy-shadow.sh` deploys a private service named `overcenter-shadow` by default.
+`bash scripts/gcp/deploy-shadow.sh` deploys a private service named `overcenter-shadow` by default.
 
 The shadow deployment:
 
