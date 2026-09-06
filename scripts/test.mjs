@@ -22,6 +22,7 @@ async function javascriptFiles(directory) {
 }
 
 const maintainedTests = [
+  'cloud-run-host.test.mjs',
   'codex-agent-execution-workflow.test.mjs',
   'verify-github-workflow-dispatch.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
