@@ -24,6 +24,7 @@ async function javascriptFiles(directory) {
 const maintainedTests = [
   'codex-agent-execution-workflow.test.mjs',
   'verify-github-workflow-dispatch.test.mjs',
+  'verify-mechanical-changeset-coalescing.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
   'verify-legacy-scheduled-cycle-cron-retirement.test.mjs',
