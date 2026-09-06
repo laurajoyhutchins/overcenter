@@ -40,7 +40,7 @@ function fixture(overrides = {}) {
     },
     async readPullRequests(input) {
       calls.push(['readPullRequests', input]);
-      return [{ number:599, state:'closed', merged_at:'2026-09-06T00:49:52Z', merge_commit_sha:SHA.merge, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
+      return [{ number:599, state:'closed', merged_at:'2026-09-06T00:49:52Z', merge_commit_sha:SHA.merge, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev', sha:SHA.authority } }];
     },
     async readBranchHead(input) {
       calls.push(['readBranchHead', input]);
@@ -82,7 +82,7 @@ test('authoritative-effect confirmation proves an already-integrated exact candi
 test('authoritative-effect confirmation remains unconfirmed while only the exact candidate exists', async () => {
   const { service } = fixture({
     async readPullRequests() {
-      return [{ number:599, state:'open', merged_at:null, merge_commit_sha:null, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
+      return [{ number:599, state:'open', merged_at:null, merge_commit_sha:null, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev', sha:SHA.authority } }];
     },
   });
   const result = await service.confirm({
@@ -103,4 +103,38 @@ test('authoritative-effect confirmation rejects a merged candidate that is not i
     execution_result:executionResult,
   });
   assert.deepEqual(result, { confirmed:false, reason:'authoritative_effect_not_in_development' });
+});
+
+test('authoritative-effect confirmation survives requeue after the candidate advances project authority', async () => {
+  const previousAuthority = '0'.repeat(40);
+  const historicalBranch = 'work/transition-1-historical';
+  const currentBranch = 'work/transition-1-current';
+  const { service } = fixture({
+    async deriveWorkspace(authority) {
+      const revision = authority.authority.revision;
+      return {
+        repository:'laurajoyhutchins/overcenter',
+        branch: revision === previousAuthority ? historicalBranch : currentBranch,
+        authority_revision:revision,
+      };
+    },
+    async readPullRequests() {
+      return [{
+        number:600,
+        state:'closed',
+        merged_at:'2026-09-06T02:10:30Z',
+        merge_commit_sha:SHA.merge,
+        head:{ sha:SHA.candidate, ref:historicalBranch },
+        base:{ ref:'dev', sha:previousAuthority },
+      }];
+    },
+  });
+
+  const result = await service.confirm({
+    run_id:'run-1',
+    target:{ project_ref:'github:laurajoyhutchins/overcenter', horizon:{ kind:'transition', ref:'transition-1' } },
+    execution_result:executionResult,
+  });
+
+  assert.equal(result.confirmed, true);
 });
