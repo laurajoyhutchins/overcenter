@@ -425,6 +425,37 @@
       "semver_kind": "project-definition-schema",
       "lifecycle": "current"
     },
+    "typescript:src/semantic/project-transition-certificate.ts#ProjectTransitionCertificate": {
+      "logical_contract": "project.transition-certificate",
+      "significance": "public",
+      "semver_kind": "public-evidence-schema",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/project-transition-certificate.ts#TRANSITION_CERTIFICATE_FIELD_ROLES": {
+      "significance": "projection",
+      "projection_of": "project.transition-certificate"
+    },
+    "typescript:src/semantic/project-transition-certificate.ts#TransitionCertificateAuthority": {
+      "significance": "projection",
+      "projection_of": "project.transition-certificate"
+    },
+    "typescript:src/semantic/project-transition-certificate.ts#TransitionCertificateEvidenceRef": {
+      "significance": "projection",
+      "projection_of": "project.transition-certificate"
+    },
+    "typescript:src/semantic/project-transition-certificate.ts#TransitionCertificatePrerequisiteRef": {
+      "significance": "projection",
+      "projection_of": "project.transition-certificate"
+    },
+    "typescript:src/semantic/project-transition-certificate.ts#TransitionCertificateSubject": {
+      "significance": "projection",
+      "projection_of": "project.transition-certificate"
+    },
+    "typescript:src/semantic/project-transition-certificate.ts#TransitionCertificateTransition": {
+      "logical_contract": "project.transition-certificate.builder-input",
+      "significance": "implementation-only",
+      "semver_kind": "internal-module-layout"
+    },
     "typescript:src/semantic/project-transition-status-contracts.ts#PROJECT_TRANSITION_STATES": {
       "logical_contract": "project.transition.states",
       "significance": "authority",
