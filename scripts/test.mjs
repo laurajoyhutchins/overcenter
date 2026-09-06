@@ -83,6 +83,7 @@ const maintainedTests = [
   'verify-outcome-integrity-inspection.test.mjs',
   'verify-outcome-integrity-v0.test.mjs',
   'verify-project-artifact-lineage.test.mjs',
+  'verify-overcenter-product-metrics.test.mjs',
   'production-reconcile-operation.test.mjs',
   'production-reconcile-host.test.mjs',
   'production-runtime-observation-http.test.mjs',
