@@ -491,6 +491,35 @@
       }
     },
     {
+      "id": "align-project-advance-settlement-with-work-settle-contract",
+      "priority": 99,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "Repository Implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Repair the concrete dogfood failure where project.advance accepts an agent execution_result disposition that cannot be translated safely and completely into canonical work.settle/orchestration.finish semantics. Project.advance settlement must expose or mechanically derive every disposition-dependent field required by work.settle, preserve exact lease identity and mutation certainty, and never surface an untyped TypeError for a valid project.advance execution_result.",
+        "acceptance_evidence": [
+          {
+            "kind": "contract-alignment",
+            "requirement": "project.advance execution_result semantics are mechanically compatible with the canonical work.settle disposition-dependent contract, including blocked promotion condition and observable-wait requeue semantics where applicable."
+          },
+          {
+            "kind": "exact-revision-verification",
+            "requirement": "The repair passes the strongest available exact-revision verification and fresh source readback on the exact repaired revision."
+          },
+          {
+            "kind": "regression",
+            "requirement": "A focused test reproduces the scheduled dogfood case in which project.advance settles an AGENT_EXECUTION_REQUIRED lease with a non-completed disposition and proves the semantic boundary returns a typed deterministic result rather than TypeError."
+          }
+        ],
+        "source_ref": "dogfood:project.advance blocked settlement TypeError at authority 8add18d77c08507cccff52320665b25ec6054131"
+      }
+    },
+    {
       "id": "align-runtime-source-sync-package-contract",
       "priority": 2090,
       "requires": [],
