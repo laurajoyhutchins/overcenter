@@ -2232,6 +2232,38 @@
       }
     },
     {
+      "id": "repair-cross-epoch-authoritative-effect-confirmation",
+      "priority": 300,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Repair deterministic project-transition completion confirmation so an exact candidate produced and merged under a prior lease epoch remains confirmable after a truthful requeue creates a new lease epoch, without weakening identity binding. Confirmation must mechanically bind the candidate to durable historical execution authority for the same project, transition, and transition-definition fingerprint, verify the exact merged GitHub pull request/workspace identity, and prove the merge is contained in current development authority. Do not accept arbitrary candidate evidence or current-branch coincidence.",
+        "acceptance_evidence": [
+          {
+            "kind": "fail-closed",
+            "requirement": "Unrelated historical leases, changed transition definitions, ambiguous candidate/workspace matches, stale or unmerged pull requests, and development readback that does not contain the merge remain unconfirmed or fail closed; no ambiguous external mutation is retried."
+          },
+          {
+            "kind": "identity",
+            "requirement": "Historical confirmation is accepted only when durable lease authority proves the same project_ref, transition_id, and transition_definition_fingerprint and mechanically derives the exact GitHub workspace branch containing the exact candidate revision."
+          },
+          {
+            "kind": "live",
+            "requirement": "After exact-revision verification and production materialization, the current repair-project-advance-agent-settlement-runtime dogfood candidate from PR #615 can be completed through project.advance after its prior truthful requeue, and project.inspect confirms durable settlement."
+          },
+          {
+            "kind": "regression",
+            "requirement": "A focused RED-to-GREEN regression reproduces the dogfood sequence: epoch N mutates an exact lease-derived workspace candidate and that candidate is merged, the transition truthfully requeues, epoch N+1 resumes the same unchanged transition definition, and completed settlement confirms the epoch N authoritative effect rather than requiring a nonexistent epoch N+1 candidate workspace."
+          }
+        ]
+      }
+    },
+    {
       "id": "repair-orchestration-health-recovery-convergence",
       "priority": 160,
       "requires": [],
