@@ -54,4 +54,5 @@ jobs:
         shell: bash
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
         run: bash ./scripts/gcp/deploy-shadow.sh
