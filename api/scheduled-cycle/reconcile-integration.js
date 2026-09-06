@@ -2,7 +2,6 @@ import { createPostgresScheduledCycleService } from 'lib/scheduled-cycle-complet
 import { createPostgresDeterministicWorkSettlementService } from 'lib/deterministic-work-settlement.js';
 
 export const access = 'scheduler';
-export const schedule = '3 * * * *';
 
 export default async function (_req, res) {
   const cycle = await createPostgresScheduledCycleService().reconcile({ participant:'portfolio-integration' });
