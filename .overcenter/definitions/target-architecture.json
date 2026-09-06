@@ -652,6 +652,42 @@
       }
     },
     {
+      "id": "classify-text-precondition-failure-as-recoverable",
+      "priority": 206,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make lease-scoped github.apply_text_replacements exact-text cardinality/precondition failures survive the public worker-command boundary as typed deterministic no-mutation rejections with an executable local recovery path, instead of collapsing into UNKNOWN owner escalation.",
+        "acceptance_evidence": [
+          {
+            "kind": "classification",
+            "requirement": "TEXT_PRECONDITION_FAILED is preserved through /api/worker-command with bounded path/replacement/cardinality details, may_have_mutated:false, and a deterministic caller/precondition failure class rather than UNKNOWN."
+          },
+          {
+            "kind": "fail-closed",
+            "requirement": "The underlying exact-text precondition remains unchanged: ambiguous or stale replacement cardinality performs no repository mutation and cannot be weakened into best-effort matching."
+          },
+          {
+            "kind": "live-verification",
+            "requirement": "After deployment, a live lease-scoped ambiguous text replacement returns the new typed recoverable contract and an immediately corrected exact replacement can proceed without owner intervention."
+          },
+          {
+            "kind": "recovery",
+            "requirement": "The response tells a worker to reread the exact current workspace text, correct the replacement anchor or expected_count, and retry under valid lease/exact-head authority; blind same-request retry and owner escalation are not prescribed for this known no-mutation failure."
+          },
+          {
+            "kind": "tests",
+            "requirement": "A public worker-command regression reproduces an ambiguous replacement and proves the typed recovery response; existing mutation-certainty, idempotency, and lease-authority regressions remain green at the exact final revision."
+          }
+        ]
+      }
+    },
+    {
       "id": "compact-agent-semantic-surface",
       "priority": 70,
       "requires": [
