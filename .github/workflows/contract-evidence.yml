@@ -41,8 +41,6 @@ jobs:
           node-version: 22
       - name: Install contract evidence tooling
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
-      - name: Run contract evidence tests
-        run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
       - name: Generate candidate contract evidence once
         run: |
           mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
@@ -52,6 +50,16 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+      - name: Upload candidate contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-contract-evidence
+          path: |
+            ${{ runner.temp }}/contract-evidence/generated/contracts/catalog.json
+            ${{ runner.temp }}/contract-evidence/docs/generated/data-contracts.md
+          if-no-files-found: error
+      - name: Run contract evidence tests
+        run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
