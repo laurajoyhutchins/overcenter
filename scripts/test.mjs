@@ -26,6 +26,7 @@ const maintainedTests = [
   'verify-github-workflow-dispatch.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
+  'verify-legacy-scheduled-cycle-cron-retirement.test.mjs',
   'verify-transition-first-dashboard.test.mjs',
   'verify-execution-evidence-projector.test.mjs',
   'verify-execution-evidence-review.test.mjs',
