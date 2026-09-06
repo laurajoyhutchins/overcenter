@@ -1,13 +1,13 @@
-export type ProjectArtifactKind = 'issue' | 'pull_request';
-export type ProjectArtifactRelationship = 'full_coverage_equivalence';
-export type ProjectArtifactSatisfactionCondition = 'closed' | 'merged';
+type ProjectArtifactKind = 'issue' | 'pull_request';
+type ProjectArtifactRelationship = 'full_coverage_equivalence';
+type ProjectArtifactSatisfactionCondition = 'closed' | 'merged';
 
-export type ProjectArtifactProviderIdentity = Readonly<{
+type ProjectArtifactProviderIdentity = Readonly<{
   kind: ProjectArtifactKind;
   number: number;
 }>;
 
-export type ProjectArtifactObservation = Readonly<{
+type ProjectArtifactObservation = Readonly<{
   repository: string;
   kind: ProjectArtifactKind;
   number: number;
@@ -16,7 +16,7 @@ export type ProjectArtifactObservation = Readonly<{
   url?: string | null;
 }>;
 
-export type ProjectArtifactBinding = Readonly<{
+type ProjectArtifactBinding = Readonly<{
   schema: 'project-artifact-binding-v1';
   project_ref: string;
   repository: string;
