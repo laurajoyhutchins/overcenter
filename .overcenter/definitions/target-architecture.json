@@ -2222,6 +2222,30 @@
       }
     },
     {
+      "id": "reduce-hatchable-database-time-amplification",
+      "priority": 190,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Reduce avoidable Hatchable database-time consumption in Overcenter's semantic-command hot path without weakening orchestration authority, journaling, failure classification, recovery, or mutation certainty. At minimum, eliminate the proven no-op orchestration_runs write performed after a successful run-correlated command when no current failure exists, while preserving exact clearing of a matching current failure and the work.heartbeat-to-work.settle recovery case. Add regression coverage that mechanically proves the success/no-current-failure path issues no database write and that real current-failure clearing still occurs. Inspect current retry/error amplification and retain only changes that are mechanically safe under existing idempotency and fail-closed rules. Do not disable compatibility scheduled-cycle jobs merely to save quota unless graph-native cutover acceptance is independently proven. Verify the exact final revision and deployed runtime before settlement.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "Automated regressions prove zero current-failure database writes for successful commands when no failure is recorded, and prove matching-failure plus work.heartbeat-to-work.settle clearing semantics remain intact."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh exact-revision verification passes, and deployed runtime/source inspection demonstrates the optimized hot path without weakening journal, recovery, or mutation-certainty behavior."
+          }
+        ]
+      }
+    },
+    {
       "id": "register-project-graph-deriver",
       "priority": 120,
       "requires": [],
