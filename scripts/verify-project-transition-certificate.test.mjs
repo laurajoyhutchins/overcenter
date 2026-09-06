@@ -1,71 +1,72 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createTransitionCertificate, verifyTransitionCertificate } from '../lib/transition-certificate.js';
 
 const sha = (char) => char.repeat(64);
 const revision = (char) => char.repeat(40);
-
-async function certificateModule() {
-  return import('../lib/project-transition-certificate.js');
-}
+const projectRef = 'github:owner/repo';
+const subject = Object.freeze({ project_ref:projectRef, transition_id:'B', obligation_fingerprint:sha('a') });
+const evidence = (kind, ref, boundSubject = subject) => Object.freeze({ kind, ref, subject:boundSubject });
 
 const input = (overrides = {}) => ({
-  project_ref:'github:owner/repo',
+  project_ref:projectRef,
   transition_id:'B',
   obligation_fingerprint:sha('a'),
   authority:{ kind:'github', repository:'owner/repo', revision:revision('b'), derivation:'overcenter-project-graph-v1' },
-  prerequisite_closure:[{ transition_id:'A', obligation_fingerprint:sha('c') }],
-  evidence:[
-    { kind:'settlement', ref:'settlement:B:1', subject:{ project_ref:'github:owner/repo', transition_id:'B', obligation_fingerprint:sha('a') } },
-    { kind:'authoritative_effect', ref:`github:owner/repo#42@${revision('d')}`, subject:{ project_ref:'github:owner/repo', transition_id:'B', obligation_fingerprint:sha('a') } },
-  ],
-  outcome:'completed',
+  prerequisite_closure:[{ transition_id:'A', obligation_fingerprint:sha('c'), certificate_id:sha('d') }],
+  evidence_refs:[evidence('settlement','settlement:B:1')],
+  authoritative_effect_evidence:[evidence('authoritative_effect',`github:owner/repo#42@${revision('e')}`)],
+  claimed_outcome:'completed',
   ...overrides,
 });
 
-test('transition certificate contract is available as one canonical module', async () => {
-  const mod = await certificateModule();
-  assert.equal(typeof mod.createProjectTransitionCertificate, 'function');
-  assert.equal(typeof mod.verifyProjectTransitionCertificate, 'function');
+test('certificate canonicalization and replay are stable across evidence ordering', async () => {
+  const first = await createTransitionCertificate(input({ evidence_refs:[evidence('verification','run:2'), evidence('settlement','settlement:B:1')] }));
+  const second = await createTransitionCertificate(input({ evidence_refs:[evidence('settlement','settlement:B:1'), evidence('verification','run:2')] }));
+  assert.equal(first.certificate_id, second.certificate_id);
+  assert.deepEqual(verifyTransitionCertificate(first, input()), { ok:true, certificate_id:first.certificate_id });
+  assert.deepEqual(verifyTransitionCertificate(first, input()), verifyTransitionCertificate(first, input()));
 });
 
-test('certificate canonicalization is stable across evidence ordering and replay', async () => {
-  const { createProjectTransitionCertificate, verifyProjectTransitionCertificate } = await certificateModule();
-  const left = await createProjectTransitionCertificate(input());
-  const right = await createProjectTransitionCertificate(input({ evidence:[...input().evidence].reverse() }));
-  assert.equal(left.certificate_id, right.certificate_id);
-  assert.deepEqual(verifyProjectTransitionCertificate(left), { accepted:true, certificate:left });
-  assert.deepEqual(verifyProjectTransitionCertificate(left), verifyProjectTransitionCertificate(left));
-});
-
-test('semantic identity changes when obligation or dependency semantics change, not evidence instances', async () => {
-  const { createProjectTransitionCertificate } = await certificateModule();
-  const baseline = await createProjectTransitionCertificate(input());
-  const changedObligation = await createProjectTransitionCertificate(input({ obligation_fingerprint:sha('e') }));
-  const changedDependency = await createProjectTransitionCertificate(input({ prerequisite_closure:[{ transition_id:'A', obligation_fingerprint:sha('f') }] }));
-  const changedEvidenceInstance = await createProjectTransitionCertificate(input({ evidence:input().evidence.map((entry, index) => ({ ...entry, ref:`replacement:${index}` })) }));
-  assert.notEqual(changedObligation.certificate_id, baseline.certificate_id);
+test('dependency semantic changes invalidate identity while prerequisite certificate instances do not', async () => {
+  const baseline = await createTransitionCertificate(input());
+  const changedDependency = await createTransitionCertificate(input({
+    prerequisite_closure:[{ transition_id:'A', obligation_fingerprint:sha('f'), certificate_id:sha('d') }],
+  }));
+  const changedEvidenceInstance = await createTransitionCertificate(input({
+    prerequisite_closure:[{ transition_id:'A', obligation_fingerprint:sha('c'), certificate_id:sha('9') }],
+  }));
   assert.notEqual(changedDependency.certificate_id, baseline.certificate_id);
   assert.equal(changedEvidenceInstance.certificate_id, baseline.certificate_id);
 });
 
-test('certificate retains exact authority provenance and predecessor closure', async () => {
-  const { createProjectTransitionCertificate } = await certificateModule();
-  const certificate = await createProjectTransitionCertificate(input());
+test('obligation semantics change identity while runtime evidence instances do not', async () => {
+  const baseline = await createTransitionCertificate(input());
+  const changedObligation = await createTransitionCertificate(input({ obligation_fingerprint:sha('f') }));
+  const changedEvidence = await createTransitionCertificate(input({ evidence_refs:[evidence('verification','different-run')] }));
+  assert.notEqual(changedObligation.certificate_id, baseline.certificate_id);
+  assert.equal(changedEvidence.certificate_id, baseline.certificate_id);
+});
+
+test('certificate binds exact authority provenance and prerequisite closure', async () => {
+  const certificate = await createTransitionCertificate(input());
   assert.deepEqual(certificate.authority, input().authority);
   assert.deepEqual(certificate.prerequisite_closure, input().prerequisite_closure);
-  assert.throws(() => createProjectTransitionCertificate(input({ authority:{ ...input().authority, revision:'moving-branch' } })), /authority revision/i);
+  assert.throws(() => verifyTransitionCertificate(certificate, input({ authority:{ ...input().authority, revision:revision('7') } })), /./, 'authority drift must not be accepted silently');
+  assert.deepEqual(verifyTransitionCertificate(certificate, input({ authority:{ ...input().authority, revision:revision('7') } })), { ok:false, reason:'authority_provenance_mismatch' });
 });
 
-test('verification rejects evidence not bound to the claimed transition subject', async () => {
-  const { createProjectTransitionCertificate, verifyProjectTransitionCertificate } = await certificateModule();
-  const certificate = await createProjectTransitionCertificate(input());
-  const forged = structuredClone(certificate);
-  forged.evidence[0].subject.transition_id = 'OTHER';
-  assert.throws(() => verifyProjectTransitionCertificate(forged), (error) => error?.code === 'PROJECT_TRANSITION_CERTIFICATE_EVIDENCE_SUBJECT_MISMATCH');
+test('checker rejects evidence that is not bound to the claimed subject', async () => {
+  const certificate = await createTransitionCertificate(input());
+  const wrongSubject = { ...subject, transition_id:'OTHER' };
+  assert.throws(
+    () => verifyTransitionCertificate(certificate, input({ evidence_refs:[evidence('settlement','settlement:B:1',wrongSubject)] })),
+    /evidence subject does not match claimed transition/,
+  );
 });
 
-test('completion requires authoritative postcondition evidence and prerequisite closure', async () => {
-  const { createProjectTransitionCertificate } = await certificateModule();
-  await assert.rejects(() => createProjectTransitionCertificate(input({ evidence:input().evidence.filter((entry) => entry.kind !== 'authoritative_effect') })), (error) => error?.code === 'PROJECT_TRANSITION_CERTIFICATE_AUTHORITATIVE_EFFECT_REQUIRED');
-  await assert.rejects(() => createProjectTransitionCertificate(input({ prerequisite_closure:[] })), (error) => error?.code === 'PROJECT_TRANSITION_CERTIFICATE_PREREQUISITE_CLOSURE_REQUIRED');
+test('completion requires authoritative postcondition evidence and exact prerequisite closure', async () => {
+  await assert.rejects(() => createTransitionCertificate(input({ authoritative_effect_evidence:[] })), /authoritative effect evidence is required/);
+  const certificate = await createTransitionCertificate(input());
+  assert.deepEqual(verifyTransitionCertificate(certificate, input({ prerequisite_closure:[] })), { ok:false, reason:'prerequisite_closure_mismatch' });
 });
