@@ -1,10 +1,12 @@
-import { db } from 'hatchable';
-import { withGitHubAppApiClient } from 'lib/github-app-auth.js';
+import { hatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 import { applyGithubChangeset } from 'lib/github-apply-changeset.js';
 import { createGithubWorkerMutationRuntime, statusForGithubWorkerMutationError } from 'lib/github-worker-mutations.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
+
+const { db, githubAppAuth } = hatchableRuntimeProviders;
+const withGitHubAppApiClient = githubAppAuth.withApiClient;
 
 function decodeBase64Utf8(value) {
   const binary = atob(String(value || '').replace(/\s+/g, ''));
@@ -46,7 +48,7 @@ export default async function (req, res) {
 
   if (body.lease_ref !== undefined && body.lease_ref !== null) {
     try {
-      const result = await createGithubWorkerMutationRuntime({ db }).applyTextReplacements(body);
+      const result = await createGithubWorkerMutationRuntime({ db, withGitHubAppApiClient }).applyTextReplacements(body);
       return res.status(result?.ok ? 200 : 409).json(result);
     } catch (error) {
       return res.status(statusForGithubWorkerMutationError(error) || 422).json(leaseFailure(error));

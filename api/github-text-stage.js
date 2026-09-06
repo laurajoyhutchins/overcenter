@@ -1,4 +1,6 @@
-import { storage } from 'hatchable';
+import { hatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
+
+const { storage } = hatchableRuntimeProviders;
 
 export const access = 'admin';
 export const methods = ['POST'];
