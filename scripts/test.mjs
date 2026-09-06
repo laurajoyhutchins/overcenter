@@ -75,6 +75,7 @@ const maintainedTests = [
   'verify-outcome-integrity-semantic-mutation-benchmark.test.mjs',
   'verify-outcome-integrity-inspection.test.mjs',
   'verify-outcome-integrity-v0.test.mjs',
+  'verify-overcenter-metrics-contract.test.mjs',
   'verify-project-artifact-lineage.test.mjs',
   'production-reconcile-operation.test.mjs',
   'production-reconcile-host.test.mjs',
