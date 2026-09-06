@@ -1648,6 +1648,30 @@
       }
     },
     {
+      "id": "handle-project-advance-stale-selection-race",
+      "priority": 190,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make project-only project.advance robust to an authority race between best-available frontier selection and project-transition lease acquisition. If the selected transition changes state or authority before an effectful lease is acquired, project.advance must fail closed on that stale selection, re-evaluate current authoritative project state, and continue with another safely executable transition or return the current deterministic project state. It must never grant a lease for a stale/DONE transition, silently switch work after any ambiguous or effectful mutation, or surface raw PROJECT_TRANSITION_NOT_READY merely because a previously READY selection became terminal before lease acquisition.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "A deterministic regression reproduces project-only selection of a READY transition that becomes DONE or otherwise non-READY before lease acquisition, proves no stale lease or duplicate effect is issued, and proves project.advance safely re-evaluates current authority to select an independent READY transition or return the correct current terminal/waiting state."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Canonical exact-revision verification passes for the final repair and a fresh deployed dogfood invocation of project.advance no longer exposes stale PROJECT_TRANSITION_NOT_READY for this authority-race scenario."
+          }
+        ]
+      }
+    },
+    {
       "id": "identify-repeated-agent-choreography-as-operator-candidates",
       "priority": 169,
       "requires": [
