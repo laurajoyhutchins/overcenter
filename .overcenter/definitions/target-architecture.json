@@ -2075,6 +2075,50 @@
       }
     },
     {
+      "id": "make-runtime-providers-explicit-at-composition-root",
+      "priority": 120,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "repository-implementation",
+        "skill": "repository-editing"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make runtime capabilities explicit at Overcenter composition roots. DB access, runtime secrets/config, GitHub App authentication/client creation, object storage, and other host services must be constructed by provider adapters at the runtime boundary and injected into the semantic execution cone. Remove ambient Hatchable SDK imports and fallback resolution from semantic/MCP/worker execution paths. Preserve exact-revision authority, mutation certainty, recovery, and current Hatchable operation while allowing the GCP/Node runtime to supply equivalent providers without changing semantic code.",
+        "acceptance_evidence": [
+          {
+            "kind": "architecture",
+            "requirement": "All provider SDK imports used by the semantic execution cone are confined to explicit runtime adapter/composition-root modules; semantic/MCP/worker modules do not import Hatchable, GCP, or other host SDKs directly."
+          },
+          {
+            "kind": "composition",
+            "requirement": "A composition root explicitly constructs and injects required DB, secrets/config, GitHub auth/client, storage, and other runtime capabilities. Missing required providers fail closed; no ctx-or-ambient, dynamic-import, process-global, or hidden default fallback remains below the root."
+          },
+          {
+            "kind": "database",
+            "requirement": "Semantic services and worker/MCP command implementations receive explicit DB/store dependencies rather than importing Hatchable db directly."
+          },
+          {
+            "kind": "github-auth",
+            "requirement": "GitHub App credentials and installation-token creation consume an injected secret/auth provider. The provider-neutral path does not dynamically import Hatchable config."
+          },
+          {
+            "kind": "storage",
+            "requirement": "Object storage consumers receive an injected storage capability rather than importing Hatchable storage directly."
+          },
+          {
+            "kind": "tests",
+            "requirement": "Automated node:test coverage proves provider substitution, fail-closed incomplete composition, and a provider-import architecture guard for the semantic execution cone."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Canonical repository verification and exact-revision CI pass on the final head, and the final diff contains no new provider-shaped semantic abstractions or weakened authority/recovery behavior."
+          }
+        ]
+      }
+    },
+    {
       "id": "make-waiting-a-durable-suspension-primitive",
       "priority": 164,
       "requires": [],
