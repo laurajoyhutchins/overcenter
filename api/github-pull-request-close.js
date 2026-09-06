@@ -1,5 +1,5 @@
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { closeGithubPullRequestWithGitHubApp } from 'lib/github-work-surface-retirement.js';
+import { closeGithubPullRequestWithGitHubApp } from 'lib/github-work-surface-retirement-github-app.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
