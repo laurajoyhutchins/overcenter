@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   apply:
-    if: github.event.head_commit.message == 'ci: apply GitHub provider refactor'
+    if: ${{ github.event.head_commit.message == 'ci: apply GitHub provider refactor v2' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -70,7 +70,6 @@ jobs:
 
           node scripts/github-app-auth-portability.test.mjs
           git diff --check
-          git diff -- lib/github-app-auth.js
 
       - name: Commit verified refactor
         shell: bash
