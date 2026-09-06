@@ -20,23 +20,8 @@ cd "$ROOT"
 
 gcloud config set project "$PROJECT_ID" >/dev/null
 
-PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
-if [[ -z "$PROJECT_NUMBER" ]]; then
-  echo "Could not resolve project number for $PROJECT_ID" >&2
-  exit 2
-fi
-BUILD_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-
-# Source deployments use the Compute Engine default service account for Cloud Build
-# unless a different build identity is explicitly configured. Keep this permission
-# on the build identity, never on the Overcenter runtime identity.
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${BUILD_SA}" \
-  --role="roles/run.builder" \
-  --condition=None >/dev/null
-
-# This is deliberately a private shadow service. It has no production authority and
-# should not receive traffic from the existing Hatchable control-plane endpoint.
+# Deployment IAM is provisioned once by bootstrap-github-oidc.sh. Ordinary
+# deployments deliberately cannot mutate project IAM.
 gcloud run deploy "$SERVICE" \
   --source . \
   --project="$PROJECT_ID" \
