@@ -26,11 +26,11 @@ function transition(overrides = {}) {
         { kind: 'verification', requirement: 'Exact-revision verification passes.' },
         { kind: 'readback', requirement: 'GitHub authority contains the candidate.' },
       ],
+      source_ref: 'github:issue:1',
     },
-    acceptance_evidence: [],
     dependencies: ['build-widget', 'verify-widget'],
-    executor: { type: 'agent', role: 'implementation', skill: 'test-driven-development' },
-    state: 'ready',
+    executor: { kind: 'agent', role: 'implementation', skill: 'test-driven-development' },
+    state: 'READY',
     source_refs: ['github:issue:1'],
     ...overrides,
   };
@@ -48,6 +48,13 @@ function evidence(kind, ref, obligationFingerprint, transitionId = 'ship-widget'
   };
 }
 
+function prerequisites() {
+  return [
+    { transition_id: 'build-widget', obligation_fingerprint: 'dep-build-fingerprint', certificate_ref: 'certificate:build-widget' },
+    { transition_id: 'verify-widget', obligation_fingerprint: 'dep-verify-fingerprint', certificate_ref: 'certificate:verify-widget' },
+  ];
+}
+
 test('transition obligation fingerprint is canonical and representation-stable', async () => {
   const original = transition();
   const reordered = transition({
@@ -57,6 +64,7 @@ test('transition obligation fingerprint is canonical and representation-stable',
     dependencies: ['verify-widget', 'build-widget'],
     execution_intent: {
       ...original.execution_intent,
+      source_ref: 'github:issue:999',
       acceptance_evidence: [...original.execution_intent.acceptance_evidence].reverse(),
     },
   });
@@ -91,10 +99,7 @@ test('certificate replay is deterministic and evidence instances are not semanti
     project_ref: projectRef,
     transition: transition(),
     authority,
-    prerequisite_evidence: [
-      evidence('transition-certificate', 'certificate:build-widget', obligationFingerprint),
-      evidence('transition-certificate', 'certificate:verify-widget', obligationFingerprint),
-    ],
+    prerequisite_evidence: prerequisites(),
     authoritative_effect_evidence: [evidence('github-readback', 'github:commit:abc', obligationFingerprint)],
     settlement_evidence: [evidence('settlement', 'settlement:1', obligationFingerprint)],
     execution_evidence: [evidence('execution', 'execution:1', obligationFingerprint)],
@@ -118,7 +123,7 @@ test('certificate requires prerequisite closure and subject-bound evidence', asy
     project_ref: projectRef,
     transition: transition(),
     authority,
-    prerequisite_evidence: [evidence('transition-certificate', 'certificate:build-widget', obligationFingerprint)],
+    prerequisite_evidence: prerequisites().slice(0, 1),
     authoritative_effect_evidence: [evidence('github-readback', 'github:commit:abc', obligationFingerprint, 'other-transition')],
     settlement_evidence: [evidence('settlement', 'settlement:1', obligationFingerprint)],
     execution_evidence: [evidence('execution', 'execution:1', obligationFingerprint)],
