@@ -3,10 +3,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { productionReconciliationFor } from '../lib/production-reconcile-overcenter-host.js';
 
-test('default production host module specifiers resolve through the deployed lib namespace',async()=>{
+test('default production host resolves runtime adapters at module load rather than invocation time',async()=>{
   const source=await readFile(new URL('../lib/production-reconcile-overcenter-host.js',import.meta.url),'utf8');
-  assert.doesNotMatch(source,/import\('\.\/github-app-auth\.js'\)/);
-  assert.doesNotMatch(source,/import\('\.\/production-promotion-overcenter-host\.js'\)/);
+  assert.doesNotMatch(source,/import\(/,'production reconcile must not depend on invocation-time dynamic module resolution');
 });
 
 const SHA='a'.repeat(40);
