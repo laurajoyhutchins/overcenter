@@ -2456,6 +2456,38 @@
       }
     },
     {
+      "id": "retire-legacy-scheduled-cycle-crons",
+      "priority": 250,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Permanently retire the five legacy scheduled-cycle reconciler cron declarations for dispatcher, integration, repository, source, and verification. Keep graph-native orchestration.maintain scheduled. The legacy routes may remain callable for compatibility, but they must not be scheduled and a normal source-driven production materialization must not re-arm them.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Final evidence is bound to the exact authoritative repository revision and Overcenter transition."
+          },
+          {
+            "kind": "runtime",
+            "requirement": "Fresh production cron registry evidence after deployment shows no active legacy scheduled-cycle reconcile jobs and retains the graph-native orchestration maintenance job."
+          },
+          {
+            "kind": "source",
+            "requirement": "The five api/scheduled-cycle/reconcile-* source files no longer export schedule declarations, while api/orchestration/maintain-scheduled remains scheduled."
+          },
+          {
+            "kind": "tests",
+            "requirement": "Relevant automated tests pass on the exact final revision and no supported graph-native orchestration behavior is removed."
+          }
+        ]
+      }
+    },
+    {
       "id": "retire-stage-lane-semantics",
       "priority": 85,
       "requires": [
