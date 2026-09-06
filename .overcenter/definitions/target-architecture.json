@@ -1713,6 +1713,38 @@
       }
     },
     {
+      "id": "make-mechanical-changeset-coalescing-actionable",
+      "priority": 205,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "Use test-driven-development. Fix the concrete lease-scoped GitHub changeset execution trap where MECHANICAL_CHANGESET_MUST_COALESCE rejects a follow-up mechanical cleanup after the prior mechanical commit already exists but Overcenter exposes no operation that can perform the required coalescing. Preserve exact workspace-head fencing, lease authority, idempotency, mutation certainty, and linear history. Prefer a deterministic bounded coalescing operation that can replace the immediately preceding same-lease mechanical head with one combined repair commit, or an equivalent semantic mechanism that actually performs the coalescing rather than weakening/removing the guard. Never require callers to disguise a mechanical cleanup as a substantive commit. Add regressions proving the concrete final-newline repair case can converge, unrelated or stale heads fail closed, another lease cannot rewrite the head, replay is idempotent, and transport uncertainty remains monotonic. Expose the recovery through the canonical worker command surface and document the actionable recovery contract."
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "A lease-scoped caller rejected with MECHANICAL_CHANGESET_MUST_COALESCE has a deterministic canonical operation that actually coalesces the pending mechanical cleanup with the immediately preceding authorized mechanical head, without weakening commit hygiene or exact execution authority.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Coalescing is bound to the same valid project-transition lease and exact current workspace head; stale head, different lease, or non-mechanical parent fails closed before mutation."
+          },
+          {
+            "kind": "recovery",
+            "requirement": "MECHANICAL_CHANGESET_MUST_COALESCE returns or documents an executable canonical recovery path; callers never need to falsify the commit classification or use direct GitHub mutation."
+          },
+          {
+            "kind": "tests",
+            "requirement": "A regression reproduces a first mechanical commit followed by a formatting-only final-newline repair and proves the canonical coalescing operation converges to one mechanical repair commit rather than dead-ending."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Exact-final-revision tests and deployed live command evidence demonstrate the recovery path while preserving idempotency and monotonic mutation certainty."
+          }
+        ]
+      }
+    },
+    {
       "id": "make-production-materialization-typescript-host-independent",
       "priority": 82,
       "requires": [
