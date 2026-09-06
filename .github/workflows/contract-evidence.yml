@@ -41,20 +41,6 @@ jobs:
           node-version: 22
       - name: Install contract evidence tooling
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
-      - name: Generate temporary candidate evidence for refresh
-        run: |
-          mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
-          node scripts/contract-evidence/cli.mjs generate \
-            --repo-root . \
-            --config scripts/contract-evidence/overcenter/config.mjs \
-            --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
-            --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
-            --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Upload temporary candidate evidence for refresh
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-contract-evidence
-          path: ${{ runner.temp }}/contract-evidence
       - name: Run contract evidence tests
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
       - name: Generate candidate contract evidence once
@@ -66,11 +52,6 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Upload generated contract evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-contract-evidence
-          path: ${{ runner.temp }}/contract-evidence
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
