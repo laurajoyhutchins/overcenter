@@ -39,7 +39,7 @@ jobs:
       - name: Build runtime artifact
         run: npm run build:runtime
       - name: Verify project authoring authority contracts
-        run: node --test scripts/verify-project-authoring-readback-contract.test.mjs scripts/verify-project-authoring-github-adapter.test.mjs
+        run: node --test scripts/verify-project-authoring-readback-contract.test.mjs scripts/verify-project-authoring-github-adapter.test.mjs scripts/verify-github-work-surface-retirement-commands.test.mjs
       - name: Verify exact revision in isolated Hatchable V8 runtime
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
