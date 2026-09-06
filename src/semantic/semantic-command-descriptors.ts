@@ -215,6 +215,31 @@ const releasePublishSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const projectArtifactBindSchema = Object.freeze({
+  type:'object',
+  required:['project_ref','transition_id','expected_revision','artifact','relationship','satisfaction_condition'],
+  properties:{
+    operation:{type:'string',enum:['bind','rebind','revoke']},
+    project_ref:{type:'string',pattern:'^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
+    transition_id:{type:'string',minLength:1,maxLength:256,pattern:'^\\S+$'},
+    expected_revision:{type:'string',pattern:'^[0-9a-fA-F]{40}$'},
+    artifact:{
+      type:'object',required:['provider','repository','kind','number'],additionalProperties:false,
+      properties:{
+        provider:{const:'github'},
+        repository:{type:'string',pattern:'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
+        kind:{type:'string',enum:['issue','pull_request']},
+        number:{type:'integer',minimum:1},
+      },
+    },
+    relationship:{type:'string',enum:['full_coverage_equivalent']},
+    satisfaction_condition:{type:'string',enum:['artifact_closed']},
+    prior_binding_sha256:{type:'string',pattern:'^[0-9a-fA-F]{64}$'},
+  },
+  allOf:[{if:{required:['operation'],properties:{operation:{enum:['rebind','revoke']}}},then:{required:['prior_binding_sha256']}}],
+  additionalProperties:false,
+});
+
 const projectAdvanceSchema = Object.freeze({
   type:'object',
   required:['project_ref'],
@@ -345,6 +370,14 @@ const DESCRIPTORS = Object.freeze({
     'Promote the current verified development revision by repository identity only. The runtime host derives provider-specific branch heads, exact-revision evidence, retry identity, and production readback behind this primary semantic boundary.',
     productionPromoteSchema,
     'primary',
+    WORKER_AND_MCP_EXPOSURE,
+  ),
+  'project.artifact.bind':descriptor(
+    'project.artifact.bind',
+    'project.artifact.bind',
+    'Explicitly bind an exact GitHub issue or pull request to one authoritative project obligation when a reasoning agent or operator judges full-coverage equivalence. The command reads exact project authority and provider identity before appending durable binding evidence; it never infers equivalence from titles, labels, or prose. Rebind and revoke require the exact prior binding identity.',
+    projectArtifactBindSchema,
+    'advanced',
     WORKER_AND_MCP_EXPOSURE,
   ),
   'project.advance':descriptor(
