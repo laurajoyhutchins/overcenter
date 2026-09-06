@@ -2354,6 +2354,34 @@
       }
     },
     {
+      "id": "repair-project-transition-lease-execute-typeerror",
+      "priority": 200,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Repair the reproducible production defect where graph-native project-transition lease operations fail in the execute phase with an untyped TypeError after successful canonicalization. The dogfood reproductions are work.heartbeat on lease 31de8036-b188-4e89-b80e-02d6fd989041 and project.advance resume project-advance-77abd91edcedeedcb0551c6d3d3620c4; both returned may_have_mutated:false. Identify the shared project-transition authority/runtime root cause, add focused regressions that exercise the deployed subject-aware heartbeat/settlement and project.advance resume composition rather than mocks that bypass it, preserve exact-revision fencing and typed fail-closed behavior, deploy the repair, then prove the same canonical heartbeat/settlement scenario no longer collapses to TypeError.",
+        "acceptance_evidence": [
+          {
+            "kind": "production",
+            "requirement": "After canonical promotion/materialization, a live graph-native project-transition heartbeat or settlement/resume path returns typed domain behavior rather than generic TypeError, with mutation certainty preserved."
+          },
+          {
+            "kind": "tests",
+            "requirement": "A regression reproduces the current execute-phase TypeError through graph-native project-transition lease runtime composition and passes at the exact final revision."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh exact-revision repository verification passes for the repair."
+          }
+        ]
+      }
+    },
+    {
       "id": "replace-production-promotion-pseudo-lease-with-execution-authority",
       "priority": 118,
       "requires": [
