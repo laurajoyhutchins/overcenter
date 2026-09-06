@@ -7,6 +7,7 @@
 - `execution.evidence` — authority `typescript:src/semantic/execution-evidence-contracts.ts#ExecutionEvidence`; SemVer `public-evidence-schema`
 - `github.apply_changeset.input` — authority `semantic-command:github.apply_changeset#input`; SemVer `semantic-command-contract`
 - `github.apply_text_replacements.input` — authority `semantic-command:github.apply_text_replacements#input`; SemVer `semantic-command-contract`
+- `github.coalesce_mechanical_changeset.input` — authority `semantic-command:github.coalesce_mechanical_changeset#input`; SemVer `semantic-command-contract`
 - `github.release.create.input` — authority `semantic-command:github.release.create#input`; SemVer `semantic-command-contract`
 - `orchestration.diagnose.input` — authority `semantic-command:orchestration.diagnose#input`; SemVer `semantic-command-contract`
 - `production.promote.input` — authority `semantic-command:production.promote#input`; SemVer `semantic-command-contract`; 1 projection

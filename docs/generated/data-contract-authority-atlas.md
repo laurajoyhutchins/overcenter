@@ -824,6 +824,27 @@ _None._
 - `postgres:public.github_changeset_receipts#updated_at` (`postgres`)
   - Source: `public.github_changeset_receipts#updated_at`
 
+## `github.coalesce_mechanical_changeset.input`
+
+- Significance: `public`
+- Lifecycle: `current`
+- SemVer: `semantic-command-contract`
+- Authority: `semantic-command:github.coalesce_mechanical_changeset#input` (`semantic-command`)
+- Authority source: `src/semantic/semantic-command-descriptors.ts#github.coalesce_mechanical_changeset`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
 ## `github.production-promotion-receipt.persistence`
 
 - Significance: `durable-internal`

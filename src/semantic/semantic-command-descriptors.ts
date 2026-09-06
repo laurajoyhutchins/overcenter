@@ -307,6 +307,14 @@ const DESCRIPTORS = Object.freeze({
     'advanced',
     INTERNAL_EXPOSURE,
   ),
+  'github.coalesce_mechanical_changeset':descriptor(
+    'github.coalesce_mechanical_changeset',
+    'github_coalesce_mechanical_changeset',
+    'Recover from MECHANICAL_CHANGESET_MUST_COALESCE by replacing the immediately preceding same-lease mechanical workspace head with one combined mechanical repair commit. Repository, branch, exact head, parent, and credentials remain lease-derived; unrelated or stale heads fail closed.',
+    githubApplyChangesetSchema,
+    'advanced',
+    INTERNAL_EXPOSURE,
+  ),
   'github.pull_request.mark_ready':descriptor(
     'github.pull_request.mark_ready',
     'github_pull_request_mark_ready',
