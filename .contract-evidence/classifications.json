@@ -405,6 +405,16 @@
       "significance": "authority",
       "semver_kind": "lifecycle-semantics"
     },
+    "typescript:src/semantic/project-authoring-candidate-reconciliation.ts#ProjectAuthoringCandidateReconciliation": {
+      "logical_contract": "project.authoring.candidate-reconciliation",
+      "significance": "boundary-internal",
+      "semver_kind": "internal-module-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/project-authoring-candidate-reconciliation.ts#ProjectAuthoringCandidateReconciliationInput": {
+      "significance": "projection",
+      "projection_of": "project.authoring.candidate-reconciliation"
+    },
     "typescript:src/semantic/project-authoring-runtime.ts#ProjectAuthoringAmendmentValidation": {
       "logical_contract": "project.amend.validation-boundary",
       "significance": "boundary-internal",
