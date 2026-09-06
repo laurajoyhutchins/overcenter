@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { projectTransitionAuthoritativeEffectConfirmationFor } from '../lib/project-transition-authoritative-effect.js';
+import { deriveProjectTransitionGithubWorkspace } from '../lib/project-transition-github-workspace.js';
+import { createPostgresProjectTransitionAuthoritativeEffectConfirmationService } from '../lib/project-transition-authoritative-effect-github-runtime.js';
 
 const SHA = {
   authority:'1111111111111111111111111111111111111111',
@@ -199,6 +201,54 @@ test('authoritative-effect confirmation refuses to claim completion while determ
     execution_result:executionResult,
   });
   assert.deepEqual(result, { confirmed:false, reason:'authoritative_effect_pending', recovery:{ mechanism:'github_integration_reconcile', merge_request_uuid:'merge-1' } });
+});
+
+test('GitHub authoritative-effect readback survives a moved workspace branch by filtering bounded base PR history locally', async () => {
+  const authority = {
+    subject:'project_transition',
+    lease_ref:'lease-1',
+    run_id:'run-1',
+    repository:'laurajoyhutchins/overcenter',
+    project_ref:'github:laurajoyhutchins/overcenter',
+    transition_id:'transition-1',
+    transition_definition_fingerprint:'f'.repeat(64),
+    authority:{ kind:'github', repository:'laurajoyhutchins/overcenter', revision:SHA.authority, derivation:'overcenter-project-graph-v1' },
+  };
+  const workspace = await deriveProjectTransitionGithubWorkspace(authority);
+  let pullQuery = null;
+  const db = {
+    async query(sql) {
+      if (sql.includes('SELECT lease_ref FROM execution_state')) return { rows:[{ lease_ref:'lease-1' }] };
+      if (sql.includes('FROM work_leases')) return { rows:[] };
+      if (sql.includes('FROM portfolio_repository_branch_roles')) return { rows:[{ repository:'laurajoyhutchins/overcenter', development_branch:'dev', production_branch:'main', production_source_ref:'refs/heads/main' }] };
+      throw new Error(`unexpected SQL: ${sql}`);
+    },
+  };
+  const service = createPostgresProjectTransitionAuthoritativeEffectConfirmationService({
+    db,
+    executionAuthority:{ async require() { return authority; } },
+    async withGitHubAppApiClient(_repository, fn) {
+      return fn({
+        async call(_provider, request) {
+          if (request.path.endsWith('/pulls')) {
+            pullQuery = request.query;
+            return { status:200, body:request.query?.head ? [] : [{ number:619, state:'closed', merged_at:'2026-09-06T02:54:32Z', merge_commit_sha:SHA.merge, head:{ sha:SHA.candidate, ref:workspace.branch }, base:{ ref:'dev' } }] };
+          }
+          if (request.path.endsWith('/branches/dev')) return { status:200, body:{ commit:{ sha:SHA.merge } } };
+          throw new Error(`unexpected GitHub read: ${request.path}`);
+        },
+      });
+    },
+  });
+  const result = await service.confirm({
+    run_id:'run-1',
+    target:{ project_ref:'github:laurajoyhutchins/overcenter', horizon:{ kind:'transition', ref:'transition-1' } },
+    execution_result:executionResult,
+  });
+  assert.equal(result.confirmed, true);
+  assert.equal(Object.hasOwn(pullQuery, 'head'), false);
+  assert.equal(pullQuery.base, 'dev');
+  assert.equal(pullQuery.per_page, 100);
 });
 
 test('authoritative-effect confirmation rejects a merged candidate that is not in current development authority', async () => {
