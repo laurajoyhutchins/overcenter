@@ -56,6 +56,7 @@ const maintainedTests = [
   'verify-project-authoring-github-adapter.test.mjs',
   'verify-project-authoring-authoritative-transition.test.mjs',
   'verify-project-authoring-production-runtime.test.mjs',
+  'verify-project-authoring-candidate-reconciliation.test.mjs',
   'verify-project-authoring-pending-envelope.test.mjs',
   'verify-project-authoring-readback-contract.test.mjs',
   'verify-project-authoring-worker-binding.test.mjs',
