@@ -1,11 +1,19 @@
 import { createServer } from 'node:http';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 import { createCloudRunHandler, resolveCloudRunConfig } from './cloud-run-host.mjs';
+import { applyPostgresMigrations } from './postgres-migrations.mjs';
 
 const config = resolveCloudRunConfig(process.env);
 const { Pool } = pg;
 const pool = new Pool(config.postgres);
+
+const migrations = await applyPostgresMigrations({
+  db: pool,
+  migrationsDir: fileURLToPath(new URL('../migrations/', import.meta.url)),
+});
+console.log(`Overcenter schema ready: ${migrations.applied.length} applied, ${migrations.skipped.length} already present.`);
 
 await pool.query(`
   CREATE TABLE IF NOT EXISTS overcenter_runtime_deployments (
