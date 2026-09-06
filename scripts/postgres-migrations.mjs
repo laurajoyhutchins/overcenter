@@ -1,0 +1,78 @@
+import { createHash } from 'node:crypto';
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+function fail(code, message, details = null) {
+  throw Object.assign(new Error(message), { code, details });
+}
+
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+export async function discoverPostgresMigrations(migrationsDir) {
+  const names = (await readdir(migrationsDir))
+    .filter(name => /^\d+.*\.sql$/.test(name))
+    .sort((a, b) => a.localeCompare(b));
+
+  const migrations = [];
+  for (const name of names) {
+    const sql = await readFile(join(migrationsDir, name), 'utf8');
+    migrations.push(Object.freeze({ name, sql, sha256: sha256(Buffer.from(sql, 'utf8')) }));
+  }
+  return Object.freeze(migrations);
+}
+
+export async function applyPostgresMigrations({ db, migrationsDir }) {
+  if (!db || typeof db.query !== 'function') {
+    fail('MIGRATION_DATABASE_REQUIRED', 'PostgreSQL migration database is unavailable.');
+  }
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS overcenter_schema_migrations (
+      name text PRIMARY KEY,
+      sha256 character(64) NOT NULL,
+      applied_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  const applied = [];
+  const skipped = [];
+  for (const migration of await discoverPostgresMigrations(migrationsDir)) {
+    const existing = await db.query(
+      'SELECT sha256 FROM overcenter_schema_migrations WHERE name=$1 LIMIT 1',
+      [migration.name],
+    );
+    const observed = existing.rows?.[0]?.sha256 || null;
+    if (observed) {
+      if (observed !== migration.sha256) {
+        fail(
+          'MIGRATION_CHECKSUM_MISMATCH',
+          `Applied migration ${migration.name} no longer matches source authority.`,
+          { migration: migration.name, expected_sha256: observed, actual_sha256: migration.sha256 },
+        );
+      }
+      skipped.push(migration.name);
+      continue;
+    }
+
+    await db.query('BEGIN');
+    try {
+      await db.query(migration.sql);
+      await db.query(
+        'INSERT INTO overcenter_schema_migrations(name, sha256) VALUES ($1, $2)',
+        [migration.name, migration.sha256],
+      );
+      await db.query('COMMIT');
+      applied.push(migration.name);
+    } catch (error) {
+      await db.query('ROLLBACK').catch(() => {});
+      throw Object.assign(error, {
+        migration: migration.name,
+        migration_sha256: migration.sha256,
+      });
+    }
+  }
+
+  return Object.freeze({ applied: Object.freeze(applied), skipped: Object.freeze(skipped) });
+}
