@@ -6,6 +6,8 @@ import {
   createPostgresStateManifest,
 } from './postgres-state-manifest.mjs';
 
+const SHADOW_ONLY_TABLES = ['overcenter_runtime_deployments'];
+
 function fakeDb() {
   return {
     async query(text, params = []) {
@@ -44,11 +46,11 @@ function fakeDb() {
 
 test('state manifest hashes schema and sorted row content while excluding host-local tables', async () => {
   const manifest = await createPostgresStateManifest(fakeDb(), {
-    excludeTables: ['overcenter_runtime_deployments'],
+    excludeTables: SHADOW_ONLY_TABLES,
   });
 
   assert.equal(manifest.version, 1);
-  assert.deepEqual(manifest.excludedTables, ['overcenter_runtime_deployments']);
+  assert.deepEqual(manifest.excludedTables, SHADOW_ONLY_TABLES);
   assert.deepEqual(manifest.tables.map(table => [table.name, table.rowCount]), [
     ['execution_state', 2],
     ['work_leases', 1],
@@ -60,7 +62,9 @@ test('state manifest hashes schema and sorted row content while excluding host-l
 });
 
 test('state manifest is deterministic across database row order', async () => {
-  const first = await createPostgresStateManifest(fakeDb());
+  const first = await createPostgresStateManifest(fakeDb(), {
+    excludeTables: SHADOW_ONLY_TABLES,
+  });
   const reversed = fakeDb();
   const originalQuery = reversed.query.bind(reversed);
   reversed.query = async (text, params) => {
@@ -69,7 +73,9 @@ test('state manifest is deterministic across database row order', async () => {
     return result;
   };
 
-  const second = await createPostgresStateManifest(reversed);
+  const second = await createPostgresStateManifest(reversed, {
+    excludeTables: SHADOW_ONLY_TABLES,
+  });
   assert.deepEqual(second, first);
 });
 
