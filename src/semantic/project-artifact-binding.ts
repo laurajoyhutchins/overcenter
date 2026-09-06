@@ -1,0 +1,45 @@
+const SHA40=/^[0-9a-f]{40}$/;
+const PROJECT_REF=/^github:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/;
+const PROVIDER_KINDS=new Set(['issue','pull_request']);
+const RELATIONSHIPS=new Set(['full-coverage-equivalence']);
+const SATISFACTION_KINDS=new Set(['provider-closed']);
+
+export type ProjectArtifactProviderKind='issue'|'pull_request';
+export type ProjectArtifactBinding=Readonly<{
+  schema:'project-artifact-binding-v1';
+  provenance:'explicit-judgment';
+  subject:Readonly<{project_ref:string;transition_id:string;authority_revision:string}>;
+  provider:Readonly<{repository:string;kind:ProjectArtifactProviderKind;id:number;state:string}>;
+  relationship:'full-coverage-equivalence';
+  satisfaction:Readonly<{kind:'provider-closed';requires_exact_binding:true}>;
+}>;
+
+function fail(message:string):never{const error=new Error(message);(error as Error&{code:string}).code='PROJECT_ARTIFACT_BINDING_INVALID';throw error;}
+function text(value:unknown,field:string,max=512):string{const result=typeof value==='string'?value.trim():'';if(!result||result.length>max)fail(`${field} is required`);return result;}
+function revision(value:unknown):string{const result=text(value,'authority_revision',40).toLowerCase();if(!SHA40.test(result))fail('authority_revision must be an exact Git revision');return result;}
+
+export function createProjectArtifactBinding(input:any):ProjectArtifactBinding{
+  const projectRef=text(input?.project_ref,'project_ref',300);
+  const match=projectRef.match(PROJECT_REF);if(!match)fail('project_ref must identify one GitHub repository');
+  const transitionId=text(input?.transition_id,'transition_id',256);
+  const authorityRevision=revision(input?.authority_revision);
+  const repository=text(input?.provider?.repository,'provider.repository',256);
+  if(repository!==match[1])fail('provider repository must match project repository');
+  const kind=text(input?.provider?.kind,'provider.kind',32) as ProjectArtifactProviderKind;
+  const id=Number(input?.provider?.id);
+  const state=text(input?.provider?.state,'provider.state',32).toLowerCase();
+  if(!PROVIDER_KINDS.has(kind)||!Number.isInteger(id)||id<1)fail('provider identity is invalid');
+  const relationship=text(input?.relationship,'relationship',64);
+  if(!RELATIONSHIPS.has(relationship))fail('relationship must establish full-coverage equivalence');
+  const satisfactionKind=text(input?.satisfaction?.kind,'satisfaction.kind',64);
+  if(!SATISFACTION_KINDS.has(satisfactionKind)||input?.satisfaction?.requires_exact_binding!==true)fail('satisfaction must require exact binding');
+  return Object.freeze({schema:'project-artifact-binding-v1',provenance:'explicit-judgment',subject:Object.freeze({project_ref:projectRef,transition_id:transitionId,authority_revision:authorityRevision}),provider:Object.freeze({repository,kind,id,state}),relationship:'full-coverage-equivalence',satisfaction:Object.freeze({kind:'provider-closed',requires_exact_binding:true})});
+}
+
+export function classifyBoundArtifactSatisfaction(binding:ProjectArtifactBinding,observed:any){
+  const exact=observed&&binding?.schema==='project-artifact-binding-v1'&&String(observed.repository||'')===binding.provider.repository&&String(observed.kind||'')===binding.provider.kind&&Number(observed.id)===binding.provider.id;
+  if(!exact)return Object.freeze({classification:'ambiguous',evidence:Object.freeze({reason:'artifact-not-explicitly-bound'})});
+  const state=String(observed.state||'').trim().toLowerCase();
+  if(binding.satisfaction.kind==='provider-closed'&&state==='closed')return Object.freeze({classification:'satisfied',evidence:Object.freeze({provider_state:'closed',provider_id:binding.provider.id})});
+  return Object.freeze({classification:'active',evidence:Object.freeze({provider_state:state||null,provider_id:binding.provider.id})});
+}
