@@ -284,6 +284,8 @@
       "requires": [
         "add-semantic-agent-execution-reporting",
         "automate-candidate-base-reconciliation",
+        "enforce-certificate-backed-transition-settlement",
+        "expose-transition-proof-state",
         "fix-production-reconcile-authoritative-runtime-observation",
         "make-agent-execution-packets-self-contained",
         "make-graph-workers-self-recovering",
@@ -732,6 +734,50 @@
       }
     },
     {
+      "id": "define-transition-certificate-contract",
+      "priority": 183,
+      "requires": [
+        "bind-project-transition-settlement-to-authoritative-effect",
+        "derive-project-state-from-obligations-and-evidence",
+        "preserve-project-transition-settlement-evidence"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Define the smallest canonical transition-certificate contract that makes one satisfied Overcenter project transition independently checkable from its exact semantic obligation identity, authority provenance, predecessor/evidence closure, and authoritative postcondition evidence without creating a second evidence store or lifecycle truth.",
+        "acceptance_evidence": [
+          {
+            "kind": "composition",
+            "requirement": "The contract composes existing settlement evidence, execution evidence, exact-revision verification, receipts, and obligation-state machinery by reference; it must not add a parallel evidence database, shadow graph, or second project truth."
+          },
+          {
+            "kind": "contract",
+            "requirement": "Define one canonical transition-certificate shape that binds project_ref, transition_id, exact obligation fingerprint, authority provenance, prerequisite/evidence closure, authoritative-effect evidence, and claimed outcome, with explicit rules for which fields are semantic identity versus provenance or evidence references."
+          },
+          {
+            "kind": "identity",
+            "requirement": "Certificate semantic identity is deterministic and changes when obligation/acceptance/dependency semantics change, while mutable leases, run ids, timestamps, current lifecycle projections, and evidence instances do not become obligation identity."
+          },
+          {
+            "kind": "replay",
+            "requirement": "A deterministic checker can replay the same certificate against the same obligation semantics and authority provenance and reach the same acceptance result without prior conversational context."
+          },
+          {
+            "kind": "tests",
+            "requirement": "Focused executable contract tests cover canonicalization, stable replay, semantic-change invalidation, unrelated-representation stability, prerequisite closure, and rejection of evidence that is not bound to the claimed subject."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Relevant canonical tests pass at the exact final revision and fresh repository evidence demonstrates the contract integrates with the existing obligation, evidence, and settlement boundaries."
+          }
+        ]
+      }
+    },
+    {
       "id": "delegate-agent-discovered-mechanical-work",
       "priority": 92,
       "requires": [
@@ -1018,6 +1064,49 @@
       }
     },
     {
+      "id": "enforce-certificate-backed-transition-settlement",
+      "priority": 184,
+      "requires": [
+        "define-transition-certificate-contract",
+        "make-project-amend-semantic-conflict-aware"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Make completed project-transition settlement a deterministic certificate check: Overcenter may report a transition satisfied only when the current obligation semantics, predecessor closure, identity-bound acceptance evidence, and required authoritative postcondition can be replayed from a valid transition certificate; stale or incomplete derivations fail closed.",
+        "acceptance_evidence": [
+          {
+            "kind": "authority",
+            "requirement": "Evidence for a candidate, mutable reference, superseded authority, or older exact revision cannot authorize a later authoritative effect; repository-mutating transitions require the exact authoritative postcondition required by their declared outcome."
+          },
+          {
+            "kind": "kernel",
+            "requirement": "The deterministic settlement boundary validates transition identity, current obligation fingerprint, predecessor closure, acceptance-evidence completeness and identity binding, authoritative postcondition evidence, and unresolved requirements before completed settlement is accepted."
+          },
+          {
+            "kind": "regression",
+            "requirement": "Regressions cover valid replay, unrelated graph amendment, changed acceptance semantics, changed dependency semantics, stale exact-revision evidence, verified candidate without authoritative integration, missing prerequisite closure, and already-integrated idempotent success."
+          },
+          {
+            "kind": "replay",
+            "requirement": "Independent deterministic replay of a valid current certificate converges idempotently; an already-established authoritative effect can be replayed without duplicating mutation."
+          },
+          {
+            "kind": "staleness",
+            "requirement": "Changing acceptance or dependency semantics invalidates affected certificates, while unrelated graph changes do not invalidate certificates whose semantic obligation identity and required evidence closure remain unchanged."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Focused and canonical settlement/exact-revision tests pass for the exact final revision and deployed evidence proves invalid certificates cannot produce DONE."
+          }
+        ]
+      }
+    },
+    {
       "id": "enforce-primary-mcp-discovery-boundary",
       "priority": 1300,
       "requires": [],
@@ -1262,6 +1351,50 @@
           {
             "kind": "verification",
             "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+          }
+        ]
+      }
+    },
+    {
+      "id": "expose-transition-proof-state",
+      "priority": 185,
+      "requires": [
+        "enforce-certificate-backed-transition-settlement",
+        "make-agent-execution-packets-self-contained",
+        "make-project-inspect-snapshot-correct"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Expose a bounded proof-state projection for each actionable project transition through the existing project.inspect and agent execution-packet surfaces so a disposable session can see the exact desired outcome, obligation fingerprint, satisfied and unresolved acceptance obligations, valid evidence, blockers, and whether the next legal action is deterministic, waiting, judgment-required, or complete without reconstructing done-ness from prose.",
+        "acceptance_evidence": [
+          {
+            "kind": "decision",
+            "requirement": "The projection classifies the next legal boundary as deterministic action, external wait, reasoning judgment, operator action, or complete, with exact authority and stop/recovery conditions where applicable."
+          },
+          {
+            "kind": "holes",
+            "requirement": "Unresolved requirements are exposed as explicit bounded obligations with status and supporting or missing evidence rather than forcing an agent to infer them from issue text, prior chat, or journal chronology."
+          },
+          {
+            "kind": "packet",
+            "requirement": "AGENT_EXECUTION_REQUIRED packets carry the same current proof-state subset needed for a fresh disposable session to act correctly, without exposing kernel bookkeeping or requiring caller memory."
+          },
+          {
+            "kind": "projection",
+            "requirement": "The projection is derived from authoritative graph semantics, valid evidence/realizations, exact authority, and live execution state; it does not introduce a new lifecycle state, shadow graph, or duplicate proof/evidence store."
+          },
+          {
+            "kind": "staleness",
+            "requirement": "When obligation semantics or authority invalidate prior evidence, fresh inspection marks the affected obligation unresolved/stale and never presents the old derivation as current proof."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Regressions prove fresh project.inspect and packet-only execution over satisfied, partially satisfied, stale-evidence, blocked, deterministic-next-step, and judgment-required transitions at the exact final revision."
           }
         ]
       }
