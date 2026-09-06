@@ -9,6 +9,8 @@ RUNTIME_SA="${OVERCENTER_RUNTIME_SERVICE_ACCOUNT:-overcenter-runtime@project-6b8
 DB_NAME="${PGDATABASE:-overcenter}"
 DB_USER="${PGUSER:-overcenter}"
 PASSWORD_SECRET="${OVERCENTER_DB_PASSWORD_SECRET:-overcenter-db-password}"
+GITHUB_APP_ID_VALUE="${OVERCENTER_GITHUB_APP_ID:-4616688}"
+GITHUB_APP_PRIVATE_KEY_SECRET="${OVERCENTER_GITHUB_APP_PRIVATE_KEY_SECRET:-overcenter-github-app-private-key}"
 
 if ! command -v gcloud >/dev/null 2>&1; then
   echo "gcloud is required" >&2
@@ -33,8 +35,8 @@ gcloud run deploy "$SERVICE" \
   --region="$REGION" \
   --service-account="$RUNTIME_SA" \
   --add-cloudsql-instances="$CONNECTION_NAME" \
-  --set-env-vars="PGHOST=/cloudsql/${CONNECTION_NAME},PGDATABASE=${DB_NAME},PGUSER=${DB_USER}" \
-  --set-secrets="PGPASSWORD=${PASSWORD_SECRET}:latest" \
+  --set-env-vars="PGHOST=/cloudsql/${CONNECTION_NAME},PGDATABASE=${DB_NAME},PGUSER=${DB_USER},GITHUB_APP_ID=${GITHUB_APP_ID_VALUE}" \
+  --set-secrets="PGPASSWORD=${PASSWORD_SECRET}:latest,GITHUB_APP_PRIVATE_KEY=${GITHUB_APP_PRIVATE_KEY_SECRET}:latest" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
   --no-allow-unauthenticated \
   --min-instances=0 \
@@ -82,6 +84,7 @@ printf '%s\n' \
   "Revision:         ${LATEST_READY_REVISION}" \
   "Runtime identity: ${RUNTIME_SA}" \
   "Cloud SQL:        ${CONNECTION_NAME}" \
+  "GitHub App ID:    ${GITHUB_APP_ID_VALUE}" \
   "URL:              ${SERVICE_URL}" \
   "Health:           Cloud Run /health startup probe passed (Postgres SELECT 1)" \
   "Exposure:         private (unauthenticated /health returned 403)"
