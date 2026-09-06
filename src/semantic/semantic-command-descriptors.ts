@@ -154,6 +154,15 @@ const githubApplyTextReplacementsSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const invocationObservationSchema = Object.freeze({
+  type:'object',
+  required:['invocation_id'],
+  properties:{
+    invocation_id:{type:'string',pattern:'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'},
+  },
+  additionalProperties:false,
+});
+
 const githubPullRequestMarkReadySchema = Object.freeze({
   type:'object',
   required:['repo','pull_request','expected_head'],
@@ -352,6 +361,22 @@ const DESCRIPTORS = Object.freeze({
     'project.advance',
     'Advance authoritative repository-owned project work in an independent agent session. Omit transition_id for deterministic best-available selection, or nominate one exact transition without fallback. Resume by passing the durable resume_ref returned by a prior call; when agent execution is complete, return its bounded execution_result through this same command. Overcenter owns run identity, lease acquisition, settlement, exact authority, recovery, and continuation.',
     projectAdvanceSchema,
+    'primary',
+    WORKER_AND_MCP_EXPOSURE,
+  ),
+  'invocation.peek':descriptor(
+    'invocation.peek',
+    'invocation.peek',
+    'Read the bounded authoritative state of one exact durable command invocation without reconstructing prior session context or creating new execution state.',
+    invocationObservationSchema,
+    'primary',
+    WORKER_AND_MCP_EXPOSURE,
+  ),
+  'invocation.attach':descriptor(
+    'invocation.attach',
+    'invocation.attach',
+    'Reconnect to one exact durable command invocation and return its stable invocation reference plus current bounded authoritative observation without creating parallel session state.',
+    invocationObservationSchema,
     'primary',
     WORKER_AND_MCP_EXPOSURE,
   ),

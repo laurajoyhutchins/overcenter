@@ -9,7 +9,7 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
+const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'invocation.peek', 'invocation.attach', 'release.publish', 'work.settle'];
 const expectedSurface = new Map([
   ['github.apply_changeset', 'advanced'],
   ['github.apply_text_replacements', 'advanced'],
@@ -22,6 +22,8 @@ const expectedSurface = new Map([
   ['project.amend', 'primary'],
   ['project.define', 'primary'],
   ['project.inspect', 'primary'],
+  ['invocation.peek', 'primary'],
+  ['invocation.attach', 'primary'],
   ['release.publish', 'primary'],
   ['work.settle', 'compatibility'],
 ]);
