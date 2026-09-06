@@ -9,7 +9,7 @@ RUNTIME_SA="${OVERCENTER_RUNTIME_SERVICE_ACCOUNT:-overcenter-runtime@project-6b8
 DB_NAME="${PGDATABASE:-overcenter}"
 DB_USER="${PGUSER:-overcenter}"
 PASSWORD_SECRET="${OVERCENTER_DB_PASSWORD_SECRET:-overcenter-db-password}"
-GITHUB_APP_ID_VALUE="${GITHUB_APP_ID:-4616688}"
+GITHUB_APP_ID_VALUE="${OVERCENTER_GITHUB_APP_ID:-4616688}"
 GITHUB_APP_PRIVATE_KEY_SECRET="${OVERCENTER_GITHUB_APP_PRIVATE_KEY_SECRET:-overcenter-github-app-private-key}"
 
 if ! command -v gcloud >/dev/null 2>&1; then
