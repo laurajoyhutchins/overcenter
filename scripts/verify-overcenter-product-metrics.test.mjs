@@ -17,8 +17,8 @@ const snapshot = {
     { run_id:'run-ok', transition_id:'t-ok', disposition:'completed', settled_at:'2026-09-05T00:00:10Z', evidence_refs:[{kind:'commit',ref:'sha:1'}] },
   ],
   packets: [
-    { run_id:'run-ok', transition_id:'t-ok', schema_version:'packet-v2', complete:true, authority_revision:'aaa' },
-    { run_id:'run-stale', transition_id:'t-stale', schema_version:null, complete:false, authority_revision:null },
+    { run_id:'run-ok', transition_id:'t-ok', schema_version:'packet-v2', complete:true, authority_revision:'aaa', zero_memory_conformance:true },
+    { run_id:'run-stale', transition_id:'t-stale', schema_version:null, complete:false, authority_revision:null, authority_protocol_failure:true, zero_memory_conformance:null },
   ],
   recoveries: [
     { run_id:'run-stale', deterministic:true, new_reasoning_boundary:false, created_at:'2026-09-05T01:00:20Z' },
@@ -34,7 +34,12 @@ test('derives bounded deterministic metrics with classified failures, coverage u
   assert.deepEqual(result.windows['24h'].failure_classes, { expected_rejection:0, execution_failure:0, mutation_indeterminate:0, authority_staleness:1, agent_reasoning_escalation:0 });
   assert.equal(result.windows['24h'].packet_contract.coverage_known, 1);
   assert.equal(result.windows['24h'].packet_contract.coverage_unknown, 1);
+  assert.equal(result.windows['24h'].packet_contract.authority_protocol_failures.count, 1);
+  assert.equal(result.windows['24h'].semantic_coordination_commands.per_verified_transition.before_acquisition, 2);
   assert.equal(result.windows['24h'].recovery.deterministic_without_new_reasoning_boundary, 1);
+  assert.equal(result.windows['24h'].contract_health.fresh_session_zero_memory_conformance.passed, 1);
+  assert.equal(result.windows['24h'].contract_health.fresh_session_zero_memory_conformance.unknown, 1);
+  assert.match(result.windows['24h'].contract_health.fresh_session_zero_memory_conformance.note, /Contract-health/);
   assert.deepEqual(result.windows['24h'].latency_ms.completed_transition.p50, 10000);
   assert.equal(result.windows['24h'].exemplars.verified_transitions[0].run_id, 'run-ok');
   assert.equal(result.windows['24h'].exemplars.authority_staleness[0].authority_revision, 'bbb');
