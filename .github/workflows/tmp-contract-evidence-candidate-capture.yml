@@ -1,0 +1,39 @@
+name: Temporary contract evidence candidate capture
+
+on:
+  pull_request:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
+      - name: Generate candidate evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
+          node scripts/contract-evidence/cli.mjs generate \
+            --repo-root . \
+            --config scripts/contract-evidence/overcenter/config.mjs \
+            --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
+            --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
+            --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-contract-evidence
+          retention-days: 1
+          path: |
+            ${{ runner.temp }}/contract-evidence/generated/contracts/catalog.json
+            ${{ runner.temp }}/contract-evidence/docs/generated/data-contracts.md
+            ${{ runner.temp }}/contract-evidence/docs/generated/data-contract-authority-atlas.md
