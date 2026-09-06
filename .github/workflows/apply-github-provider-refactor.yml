@@ -1,0 +1,83 @@
+name: Apply GitHub provider refactor
+
+on:
+  push:
+    branches:
+      - work/gcp-github-app-provider-boundary
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'ci: apply GitHub provider refactor'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Apply bounded provider refactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('lib/github-app-auth.js')
+          text = path.read_text()
+
+          old_import = 'import { config } from "hatchable";\n'
+          new_import = '''import {\n  createDefaultGitHubAppCredentialProvider,\n  createEnvironmentGitHubAppCredentialProvider,\n} from "./github-app-credentials.js";\n'''
+          if old_import not in text:
+              raise SystemExit('expected Hatchable config import not found')
+          text = text.replace(old_import, new_import, 1)
+
+          marker = 'const USER_AGENT = "Overcenter/1.0";\n'
+          provider = '''const USER_AGENT = "Overcenter/1.0";\n\nexport { createEnvironmentGitHubAppCredentialProvider };\n\nconst DEFAULT_GITHUB_APP_CREDENTIAL_PROVIDER = createDefaultGitHubAppCredentialProvider();\n\nasync function readGitHubAppCredentials(options = {}) {\n  const credentialProvider = options.credentialProvider || DEFAULT_GITHUB_APP_CREDENTIAL_PROVIDER;\n  if (!credentialProvider || typeof credentialProvider.get !== "function") {\n    throw Object.assign(new Error("GitHub App credential provider is unavailable."), {\n      code: "GITHUB_APP_SETUP_REQUIRED",\n    });\n  }\n  const appId = await credentialProvider.get("GITHUB_APP_ID");\n  const privateKeyValue = await credentialProvider.get("GITHUB_APP_PRIVATE_KEY");\n  return { appId, privateKeyValue };\n}\n'''
+          if text.count(marker) != 1:
+              raise SystemExit('unexpected USER_AGENT marker count')
+          text = text.replace(marker, provider, 1)
+
+          replacements = [
+              (
+                  '''export async function getGitHubAppIdentity() {\n  const appId = await config.get("GITHUB_APP_ID");\n  const privateKeyValue = await config.get("GITHUB_APP_PRIVATE_KEY");\n''',
+                  '''export async function getGitHubAppIdentity(options = {}) {\n  const { appId, privateKeyValue } = await readGitHubAppCredentials(options);\n''',
+              ),
+              (
+                  '''export async function getGitHubAppInstallationScope(repoInput) {\n  const repo = validateRepo(repoInput);\n  const [owner, name] = repo.split("/");\n  const appId = await config.get("GITHUB_APP_ID");\n  const privateKeyValue = await config.get("GITHUB_APP_PRIVATE_KEY");\n''',
+                  '''export async function getGitHubAppInstallationScope(repoInput, options = {}) {\n  const repo = validateRepo(repoInput);\n  const [owner, name] = repo.split("/");\n  const { appId, privateKeyValue } = await readGitHubAppCredentials(options);\n''',
+              ),
+              (
+                  '''async function createInstallationToken(repo, profileName, options = {}) {\n  const repositoryScope = options.repositoryScope || "repository";\n  const appId = await config.get("GITHUB_APP_ID");\n  const privateKeyValue = await config.get("GITHUB_APP_PRIVATE_KEY");\n''',
+                  '''async function createInstallationToken(repo, profileName, options = {}) {\n  const repositoryScope = options.repositoryScope || "repository";\n  const { appId, privateKeyValue } = await readGitHubAppCredentials(options);\n''',
+              ),
+              (
+                  '''  const auth = await createInstallationToken(repo, profileName, { repositoryScope: options.repositoryScope });\n''',
+                  '''  const auth = await createInstallationToken(repo, profileName, {\n    repositoryScope: options.repositoryScope,\n    credentialProvider: options.credentialProvider,\n  });\n''',
+              ),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected exactly one bounded replacement, found {text.count(old)}: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          if 'config.get(' in text or 'from "hatchable"' in text.splitlines()[0]:
+              raise SystemExit('Hatchable config binding remains in GitHub App auth')
+
+          path.write_text(text)
+          PY
+
+          node scripts/github-app-auth-portability.test.mjs
+          git diff --check
+          git diff -- lib/github-app-auth.js
+
+      - name: Commit verified refactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Overcenter migration bot'
+          git config user.email 'noreply@github.com'
+          git add lib/github-app-auth.js
+          git commit -m 'refactor: make GitHub App credentials provider-neutral'
+          git push origin HEAD:work/gcp-github-app-provider-boundary
