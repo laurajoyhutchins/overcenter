@@ -166,6 +166,31 @@ const githubPullRequestMarkReadySchema = Object.freeze({
   },
 });
 
+const githubPullRequestCloseSchema = Object.freeze({
+  type:'object',
+  required:['repo','pull_request','expected_head','artifact_ref'],
+  additionalProperties:false,
+  properties:{
+    repo:{type:'string',minLength:3,maxLength:256,pattern:'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
+    pull_request:{type:'integer',minimum:1},
+    expected_head:{type:'string',pattern:'^[0-9a-fA-F]{40}$'},
+    artifact_ref:{type:'string',minLength:1,maxLength:1024,description:'Semantic artifact identity authorized for retirement by project-level policy.'},
+    run_id:{type:'string',minLength:1,maxLength:512},
+  },
+});
+
+const githubIssueCloseSchema = Object.freeze({
+  type:'object',
+  required:['repo','issue','artifact_ref'],
+  additionalProperties:false,
+  properties:{
+    repo:{type:'string',minLength:3,maxLength:256,pattern:'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
+    issue:{type:'integer',minimum:1},
+    artifact_ref:{type:'string',minLength:1,maxLength:1024,description:'Semantic artifact identity authorized for retirement by project-level policy.'},
+    run_id:{type:'string',minLength:1,maxLength:512},
+  },
+});
+
 const githubReleaseSchema = Object.freeze({
   type:'object',
   required:['repo','target_sha','tag_name','name','body','draft','prerelease','expected_state','idempotency_key','run_id'],
@@ -312,6 +337,22 @@ const DESCRIPTORS = Object.freeze({
     'github_pull_request_mark_ready',
     'Mark an exact-head draft pull request ready for review through the Overcenter GitHub App. The command fails closed if GitHub does not authorize the installation actor for this PR, never retries a mutation blindly, and authoritatively rereads state after uncertain mutation transport.',
     githubPullRequestMarkReadySchema,
+    'advanced',
+    INTERNAL_EXPOSURE,
+  ),
+  'github.pull_request.close':descriptor(
+    'github.pull_request.close',
+    'github_pull_request_close',
+    'Close one exact-head pull request through the Overcenter GitHub App after project-level artifact retirement authorization. Idempotent closed state and uncertain transport are reconciled by fresh authoritative readback.',
+    githubPullRequestCloseSchema,
+    'advanced',
+    INTERNAL_EXPOSURE,
+  ),
+  'github.issue.close':descriptor(
+    'github.issue.close',
+    'github_issue_close',
+    'Close one exact GitHub issue through the Overcenter GitHub App after project-level artifact retirement authorization. Pull-request objects are rejected, already-closed state is idempotent, and uncertain transport is reconciled by fresh authoritative readback.',
+    githubIssueCloseSchema,
     'advanced',
     INTERNAL_EXPOSURE,
   ),
