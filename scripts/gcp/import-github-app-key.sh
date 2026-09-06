@@ -6,6 +6,7 @@ RUNTIME_SA="${OVERCENTER_RUNTIME_SERVICE_ACCOUNT:-overcenter-runtime@project-6b8
 SECRET="${OVERCENTER_GITHUB_APP_PRIVATE_KEY_SECRET:-overcenter-github-app-private-key}"
 APP_ID="${OVERCENTER_GITHUB_APP_ID:-4616688}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-laurajoyhutchins/overcenter}"
+ROTATE_KEY="${OVERCENTER_ROTATE_GITHUB_APP_KEY:-false}"
 
 for command in gcloud gh openssl; do
   if ! command -v "$command" >/dev/null 2>&1; then
@@ -47,10 +48,14 @@ openssl pkey -in "$PEM_PATH" -noout -check >/dev/null
 gcloud config set project "$PROJECT_ID" >/dev/null
 
 if gcloud secrets describe "$SECRET" --project="$PROJECT_ID" >/dev/null 2>&1; then
-  gcloud secrets versions add "$SECRET" \
-    --project="$PROJECT_ID" \
-    --data-file="$PEM_PATH" >/dev/null
-  ACTION="added a new version to"
+  if [[ "$ROTATE_KEY" == "true" ]]; then
+    gcloud secrets versions add "$SECRET" \
+      --project="$PROJECT_ID" \
+      --data-file="$PEM_PATH" >/dev/null
+    ACTION="added a new version to"
+  else
+    ACTION="reused existing"
+  fi
 else
   gcloud secrets create "$SECRET" \
     --project="$PROJECT_ID" \
