@@ -166,6 +166,31 @@ const githubPullRequestMarkReadySchema = Object.freeze({
   },
 });
 
+const githubIssueCloseSchema = Object.freeze({
+  type:'object',
+  required:['repo','issue','expected_state'],
+  additionalProperties:false,
+  properties:{
+    repo:{type:'string',minLength:3,maxLength:256,pattern:'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$',description:'Repository in owner/repo form.'},
+    issue:{type:'integer',minimum:1,description:'Exact GitHub issue number. Pull requests exposed through the issues API are rejected.'},
+    expected_state:{type:'string',const:'open',description:'Pre-mutation semantic state fence. Already-closed exact issues converge idempotently.'},
+    run_id:{type:'string',minLength:1,maxLength:512,description:'Optional orchestration run id used only for correlation.'},
+  },
+});
+
+const githubPullRequestCloseSchema = Object.freeze({
+  type:'object',
+  required:['repo','pull_request','expected_state','expected_head'],
+  additionalProperties:false,
+  properties:{
+    repo:{type:'string',minLength:3,maxLength:256,pattern:'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$',description:'Repository in owner/repo form.'},
+    pull_request:{type:'integer',minimum:1,description:'Exact GitHub pull request number.'},
+    expected_state:{type:'string',const:'open',description:'Pre-mutation semantic state fence. Already-closed exact pull requests converge idempotently.'},
+    expected_head:{type:'string',pattern:'^[0-9a-fA-F]{40}$',description:'Exact pull request head SHA; head movement fails closed before closure and makes post-mutation verification indeterminate.'},
+    run_id:{type:'string',minLength:1,maxLength:512,description:'Optional orchestration run id used only for correlation.'},
+  },
+});
+
 const githubReleaseSchema = Object.freeze({
   type:'object',
   required:['repo','target_sha','tag_name','name','body','draft','prerelease','expected_state','idempotency_key','run_id'],
@@ -312,6 +337,22 @@ const DESCRIPTORS = Object.freeze({
     'github_pull_request_mark_ready',
     'Mark an exact-head draft pull request ready for review through the Overcenter GitHub App. The command fails closed if GitHub does not authorize the installation actor for this PR, never retries a mutation blindly, and authoritatively rereads state after uncertain mutation transport.',
     githubPullRequestMarkReadySchema,
+    'advanced',
+    INTERNAL_EXPOSURE,
+  ),
+  'github.issue.close':descriptor(
+    'github.issue.close',
+    'github_issue_close',
+    'Close one exact GitHub issue through the Overcenter GitHub App. The command accepts only repository, numeric issue identity, and an explicit open-state fence; it rejects pull requests exposed through the issues API, converges idempotently when already closed, never retries an uncertain mutation, and confirms closure through fresh authoritative GitHub readback. Project-level code owns semantic authorization to retire the bound artifact.',
+    githubIssueCloseSchema,
+    'advanced',
+    INTERNAL_EXPOSURE,
+  ),
+  'github.pull_request.close':descriptor(
+    'github.pull_request.close',
+    'github_pull_request_close',
+    'Close one exact-head GitHub pull request through the Overcenter GitHub App. The command fences repository, numeric pull request identity, open state, and exact head; converges idempotently when already closed at that head; never retries an uncertain mutation; and confirms closure through fresh authoritative GitHub readback. Project-level code owns semantic authorization to retire the bound artifact.',
+    githubPullRequestCloseSchema,
     'advanced',
     INTERNAL_EXPOSURE,
   ),
