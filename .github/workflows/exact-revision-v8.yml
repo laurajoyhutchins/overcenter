@@ -38,6 +38,21 @@ jobs:
         run: npm ci
       - name: Verify invocation attach and peek semantics
         run: node --test scripts/verify-invocation-attach-peek.test.mjs
+      - name: Generate contract evidence candidate for repair
+        run: |
+          npm install --prefix scripts/contract-evidence --no-save --package-lock=false
+          mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
+          node scripts/contract-evidence/cli.mjs generate \
+            --repo-root . \
+            --config scripts/contract-evidence/overcenter/config.mjs \
+            --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
+            --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
+            --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+      - name: Upload contract evidence candidate for repair
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-evidence-candidate
+          path: ${{ runner.temp }}/contract-evidence
       - name: Build runtime artifact
         run: npm run build:runtime
       - name: Verify project authoring authority contracts
