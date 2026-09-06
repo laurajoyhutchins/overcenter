@@ -1563,31 +1563,51 @@
       },
       "execution_intent": {
         "schema": "project-execution-intent-v1",
-        "desired_outcome": "Finish the Hatchable PostgreSQL to GCP Cloud SQL authoritative-state migration end to end: deterministic lossless export/import and same-algorithm manifests over every authoritative table and sequence; prove the machinery non-destructively while Hatchable remains writable; deliberately freeze all Hatchable authoritative writers; perform the final frozen transfer; restore sequences; prove exact source/target equality including unresolved execution, recovery, proof, receipt, scheduled-cycle, orchestration, GitHub and portfolio integration state; expose canonical project.inspect and a safe semantic operation from the private GCP Cloud Run runtime using Cloud SQL; cut writer authority to GCP exactly once with no dual-writer interval; prove post-cutover health, GitHub App auth, semantic recovery coherence, one remaining writer, and exact-final-revision repository verification. Fail closed on stale or ambiguous authority and do not reconstruct state approximately.",
+        "desired_outcome": "Finish the Hatchable-to-GCP authoritative-state migration as an intentional semantic cutover rather than a byte-for-byte database transplant. Preserve execution truth and non-derivable effect, idempotency, proof, and repository-policy evidence; transform legacy evidence into canonical current representations where deterministic; archive historical or compatibility evidence outside the hot authority store when it must remain inspectable; and deliberately omit non-authoritative runtime-epoch state, derived observations, provider-specific bookkeeping, synthetic test pollution, and compatibility state that the canonical GCP runtime no longer requires. Before final export, quiesce Hatchable and require zero live execution authority and zero unresolved mutation effects so no active run or lease crosses the runtime epoch. Bootstrap GCP from a squashed canonical schema instead of replaying Hatchable schema history. Verify migration with a deterministic semantic manifest that classifies every source state class as PRESERVE, TRANSFORM, ARCHIVE, or DISCARD with a reason and accounts for all authoritative source facts. Enable GCP as the sole writer exactly once only after semantic equality, recovery checks, exact-revision runtime verification, and fresh project.inspect plus a safe semantic operation succeed against Cloud SQL; keep Hatchable frozen afterward and do not create dual writers.",
         "acceptance_evidence": [
           {
-            "kind": "migration",
-            "requirement": "Fresh cutover evidence proves the Hatchable source was frozen before final export, all authoritative tables and sequence positions were imported into canonical Cloud SQL schema, and the same deterministic manifest algorithm reports equality."
+            "kind": "archive",
+            "requirement": "Historical rows retained only for audit or forensics are sealed into a content-addressed read-only legacy evidence archive with count, digest, and provenance metadata; the GCP execution kernel never queries that archive to decide current authority."
+          },
+          {
+            "kind": "authority",
+            "requirement": "Immediately before the final source snapshot, Hatchable is mutation-frozen and fresh evidence proves zero active runs, zero live leases or slots, and zero unresolved or indeterminate mutation effects. GCP creates fresh runtime authority after cutover."
+          },
+          {
+            "kind": "classification",
+            "requirement": "A deterministic migration-state contract classifies every Hatchable state/table/field class as PRESERVE, TRANSFORM, ARCHIVE, or DISCARD with an explicit semantic reason; unclassified source state fails migration."
+          },
+          {
+            "kind": "discard",
+            "requirement": "Stale runtime coordination, derived horizons or caches, provider observations, synthetic or orphaned test-fixture evidence, Hatchable deployment/source-sync implementation state, legacy scheduled-cycle choreography, and optional projection bookkeeping are omitted from the hot GCP authority store when non-authoritative or no longer required by the canonical runtime."
+          },
+          {
+            "kind": "evidence",
+            "requirement": "Durable external-effect truth, idempotency and replay protection, project-transition confirmations, proof and evidence facts, repository disposition and branch-role policy, and other non-derivable current authority facts are preserved or deterministically transformed without inventing history."
+          },
+          {
+            "kind": "manifest",
+            "requirement": "A deterministic semantic manifest proves every authoritative source fact is represented by preserved or transformed target truth or an explicitly sealed historical archive, while discarded state is demonstrably non-authoritative and safe to recompute or abandon. Row-count equality alone is insufficient."
           },
           {
             "kind": "recovery",
-            "requirement": "Fresh source/target semantic evidence proves unresolved runs, active/recovery-relevant leases, operation/execution/proof state, receipts and journals are preserved coherently and recovery inspection succeeds."
+            "requirement": "Post-import recovery and evidence-integrity checks prove no unresolved effect, stale lease, synthetic fixture, or compatibility projection can become current GCP execution authority."
           },
           {
             "kind": "runtime",
-            "requirement": "The exact integrated Cloud Run revision is private, Cloud SQL healthy, GitHub App authentication succeeds, canonical project.inspect works against migrated Cloud SQL state, and one safe semantic operation executes through the GCP runtime."
+            "requirement": "Fresh exact-revision evidence proves the final Cloud Run revision is healthy, reaches Cloud SQL and GitHub App auth, project.inspect reads migrated authoritative state, and at least one safe canonical semantic operation executes or reconciles correctly on GCP."
+          },
+          {
+            "kind": "schema",
+            "requirement": "Cloud SQL starts from one squashed canonical schema for the post-Hatchable architecture; the Hatchable migration ledger and obsolete compatibility-only schema are not replayed as operational authority."
           },
           {
             "kind": "single-writer",
-            "requirement": "Fresh runtime evidence proves Hatchable mutation surfaces are frozen/retired before GCP writer enablement and exactly one authoritative writer remains after cutover."
-          },
-          {
-            "kind": "tests",
-            "requirement": "Exact-final-revision automated tests prove deterministic state serialization/import, manifest equality including sequences and schema metadata, freeze/writer fencing, and portable semantic HTTP behavior."
+            "requirement": "Writer cutover occurs exactly once after semantic verification: GCP Cloud SQL becomes the sole authoritative writer and Hatchable remains mutation-frozen. No dual-writer interval is permitted."
           },
           {
             "kind": "verification",
-            "requirement": "Repository verification and exact-revision verification are green for the exact final integrated Git SHA that is deployed after cutover."
+            "requirement": "Canonical repository and exact-revision verification are green for the exact final source revision, and final migration evidence records source freeze coordinates, semantic-manifest digests, archive digest, target runtime coordinates, and writer-cutover proof."
           }
         ]
       }
