@@ -95,8 +95,13 @@ test('authoritative-effect confirmation remains unconfirmed while only the exact
 
 test('authoritative-effect confirmation deterministically integrates an exact open candidate before authoritative readback', async () => {
   let reads = 0;
+  let headReads = 0;
   const integrations = [];
   const { service } = fixture({
+    async readBranchHead() {
+      headReads += 1;
+      return headReads === 1 ? SHA.authority : SHA.development;
+    },
     async readPullRequests() {
       reads += 1;
       if (reads === 1) return [{ number:599, state:'open', merged_at:null, merge_commit_sha:null, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
@@ -127,8 +132,13 @@ test('authoritative-effect confirmation deterministically integrates an exact op
 
 test('authoritative-effect confirmation creates and integrates a missing exact candidate PR without a reasoning boundary', async () => {
   let reads = 0;
+  let headReads = 0;
   const integrations = [];
   const { service } = fixture({
+    async readBranchHead() {
+      headReads += 1;
+      return headReads === 1 ? SHA.authority : SHA.development;
+    },
     async readPullRequests() {
       reads += 1;
       if (reads === 1) return [];
@@ -175,6 +185,7 @@ test('authoritative-effect confirmation fails closed before integration when the
 
 test('authoritative-effect confirmation refuses to claim completion while deterministic integration is pending', async () => {
   const { service } = fixture({
+    async readBranchHead() { return SHA.authority; },
     async readPullRequests() {
       return [{ number:599, state:'open', merged_at:null, merge_commit_sha:null, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
     },
