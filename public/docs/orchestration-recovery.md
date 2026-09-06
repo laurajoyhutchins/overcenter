@@ -110,10 +110,15 @@ The user-visible `Portfolio Run Handoff v1` remains a compact human index. It co
 - replay an exact stored settling request with its original idempotency key;
 - reconcile an old command-journal row only when the durable receipt's semantic request hash exactly matches the journal invocation;
 - reconcile an interrupted `orchestration.start` from an exact request-bound run record, or mark it definitively not applied when the exact run record is conclusively absent after the stuck threshold;
+- reconcile `project.define` and `project.amend` records whose exact staged GitHub candidate is durably `WAITING_EXTERNAL_VERIFICATION`, using the original semantic request, request/idempotency identity, expected authority revision, exact staged head, pull request, waiting predicates, and last authoritative reconciliation evidence;
 - terminalize an overdue `active` orchestration run as `abandoned` only after atomically revalidating that no unexpired claiming, active, or settling lease remains;
 - record every such journal reconciliation append-only in `orchestration_invocation_resolutions` rather than rewriting the historical invocation outcome.
 
 Run terminalization and lease insertion serialize on the same `orchestration_runs` row lock. A concurrent claim therefore either establishes its lease before reconciliation revalidates ownership, or observes the terminal run and fails closed; maintenance cannot finish a run underneath a valid newly acquired lease.
+
+Project authoring external waits use the same compact `operation_state` substrate as other provider operations. `WAITING_EXTERNAL_VERIFICATION` is a known, durable, self-owned asynchronous state, not an instruction for a reasoning session to remember to return. A maintenance reconciliation atomically takes the prepared operation from its prior attempt token, rereads current project/GitHub authority through the normal authoring runtime, and may integrate only the exact staged candidate. Base or head movement, a closed/replaced candidate, failed verification, or policy ambiguity is retained as a fail-closed recovery state. An uncertain integration effect becomes `indeterminate`; final success is recorded only after the ordinary project-authoring path completes authoritative source readback.
+
+Provider state-change events may wake the same reconciliation as an optimization, but they are hints only. Duplicate wakeups converge through the operation attempt-token compare-and-swap, and missed events are harmless because the bounded `orchestration.maintain` sweep owns eventual progress. Caller replay of the original semantic request remains idempotent for observation and terminal result retrieval, but is never required for progress.
 
 `orchestration.status` exposes `overdue_active_runs` with bounded run coordinates. Any overdue active run is unhealthy until its lifecycle is reconciled; after maintenance clears the condition, health returns to normal when no other unhealthy condition remains.
 
