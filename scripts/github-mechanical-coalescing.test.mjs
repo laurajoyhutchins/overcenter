@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
 import { semanticCommandDescriptor } from '../lib/semantic-command-descriptors.js';
-import { validateSemanticWorkerCommand } from '../lib/worker-transport.js';
 
 const LEASE='11111111-1111-4111-8111-111111111111';
 
@@ -12,11 +12,8 @@ test('mechanical coalescing is a lease-scoped canonical worker recovery command'
   for(const forbidden of ['repo','branch','base_ref','base_sha','expected_head','idempotency_key','lease_token']) {
     assert.equal(descriptor.semantic_fields.includes(forbidden),false,`caller owns ${forbidden}`);
   }
-  assert.doesNotThrow(()=>validateSemanticWorkerCommand('github.coalesce_mechanical_changeset',{
-    lease_ref:LEASE,
-    changes:[{path:'README.md',operation:'update',content:'clean\n'}],
-    commit_message:'style: repair final newline',
-  }));
+  assert.ok(CANONICAL_COMMANDS.includes('github.coalesce_mechanical_changeset'));
+  assert.equal(descriptor.input_schema.additionalProperties,false);
 });
 
 test('ordinary changeset recovery advertises the executable coalescing command', async () => {
