@@ -37,6 +37,7 @@ async function prepareSchema(client) {
   await client.query(await migration('053_execution_state.sql'));
   await client.query(await migration('054_operation_state.sql'));
   await client.query(await migration('057_operation_state_updated_at.sql'));
+  await client.query(await migration('059_operation_state_attempt_epoch.sql'));
 }
 
 test('provider mutation idempotency and recovery use operation_state with bespoke receipt tables absent', async () => {
@@ -61,10 +62,12 @@ test('provider mutation idempotency and recovery use operation_state with bespok
     assert.equal(first.outcome, 'claimed');
     assert.equal(first.operation.state, 'prepared');
     assert.equal(first.operation.recovery_payload.attempt_token, 'attempt-1');
+    assert.equal(first.operation.attempt_epoch, 1);
 
     const inProgress = await store.claim({ command, scope, idempotency_key:'changeset-1', request_sha256:requestSha, attempt_token:'attempt-2', created_at:'2026-09-01T21:01:00.000Z', stale_before:'2026-09-01T20:59:00.000Z', recovery_payload:{ phase:'claim' } });
     assert.equal(inProgress.outcome, 'in_progress');
     assert.equal(inProgress.operation.recovery_payload.attempt_token, 'attempt-1');
+    assert.equal(inProgress.operation.attempt_epoch, 1);
 
     const conflict = await store.claim({ command, scope, idempotency_key:'changeset-1', request_sha256:'b'.repeat(64), attempt_token:'attempt-conflict', created_at:'2026-09-01T21:01:30.000Z', stale_before:'2026-09-01T20:59:30.000Z', recovery_payload:{ phase:'claim' } });
     assert.equal(conflict.outcome, 'conflict');
@@ -73,6 +76,7 @@ test('provider mutation idempotency and recovery use operation_state with bespok
     assert.equal(takeover.outcome, 'claimed');
     assert.equal(takeover.recovered, true);
     assert.equal(takeover.operation.recovery_payload.attempt_token, 'attempt-2');
+    assert.equal(takeover.operation.attempt_epoch, 2);
 
     assert.equal(await store.heartbeat({ command, scope, idempotency_key:'changeset-1', attempt_token:'attempt-1', updated_at:'2026-09-01T21:11:00.000Z', phase:'stale-owner' }), false);
     assert.equal(await store.heartbeat({ command, scope, idempotency_key:'changeset-1', attempt_token:'attempt-2', updated_at:'2026-09-01T21:11:00.000Z', phase:'prepare-effect' }), true);
@@ -91,6 +95,7 @@ test('provider mutation idempotency and recovery use operation_state with bespok
     assert.equal(replay.operation.state, 'succeeded');
     assert.equal(replay.operation.effect_kind, 'github_commit_branch');
     assert.equal(replay.operation.resolution.commit_sha, 'd'.repeat(40));
+    assert.equal(replay.operation.attempt_epoch, 2);
   } finally {
     await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
     await client.end();
