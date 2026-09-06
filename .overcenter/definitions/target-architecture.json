@@ -1551,6 +1551,48 @@
       }
     },
     {
+      "id": "finish-hatchable-gcp-authoritative-state-migration",
+      "priority": 100,
+      "requires": [
+        "make-runtime-providers-explicit-at-composition-root"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Finish the Hatchable PostgreSQL to GCP Cloud SQL authoritative-state migration end to end: deterministic lossless export/import and same-algorithm manifests over every authoritative table and sequence; prove the machinery non-destructively while Hatchable remains writable; deliberately freeze all Hatchable authoritative writers; perform the final frozen transfer; restore sequences; prove exact source/target equality including unresolved execution, recovery, proof, receipt, scheduled-cycle, orchestration, GitHub and portfolio integration state; expose canonical project.inspect and a safe semantic operation from the private GCP Cloud Run runtime using Cloud SQL; cut writer authority to GCP exactly once with no dual-writer interval; prove post-cutover health, GitHub App auth, semantic recovery coherence, one remaining writer, and exact-final-revision repository verification. Fail closed on stale or ambiguous authority and do not reconstruct state approximately.",
+        "acceptance_evidence": [
+          {
+            "kind": "migration",
+            "requirement": "Fresh cutover evidence proves the Hatchable source was frozen before final export, all authoritative tables and sequence positions were imported into canonical Cloud SQL schema, and the same deterministic manifest algorithm reports equality."
+          },
+          {
+            "kind": "recovery",
+            "requirement": "Fresh source/target semantic evidence proves unresolved runs, active/recovery-relevant leases, operation/execution/proof state, receipts and journals are preserved coherently and recovery inspection succeeds."
+          },
+          {
+            "kind": "runtime",
+            "requirement": "The exact integrated Cloud Run revision is private, Cloud SQL healthy, GitHub App authentication succeeds, canonical project.inspect works against migrated Cloud SQL state, and one safe semantic operation executes through the GCP runtime."
+          },
+          {
+            "kind": "single-writer",
+            "requirement": "Fresh runtime evidence proves Hatchable mutation surfaces are frozen/retired before GCP writer enablement and exactly one authoritative writer remains after cutover."
+          },
+          {
+            "kind": "tests",
+            "requirement": "Exact-final-revision automated tests prove deterministic state serialization/import, manifest equality including sequences and schema metadata, freeze/writer fencing, and portable semantic HTTP behavior."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Repository verification and exact-revision verification are green for the exact final integrated Git SHA that is deployed after cutover."
+          }
+        ]
+      }
+    },
+    {
       "id": "fix-production-reconcile-authoritative-runtime-observation",
       "priority": 174,
       "requires": [
