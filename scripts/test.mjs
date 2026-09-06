@@ -30,6 +30,7 @@ const maintainedTests = [
   'verify-execution-evidence-projector.test.mjs',
   'verify-execution-evidence-review.test.mjs',
   'verify-compact-correctness-boundary.test.mjs',
+  'verify-provider-operation-attempt-epochs.test.mjs',
   'verify-work-lease-config.test.mjs',
   'verify-project-horizon.test.mjs',
   'verify-project-obligation-contract.test.mjs',
