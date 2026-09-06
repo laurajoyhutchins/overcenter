@@ -40,7 +40,7 @@ function fixture(overrides = {}) {
     },
     async readPullRequests(input) {
       calls.push(['readPullRequests', input]);
-      return [{ number:599, state:'closed', merged_at:'2026-09-06T00:49:52Z', merge_commit_sha:SHA.merge, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
+      return [{ number:599, state:'closed', merged_at:'2026-09-06T00:49:52Z', merge_commit_sha:SHA.merge, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev', sha:SHA.authority } }];
     },
     async readBranchHead(input) {
       calls.push(['readBranchHead', input]);
@@ -82,7 +82,7 @@ test('authoritative-effect confirmation proves an already-integrated exact candi
 test('authoritative-effect confirmation remains unconfirmed while only the exact candidate exists', async () => {
   const { service } = fixture({
     async readPullRequests() {
-      return [{ number:599, state:'open', merged_at:null, merge_commit_sha:null, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
+      return [{ number:599, state:'open', merged_at:null, merge_commit_sha:null, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev', sha:SHA.authority } }];
     },
   });
   const result = await service.confirm({
