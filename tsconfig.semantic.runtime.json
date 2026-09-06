@@ -25,6 +25,7 @@
     "src/semantic/project-authoring-runtime.ts",
     "src/semantic/project-authoring-work-branch.ts",
     "src/semantic/project-authoring.ts",
+    "src/semantic/project-artifact-binding.ts",
     "src/semantic/project-definition-changeset-writer.ts",
     "src/semantic/project-definition-mutation-authority.ts",
     "src/semantic/project-graph-contracts.ts",

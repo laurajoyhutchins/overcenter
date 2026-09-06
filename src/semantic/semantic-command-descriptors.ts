@@ -215,6 +215,20 @@ const releasePublishSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const projectArtifactBindSchema = Object.freeze({
+  type:'object',
+  required:['project_ref','expected_revision','transition_id','provider','relationship','satisfaction_condition'],
+  properties:{
+    project_ref:{type:'string',pattern:'^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
+    expected_revision:{type:'string',pattern:'^[0-9a-fA-F]{40}$'},
+    transition_id:{type:'string',minLength:1,maxLength:256,pattern:'^\\S+$'},
+    provider:{type:'object',required:['kind','number'],additionalProperties:false,properties:{kind:{type:'string',enum:['issue','pull_request']},number:{type:'integer',minimum:1}}},
+    relationship:{type:'string',enum:['full_coverage_equivalence']},
+    satisfaction_condition:{type:'string',enum:['closed','merged']},
+  },
+  additionalProperties:false,
+});
+
 const projectAdvanceSchema = Object.freeze({
   type:'object',
   required:['project_ref'],
@@ -344,6 +358,14 @@ const DESCRIPTORS = Object.freeze({
     'production.promote',
     'Promote the current verified development revision by repository identity only. The runtime host derives provider-specific branch heads, exact-revision evidence, retry identity, and production readback behind this primary semantic boundary.',
     productionPromoteSchema,
+    'primary',
+    WORKER_AND_MCP_EXPOSURE,
+  ),
+  'project.artifact.bind':descriptor(
+    'project.artifact.bind',
+    'project.artifact.bind',
+    'Explicitly bind one exact GitHub issue or pull request to one exact project obligation as a full-coverage equivalence judgment. Overcenter revalidates exact project authority, reads exact provider identity, and persists append-only binding evidence; titles, labels, and prose never create bindings.',
+    projectArtifactBindSchema,
     'primary',
     WORKER_AND_MCP_EXPOSURE,
   ),
