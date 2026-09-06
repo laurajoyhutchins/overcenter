@@ -55,7 +55,7 @@ test('project.add_conversation preserves conversation provenance while requiring
     ],
   };
   const conversation = {
-    text:'The durable decision is to add a bounded transition.\n',
+    text:'The durable decision is to add a bounded transition.',
     citations:[{ kind:'conversation_line', ref:'conversation:turn-7#L1' }],
   };
   const normalized = normalizeProjectAddConversationRequest({
@@ -102,19 +102,29 @@ test('project authoring command requests fail closed on inexact source authority
   assert.throws(() => normalizeProjectAddConversationRequest({ project_ref:projectRef, expected_revision:'dev', conversation:{text:'x'}, amendment:{} }), /40-character Git revision/);
 });
 
-test('canonical project define and amend remain exposed through semantic descriptors', () => {
+test('canonical project authoring commands remain exposed through semantic descriptors', () => {
   const define = semanticCommandDescriptor('project.define');
   assert.equal(define.mcp_name, 'project.define');
   assert.deepEqual([...define.required_fields], ['project_ref','expected_revision','definition']);
   assert.deepEqual([...define.semantic_fields].sort(), ['definition','expected_revision','project_ref']);
+  assert.deepEqual(define.exposure, { worker:true, mcp:true });
 
   const amend = semanticCommandDescriptor('project.amend');
   assert.equal(amend.mcp_name, 'project.amend');
   assert.deepEqual([...amend.required_fields], ['project_ref','expected_revision','amendment']);
   assert.deepEqual([...amend.semantic_fields].sort(), ['amendment','expected_revision','project_ref']);
+  assert.deepEqual(amend.exposure, { worker:true, mcp:true });
 
-  for (const descriptor of [define, amend]) {
-    assert.deepEqual(descriptor.exposure, { worker:true, mcp:true });
+  const addConversation = semanticCommandDescriptor('project.add_conversation');
+  assert.equal(addConversation.mcp_name, 'project.add_conversation');
+  assert.deepEqual([...addConversation.required_fields], ['project_ref','expected_revision','conversation','amendment']);
+  assert.deepEqual([...addConversation.semantic_fields].sort(), ['amendment','conversation','expected_revision','project_ref']);
+  assert.deepEqual(addConversation.exposure, { worker:false, mcp:true });
+  assert.equal(addConversation.surface, 'primary');
+  assert.match(addConversation.description, /reasoning layer/i);
+  assert.match(addConversation.description, /deterministic graph kernel/i);
+
+  for (const descriptor of [define, amend, addConversation]) {
     assert.equal(MIGRATED_SEMANTIC_COMMANDS.includes(descriptor.command), true, `${descriptor.command} is not migrated`);
     for (const forbidden of ['branch','path','idempotency_key','commit_message','base_sha','lease_ref','run_id']) {
       assert.equal(Object.hasOwn(descriptor.input_schema.properties, forbidden), false, `${descriptor.command} leaked ${forbidden}`);
@@ -129,8 +139,5 @@ test('project.add_conversation is a stable MCP semantic facade over canonical pr
   assert.match(source, /reasoning layer/);
   assert.match(source, /deterministic graph kernel/);
   assert.match(source, /addConversationToProject\(args \|\| \{\}, projectAuthoringFor\(\{ db \}\)\)/);
-  assert.match(contractSource, /PROJECT_ADD_CONVERSATION_INPUT_SCHEMA/);
-  for (const forbidden of ['branch','path','idempotency_key','commit_message','base_sha','lease_ref','run_id']) {
-    assert.equal(contractSource.includes(`${forbidden}:`), false, `conversation MCP contract leaked caller-owned ${forbidden}`);
-  }
+  assert.match(contractSource, /semanticCommandDescriptor\('project\.add_conversation'\)\.input_schema/);
 });
