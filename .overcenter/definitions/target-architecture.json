@@ -2132,6 +2132,30 @@
       }
     },
     {
+      "id": "prevent-blocked-project-transition-immediate-reacquisition",
+      "priority": 190,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Repair best-available project.advance selection so a project transition settled blocked is durably suspended and is not immediately reacquired by a fresh project-only advance until its contract-defined promotion or observable condition changes. Preserve exact authority, lease settlement evidence, deterministic recovery semantics, and the ability to select independent READY frontier work. Add a dogfood regression reproducing add-project-artifact-binding being settled blocked and then immediately selected again despite another independent available frontier transition. Do not treat blocked as completed and do not add arbitrary time cooldowns; resumption must follow durable suspension and promotion semantics.",
+        "acceptance_evidence": [
+          {
+            "kind": "tests",
+            "requirement": "A RED-first regression reproduces immediate reacquisition after blocked settlement, and the relevant automated tests pass for the exact final revision after the repair."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh exact-revision verification demonstrates that a blocked transition is skipped while its promotion condition is unsatisfied, another eligible frontier transition can be selected, and the blocked transition becomes eligible again only after its durable promotion condition is satisfied."
+          }
+        ]
+      }
+    },
+    {
       "id": "prove-concurrent-amendment-migration-semantics",
       "priority": 176,
       "requires": [
