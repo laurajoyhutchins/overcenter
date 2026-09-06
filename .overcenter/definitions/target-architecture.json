@@ -2025,19 +2025,19 @@
       "executor": {
         "kind": "agent",
         "role": "implementation",
-        "skill": "test-driven-development"
+        "skill": "Use test-driven-development to make project.inspect decision facts snapshot-correct at one exact authority revision. Reproduce the live dogfood case where identity-only project.advance returns WAITING because every apparently free frontier transition is durably suspended by a matching blocked settlement while project.inspect reports those same transitions as availability=available and occupied=false. Make inspect project blocked-settlement suspension from the same exact graph revision and current durable lease/settlement state used for occupancy, so it never labels a transition executable when project.advance will deterministically skip it for blocked_settlement_promotion. Preserve authority-revision fencing for occupancy, distinguish occupied from suspended/waiting, and add an exact regression proving inspect and advance agree on executability without reconstructing journal chronology."
       },
       "execution_intent": {
         "schema": "project-execution-intent-v1",
-        "desired_outcome": "Make project.inspect snapshot-correct so all returned project state is derived from one authoritative revision and cannot mix facts from different graph revisions.",
+        "desired_outcome": "Make project.inspect snapshot-correct and execution-decision-correct: all returned graph, occupancy, and blocked-settlement suspension facts must be bound to one authoritative revision, and a transition that project.advance will deterministically skip for blocked_settlement_promotion must not be reported by project.inspect as available executable work.",
         "acceptance_evidence": [
           {
             "kind": "tests",
-            "requirement": "Relevant automated tests or executable regressions must pass for the exact final revision."
+            "requirement": "An automated regression reproduces the September 6, 2026 dogfood state where matching blocked settlements suspend otherwise READY transitions, and proves project.inspect does not report those transitions as available executable work while project.advance returns WAITING."
           },
           {
             "kind": "verification",
-            "requirement": "Fresh repository or runtime evidence at the exact final revision must demonstrate the desired outcome and preserve its stated constraints."
+            "requirement": "Fresh exact-revision repository or runtime evidence proves project.inspect and project.advance agree on transition executability while preserving exact-authority occupancy fencing and distinguishing occupied from suspended/waiting state."
           }
         ]
       }
