@@ -17,7 +17,7 @@ const green={ok:true,schema:'regression-verification-v1',passed:683,failed:0};
 const reachability={
   schema:'production-reachability-evidence-v1',
   entrypoint:'/api/orchestration/horizon-resolve',
-  runtime_project:verification_project,
+  runtime_project:production_project,
   runtime_revision:revision,
   graph_authority:{kind:'github',repository,revision:'c'.repeat(40),derivation:'overcenter-project-graph-v1'},
   target:{project_ref:'github:laurajoyhutchins/overcenter',horizon:{kind:'transition',ref:'require-production-reachability'}},
