@@ -1341,6 +1341,35 @@
       }
     },
     {
+      "id": "fix-project-transition-execution-authority-lookup",
+      "priority": 0,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "feature-dev",
+        "skill": "execute"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Repair github.apply_changeset execution-authority lookup so a valid active project-transition lease_ref returned by project.advance resolves through the project-transition lease store instead of being rejected as an unknown legacy work lease. Preserve legacy lease-token/ref authority, exact project-transition revalidation, lease expiry/staleness checks, repository scope, mutation certainty, and fail-closed behavior. Add a regression reproducing the dogfood failure EXECUTION_AUTHORITY_INVALID: execution authority locator is unknown for an active project-transition lease; verify the canonical lease-scoped repository mutation path can then resolve that authority without weakening fencing.",
+        "acceptance_evidence": [
+          {
+            "kind": "dogfood",
+            "requirement": "After deployment, the original github.apply_changeset acceptance scenario with a project.advance-issued lease no longer fails at execution-authority lookup."
+          },
+          {
+            "kind": "regression",
+            "requirement": "A focused test first reproduces an active project-transition lease_ref being rejected as unknown by execution authority lookup, then passes after the repair."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Repository verification and semantic/type gates pass at the exact repair revision."
+          }
+        ],
+        "source_ref": "dogfood:github.apply_changeset:EXECUTION_AUTHORITY_INVALID"
+      }
+    },
+    {
       "id": "generalize-exact-revision-repository-executor",
       "priority": 94,
       "requires": [
