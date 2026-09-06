@@ -26,11 +26,11 @@ fi
 
 PEM_PATH="${1:-}"
 if [[ -z "$PEM_PATH" ]]; then
-  mapfile -t PEM_FILES < <(find . -maxdepth 1 -type f -name '*.pem' -print | sort)
+  mapfile -t PEM_FILES < <({ find . -maxdepth 1 -type f -name '*.pem' -print; find "$HOME" -maxdepth 1 -type f -name '*.pem' -print; } | sort -u)
   if [[ ${#PEM_FILES[@]} -ne 1 ]]; then
-    echo "Expected exactly one .pem file in the current directory; found ${#PEM_FILES[@]}." >&2
+    echo "Expected exactly one .pem file in the repo directory or Cloud Shell home; found ${#PEM_FILES[@]}." >&2
     if [[ ${#PEM_FILES[@]} -gt 0 ]]; then printf '  %s\n' "${PEM_FILES[@]}" >&2; fi
-    echo "Either leave only the new Overcenter GitHub App key here or pass its path explicitly." >&2
+    echo "Pass the new Overcenter GitHub App key path explicitly if more than one exists." >&2
     exit 2
   fi
   PEM_PATH="${PEM_FILES[0]}"
