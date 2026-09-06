@@ -15,6 +15,23 @@ export type ProjectAmendRequest = Readonly<{
   amendment: Readonly<Record<string, unknown>>;
 }>;
 
+export type ProjectConversationCitation = Readonly<{
+  kind: string;
+  ref: string;
+}>;
+
+export type ProjectConversation = Readonly<{
+  text: string;
+  citations: readonly ProjectConversationCitation[];
+}>;
+
+export type ProjectAddConversationRequest = Readonly<{
+  project_ref: string;
+  expected_revision: string;
+  conversation: ProjectConversation;
+  amendment: Readonly<Record<string, unknown>>;
+}>;
+
 function fail(message: string, details: unknown = null): never {
   const error = new Error(message);
   Object.assign(error, { code:'PROJECT_AUTHORING_COMMAND_INVALID', details });
@@ -51,6 +68,25 @@ function projectRef(value: unknown): string {
   return normalized;
 }
 
+function conversation(value: unknown): ProjectConversation {
+  const input = record(value, 'conversation');
+  exactKeys(input, ['text','citations'], 'conversation');
+  const conversationText = text(input.text, 'conversation.text');
+  if (conversationText.length > 125000) fail('conversation.text exceeds the bounded semantic-command limit', { max_length:125000 });
+  const citationsInput = input.citations == null ? [] : input.citations;
+  if (!Array.isArray(citationsInput)) fail('conversation.citations must be an array', { field:'conversation.citations' });
+  if (citationsInput.length > 128) fail('conversation.citations exceeds the bounded semantic-command limit', { max_items:128 });
+  const citations = citationsInput.map((citationInput, index) => {
+    const citation = record(citationInput, `conversation.citations[${index}]`);
+    exactKeys(citation, ['kind','ref'], `conversation.citations[${index}]`);
+    return Object.freeze({
+      kind:text(citation.kind, `conversation.citations[${index}].kind`),
+      ref:text(citation.ref, `conversation.citations[${index}].ref`),
+    });
+  });
+  return Object.freeze({ text:conversationText, citations:Object.freeze(citations) });
+}
+
 export function normalizeProjectDefineRequest(raw: unknown): ProjectDefineRequest {
   const input = record(raw, 'project.define request');
   exactKeys(input, ['project_ref','expected_revision','definition'], 'project.define request');
@@ -73,6 +109,19 @@ export function normalizeProjectAmendRequest(raw: unknown): ProjectAmendRequest 
   return Object.freeze({
     project_ref:projectRef(input.project_ref),
     expected_revision:revision(input.expected_revision),
+    amendment:Object.freeze({ ...amendment }),
+  });
+}
+
+export function normalizeProjectAddConversationRequest(raw: unknown): ProjectAddConversationRequest {
+  const input = record(raw, 'project.add_conversation request');
+  exactKeys(input, ['project_ref','expected_revision','conversation','amendment'], 'project.add_conversation request');
+  if (!Object.prototype.hasOwnProperty.call(input, 'amendment')) fail('amendment is required because the reasoning layer, not the graph kernel, decides conversation semantics');
+  const amendment = record(input.amendment, 'amendment');
+  return Object.freeze({
+    project_ref:projectRef(input.project_ref),
+    expected_revision:revision(input.expected_revision),
+    conversation:conversation(input.conversation),
     amendment:Object.freeze({ ...amendment }),
   });
 }
