@@ -380,7 +380,7 @@ export async function verifyExactRevisionV8(input, adapters) {
       const baseReachabilityValid = (
         productionReachability?.schema === 'production-reachability-evidence-v1'
         && productionReachability?.entrypoint === '/api/orchestration/horizon-resolve'
-        && productionReachability?.runtime_project === project
+        && productionReachability?.runtime_project === productionProject
         && productionReachability?.runtime_revision === revision
         && productionReachability?.target?.project_ref === `github:${repository}`
         && productionReachability?.target?.horizon?.kind === 'transition'
