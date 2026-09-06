@@ -2134,9 +2134,7 @@
     {
       "id": "prevent-blocked-project-transition-immediate-reacquisition",
       "priority": 190,
-      "requires": [
-        "make-waiting-a-durable-suspension-primitive"
-      ],
+      "requires": [],
       "executor": {
         "kind": "agent",
         "role": "implementation",
