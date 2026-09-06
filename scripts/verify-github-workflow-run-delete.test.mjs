@@ -57,8 +57,8 @@ test('transport loss remains indeterminate when readback cannot prove absence', 
   const h = transport([{ status:200, body:{ id:4242, head_sha:SHA } }, new Error('socket lost'), { status:200, body:{ id:4242, head_sha:SHA } }]);
   const result = await deleteGithubActionsRun(input, { apiClient:h.apiClient });
   assert.equal(result.ok, false);
-  assert.equal(result.error, 'GITHUB_ACTIONS_RUN_DELETE_NOT_APPLIED');
-  assert.equal(result.may_have_mutated, false);
+  assert.equal(result.error, 'GITHUB_ACTIONS_RUN_DELETE_INDETERMINATE');
+  assert.equal(result.may_have_mutated, true);
 });
 
 test('GitHub App wrapper uses the existing actions:write storage profile without caller identity', async () => {
