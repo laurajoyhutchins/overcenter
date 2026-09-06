@@ -64,31 +64,7 @@ jobs:
             diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
             diff -u docs/generated/data-contracts.md "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" || true
             diff -u docs/generated/data-contract-authority-atlas.md "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md" || true
-            node --input-type=module <<'NODE'
-            import { readFile } from 'node:fs/promises';
-            const actual = JSON.parse(await readFile('generated/contracts/catalog.json', 'utf8'));
-            const expected = JSON.parse(await readFile(process.env.RUNNER_TEMP + '/contract-evidence/generated/contracts/catalog.json', 'utf8'));
-            const ids = (items, key) => new Map((items || []).map((item) => [item[key], item]));
-            const delta = (before, after, key) => {
-              const a = ids(before, key); const b = ids(after, key);
-              return {
-                added: [...b].filter(([id]) => !a.has(id)).map(([, item]) => item),
-                removed: [...a].filter(([id]) => !b.has(id)).map(([, item]) => item),
-                changed: [...b].filter(([id, item]) => a.has(id) && JSON.stringify(a.get(id)) !== JSON.stringify(item)).map(([, item]) => item),
-              };
-            };
-            const setDelta = (before, after) => ({
-              added: (after || []).filter((value) => !(before || []).includes(value)),
-              removed: (before || []).filter((value) => !(after || []).includes(value)),
-            });
-            console.log('CONTRACT_EVIDENCE_SEMANTIC_DELTA=' + JSON.stringify({
-              candidates: delta(actual.candidates, expected.candidates, 'source_identity'),
-              logical_contracts: delta(actual.logical_contracts, expected.logical_contracts, 'id'),
-              classified_source_identities: setDelta(actual.classified_source_identities, expected.classified_source_identities),
-              unclassified_source_identities: setDelta(actual.unclassified_source_identities, expected.unclassified_source_identities),
-              summary: expected.summary,
-            }));
-            NODE
+            node --input-type=module -e "import{readFile}from'node:fs/promises';const a=JSON.parse(await readFile('generated/contracts/catalog.json','utf8')),e=JSON.parse(await readFile(process.env.RUNNER_TEMP+'/contract-evidence/generated/contracts/catalog.json','utf8'));const m=(x,k)=>new Map((x||[]).map(v=>[v[k],v])),d=(x,y,k)=>{const A=m(x,k),B=m(y,k);return{added:[...B].filter(([i])=>!A.has(i)).map(([,v])=>v),removed:[...A].filter(([i])=>!B.has(i)).map(([,v])=>v),changed:[...B].filter(([i,v])=>A.has(i)&&JSON.stringify(A.get(i))!==JSON.stringify(v)).map(([,v])=>v)}},s=(x,y)=>({added:(y||[]).filter(v=>!(x||[]).includes(v)),removed:(x||[]).filter(v=>!(y||[]).includes(v))});console.log('CONTRACT_EVIDENCE_SEMANTIC_DELTA='+JSON.stringify({candidates:d(a.candidates,e.candidates,'source_identity'),logical_contracts:d(a.logical_contracts,e.logical_contracts,'id'),classified_source_identities:s(a.classified_source_identities,e.classified_source_identities),unclassified_source_identities:s(a.unclassified_source_identities,e.unclassified_source_identities),summary:e.summary}))"
             exit 1
           fi
       # Generated evidence remains local to this read-only verification job.
