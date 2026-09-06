@@ -50,7 +50,12 @@ test('dependency semantic changes invalidate identity while prerequisite certifi
 
 test('obligation semantics change identity while runtime evidence instances do not', async () => {
   const baseline = await createTransitionCertificate(input());
-  const changedObligation = await createTransitionCertificate(input({ obligation_fingerprint:sha('f') }));
+  const changedSubject = { ...subject, obligation_fingerprint:sha('f') };
+  const changedObligation = await createTransitionCertificate(input({
+    obligation_fingerprint:sha('f'),
+    evidence_refs:[evidence('settlement','settlement:B:1',changedSubject)],
+    authoritative_effect_evidence:[evidence('authoritative_effect',`github:owner/repo#42@${revision('e')}`,changedSubject)],
+  }));
   const changedEvidence = await createTransitionCertificate(input({ evidence_refs:[evidence('verification','different-run')] }));
   assert.notEqual(changedObligation.certificate_id, baseline.certificate_id);
   assert.equal(changedEvidence.certificate_id, baseline.certificate_id);
