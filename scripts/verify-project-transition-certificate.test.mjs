@@ -52,7 +52,6 @@ test('certificate binds exact authority provenance and prerequisite closure', as
   const certificate = await createTransitionCertificate(input());
   assert.deepEqual(certificate.authority, input().authority);
   assert.deepEqual(certificate.prerequisite_closure, input().prerequisite_closure);
-  assert.throws(() => verifyTransitionCertificate(certificate, input({ authority:{ ...input().authority, revision:revision('7') } })), /./, 'authority drift must not be accepted silently');
   assert.deepEqual(verifyTransitionCertificate(certificate, input({ authority:{ ...input().authority, revision:revision('7') } })), { ok:false, reason:'authority_provenance_mismatch' });
 });
 
