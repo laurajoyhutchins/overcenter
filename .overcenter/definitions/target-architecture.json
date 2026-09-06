@@ -727,6 +727,34 @@
       }
     },
     {
+      "id": "codify-authoritative-schema-disposition-doctrine",
+      "priority": 220,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "architecture",
+        "skill": "repository-editing"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Codify the live Hatchable PostgreSQL schema disposition doctrine as durable repository guidance for all future Overcenter sessions and use it as the target semantic-compaction model after the authoritative Hatchable-to-GCP cutover. PRESERVE semantic shape: execution_state, operation_state, proof_state. TRANSFORM while preserving truth: work_leases, work_lease_slots, work_lease_checkpoints, work_lease_heartbeats, orchestration_runs, orchestration_command_invocations, orchestration_invocation_resolutions, github_changeset_receipts, github_production_promotion_receipts, github_release_receipts, portfolio_verification_receipts, portfolio_work_identity, portfolio_repository_branch_roles, portfolio_repository_disposition, portfolio_reconcile_receipts. ARCHIVE as non-authoritative historical evidence/observability: scheduled_cycle_events, orchestration_skill_activations, historical orchestration_horizons snapshots, and historical rows from transformed legacy tables once canonicalized. DISCARD/reconstruct rather than preserve as authority: github_required_check_observations, mutable current orchestration_horizons after deterministic frontier computation replaces them, redundant lease-slot/counter/materialized state. The target conceptual schema is a small authoritative kernel of execution_state + operation_state + proof_state, with generic durable execution/effect evidence outside the kernel, projections/config outside authority, and observability/archive segregated. Preserve the rule: PRESERVE = semantic shape survives; TRANSFORM = truth survives but historical representation does not; ARCHIVE = evidence survives but cannot participate in current authority; DISCARD = neither authority nor irreducible evidence lives there. Safety ordering is mandatory: first migrate current Hatchable authority transactionally and prove exact equality/cutover; only then perform semantic compaction as a separate exact, reversible migration. Do not combine relocation with ontology reinterpretation.",
+        "acceptance_evidence": [
+          {
+            "kind": "documentation",
+            "requirement": "Repository-owned architecture documentation records the four disposition definitions, the complete current 22-table classification, the target conceptual schema, and the post-cutover-only sequencing rule."
+          },
+          {
+            "kind": "safety",
+            "requirement": "Documentation explicitly states that this classification does not authorize selective migration, dropping, transforming, or reinterpreting Hatchable authority before exact source-to-target migration and single-writer cutover are proven."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Fresh exact-revision repository readback proves the doctrine is durable and discoverable to future sessions."
+          }
+        ]
+      }
+    },
+    {
       "id": "compact-agent-semantic-surface",
       "priority": 70,
       "requires": [
