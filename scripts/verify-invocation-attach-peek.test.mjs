@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createInvocationObservationService } from '../lib/invocation-observation.js';
+import { executeSemanticWorkerCommand } from '../lib/worker-transport.js';
 
 const invocation = Object.freeze({
   invocation_id: '11111111-1111-4111-8111-111111111111',
@@ -53,4 +54,15 @@ test('attach reconnects to the same authoritative invocation identity without cr
 test('peek and attach fail closed for invalid or unknown invocation identities', async () => {
   await assert.rejects(() => service().peek({ invocation_id: 'not-a-uuid' }), (error) => error.code === 'REQUEST_INVALID');
   await assert.rejects(() => service().attach({ invocation_id: '22222222-2222-4222-8222-222222222222' }), (error) => error.code === 'INVOCATION_NOT_FOUND');
+});
+
+test('worker semantic surface exposes peek and attach over the same authoritative observation service', async () => {
+  const runtime = { invocationObservation: service() };
+  const peek = await executeSemanticWorkerCommand('invocation.peek', { invocation_id: invocation.invocation_id }, runtime);
+  assert.equal(peek.ok, true);
+  assert.equal(peek.invocation_id, invocation.invocation_id);
+  const attach = await executeSemanticWorkerCommand('invocation.attach', { invocation_id: invocation.invocation_id }, runtime);
+  assert.equal(attach.ok, true);
+  assert.equal(attach.invocation_id, invocation.invocation_id);
+  assert.equal(attach.attachment.invocation_id, invocation.invocation_id);
 });
