@@ -229,6 +229,7 @@ const projectAdvanceSchema = Object.freeze({
         disposition:{type:'string',enum:[...WORK_SETTLEMENT_DISPOSITIONS]},
         evidence:{type:'array',items:{type:'object',required:['kind','ref'],properties:{kind:{type:'string'},ref:{type:'string'}},additionalProperties:false}},
         reason:{type:['string','null']},
+        promotion_condition:{type:['string','null']},
       },
       additionalProperties:false,
     },
