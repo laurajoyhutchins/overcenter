@@ -182,6 +182,12 @@
       "semver_kind": "semantic-command-contract",
       "lifecycle": "current"
     },
+    "semantic-command:github.coalesce_mechanical_changeset#input": {
+      "logical_contract": "github.coalesce_mechanical_changeset.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract",
+      "lifecycle": "current"
+    },
     "semantic-command:github.release.create#input": {
       "logical_contract": "github.release.create.input",
       "significance": "public",
