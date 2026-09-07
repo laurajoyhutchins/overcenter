@@ -79,13 +79,16 @@ function validateArtifact(input) {
   return { sourceRevision, artifactDigest };
 }
 
-export function createCloudRunHandler({ db, runtime, workerCommand = null, authorityMode = 'shadow' }) {
+export function createCloudRunHandler({ db, runtime, workerCommand = null, projectInspect = null, authorityMode = 'shadow' }) {
   if (!db || typeof db.query !== 'function') throw new TypeError('db.query is required');
   if (!runtime || typeof runtime.publishAndVerify !== 'function') {
     throw new TypeError('runtime.publishAndVerify is required');
   }
   if (workerCommand !== null && typeof workerCommand !== 'function') {
     throw new TypeError('workerCommand must be a function when supplied');
+  }
+  if (projectInspect !== null && typeof projectInspect !== 'function') {
+    throw new TypeError('projectInspect must be a function when supplied');
   }
 
   return async function handle(request, response) {
@@ -106,6 +109,13 @@ export function createCloudRunHandler({ db, runtime, workerCommand = null, autho
         const expectedFence = input.expectedFence ?? null;
         const verified = await runtime.publishAndVerify(artifact, expectedFence);
         return writeJson(response, 200, { ok: true, verified });
+      }
+
+      if (request.method === 'POST' && request.url === '/api/authoritative-state/project-inspect') {
+        if (!projectInspect) return writeJson(response, 503, { ok:false, error:'read-only project inspection unavailable' });
+        const input = await readJsonBody(request);
+        const result = await projectInspect(input);
+        return writeJson(response, 200, { ok:true, authority_mode:authorityMode, inspection:result });
       }
 
       if (request.method === 'POST' && request.url === '/api/worker-command') {

@@ -91,6 +91,29 @@ test('health checks the database before reporting ready', async () => {
   });
 });
 
+test('shadow mode exposes read-only project inspection without enabling semantic writes', async () => {
+  let inspections = 0;
+  const handler = createCloudRunHandler({
+    db: { query: async () => ({ rows: [] }) },
+    runtime: { publishAndVerify: async () => { throw new Error('not called'); } },
+    projectInspect: async input => { inspections += 1; return { project_ref:input.project_ref, complete:false }; },
+    authorityMode: 'shadow',
+  });
+  const response = responseRecorder();
+  await handler(await request({
+    method:'POST',
+    url:'/api/authoritative-state/project-inspect',
+    body:JSON.stringify({ project_ref:'github:owner/repo' }),
+  }), response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(inspections, 1);
+  assert.deepEqual(JSON.parse(response.body), {
+    ok:true,
+    authority_mode:'shadow',
+    inspection:{ project_ref:'github:owner/repo', complete:false },
+  });
+});
+
 test('shadow mode rejects semantic worker commands before invocation', async () => {
   let calls = 0;
   const handler = createCloudRunHandler({
