@@ -125,7 +125,7 @@ test('project.advance execution completion terminates through the same semantic 
 test('project.advance primary MCP transport composes execution completion runtime', async () => {
   const source = await readFile(new URL('../mcp/project.advance.js', import.meta.url), 'utf8');
   assert.match(source, /createPostgresSubjectAwareOrchestrationRunService/);
-  assert.match(source, /const finish = createPostgresSubjectAwareOrchestrationRunService\(\{ db \}\);/);
-  assert.match(source, /createPostgresProjectTransitionAuthoritativeEffectConfirmationService/);
+  assert.match(source, /const finish = createPostgresSubjectAwareOrchestrationRunService\(runtime\);/);
+  assert.match(source, /const authoritativeEffect = createPostgresProjectTransitionAuthoritativeEffectConfirmationService\(runtime\);/);
   assert.match(source, /confirmAuthoritativeEffect:\(request\) => authoritativeEffect\.confirm\(request\)/);
 });
