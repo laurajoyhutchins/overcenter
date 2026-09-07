@@ -104,3 +104,12 @@ test('semantic runtime composition requires explicit substitutable capabilities'
     );
   }
 });
+
+test('authoritative-effect runtime injects API and GitHub auth providers into execution authority', async () => {
+  const source = await readFile(join(root, 'lib/project-transition-authoritative-effect-github-runtime.js'), 'utf8');
+  assert.match(
+    source,
+    /createPostgresExecutionAuthorityService\(\{\s*db,\s*api:options\.api,\s*withGitHubAppApiClient:withApp\s*\}\)/,
+    'authoritative-effect confirmation must forward explicit API and GitHub auth providers to execution authority',
+  );
+});
