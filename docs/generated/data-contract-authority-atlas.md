@@ -14,6 +14,48 @@ This atlas shows mechanically evidenced logical-contract authority, lifecycle, m
 - `project.advance.runtime-host` → `consumes` → `project.advance.input`
 - `project.advance.runtime-host` → `produces` → `execution.evidence`
 
+## `authoritative-state.freeze.http-boundary`
+
+- Significance: `boundary-internal`
+- Lifecycle: `unclassified`
+- SemVer: `adapter-layout`
+- Authority: `http:api/authoritative-state/freeze.js#request-response` (`http`)
+- Authority source: `api/authoritative-state/freeze.js#request-response`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `authoritative-state.recovery-seed.http-boundary`
+
+- Significance: `boundary-internal`
+- Lifecycle: `unclassified`
+- SemVer: `adapter-layout`
+- Authority: `http:api/authoritative-state/recovery-seed.js#request-response` (`http`)
+- Authority source: `api/authoritative-state/recovery-seed.js#request-response`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
 ## `compact.execution-state`
 
 - Significance: `durable-internal`

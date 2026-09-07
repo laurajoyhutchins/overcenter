@@ -71,10 +71,13 @@ function validateArtifact(input) {
   return { sourceRevision, artifactDigest };
 }
 
-export function createCloudRunHandler({ db, runtime }) {
+export function createCloudRunHandler({ db, runtime, workerCommand = null }) {
   if (!db || typeof db.query !== 'function') throw new TypeError('db.query is required');
   if (!runtime || typeof runtime.publishAndVerify !== 'function') {
     throw new TypeError('runtime.publishAndVerify is required');
+  }
+  if (workerCommand !== null && typeof workerCommand !== 'function') {
+    throw new TypeError('workerCommand must be a function when supplied');
   }
 
   return async function handle(request, response) {
@@ -94,6 +97,13 @@ export function createCloudRunHandler({ db, runtime }) {
         const expectedFence = input.expectedFence ?? null;
         const verified = await runtime.publishAndVerify(artifact, expectedFence);
         return writeJson(response, 200, { ok: true, verified });
+      }
+
+      if (request.method === 'POST' && request.url === '/api/worker-command') {
+        if (!workerCommand) return writeJson(response, 503, { ok:false, error:'semantic control plane unavailable' });
+        const input = await readJsonBody(request);
+        const result = await workerCommand(input);
+        return writeJson(response, Number(result?.status || 500), result?.body ?? { ok:false, error:'semantic worker returned no body' });
       }
 
       return writeJson(response, 404, { ok: false, error: 'not found' });

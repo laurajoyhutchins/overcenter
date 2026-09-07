@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 import { createCloudRunHandler, resolveCloudRunConfig } from './cloud-run-host.mjs';
-import { applyPostgresMigrations } from './postgres-migrations.mjs';
+import { createCloudRunSemanticWorker } from './cloud-run-semantic-runtime.mjs';
+import { applyPostgresMigrations, SOURCE_ONLY_POSTGRES_MIGRATIONS } from './postgres-migrations.mjs';
 
 const config = resolveCloudRunConfig(process.env);
 const { Pool } = pg;
@@ -12,6 +13,7 @@ const pool = new Pool(config.postgres);
 const migrations = await applyPostgresMigrations({
   db: pool,
   migrationsDir: fileURLToPath(new URL('../migrations/', import.meta.url)),
+  excludeNames:SOURCE_ONLY_POSTGRES_MIGRATIONS,
 });
 console.log(`Overcenter schema ready: ${migrations.applied.length} applied, ${migrations.skipped.length} already present.`);
 
@@ -28,7 +30,8 @@ const { createNodePostgresRuntime } = await import(
   '../dist/portable/adapters/postgres/node-postgres-runtime.js'
 );
 const runtime = createNodePostgresRuntime(pool);
-const handler = createCloudRunHandler({ db: pool, runtime });
+const workerCommand = createCloudRunSemanticWorker({ db:pool, env:process.env, logger:console });
+const handler = createCloudRunHandler({ db: pool, runtime, workerCommand });
 const server = createServer(handler);
 
 server.listen(config.port, config.listenHost, () => {

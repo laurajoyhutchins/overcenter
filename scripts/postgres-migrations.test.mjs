@@ -46,6 +46,12 @@ test('discovers SQL migrations in deterministic filename order', async () => {
   assert.match(migrations[0].sha256, /^[0-9a-f]{64}$/);
 });
 
+test('portable targets can exclude a source-host-only migration deterministically', async () => {
+  const dir = await fixture();
+  const migrations = await discoverPostgresMigrations(dir, { excludeNames:['002_second.sql'] });
+  assert.deepEqual(migrations.map(x => x.name), ['001_first.sql']);
+});
+
 test('applies each migration exactly once and records its checksum', async () => {
   const dir = await fixture();
   const db = fakeDb();
