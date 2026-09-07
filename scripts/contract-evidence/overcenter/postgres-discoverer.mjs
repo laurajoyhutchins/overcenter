@@ -1,6 +1,6 @@
-import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import pg from 'pg';
+import { discoverPostgresMigrations, SOURCE_ONLY_POSTGRES_MIGRATIONS } from '../../postgres-migrations.mjs';
 import { fingerprintStructure, sourceIdentity } from '../canonical.mjs';
 
 const { Client } = pg;
@@ -53,18 +53,14 @@ function groupByTable(rows, tablePaths, project) {
 }
 
 export async function applyMigrations(client, migrationsDir) {
-  const entries = (await readdir(migrationsDir, { withFileTypes:true }))
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.sql'))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  for (const entry of entries) {
-    const path = join(migrationsDir, entry.name);
-    const sql = await readFile(path, 'utf8');
-    if (!sql.trim()) continue;
+  const migrations = await discoverPostgresMigrations(migrationsDir, { excludeNames:SOURCE_ONLY_POSTGRES_MIGRATIONS });
+  for (const migration of migrations) {
+    if (!migration.sql.trim()) continue;
     try {
-      await client.query(sql);
+      await client.query(migration.sql);
     } catch (cause) {
-      const error = new Error(`contract database migration failed: ${entry.name}`, { cause });
-      Object.assign(error, { code:'CONTRACT_DATABASE_MIGRATION_FAILED', migration:entry.name });
+      const error = new Error(`contract database migration failed: ${migration.name}`, { cause });
+      Object.assign(error, { code:'CONTRACT_DATABASE_MIGRATION_FAILED', migration:migration.name });
       throw error;
     }
   }

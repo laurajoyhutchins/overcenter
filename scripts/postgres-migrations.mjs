@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+export const SOURCE_ONLY_POSTGRES_MIGRATIONS = Object.freeze(['059_authoritative_state_freeze.sql']);
+
 function fail(code, message, details = null) {
   throw Object.assign(new Error(message), { code, details });
 }

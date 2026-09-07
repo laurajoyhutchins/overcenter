@@ -4,7 +4,7 @@ import pg from 'pg';
 
 import { createCloudRunHandler, resolveCloudRunConfig } from './cloud-run-host.mjs';
 import { createCloudRunSemanticWorker } from './cloud-run-semantic-runtime.mjs';
-import { applyPostgresMigrations } from './postgres-migrations.mjs';
+import { applyPostgresMigrations, SOURCE_ONLY_POSTGRES_MIGRATIONS } from './postgres-migrations.mjs';
 
 const config = resolveCloudRunConfig(process.env);
 const { Pool } = pg;
@@ -13,7 +13,7 @@ const pool = new Pool(config.postgres);
 const migrations = await applyPostgresMigrations({
   db: pool,
   migrationsDir: fileURLToPath(new URL('../migrations/', import.meta.url)),
-  excludeNames:['059_authoritative_state_freeze.sql'],
+  excludeNames:SOURCE_ONLY_POSTGRES_MIGRATIONS,
 });
 console.log(`Overcenter schema ready: ${migrations.applied.length} applied, ${migrations.skipped.length} already present.`);
 
