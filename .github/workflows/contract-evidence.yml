@@ -52,10 +52,14 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+      - name: Upload generated contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-evidence-generated
+          path: ${{ runner.temp }}/contract-evidence
+          if-no-files-found: error
       - name: Verify committed generated evidence
         run: |
-          diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
-          diff -u docs/generated/data-contracts.md "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" || true
           node scripts/contract-evidence/cli.mjs check \
             --expected-catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --expected-docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
