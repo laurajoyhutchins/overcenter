@@ -19,6 +19,7 @@ const expected = new Map([
   ['orchestration_invocation_resolutions', ['TRANSFORM', 'CANONICAL_RECOVERY_EVIDENCE']],
   ['orchestration_runs', ['TRANSFORM', 'RUNTIME_EPOCH_RESET']],
   ['orchestration_skill_activations', ['ARCHIVE', 'LEGACY_HISTORY_ONLY']],
+  ['overcenter_authority_freeze', ['DISCARD', 'CUTOVER_CONTROL_STATE']],
   ['portfolio_reconcile_receipts', ['ARCHIVE', 'LEGACY_PROJECTION_ONLY']],
   ['portfolio_repository_branch_roles', ['PRESERVE', 'REPOSITORY_POLICY_TRUTH']],
   ['portfolio_repository_disposition', ['PRESERVE', 'REPOSITORY_POLICY_TRUTH']],
@@ -33,8 +34,8 @@ const expected = new Map([
   ['__hatchable_migrations', ['ARCHIVE', 'PROVIDER_IMPLEMENTATION_STATE']],
 ]);
 
-test('source disposition contract exhaustively encodes the authoritative 22-table census plus migration ledger', () => {
-  assert.equal(Object.keys(SOURCE_STATE_CONTRACT.tables).length, 23);
+test('source disposition contract exhaustively encodes the authoritative 22-table census, migration ledger and cutover control', () => {
+  assert.equal(Object.keys(SOURCE_STATE_CONTRACT.tables).length, 24);
   for (const [table, [disposition, reason]] of expected) {
     assert.deepEqual(
       [SOURCE_STATE_CONTRACT.tables[table]?.disposition, SOURCE_STATE_CONTRACT.tables[table]?.reason],

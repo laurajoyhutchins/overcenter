@@ -16,6 +16,7 @@ const tables = Object.freeze({
   orchestration_invocation_resolutions: { disposition: 'TRANSFORM', reason: 'CANONICAL_RECOVERY_EVIDENCE' },
   orchestration_runs: { disposition: 'TRANSFORM', reason: 'RUNTIME_EPOCH_RESET' },
   orchestration_skill_activations: { disposition: 'ARCHIVE', reason: 'LEGACY_HISTORY_ONLY' },
+  overcenter_authority_freeze: { disposition: 'DISCARD', reason: 'CUTOVER_CONTROL_STATE' },
   portfolio_reconcile_receipts: { disposition: 'ARCHIVE', reason: 'LEGACY_PROJECTION_ONLY' },
   portfolio_repository_branch_roles: { disposition: 'PRESERVE', reason: 'REPOSITORY_POLICY_TRUTH' },
   portfolio_repository_disposition: { disposition: 'PRESERVE', reason: 'REPOSITORY_POLICY_TRUTH' },
@@ -38,7 +39,7 @@ const fieldOverrides = Object.freeze({
 
 export const SOURCE_STATE_CONTRACT = Object.freeze({
   schema: 'migration-state-contract-v1',
-  census: 'hatchable-postgres-22-application-tables-plus-migration-ledger',
+  census: 'hatchable-postgres-22-application-tables-plus-migration-ledger-and-cutover-control',
   tables,
   field_overrides: fieldOverrides,
 });
