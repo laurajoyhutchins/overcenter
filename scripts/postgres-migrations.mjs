@@ -20,9 +20,10 @@ async function withPinnedClient(db, operation) {
   }
 }
 
-export async function discoverPostgresMigrations(migrationsDir) {
+export async function discoverPostgresMigrations(migrationsDir, options = {}) {
+  const excluded = new Set((options.excludeNames || []).map(String));
   const names = (await readdir(migrationsDir))
-    .filter(name => /^\d+.*\.sql$/.test(name))
+    .filter(name => /^\d+.*\.sql$/.test(name) && !excluded.has(name))
     .sort((a, b) => a.localeCompare(b));
 
   const migrations = [];
@@ -33,7 +34,7 @@ export async function discoverPostgresMigrations(migrationsDir) {
   return Object.freeze(migrations);
 }
 
-export async function applyPostgresMigrations({ db, migrationsDir }) {
+export async function applyPostgresMigrations({ db, migrationsDir, excludeNames = [] }) {
   if (!db || typeof db.query !== 'function') {
     fail('MIGRATION_DATABASE_REQUIRED', 'PostgreSQL migration database is unavailable.');
   }
@@ -48,7 +49,7 @@ export async function applyPostgresMigrations({ db, migrationsDir }) {
 
   const applied = [];
   const skipped = [];
-  for (const migration of await discoverPostgresMigrations(migrationsDir)) {
+  for (const migration of await discoverPostgresMigrations(migrationsDir, { excludeNames })) {
     const existing = await db.query(
       'SELECT sha256 FROM overcenter_schema_migrations WHERE name=$1 LIMIT 1',
       [migration.name],

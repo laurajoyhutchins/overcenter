@@ -13,6 +13,7 @@ const pool = new Pool(config.postgres);
 const migrations = await applyPostgresMigrations({
   db: pool,
   migrationsDir: fileURLToPath(new URL('../migrations/', import.meta.url)),
+  excludeNames:['059_authoritative_state_freeze.sql'],
 });
 console.log(`Overcenter schema ready: ${migrations.applied.length} applied, ${migrations.skipped.length} already present.`);
 
