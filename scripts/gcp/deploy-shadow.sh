@@ -11,6 +11,11 @@ DB_USER="${PGUSER:-overcenter}"
 PASSWORD_SECRET="${OVERCENTER_DB_PASSWORD_SECRET:-overcenter-db-password}"
 GITHUB_APP_ID_VALUE="${OVERCENTER_GITHUB_APP_ID:-4616688}"
 GITHUB_APP_PRIVATE_KEY_SECRET="${OVERCENTER_GITHUB_APP_PRIVATE_KEY_SECRET:-overcenter-github-app-private-key}"
+SOURCE_REVISION="${GITHUB_SHA:-$(git rev-parse HEAD)}"
+if [[ ! "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "exact source revision is required" >&2
+  exit 2
+fi
 
 if ! command -v gcloud >/dev/null 2>&1; then
   echo "gcloud is required" >&2
@@ -35,7 +40,7 @@ gcloud run deploy "$SERVICE" \
   --region="$REGION" \
   --service-account="$RUNTIME_SA" \
   --add-cloudsql-instances="$CONNECTION_NAME" \
-  --set-env-vars="PGHOST=/cloudsql/${CONNECTION_NAME},PGDATABASE=${DB_NAME},PGUSER=${DB_USER},GITHUB_APP_ID=${GITHUB_APP_ID_VALUE}" \
+  --set-env-vars="PGHOST=/cloudsql/${CONNECTION_NAME},PGDATABASE=${DB_NAME},PGUSER=${DB_USER},GITHUB_APP_ID=${GITHUB_APP_ID_VALUE},OVERCENTER_AUTHORITY_MODE=shadow,OVERCENTER_SOURCE_REVISION=${SOURCE_REVISION}" \
   --set-secrets="PGPASSWORD=${PASSWORD_SECRET}:latest,GITHUB_APP_PRIVATE_KEY=${GITHUB_APP_PRIVATE_KEY_SECRET}:latest" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
   --no-allow-unauthenticated \

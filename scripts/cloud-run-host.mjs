@@ -23,10 +23,18 @@ export function resolveCloudRunConfig(env = process.env) {
       details: { port: env.PORT ?? null },
     });
   }
+  const authorityMode = requiredText(env, 'OVERCENTER_AUTHORITY_MODE') || 'shadow';
+  if (!['shadow', 'authoritative'].includes(authorityMode)) {
+    throw Object.assign(new Error('OVERCENTER_AUTHORITY_MODE must be shadow or authoritative'), {
+      code: 'AUTHORITY_MODE_INVALID',
+      details: { authority_mode: authorityMode },
+    });
+  }
 
   return Object.freeze({
     listenHost: '0.0.0.0',
     port,
+    authorityMode,
     postgres: Object.freeze({
       host: requiredText(env, 'PGHOST'),
       database: requiredText(env, 'PGDATABASE'),
@@ -71,7 +79,7 @@ function validateArtifact(input) {
   return { sourceRevision, artifactDigest };
 }
 
-export function createCloudRunHandler({ db, runtime, workerCommand = null }) {
+export function createCloudRunHandler({ db, runtime, workerCommand = null, authorityMode = 'shadow' }) {
   if (!db || typeof db.query !== 'function') throw new TypeError('db.query is required');
   if (!runtime || typeof runtime.publishAndVerify !== 'function') {
     throw new TypeError('runtime.publishAndVerify is required');
@@ -88,6 +96,7 @@ export function createCloudRunHandler({ db, runtime, workerCommand = null }) {
           ok: true,
           runtime: 'portable-node-postgres',
           database: 'ready',
+          authority_mode: authorityMode,
         });
       }
 
@@ -102,6 +111,14 @@ export function createCloudRunHandler({ db, runtime, workerCommand = null }) {
       if (request.method === 'POST' && request.url === '/api/worker-command') {
         if (!workerCommand) return writeJson(response, 503, { ok:false, error:'semantic control plane unavailable' });
         const input = await readJsonBody(request);
+        if (authorityMode !== 'authoritative') {
+          return writeJson(response, 409, {
+            ok:false,
+            error:'AUTHORITY_WRITES_DISABLED',
+            authority_mode:authorityMode,
+            may_have_mutated:false,
+          });
+        }
         const result = await workerCommand(input);
         return writeJson(response, Number(result?.status || 500), result?.body ?? { ok:false, error:'semantic worker returned no body' });
       }

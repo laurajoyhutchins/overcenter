@@ -31,7 +31,7 @@ const { createNodePostgresRuntime } = await import(
 );
 const runtime = createNodePostgresRuntime(pool);
 const workerCommand = createCloudRunSemanticWorker({ db:pool, env:process.env, logger:console });
-const handler = createCloudRunHandler({ db: pool, runtime, workerCommand });
+const handler = createCloudRunHandler({ db: pool, runtime, workerCommand, authorityMode:config.authorityMode });
 const server = createServer(handler);
 
 server.listen(config.port, config.listenHost, () => {
