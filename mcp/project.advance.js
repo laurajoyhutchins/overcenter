@@ -18,11 +18,13 @@ export default {
   description:descriptor.description,
   inputSchema:descriptor.input_schema,
   async handler(args,ctx) {
-    const { db } = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
-    const runs = createPostgresTargetAwareOrchestrationRunService({ db });
-    const advance = createPostgresOrchestrationAdvanceService({ db });
-    const finish = createPostgresSubjectAwareOrchestrationRunService({ db });
-    const authoritativeEffect = createPostgresProjectTransitionAuthoritativeEffectConfirmationService({ db });
+    const providers = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const { db } = providers;
+    const runtime = { db, api:providers.api, withGitHubAppApiClient:providers.githubAppAuth.withApiClient };
+    const runs = createPostgresTargetAwareOrchestrationRunService(runtime);
+    const advance = createPostgresOrchestrationAdvanceService(runtime);
+    const finish = createPostgresSubjectAwareOrchestrationRunService(runtime);
+    const authoritativeEffect = createPostgresProjectTransitionAuthoritativeEffectConfirmationService(runtime);
     const response = await executeCorrelatedCommand(
       'project.advance',
       args || {},

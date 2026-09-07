@@ -12,11 +12,12 @@ export default {
   description:'Publish one exact verified semantic release plan. The caller supplies only the plan and release notes; Overcenter revalidates current Git authority and repository-owned transition impacts, derives provider release bookkeeping, invokes the immutable release primitive, and returns verified publication evidence.',
   inputSchema:descriptor.input_schema,
   async handler(args, ctx) {
-    const { db } = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const providers = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const { db } = providers;
     const response = await executeCorrelatedCommand(
       'release.publish',
       args || {},
-      (input) => releasePublishingFor({ db }).publish(input),
+      (input) => releasePublishingFor({ db, withGitHubAppApiClient:providers.githubAppAuth.withApiClient }).publish(input),
       { defaultError:'RELEASE_PUBLISH_ERROR', defaultMessage:'release.publish failed', flattenDetails:true, db },
     );
     return response.body;

@@ -9,10 +9,11 @@ export default {
   description:'Amend canonical repository-owned project graph facts at an exact observed Git revision using semantic transition intent. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.',
   inputSchema:PROJECT_AMEND_INPUT_SCHEMA,
   async handler(args,ctx) {
-    const { db } = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const providers = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const { db } = providers;
     const response = await executeSemanticWorkerCommand('project.amend', args || {}, {
       db,
-      projectAuthoring:projectAuthoringFor({ db }),
+      projectAuthoring:projectAuthoringFor({ db, withGitHubAppApiClient:providers.githubAppAuth.withApiClient }),
       logger:console,
     });
     return response.body;

@@ -140,3 +140,31 @@ test('GitHub project graph runtime requires an explicit auth capability', async 
   });
   assert.equal(typeof runtime.resolveProjectAuthority, 'function');
 });
+
+test('semantic GitHub auth does not hide provider resolution below composition roots', async () => {
+  for (const path of [
+    'lib/project-definition-facts-reader.js',
+    'lib/production-promotion-overcenter-host.js',
+    'lib/github-production-promotion-runtime.js',
+    'lib/production-reconcile-overcenter-host.js',
+  ]) {
+    const text = await source(path);
+    assert.doesNotMatch(text, /import\(['\"]\.\/github-app-auth\.js['\"]\)/, `${path} dynamically resolves GitHub auth`);
+    assert.doesNotMatch(text, /from\s+['\"][^'\"]*github-app-auth\.js['\"]/, `${path} imports an unbound GitHub auth implementation`);
+  }
+
+  const worker = await source('lib/worker-transport.js');
+  assert.match(worker, /productionReconciliationFor\(\{\s*db:requireRuntimeDb\(runtime\),\s*withGitHubAppApiClient:requireGitHubAppAuth\(runtime\)\.withApiClient,/s);
+  assert.match(worker, /productionPromotionFor\(\{\s*db:requireRuntimeDb\(runtime\),\s*withGitHubAppApiClient:requireGitHubAppAuth\(runtime\)\.withApiClient,/s);
+
+  for (const path of [
+    'mcp/project.advance.js',
+    'mcp/project.define.js',
+    'mcp/project.amend.js',
+    'mcp/production.promote.js',
+    'mcp/production.reconcile.js',
+    'mcp/release.publish.js',
+  ]) {
+    assert.match(await source(path), /githubAppAuth\.withApiClient/, `${path} must forward the bound GitHub auth provider`);
+  }
+});
