@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { projectTransitionAuthoritativeEffectConfirmationFor } from '../lib/project-transition-authoritative-effect.js';
-import { projectTransitionPullRequestReadQuery } from '../lib/project-transition-authoritative-effect-github-query.js';
+import { projectTransitionPullRequestDetailNumbers, projectTransitionPullRequestReadQuery } from '../lib/project-transition-authoritative-effect-github-query.js';
 
 const SHA = {
   authority:'1111111111111111111111111111111111111111',
@@ -206,6 +206,16 @@ test('GitHub authoritative-effect readback survives workspace drift by scanning 
   const query = projectTransitionPullRequestReadQuery({ base:'dev' });
   assert.deepEqual(query, { state:'all', base:'dev', per_page:100 });
   assert.equal(Object.hasOwn(query, 'head'), false);
+});
+
+test('GitHub authoritative-effect readback hydrates matching merged PR detail when list omits merge SHA', () => {
+  const pulls = [
+    { number:689, merged_at:'2026-09-07T01:04:30Z', merge_commit_sha:null, head:{ ref:'work/transition-1-prior' } },
+    { number:688, merged_at:'2026-09-07T00:31:18Z', merge_commit_sha:SHA.merge, head:{ ref:'work/transition-1-prior' } },
+    { number:687, merged_at:null, merge_commit_sha:null, head:{ ref:'work/transition-1-prior' } },
+    { number:686, merged_at:'2026-09-07T00:15:08Z', merge_commit_sha:null, head:{ ref:'work/other' } },
+  ];
+  assert.deepEqual(projectTransitionPullRequestDetailNumbers({ pulls, head:'work/transition-1-prior' }), [689]);
 });
 
 test('authoritative-effect confirmation rejects a merged candidate that is not in current development authority', async () => {
