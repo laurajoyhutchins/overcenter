@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 import { createCloudRunHandler, resolveCloudRunConfig } from './cloud-run-host.mjs';
+import { createCloudRunSemanticWorker } from './cloud-run-semantic-runtime.mjs';
 import { applyPostgresMigrations } from './postgres-migrations.mjs';
 
 const config = resolveCloudRunConfig(process.env);
@@ -28,7 +29,8 @@ const { createNodePostgresRuntime } = await import(
   '../dist/portable/adapters/postgres/node-postgres-runtime.js'
 );
 const runtime = createNodePostgresRuntime(pool);
-const handler = createCloudRunHandler({ db: pool, runtime });
+const workerCommand = createCloudRunSemanticWorker({ db:pool, env:process.env, logger:console });
+const handler = createCloudRunHandler({ db: pool, runtime, workerCommand });
 const server = createServer(handler);
 
 server.listen(config.port, config.listenHost, () => {
