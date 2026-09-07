@@ -12,11 +12,16 @@ export default {
   description:descriptor.description,
   inputSchema:descriptor.input_schema,
   async handler(args,ctx) {
-    const { db } = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const providers = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const { db } = providers;
     const response = await executeCorrelatedCommand(
       'project.inspect',
       args || {},
-      (input) => projectInspectForGitHub({ db, createGitHubProjectGraphRuntime }).inspect(input),
+      (input) => projectInspectForGitHub({
+        db,
+        withGitHubAppApiClient:providers.githubAppAuth.withApiClient,
+        createGitHubProjectGraphRuntime,
+      }).inspect(input),
       {
         statusForFailure:() => null,
         defaultError:'PROJECT_INSPECT_ERROR',

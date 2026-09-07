@@ -1,4 +1,5 @@
+import { hatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { createPostgresTargetAwareOrchestrationRunService, statusForTargetAwareOrchestrationError } from 'lib/orchestration-run-target-runtime.js';
 export const access='admin'; export const methods=['POST'];
-export default async function(req,res){ const response=await executeCorrelatedCommand('orchestration.start',req.body||{},input=>createPostgresTargetAwareOrchestrationRunService().start(input),{statusForFailure:statusForTargetAwareOrchestrationError,defaultError:'ORCHESTRATION_START_ERROR',defaultMessage:'orchestration.start failed',flattenDetails:true}); return res.status(response.status).json(response.body); }
+export default async function(req,res){ const runtime={db:hatchableRuntimeProviders.db,api:hatchableRuntimeProviders.api,withGitHubAppApiClient:hatchableRuntimeProviders.githubAppAuth.withApiClient}; const response=await executeCorrelatedCommand('orchestration.start',req.body||{},input=>createPostgresTargetAwareOrchestrationRunService(runtime).start(input),{statusForFailure:statusForTargetAwareOrchestrationError,defaultError:'ORCHESTRATION_START_ERROR',defaultMessage:'orchestration.start failed',flattenDetails:true,db:runtime.db}); return res.status(response.status).json(response.body); }

@@ -1,4 +1,4 @@
-import { db } from 'hatchable';
+import { hatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { orchestrationStatus } from 'lib/orchestration-status.js';
 import { createAuthoritativeProjectGraphReader } from 'lib/project-graph-authority.js';
@@ -13,7 +13,10 @@ const OVERCENTER_PROJECT_REF = 'github:laurajoyhutchins/overcenter';
 async function statusWithProjectTransitions() {
   const status = await orchestrationStatus();
   try {
-    const readProjectGraph = createAuthoritativeProjectGraphReader(createGitHubProjectGraphRuntime({ db }));
+    const readProjectGraph = createAuthoritativeProjectGraphReader(createGitHubProjectGraphRuntime({
+      db:hatchableRuntimeProviders.db,
+      withGitHubAppApiClient:hatchableRuntimeProviders.githubAppAuth.withApiClient,
+    }));
     const graph = await readProjectGraph({ project_ref:OVERCENTER_PROJECT_REF });
     return { ...status, ...projectTransitionStatus(graph) };
   } catch (error) {
