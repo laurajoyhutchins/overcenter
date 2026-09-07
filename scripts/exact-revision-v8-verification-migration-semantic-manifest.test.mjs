@@ -2,113 +2,86 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   SOURCE_STATE_CONTRACT,
-  assertQuiescentForFinalSnapshot,
+  assertCutoverReady,
   classifySourceInventory,
   buildMigrationSemanticManifest,
 } from './migration-semantic-manifest.mjs';
 
 const expected = new Map([
-  ['execution_state', ['TRANSFORM', 'RUNTIME_EPOCH_RESET']],
-  ['github_changeset_receipts', ['TRANSFORM', 'CANONICAL_EFFECT_EVIDENCE']],
-  ['github_production_promotion_receipts', ['TRANSFORM', 'CANONICAL_EFFECT_EVIDENCE']],
-  ['github_release_receipts', ['TRANSFORM', 'CANONICAL_EFFECT_EVIDENCE']],
+  ['execution_state', ['DISCARD', 'RUNTIME_EPOCH_RESET']],
+  ['github_changeset_receipts', ['DISCARD', 'GITHUB_RECOVERABLE_EFFECT']],
+  ['github_production_promotion_receipts', ['DISCARD', 'GITHUB_RECOVERABLE_EFFECT']],
+  ['github_release_receipts', ['DISCARD', 'GITHUB_RECOVERABLE_EFFECT']],
   ['github_required_check_observations', ['DISCARD', 'DERIVED_STATE']],
-  ['operation_state', ['PRESERVE', 'CURRENT_KERNEL_TRUTH']],
-  ['orchestration_command_invocations', ['TRANSFORM', 'CANONICAL_RECOVERY_EVIDENCE']],
+  ['operation_state', ['DISCARD', 'RUNTIME_EPOCH_RESET']],
+  ['orchestration_command_invocations', ['DISCARD', 'RUNTIME_EPOCH_RESET']],
   ['orchestration_horizons', ['DISCARD', 'DERIVED_STATE']],
-  ['orchestration_invocation_resolutions', ['TRANSFORM', 'CANONICAL_RECOVERY_EVIDENCE']],
-  ['orchestration_runs', ['TRANSFORM', 'RUNTIME_EPOCH_RESET']],
-  ['orchestration_skill_activations', ['ARCHIVE', 'LEGACY_HISTORY_ONLY']],
+  ['orchestration_invocation_resolutions', ['DISCARD', 'RUNTIME_EPOCH_RESET']],
+  ['orchestration_runs', ['DISCARD', 'RUNTIME_EPOCH_RESET']],
+  ['orchestration_skill_activations', ['DISCARD', 'RUNTIME_EPOCH_RESET']],
   ['overcenter_authority_freeze', ['DISCARD', 'CUTOVER_CONTROL_STATE']],
-  ['portfolio_reconcile_receipts', ['ARCHIVE', 'LEGACY_PROJECTION_ONLY']],
-  ['portfolio_repository_branch_roles', ['PRESERVE', 'REPOSITORY_POLICY_TRUTH']],
-  ['portfolio_repository_disposition', ['PRESERVE', 'REPOSITORY_POLICY_TRUTH']],
-  ['portfolio_verification_receipts', ['TRANSFORM', 'CANONICAL_PROOF_EVIDENCE']],
-  ['portfolio_work_identity', ['TRANSFORM', 'PROVIDER_NEUTRALIZATION']],
-  ['proof_state', ['PRESERVE', 'CURRENT_KERNEL_TRUTH']],
-  ['scheduled_cycle_events', ['ARCHIVE', 'LEGACY_HISTORY_ONLY']],
-  ['work_lease_checkpoints', ['ARCHIVE', 'LEGACY_HISTORY_ONLY']],
-  ['work_lease_heartbeats', ['DISCARD', 'EPHEMERAL_COORDINATION']],
-  ['work_lease_slots', ['DISCARD', 'EPHEMERAL_COORDINATION']],
-  ['work_leases', ['TRANSFORM', 'RUNTIME_EPOCH_RESET']],
-  ['__hatchable_migrations', ['ARCHIVE', 'PROVIDER_IMPLEMENTATION_STATE']],
+  ['portfolio_reconcile_receipts', ['DISCARD', 'LEGACY_PROJECTION_ONLY']],
+  ['portfolio_repository_branch_roles', ['TRANSFORM', 'GITHUB_RECOVERY_SEED']],
+  ['portfolio_repository_disposition', ['TRANSFORM', 'GITHUB_RECOVERY_SEED']],
+  ['portfolio_verification_receipts', ['DISCARD', 'GITHUB_RECOVERABLE_PROOF']],
+  ['portfolio_work_identity', ['DISCARD', 'PROVIDER_PROJECTION_STATE']],
+  ['proof_state', ['DISCARD', 'GITHUB_RECOVERABLE_PROOF']],
+  ['scheduled_cycle_events', ['DISCARD', 'RUNTIME_EPOCH_RESET']],
+  ['work_lease_checkpoints', ['DISCARD', 'RUNTIME_EPOCH_RESET']],
+  ['work_lease_heartbeats', ['DISCARD', 'RUNTIME_EPOCH_RESET']],
+  ['work_lease_slots', ['DISCARD', 'RUNTIME_EPOCH_RESET']],
+  ['work_leases', ['TRANSFORM', 'GITHUB_RECOVERY_SEED']],
+  ['__hatchable_migrations', ['DISCARD', 'PROVIDER_IMPLEMENTATION_STATE']],
 ]);
 
-test('source disposition contract exhaustively encodes the authoritative 22-table census, migration ledger and cutover control', () => {
+test('cutover contract treats Hatchable runtime coordination as disposable epoch state', () => {
+  assert.equal(SOURCE_STATE_CONTRACT.schema, 'migration-state-contract-v2');
+  assert.equal(SOURCE_STATE_CONTRACT.invariant, 'github-plus-empty-canonical-cloud-sql-recovers-current-project-truth');
   assert.equal(Object.keys(SOURCE_STATE_CONTRACT.tables).length, 24);
   for (const [table, [disposition, reason]] of expected) {
-    assert.deepEqual(
-      [SOURCE_STATE_CONTRACT.tables[table]?.disposition, SOURCE_STATE_CONTRACT.tables[table]?.reason],
-      [disposition, reason],
-      table,
-    );
+    assert.deepEqual([SOURCE_STATE_CONTRACT.tables[table]?.disposition, SOURCE_STATE_CONTRACT.tables[table]?.reason], [disposition, reason], table);
   }
 });
 
-test('source inventory fails closed on any unclassified table', () => {
-  assert.throws(
-    () => classifySourceInventory([...expected.keys(), 'surprise_state']),
-    error => error?.code === 'MIGRATION_UNCLASSIFIED_SOURCE_STATE'
-      && error?.details?.unclassified?.includes('surprise_state'),
-  );
+test('source inventory remains exhaustive even though most source state is discarded', () => {
+  assert.throws(() => classifySourceInventory([...expected.keys(), 'surprise_state']), error => error?.code === 'MIGRATION_UNCLASSIFIED_SOURCE_STATE');
+  assert.throws(() => classifySourceInventory([...expected.keys()].filter(name => name !== 'proof_state')), error => error?.code === 'MIGRATION_SOURCE_CENSUS_MISMATCH');
 });
 
-test('source inventory also fails closed if an expected classified table disappears', () => {
-  assert.throws(
-    () => classifySourceInventory([...expected.keys()].filter(name => name !== 'proof_state')),
-    error => error?.code === 'MIGRATION_SOURCE_CENSUS_MISMATCH'
-      && error?.details?.missing?.includes('proof_state'),
-  );
+test('stale runs, leases and invocations do not block cutover', () => {
+  assert.doesNotThrow(() => assertCutoverReady({
+    source_mutation_frozen: true,
+    github_recovery_seed_verified: true,
+    empty_target_reconstruction_verified: true,
+    unresolved_non_github_effects: 0,
+    writer_inventory_complete: true,
+    active_runs: 51,
+    live_leases: 8,
+    running_invocations: 3,
+  }));
 });
 
-test('mandatory capability and runtime-epoch field overrides cannot inherit a hotter disposition', () => {
-  assert.deepEqual(SOURCE_STATE_CONTRACT.field_overrides['execution_state.active_capability_material'], {
-    disposition: 'DISCARD', reason: 'NONTRANSFERABLE_CAPABILITY',
-  });
-  assert.deepEqual(SOURCE_STATE_CONTRACT.field_overrides['work_leases.lease_token'], {
-    disposition: 'DISCARD', reason: 'NONTRANSFERABLE_CAPABILITY',
-  });
-  assert.deepEqual(SOURCE_STATE_CONTRACT.field_overrides['work_leases.token_hash'], {
-    disposition: 'DISCARD', reason: 'NONTRANSFERABLE_CAPABILITY',
-  });
+test('unrecoverable external-effect uncertainty still blocks cutover', () => {
+  assert.throws(() => assertCutoverReady({
+    source_mutation_frozen: true,
+    github_recovery_seed_verified: true,
+    empty_target_reconstruction_verified: true,
+    unresolved_non_github_effects: 1,
+    writer_inventory_complete: true,
+  }), error => error?.code === 'MIGRATION_CUTOVER_NOT_READY' && error?.details?.blockers?.includes('unresolved_non_github_effects'));
 });
 
-test('final snapshot quiescence rejects any effective live authority or unresolved mutation uncertainty', () => {
-  for (const [field, value] of [
-    ['active_runs', 1],
-    ['live_leases', 1],
-    ['occupied_live_slots', 1],
-    ['unresolved_potentially_mutating_operations', 1],
-    ['indeterminate_external_effects', 1],
-  ]) {
-    const input = {
-      source_mutation_frozen: true,
-      active_runs: 0,
-      live_leases: 0,
-      occupied_live_slots: 0,
-      unresolved_potentially_mutating_operations: 0,
-      indeterminate_external_effects: 0,
-      writer_inventory_complete: true,
-      rehearsal_verified: true,
-      [field]: value,
-    };
-    assert.throws(() => assertQuiescentForFinalSnapshot(input), error => error?.code === 'MIGRATION_QUIESCENCE_REQUIRED');
-  }
-});
-
-test('semantic manifest refuses completion without archive, recovery, exact-revision and single-writer evidence', async () => {
-  const base = {
-    source: { frozen: true, snapshot_ref: 'source:snapshot:1', schema_digest: 'sha256:a' },
+test('semantic manifest requires GitHub reconstruction but not a legacy archive', async () => {
+  const manifest = await buildMigrationSemanticManifest({
+    source: { frozen: true, freeze_ref: 'hatchable:freeze:1' },
     census: classifySourceInventory([...expected.keys()]),
     target: { schema_ref: 'gcp-canonical-v1', authority_revision: 'a'.repeat(40) },
-    archive: null,
+    recovery: { github_seed_verified: true, empty_target_reconstruction_verified: true, unresolved_non_github_effects: 0 },
     accounting: { unclassified: [], unmatched: [] },
-    recovery: { verified: true },
     runtime: { verified: true, project_inspect_verified: true, safe_semantic_operation_verified: true },
     writer_cutover: { source_frozen: true, target_writer_enabled: true, authoritative_writer_count: 1 },
-  };
-  await assert.rejects(
-    () => buildMigrationSemanticManifest(base),
-    error => error?.code === 'MIGRATION_ARCHIVE_EVIDENCE_REQUIRED',
-  );
+  });
+  assert.equal(manifest.schema, 'migration-semantic-manifest-v2');
+  assert.equal('archive' in manifest, false);
+  assert.match(manifest.manifest_digest, /^sha256:[0-9a-f]{64}$/);
 });
