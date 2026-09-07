@@ -52,8 +52,9 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Print exact generated catalog delta
-        run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
+      - name: Print exact generated recovery-seed contract delta
+        run: |
+          node -e 'const fs=require("fs"); for (const p of process.argv.slice(1)) { const c=JSON.parse(fs.readFileSync(p)); const x=c.candidates.find(x=>x.source_identity==="http:api/authoritative-state/recovery-seed.js#request-response"); console.log(p, JSON.stringify(x)); }' generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json"
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
