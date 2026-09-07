@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
@@ -147,7 +147,7 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
         project_ref: projectRef,
         horizon: Object.freeze({ kind: 'transition', ref: transitionRef }),
       });
-      const runId = `exact-revision-reachability-${revision}`;
+      const runId = `exact-revision-reachability-${revision}-${randomUUID()}`;
       const startResponse = await callTool('run_function', {
         project_id: project,
         path: '/api/orchestration/start',
@@ -372,7 +372,7 @@ export async function verifyExactRevisionV8(input, adapters) {
         reject('VERIFICATION_RUNTIME_REACHABILITY_UNAVAILABLE', 'production reachability verifier is unavailable');
       }
       const productionReachability = await adapters.runtime.runProductionReachability({
-        project,
+        project:productionProject,
         repository,
         revision,
         deployment_version: deployment.version,
@@ -380,7 +380,7 @@ export async function verifyExactRevisionV8(input, adapters) {
       const baseReachabilityValid = (
         productionReachability?.schema === 'production-reachability-evidence-v1'
         && productionReachability?.entrypoint === '/api/orchestration/horizon-resolve'
-        && productionReachability?.runtime_project === project
+        && productionReachability?.runtime_project === productionProject
         && productionReachability?.runtime_revision === revision
         && productionReachability?.target?.project_ref === `github:${repository}`
         && productionReachability?.target?.horizon?.kind === 'transition'

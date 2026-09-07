@@ -1,7 +1,9 @@
-import { withGitHubAppApiClient } from 'lib/github-app-auth.js';
+import { hatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 
 export const access = 'admin';
 export const methods = ['GET'];
+
+const withGitHubAppApiClient = hatchableRuntimeProviders.githubAppAuth.withApiClient;
 
 export default async function (req, res) {
   const repo = String(req.query?.repo || '');

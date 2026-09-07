@@ -1,14 +1,17 @@
-import { db, storage } from 'hatchable';
+import { hatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { applyGithubChangesetRoleAware } from 'lib/github-branch-role-runtime.js';
 import { createPostgresExecutionAuthorityService } from 'lib/execution-authority.js';
 import { createGithubApiAdapter } from 'lib/github-apply-changeset.js';
-import { githubAppChangesetPermissionProfile, withGitHubAppApiClient } from 'lib/github-app-auth.js';
+import { githubAppChangesetPermissionProfile } from 'lib/github-app-auth.js';
 import { applyGithubLeaseScopedChangeset } from 'lib/github-lease-scoped-changeset.js';
 import { GitHubContentTransportError, expandGithubContentReferences, githubContentTransportErrorResult } from 'lib/github-content-transport.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
+
+const { db, storage, githubAppAuth } = hatchableRuntimeProviders;
+const withGitHubAppApiClient = githubAppAuth.withApiClient;
 
 const STAGE_ID = /^[A-Za-z0-9._-]{1,120}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
