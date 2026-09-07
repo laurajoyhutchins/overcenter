@@ -114,6 +114,14 @@ test('authoritative-effect runtime injects API and GitHub auth providers into ex
   );
 });
 
+test('review integration preserves the explicit GitHub auth capability', async () => {
+  const reviewSource = await readFile(join(root, 'lib/github-review-packet.js'), 'utf8');
+  const integrationSource = await readFile(join(root, 'lib/github-integration.js'), 'utf8');
+  assert.doesNotMatch(reviewSource, /import\s+\{\s*withGitHubAppApiClient\s*\}\s+from\s+['\"]lib\/github-app-auth\.js['\"]/, 'review packet must not import ambient GitHub auth');
+  assert.match(reviewSource, /const\s+withApp\s*=\s*options\.withGitHubAppApiClient/, 'review packet must require injected GitHub auth');
+  assert.match(integrationSource, /withGitHubAppApiClient\s*:\s*withApp/, 'integration must forward injected GitHub auth into review');
+});
+
 test('GitHub project graph runtime requires an explicit auth capability', async () => {
   const { createGitHubProjectGraphRuntime } = await import(pathToFileURL(join(root, 'lib/project-graph-github-runtime.js')));
   const db = { query: async () => ({ rows: [] }) };
