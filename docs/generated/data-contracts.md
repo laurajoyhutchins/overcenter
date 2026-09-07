@@ -63,7 +63,6 @@
 
 - `authoritative-state.freeze.http-boundary` — authority `http:api/authoritative-state/freeze.js#request-response`; SemVer `adapter-layout`
 - `authoritative-state.recovery-seed.http-boundary` — authority `http:api/authoritative-state/recovery-seed.js#request-response`; SemVer `adapter-layout`
-
 - `compact.execution-state.store` — authority `typescript:src/ports/compact-execution-state-store.ts#CompactExecutionStateStore`; SemVer `adapter-layout`; 9 projections
 - `execution.authority.store-port` — authority `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityStore`
 - `github.repository.rename.http-boundary` — authority `http:api/github-repository-rename.js#request-response`; SemVer `adapter-layout`
