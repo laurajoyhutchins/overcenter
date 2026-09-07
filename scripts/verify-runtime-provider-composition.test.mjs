@@ -148,12 +148,12 @@ test('semantic GitHub auth does not hide provider resolution below composition r
     'lib/github-production-promotion-runtime.js',
     'lib/production-reconcile-overcenter-host.js',
   ]) {
-    const text = await source(path);
+    const text = await readFile(join(root, path), 'utf8');
     assert.doesNotMatch(text, /import\(['\"]\.\/github-app-auth\.js['\"]\)/, `${path} dynamically resolves GitHub auth`);
     assert.doesNotMatch(text, /from\s+['\"][^'\"]*github-app-auth\.js['\"]/, `${path} imports an unbound GitHub auth implementation`);
   }
 
-  const worker = await source('lib/worker-transport.js');
+  const worker = await readFile(join(root, 'lib/worker-transport.js'), 'utf8');
   assert.match(worker, /productionReconciliationFor\(\{\s*db:requireRuntimeDb\(runtime\),\s*withGitHubAppApiClient:requireGitHubAppAuth\(runtime\)\.withApiClient,/s);
   assert.match(worker, /productionPromotionFor\(\{\s*db:requireRuntimeDb\(runtime\),\s*withGitHubAppApiClient:requireGitHubAppAuth\(runtime\)\.withApiClient,/s);
 
@@ -165,6 +165,6 @@ test('semantic GitHub auth does not hide provider resolution below composition r
     'mcp/production.reconcile.js',
     'mcp/release.publish.js',
   ]) {
-    assert.match(await source(path), /githubAppAuth\.withApiClient/, `${path} must forward the bound GitHub auth provider`);
+    assert.match(await readFile(join(root, path), 'utf8'), /githubAppAuth\.withApiClient/, `${path} must forward the bound GitHub auth provider`);
   }
 });
