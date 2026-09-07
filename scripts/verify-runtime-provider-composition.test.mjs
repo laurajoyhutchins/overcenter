@@ -44,7 +44,7 @@ async function semanticRoots() {
   const mcp = (await readdir(join(root, 'mcp')))
     .filter(name => name.endsWith('.js'))
     .map(name => `mcp/${name}`);
-  return ['api/worker-command.js', 'api/scheduled-execution/bootstrap.js', 'api/scheduled-execution/command.js', 'lib/worker-command-handler.js', 'lib/worker-transport.js', ...mcp];
+  return ['api/worker-command.js', 'api/github-integration-reconcile.js', 'api/scheduled-execution/bootstrap.js', 'api/scheduled-execution/command.js', 'lib/worker-command-handler.js', 'lib/worker-transport.js', ...mcp];
 }
 
 async function providerViolations() {
@@ -152,6 +152,9 @@ test('semantic GitHub auth does not hide provider resolution below composition r
     assert.doesNotMatch(text, /import\(['\"]\.\/github-app-auth\.js['\"]\)/, `${path} dynamically resolves GitHub auth`);
     assert.doesNotMatch(text, /from\s+['\"][^'\"]*github-app-auth\.js['\"]/, `${path} imports an unbound GitHub auth implementation`);
   }
+
+  const integrationRecovery = await readFile(join(root, 'api/github-integration-reconcile.js'), 'utf8');
+  assert.match(integrationRecovery, /withGitHubAppApiClient:providers\.githubAppAuth\.withApiClient/, 'integration recovery root must forward the bound GitHub auth provider');
 
   const worker = await readFile(join(root, 'lib/worker-transport.js'), 'utf8');
   assert.match(worker, /productionReconciliationFor\(\{\s*db:requireRuntimeDb\(runtime\),\s*withGitHubAppApiClient:requireGitHubAppAuth\(runtime\)\.withApiClient,/s);
