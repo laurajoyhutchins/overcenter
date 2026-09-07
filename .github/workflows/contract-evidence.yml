@@ -50,6 +50,12 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+      - name: Capture committed evidence for diagnostic diff
+        run: |
+          mkdir -p "$RUNNER_TEMP/contract-evidence/committed/generated/contracts" "$RUNNER_TEMP/contract-evidence/committed/docs/generated"
+          cp generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/committed/generated/contracts/catalog.json"
+          cp docs/generated/data-contracts.md "$RUNNER_TEMP/contract-evidence/committed/docs/generated/data-contracts.md"
+          cp docs/generated/data-contract-authority-atlas.md "$RUNNER_TEMP/contract-evidence/committed/docs/generated/data-contract-authority-atlas.md"
       - name: Upload generated contract evidence
         uses: actions/upload-artifact@v4
         with:
