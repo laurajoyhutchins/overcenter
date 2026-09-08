@@ -11,7 +11,7 @@ permissions:
   id-token: write
 
 jobs:
-  prove-authoritative-runtime:
+  inspect-observation-sources:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -19,8 +19,9 @@ jobs:
       EXPECTED_FREEZE_DIGEST: sha256:3ff040b3ebb60b89af860c1d3a140aef3be58652fdb1abca592ec45fb7c764b5
       GCP_SERVICE: overcenter-shadow
       GCP_REGION: us-west1
-      PROJECT_REF: github:laurajoyhutchins/overcenter
-      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+      GCP_JOB: overcenter-db-diagnostic
+      CLOUD_SQL_CONNECTION_NAME: project-6b810532-a302-48dc-b56:us-west1:overcenter-postgres
+      RUNTIME_SA: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
     steps:
       - name: Prove repository authority is still frozen revision
         shell: bash
@@ -31,58 +32,53 @@ jobs:
           echo "main exact revision: $observed"
 
       - name: Authenticate to Google Cloud with GitHub OIDC
-        id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
-          token_format: id_token
-          id_token_audience: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
-          id_token_include_email: true
-          request_reason: Overcenter post-cutover project.inspect diagnosis
+          request_reason: Overcenter one-shot Cloud SQL observation diagnosis
 
       - name: Install Google Cloud CLI
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
 
-      - name: Prove Cloud Run authority binding
+      - name: Prove authority binding and inspect malformed settled observations
         shell: bash
         run: |
           set -euo pipefail
+          trap 'gcloud run jobs delete "$GCP_JOB" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --quiet >/dev/null 2>&1 || true' EXIT
+
           gcloud run services describe "$GCP_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format=json > "$RUNNER_TEMP/service.json"
           ready="$(jq -r '.status.latestReadyRevisionName' "$RUNNER_TEMP/service.json")"
           created="$(jq -r '.status.latestCreatedRevisionName' "$RUNNER_TEMP/service.json")"
           mode="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_AUTHORITY_MODE") | .value' "$RUNNER_TEMP/service.json")"
           revision="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_REVISION") | .value' "$RUNNER_TEMP/service.json")"
           digest="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_FREEZE_DIGEST") | .value' "$RUNNER_TEMP/service.json")"
-          url="$(jq -r '.status.url' "$RUNNER_TEMP/service.json")"
+          image="$(jq -r '.spec.template.spec.containers[0].image' "$RUNNER_TEMP/service.json")"
           test -n "$ready" && test "$ready" = "$created"
           test "$mode" = authoritative
           test "$revision" = "$EXPECTED_REVISION"
           test "$digest" = "$EXPECTED_FREEZE_DIGEST"
-          test "$url" = "$SERVICE_AUDIENCE"
-          echo "ready revision: $ready"
-          echo "authority mode: $mode"
-          echo "source revision: $revision"
-          echo "freeze digest: $digest"
+          test -n "$image" && test "$image" != null
 
-      - name: Diagnose project.inspect semantic response
-        shell: bash
-        env:
-          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-        run: |
-          set -euo pipefail
-          test -n "$ID_TOKEN"
-          health_status="$(curl --silent --show-error -o "$RUNNER_TEMP/health.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" "$SERVICE_AUDIENCE/health")"
-          echo "health HTTP $health_status"
-          jq . "$RUNNER_TEMP/health.json"
-          test "$health_status" = 200
+          code='import("pg").then(async m=>{const p=new m.default.Pool();const r=await p.query("SELECT lease_id::text||$$|$$||coalesce(settle_receipt->>$$schema$$,$$<null>$$)||$$|$$||run_id||$$|$$||coalesce(settled_at::text,$$<null>$$) AS invalid_settlement FROM work_leases WHERE status=$$settled$$ AND claim_receipt->>$$subject$$=$$project_transition$$ AND settle_receipt->>$$subject$$=$$project_transition$$ AND settle_receipt->>$$disposition$$=$$completed$$ AND settle_receipt->$$project_transition$$->>$$project_ref$$=$$github:laurajoyhutchins/overcenter$$ AND coalesce(settle_receipt->>$$schema$$,$$$$)<>$$project-transition-lease-settlement-v1$$ ORDER BY settled_at ASC");console.log("DIAG_ROWS="+JSON.stringify(r.rows));await p.end()})'
 
-          direct_status="$(curl --silent --show-error -o "$RUNNER_TEMP/direct.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -X POST -d "{\"project_ref\":\"$PROJECT_REF\"}" "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
-          echo "direct project-inspect HTTP $direct_status"
-          jq . "$RUNNER_TEMP/direct.json"
+          gcloud run jobs deploy "$GCP_JOB" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --region="$GCP_REGION" \
+            --image="$image" \
+            --service-account="$RUNTIME_SA" \
+            --set-cloudsql-instances="$CLOUD_SQL_CONNECTION_NAME" \
+            --set-env-vars="PGHOST=/cloudsql/${CLOUD_SQL_CONNECTION_NAME},PGDATABASE=overcenter,PGUSER=overcenter" \
+            --set-secrets="PGPASSWORD=overcenter-db-password:latest" \
+            --command=node \
+            --args="-e,$code" \
+            --max-retries=0 \
+            --tasks=1 \
+            --task-timeout=120s \
+            --quiet
 
-          worker_status="$(curl --silent --show-error -o "$RUNNER_TEMP/worker.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -X POST -d "{\"command\":\"project.inspect\",\"input\":{\"project_ref\":\"$PROJECT_REF\"}}" "$SERVICE_AUDIENCE/api/worker-command")"
-          echo "worker project.inspect HTTP $worker_status"
-          jq . "$RUNNER_TEMP/worker.json"
-          test "$worker_status" = 200
+          gcloud run jobs execute "$GCP_JOB" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --wait --quiet
+          sleep 2
+          gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="overcenter-db-diagnostic" AND textPayload:"DIAG_ROWS="' \
+            --project="${{ vars.GCP_PROJECT_ID }}" --freshness=10m --limit=5 --format='value(textPayload)'
