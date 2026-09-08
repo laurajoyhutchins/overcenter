@@ -1,0 +1,118 @@
+name: Finalize GCP migration proof
+
+on:
+  push:
+    branches:
+      - ops/finalize-gcp-migration-20260908
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TARGET_REVISION: 82e3b81ce9fd3f925aaeaa0e36c62769ad0f58f9
+      EXPECTED_FREEZE_DIGEST: sha256:3ff040b3ebb60b89af860c1d3a140aef3be58652fdb1abca592ec45fb7c764b5
+      PROJECT_REF: github:laurajoyhutchins/overcenter
+      TRANSITION_ID: finish-hatchable-gcp-authoritative-state-migration
+      GCP_SERVICE: overcenter-shadow
+      GCP_REGION: us-west1
+      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+    steps:
+      - name: Check out exact verified production source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.TARGET_REVISION }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Prove dev and main are the same verified object
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_REVISION"
+          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$TARGET_REVISION"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$TARGET_REVISION"
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
+          id_token_include_email: true
+          request_reason: Final Overcenter authoritative migration proof
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+
+      - name: Deploy exact revision without changing authority epoch
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
+          EXACT_REVISION: ${{ env.TARGET_REVISION }}
+        run: bash ./scripts/gcp/deploy-authoritative.sh
+
+      - name: Prove authoritative GCP health and migrated project inspection
+        shell: bash
+        env:
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+        run: |
+          set -euo pipefail
+          test -n "$ID_TOKEN"
+          gcloud run services describe "$GCP_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format=json > "$RUNNER_TEMP/service.json"
+          ready="$(jq -r '.status.latestReadyRevisionName' "$RUNNER_TEMP/service.json")"
+          created="$(jq -r '.status.latestCreatedRevisionName' "$RUNNER_TEMP/service.json")"
+          mode="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_AUTHORITY_MODE") | .value' "$RUNNER_TEMP/service.json")"
+          revision="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_REVISION") | .value' "$RUNNER_TEMP/service.json")"
+          digest="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_FREEZE_DIGEST") | .value' "$RUNNER_TEMP/service.json")"
+          url="$(jq -r '.status.url' "$RUNNER_TEMP/service.json")"
+          test -n "$ready" && test "$ready" = "$created"
+          test "$mode" = authoritative
+          test "$revision" = "$TARGET_REVISION"
+          test "$digest" = "$EXPECTED_FREEZE_DIGEST"
+          test "$url" = "$SERVICE_AUDIENCE"
+
+          health_status="$(curl --silent --show-error -o "$RUNNER_TEMP/health.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" "$SERVICE_AUDIENCE/health")"
+          test "$health_status" = 200
+          jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null
+
+          inspect_status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -X POST -d "{\"project_ref\":\"$PROJECT_REF\"}" "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
+          test "$inspect_status" = 200
+          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null
+
+          jq -n \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg ready "$ready" \
+            --arg mode "$mode" \
+            --arg revision "$revision" \
+            --arg digest "$digest" \
+            --arg url "$url" \
+            --slurpfile health "$RUNNER_TEMP/health.json" \
+            --slurpfile inspect "$RUNNER_TEMP/inspect.json" \
+            --arg transition "$TRANSITION_ID" \
+            '{schema:"overcenter-final-migration-proof-v1",workflow_run_id:$run_id,cloud_run:{ready_revision:$ready,authority_mode:$mode,source_revision:$revision,source_freeze_digest:$digest,url:$url},health:$health[0],inspection_summary:{ok:$inspect[0].inspection.ok,authority_mode:$inspect[0].authority_mode,top_level_keys:($inspect[0].inspection|keys)},transition_matches:([$inspect[0].inspection | .. | objects | select((.id? // .transition_id? // "") == $transition)])}' > "$RUNNER_TEMP/proof.json"
+
+      - name: Publish sanitized proof to promotion PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          body="$(jq -Rs '"Final GCP migration proof from workflow run **" + env.GITHUB_RUN_ID + "**:\n\n```json\n" + . + "\n```"' "$RUNNER_TEMP/proof.json")"
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/laurajoyhutchins/overcenter/issues/704/comments" \
+            -d "{\"body\":$body}" >/dev/null
