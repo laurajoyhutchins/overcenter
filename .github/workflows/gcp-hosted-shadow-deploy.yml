@@ -1,6 +1,9 @@
 name: GCP hosted shadow deployment
 
 on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
   workflow_dispatch:
 
 permissions:
