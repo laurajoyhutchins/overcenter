@@ -1,20 +1,16 @@
 import pg from 'pg';
 
 import { resolveCloudRunConfig } from './cloud-run-host.mjs';
+import { classifiedActivationExitCode } from './cloud-run-target-activation-exit.mjs';
 import { activateAuthoritativeTarget } from './cloud-run-target-authority.mjs';
 
-const config = resolveCloudRunConfig(process.env);
-const { Pool } = pg;
-const pool = new Pool(config.postgres);
-
-function classifiedExitCode(error) {
-  if (error?.code === '42501') return 13; // PostgreSQL insufficient_privilege
-  if (error?.code === '55000') return 14; // frozen-source rejection / object state
-  if (String(error?.code || '').startsWith('TARGET_ACTIVATION_')) return 15;
-  return 1;
-}
+let pool = null;
 
 try {
+  const config = resolveCloudRunConfig(process.env);
+  const { Pool } = pg;
+  pool = new Pool(config.postgres);
+
   const result = await activateAuthoritativeTarget({
     db:pool,
     authorityMode:config.authorityMode,
@@ -37,7 +33,16 @@ try {
     details:error?.details || null,
     may_have_mutated:error?.may_have_mutated === true,
   }));
-  process.exitCode = classifiedExitCode(error);
+  process.exitCode = classifiedActivationExitCode(error);
 } finally {
-  await pool.end();
+  if (pool) {
+    await pool.end().catch(error => {
+      console.error(JSON.stringify({
+        ok:false,
+        warning:'TARGET_ACTIVATION_POOL_CLEANUP_FAILED',
+        error:error?.code || null,
+        message:error?.message || 'PostgreSQL pool cleanup failed after target activation attempt',
+      }));
+    });
+  }
 }
