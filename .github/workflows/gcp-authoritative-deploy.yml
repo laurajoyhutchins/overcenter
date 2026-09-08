@@ -83,6 +83,15 @@ jobs:
           set -euo pipefail
           test -n "$ID_TOKEN"
 
+          fail_json() {
+            label="$1"
+            status="$2"
+            file="$3"
+            printf '%s\n' "$label failed (HTTP $status). Response:"
+            jq . "$file" 2>/dev/null || cat "$file"
+            exit 1
+          }
+
           gcloud run services describe "$GCP_SERVICE" \
             --project="${{ vars.GCP_PROJECT_ID }}" \
             --region="$GCP_REGION" \
@@ -93,6 +102,13 @@ jobs:
           revision="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_REVISION") | .value' "$RUNNER_TEMP/service.json")"
           digest="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_FREEZE_DIGEST") | .value' "$RUNNER_TEMP/service.json")"
           url="$(jq -r '.status.url' "$RUNNER_TEMP/service.json")"
+          printf '%s\n' \
+            "Cloud Run ready revision: $ready" \
+            "Cloud Run created revision: $created" \
+            "Authority mode: $mode" \
+            "Source revision: $revision" \
+            "Source freeze digest: $digest" \
+            "Service URL: $url"
           test -n "$ready" && test "$ready" = "$created"
           test "$mode" = authoritative
           test "$revision" = "$EXACT_REVISION"
@@ -102,8 +118,10 @@ jobs:
           health_status="$(curl --silent --show-error -o "$RUNNER_TEMP/health.json" -w '%{http_code}' \
             -H "Authorization: Bearer $ID_TOKEN" \
             "$SERVICE_AUDIENCE/health")"
-          test "$health_status" = 200
-          jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null
+          echo "Health HTTP: $health_status"
+          test "$health_status" = 200 || fail_json health "$health_status" "$RUNNER_TEMP/health.json"
+          jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null \
+            || fail_json health-contract "$health_status" "$RUNNER_TEMP/health.json"
 
           inspect_status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect.json" -w '%{http_code}' \
             -H "Authorization: Bearer $ID_TOKEN" \
@@ -111,8 +129,10 @@ jobs:
             -X POST \
             -d "{\"project_ref\":\"$PROJECT_REF\"}" \
             "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
-          test "$inspect_status" = 200
-          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null
+          echo "Project inspect HTTP: $inspect_status"
+          test "$inspect_status" = 200 || fail_json project-inspect "$inspect_status" "$RUNNER_TEMP/inspect.json"
+          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null \
+            || fail_json project-inspect-contract "$inspect_status" "$RUNNER_TEMP/inspect.json"
 
           promote_status="$(curl --silent --show-error -o "$RUNNER_TEMP/promote.json" -w '%{http_code}' \
             -H "Authorization: Bearer $ID_TOKEN" \
@@ -120,8 +140,10 @@ jobs:
             -X POST \
             -d '{"command":"production.promote","input":{"repo":"laurajoyhutchins/overcenter"}}' \
             "$SERVICE_AUDIENCE/api/worker-command")"
-          test "$promote_status" = 200
-          jq -e '.ok == true' "$RUNNER_TEMP/promote.json" >/dev/null
+          echo "Production promote HTTP: $promote_status"
+          test "$promote_status" = 200 || fail_json production-promote "$promote_status" "$RUNNER_TEMP/promote.json"
+          jq -e '.ok == true' "$RUNNER_TEMP/promote.json" >/dev/null \
+            || fail_json production-promote-contract "$promote_status" "$RUNNER_TEMP/promote.json"
 
           printf '%s\n' \
             "GCP runtime proof complete" \
