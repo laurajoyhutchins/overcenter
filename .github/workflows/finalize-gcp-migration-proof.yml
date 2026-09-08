@@ -1,4 +1,4 @@
-name: Finalize GCP migration proof dispatcher
+name: Diagnose GCP project.advance failure
 
 on:
   push:
@@ -7,58 +7,34 @@ on:
 
 permissions:
   contents: read
-  actions: write
+  id-token: write
 
 jobs:
-  dispatch:
+  diagnose:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      TARGET_REVISION: f1c61a38c0ad7c5d64d16c84ce906eb96ba9402d
-      WORKFLOW: gcp-authoritative-deploy.yml
     steps:
-      - name: Check out exact verified source for ref proof
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
-          ref: ${{ env.TARGET_REVISION }}
-          persist-credentials: false
-          fetch-depth: 1
+          project_id: project-6b810532-a302-48dc-b56
+          workload_identity_provider: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+          service_account: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          create_credentials_file: true
+          export_environment_variables: true
 
-      - name: Prove dev and main are the same verified object
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          version: latest
+
+      - name: Read failing Cloud Run request logs
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$TARGET_REVISION"
-          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$TARGET_REVISION"
-          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$TARGET_REVISION"
-
-      - name: Dispatch authority-preserving deployment on authorized dev ref
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          before="$(date -u +%s)"
-          curl --fail-with-body --silent --show-error \
-            -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H 'Accept: application/vnd.github+json' \
-            -H 'X-GitHub-Api-Version: 2022-11-28' \
-            "https://api.github.com/repos/laurajoyhutchins/overcenter/actions/workflows/$WORKFLOW/dispatches" \
-            -d "{\"ref\":\"dev\",\"inputs\":{\"exact_revision\":\"$TARGET_REVISION\"}}"
-
-          run_id=''
-          for attempt in $(seq 1 12); do
-            response="$(curl --fail-with-body --silent --show-error \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H 'Accept: application/vnd.github+json' \
-              -H 'X-GitHub-Api-Version: 2022-11-28' \
-              "https://api.github.com/repos/laurajoyhutchins/overcenter/actions/workflows/$WORKFLOW/runs?branch=dev&event=workflow_dispatch&per_page=20")"
-            run_id="$(jq -r --arg sha "$TARGET_REVISION" --argjson before "$before" '[.workflow_runs[] | select(.head_sha == $sha and .event == "workflow_dispatch" and ((.created_at | fromdateiso8601) >= ($before - 5)))] | sort_by(.id) | last | .id // empty' <<<"$response")"
-            if [[ -n "$run_id" ]]; then break; fi
-            sleep 2
-          done
-          test -n "$run_id"
-          echo "Dispatched trusted dev workflow run $run_id at exact revision $TARGET_REVISION"
-
-# rerun-marker: 2026-09-08T16:00:00Z
+          gcloud logging read \
+            'resource.type="cloud_run_revision" AND resource.labels.service_name="overcenter-shadow" AND resource.labels.revision_name="overcenter-shadow-00036-xg5" AND timestamp>="2026-09-08T20:02:25Z" AND timestamp<="2026-09-08T20:02:40Z"' \
+            --project=project-6b810532-a302-48dc-b56 \
+            --limit=200 \
+            --order=asc \
+            --format=json
