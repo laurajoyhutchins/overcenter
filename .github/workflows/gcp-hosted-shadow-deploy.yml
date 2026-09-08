@@ -11,12 +11,13 @@ permissions:
   id-token: write
 
 jobs:
-  authoritative-runtime-probe:
+  ordinary-transition-proof:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
       PROJECT_REF: github:laurajoyhutchins/overcenter
+      TRANSITION: make-mechanical-changeset-coalescing-actionable
     steps:
       - name: Authenticate to authoritative GCP runtime
         id: auth
@@ -29,30 +30,98 @@ jobs:
           id_token_audience: ${{ env.SERVICE_AUDIENCE }}
           id_token_include_email: true
           create_credentials_file: false
-          request_reason: Overcenter ordinary GCP transition acceptance probe
+          request_reason: Overcenter ordinary GCP transition round-trip proof
 
-      - name: Inspect authoritative GCP runtime
+      - name: Inspect claim requeue and inspect entirely through GCP
         shell: bash
         env:
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
         run: |
           set -euo pipefail
           test -n "$ID_TOKEN"
-          health_status="$(curl --silent --show-error -o "$RUNNER_TEMP/health.json" -w '%{http_code}' \
-            -H "Authorization: Bearer $ID_TOKEN" \
-            "$SERVICE_AUDIENCE/health")"
-          echo "HEALTH_HTTP=$health_status"
-          cat "$RUNNER_TEMP/health.json"
-          test "$health_status" = 200
-          jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null
 
-          inspect_status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect.json" -w '%{http_code}' \
-            -H "Authorization: Bearer $ID_TOKEN" \
-            -H 'content-type: application/json' \
-            -X POST \
-            -d "{\"project_ref\":\"$PROJECT_REF\"}" \
-            "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
-          echo "INSPECT_HTTP=$inspect_status"
-          cat "$RUNNER_TEMP/inspect.json"
-          test "$inspect_status" = 200
-          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null
+          fail_json() {
+            label="$1"
+            status="$2"
+            file="$3"
+            printf '%s\n' "$label failed (HTTP $status). Response:"
+            jq . "$file" 2>/dev/null || cat "$file"
+            exit 1
+          }
+
+          inspect() {
+            output="$1"
+            curl --silent --show-error -o "$output" -w '%{http_code}' \
+              -H "Authorization: Bearer $ID_TOKEN" \
+              -H 'content-type: application/json' \
+              -X POST \
+              -d "{\"project_ref\":\"$PROJECT_REF\"}" \
+              "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect"
+          }
+
+          worker() {
+            output="$1"
+            payload="$2"
+            curl --silent --show-error -o "$output" -w '%{http_code}' \
+              -H "Authorization: Bearer $ID_TOKEN" \
+              -H 'content-type: application/json' \
+              -X POST \
+              -d "$payload" \
+              "$SERVICE_AUDIENCE/api/worker-command"
+          }
+
+          pre_status="$(inspect "$RUNNER_TEMP/pre.json")"
+          echo "PRE_INSPECT_HTTP=$pre_status"
+          jq . "$RUNNER_TEMP/pre.json"
+          test "$pre_status" = 200 || fail_json pre-inspect "$pre_status" "$RUNNER_TEMP/pre.json"
+          jq -e --arg t "$TRANSITION" '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true and (.inspection.frontier_details[] | select(.id == $t) | .availability == "available" and .occupied == false and .suspended == false)' "$RUNNER_TEMP/pre.json" >/dev/null \
+            || fail_json pre-inspect-contract "$pre_status" "$RUNNER_TEMP/pre.json"
+          authority_revision="$(jq -r '.inspection.authority_revision' "$RUNNER_TEMP/pre.json")"
+
+          advance_payload="$(jq -nc --arg project "$PROJECT_REF" --arg transition "$TRANSITION" '{command:"project.advance",input:{project_ref:$project,transition_id:$transition}}')"
+          advance_status="$(worker "$RUNNER_TEMP/advance.json" "$advance_payload")"
+          echo "ADVANCE_HTTP=$advance_status"
+          jq . "$RUNNER_TEMP/advance.json"
+          test "$advance_status" = 200 || fail_json advance "$advance_status" "$RUNNER_TEMP/advance.json"
+          jq -e '.outcome == "AGENT_EXECUTION_REQUIRED" and (.resume_ref | type == "string" and length > 0) and (.lease_ref | type == "string" and length > 0)' "$RUNNER_TEMP/advance.json" >/dev/null \
+            || fail_json advance-contract "$advance_status" "$RUNNER_TEMP/advance.json"
+          resume_ref="$(jq -r '.resume_ref' "$RUNNER_TEMP/advance.json")"
+          lease_ref="$(jq -r '.lease_ref' "$RUNNER_TEMP/advance.json")"
+          echo "CLAIMED_LEASE_REF=$lease_ref"
+          echo "RESUME_REF=$resume_ref"
+
+          occupied_status="$(inspect "$RUNNER_TEMP/occupied.json")"
+          echo "OCCUPIED_INSPECT_HTTP=$occupied_status"
+          jq . "$RUNNER_TEMP/occupied.json"
+          test "$occupied_status" = 200 || fail_json occupied-inspect "$occupied_status" "$RUNNER_TEMP/occupied.json"
+          jq -e --arg t "$TRANSITION" --arg rev "$authority_revision" '.inspection.authority_revision == $rev and (.inspection.frontier_details[] | select(.id == $t) | .occupied == true)' "$RUNNER_TEMP/occupied.json" >/dev/null \
+            || fail_json occupied-inspect-contract "$occupied_status" "$RUNNER_TEMP/occupied.json"
+
+          settle_payload="$(jq -nc \
+            --arg project "$PROJECT_REF" \
+            --arg transition "$TRANSITION" \
+            --arg resume "$resume_ref" \
+            --arg probe "github-actions-run:${GITHUB_RUN_ID}" \
+            '{command:"project.advance",input:{project_ref:$project,transition_id:$transition,resume_ref:$resume,execution_result:{disposition:"requeue",requeue_class:"insufficient_execution_window",reason:"Post-migration GCP acceptance probe only; substantive transition execution was intentionally not started.",evidence:[{kind:"gcp_runtime_acceptance_probe",ref:$probe}]}}}')"
+          settle_status="$(worker "$RUNNER_TEMP/settle.json" "$settle_payload")"
+          echo "SETTLE_HTTP=$settle_status"
+          jq . "$RUNNER_TEMP/settle.json"
+          test "$settle_status" = 200 || fail_json settle "$settle_status" "$RUNNER_TEMP/settle.json"
+          jq -e '.ok == true and .resume_ref == null' "$RUNNER_TEMP/settle.json" >/dev/null \
+            || fail_json settle-contract "$settle_status" "$RUNNER_TEMP/settle.json"
+
+          post_status="$(inspect "$RUNNER_TEMP/post.json")"
+          echo "POST_INSPECT_HTTP=$post_status"
+          jq . "$RUNNER_TEMP/post.json"
+          test "$post_status" = 200 || fail_json post-inspect "$post_status" "$RUNNER_TEMP/post.json"
+          jq -e --arg t "$TRANSITION" --arg rev "$authority_revision" '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true and .inspection.authority_revision == $rev and (.inspection.frontier_details[] | select(.id == $t) | .availability == "available" and .occupied == false and .suspended == false)' "$RUNNER_TEMP/post.json" >/dev/null \
+            || fail_json post-inspect-contract "$post_status" "$RUNNER_TEMP/post.json"
+
+          printf '%s\n' \
+            'GCP_ORDINARY_TRANSITION_PROOF=PASS' \
+            "AUTHORITY_REVISION=$authority_revision" \
+            "TRANSITION=$TRANSITION" \
+            "LEASE_REF=$lease_ref" \
+            'SETTLEMENT_DISPOSITION=requeue' \
+            'REQUEUE_CLASS=insufficient_execution_window' \
+            'FINAL_STATE=available-unoccupied-unsuspended'
