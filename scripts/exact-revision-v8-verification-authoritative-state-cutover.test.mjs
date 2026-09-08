@@ -14,10 +14,15 @@ function captureDb() {
     async query() {
       call += 1;
       if (call === 1) return { rows:[{
-        transition_id:'done',
+        transition_id:'alpha-newer',
         transition_definition_fingerprint:'b'.repeat(64),
         source_authority_revision:'a'.repeat(40),
-        settled_at:'2026-09-07T01:00:00Z',
+        settled_at:'2026-09-07T05:00:00Z',
+      }, {
+        transition_id:'zulu-older',
+        transition_definition_fingerprint:'c'.repeat(64),
+        source_authority_revision:'d'.repeat(40),
+        settled_at:'2026-09-06T01:00:00Z',
       }] };
       if (call === 2) return { rows:[{
         repository:'laurajoyhutchins/overcenter', development_branch:'dev', production_branch:'main',
@@ -34,10 +39,11 @@ function captureDb() {
 
 test('capture produces compact GitHub recovery truth and exact source coordinates', async () => {
   const result = await captureGitHubRecoverySeed({ db:captureDb(), project_ref:projectRef });
-  assert.equal(result.seed.transition_confirmations.length, 1);
+  assert.equal(result.seed.transition_confirmations.length, 2);
   assert.equal(result.seed.repository_branch_roles.length, 1);
   assert.equal(result.seed.repository_dispositions.length, 1);
-  assert.equal(result.coordinates.transition_confirmations_count, 1);
+  assert.equal(result.coordinates.transition_confirmations_count, 2);
+  assert.equal(result.coordinates.transition_confirmations_max_settled_at, '2026-09-07T05:00:00Z');
   assert.equal(result.coordinates.branch_roles_max_updated_at, '2026-09-07T02:00:00Z');
   assert.match(result.digest, /^sha256:[0-9a-f]{64}$/);
   assert.equal(result.seed.digest, result.digest);

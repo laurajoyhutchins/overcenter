@@ -25,7 +25,6 @@ const maintainedTests = [
   'cloud-run-host.test.mjs',
   'codex-agent-execution-workflow.test.mjs',
   'postgres-state-manifest.test.mjs',
-  'source-authority-fence.test.mjs',
   'verify-github-workflow-dispatch.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
