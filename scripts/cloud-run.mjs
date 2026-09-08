@@ -4,6 +4,7 @@ import pg from 'pg';
 
 import { createCloudRunHandler, resolveCloudRunConfig } from './cloud-run-host.mjs';
 import { createCloudRunReadOnlyProjectInspector, createCloudRunSemanticWorker } from './cloud-run-semantic-runtime.mjs';
+import { activateAuthoritativeTarget } from './cloud-run-target-authority.mjs';
 import { applyPostgresMigrations, SOURCE_ONLY_POSTGRES_MIGRATIONS } from './postgres-migrations.mjs';
 
 const config = resolveCloudRunConfig(process.env);
@@ -16,6 +17,14 @@ const migrations = await applyPostgresMigrations({
   excludeNames:SOURCE_ONLY_POSTGRES_MIGRATIONS,
 });
 console.log(`Overcenter schema ready: ${migrations.applied.length} applied, ${migrations.skipped.length} already present.`);
+
+const targetActivation = await activateAuthoritativeTarget({
+  db:pool,
+  authorityMode:config.authorityMode,
+  sourceRevision:process.env.OVERCENTER_SOURCE_REVISION,
+  sourceFreezeDigest:process.env.OVERCENTER_SOURCE_FREEZE_DIGEST,
+});
+console.log(`Overcenter target authority: ${JSON.stringify(targetActivation)}`);
 
 await pool.query(`
   CREATE TABLE IF NOT EXISTS overcenter_runtime_deployments (
