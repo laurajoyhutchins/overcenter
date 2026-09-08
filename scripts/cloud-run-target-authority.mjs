@@ -1,5 +1,11 @@
+import { readFile } from 'node:fs/promises';
+
+import { canonicalJson, sha256Text } from '../lib/canonical-json.js';
+
 const SHA40 = /^[0-9a-f]{40}$/;
 const SHA256 = /^sha256:[0-9a-f]{64}$/;
+const SOURCE_ONLY_MIGRATION = '059_authoritative_state_freeze.sql';
+const RECOVERY_SEED_URL = new URL('../.overcenter/recovery/hatchable-cutover-v1.json', import.meta.url);
 
 function failure(code, message, details = {}) {
   return Object.assign(new Error(message), {
@@ -19,24 +25,16 @@ async function withPinnedClient(db, operation) {
   }
 }
 
-const READ_FREEZE = `SELECT frozen, frozen_at, source_revision, freeze_manifest_sha256
-  FROM overcenter_authority_freeze
- WHERE singleton=true
- LIMIT 1
- FOR SHARE`;
-
-const COUNT_SOURCE_FREEZE_TRIGGERS = `SELECT count(*)::text AS remaining
-  FROM pg_trigger
- WHERE NOT tgisinternal
-   AND tgname LIKE 'overcenter_source_freeze_%'`;
-
-const READ_SOURCE_FENCE_FUNCTION_DEPENDENTS = `SELECT t.tgname AS trigger_name
-  FROM pg_trigger AS t
- WHERE NOT t.tgisinternal
-   AND t.tgfoid = to_regprocedure('overcenter_reject_source_writes_when_frozen()')
- ORDER BY t.tgname`;
-
-const DROP_SOURCE_FENCE_FUNCTION = `DROP FUNCTION overcenter_reject_source_writes_when_frozen() CASCADE`;
+const READ_FRESH_EPOCH_STATE = `SELECT
+  to_regclass('overcenter_authority_freeze')::text AS freeze_table,
+  to_regprocedure('overcenter_reject_source_writes_when_frozen()')::text AS freeze_function,
+  (SELECT count(*)::text
+     FROM pg_trigger
+    WHERE NOT tgisinternal
+      AND tgname LIKE 'overcenter_source_freeze_%') AS freeze_triggers,
+  (SELECT count(*)::text
+     FROM overcenter_schema_migrations
+    WHERE name=$1) AS source_only_migrations`;
 
 function normalizeIdentity({ authorityMode, sourceRevision, sourceFreezeDigest }) {
   if (authorityMode !== 'authoritative') {
@@ -55,53 +53,93 @@ function normalizeIdentity({ authorityMode, sourceRevision, sourceFreezeDigest }
   return { runtimeRevision, digest };
 }
 
-async function proveFreezeIdentity(client, { runtimeRevision, digest }) {
-  const freezeResult = await client.query(READ_FREEZE);
-  const row = freezeResult?.rows?.[0] || null;
-  const frozenSourceRevision = String(row?.source_revision || '').trim().toLowerCase();
-  const observedDigest = String(row?.freeze_manifest_sha256 || '').trim().toLowerCase();
-  if (
-    !row
-    || row.frozen !== true
-    || !row.frozen_at
-    || !SHA40.test(frozenSourceRevision)
-    || observedDigest !== digest
-  ) {
-    throw failure('TARGET_ACTIVATION_FREEZE_IDENTITY_MISMATCH', 'authoritative target does not contain the exact frozen-source evidence', {
-      runtime_source_revision:runtimeRevision,
-      frozen_source_revision:frozenSourceRevision || null,
-      expected_source_freeze_digest:digest,
-      observed_source_freeze_digest:observedDigest || null,
-      observed_frozen:row?.frozen === true,
-      observed_frozen_at:row?.frozen_at || null,
+export async function verifyRecoverySeedProof(seed, expectedDigest) {
+  const expected = String(expectedDigest || '').trim().toLowerCase();
+  if (!SHA256.test(expected) || !seed || seed.schema !== 'overcenter-github-recovery-seed-v1') {
+    throw failure('TARGET_ACTIVATION_RECOVERY_SEED_INVALID', 'sealed GitHub recovery seed is required');
+  }
+  const claimed = String(seed.digest || '').trim().toLowerCase();
+  const body = { ...seed };
+  delete body.digest;
+  const computed = `sha256:${await sha256Text(canonicalJson(body))}`;
+  if (claimed !== expected || computed !== expected) {
+    throw failure('TARGET_ACTIVATION_RECOVERY_SEED_MISMATCH', 'GitHub recovery seed does not match the frozen-source digest', {
+      expected_digest:expected,
+      claimed_digest:claimed || null,
+      computed_digest:computed,
     });
   }
-  return { frozenSourceRevision, observedDigest };
+  return Object.freeze({
+    verified:true,
+    digest:expected,
+    project_ref:String(seed.project_ref || ''),
+    repository:String(seed.repository || ''),
+    transition_confirmations_count:Array.isArray(seed.transition_confirmations) ? seed.transition_confirmations.length : null,
+  });
 }
 
-async function countSourceFreezeTriggers(client) {
-  const result = await client.query(COUNT_SOURCE_FREEZE_TRIGGERS);
-  const remaining = Number(result?.rows?.[0]?.remaining ?? NaN);
-  if (!Number.isSafeInteger(remaining) || remaining < 0) {
-    throw failure('TARGET_ACTIVATION_SOURCE_FENCE_COUNT_INVALID', 'could not prove copied source-only write fence count', {
-      observed_remaining:result?.rows?.[0]?.remaining ?? null,
+export async function readRecoverySeedProof(expectedDigest, seedUrl = RECOVERY_SEED_URL) {
+  let seed;
+  try {
+    seed = JSON.parse(await readFile(seedUrl, 'utf8'));
+  } catch (error) {
+    throw failure('TARGET_ACTIVATION_RECOVERY_SEED_READ_FAILED', 'sealed GitHub recovery seed could not be read', {
+      cause_code:error?.code || null,
     });
   }
-  return remaining;
+  return verifyRecoverySeedProof(seed, expectedDigest);
 }
 
-async function proveSourceFenceFunctionOwnsExactlySourceTriggers(client, expectedCount) {
-  const result = await client.query(READ_SOURCE_FENCE_FUNCTION_DEPENDENTS);
-  const names = (result?.rows || []).map(row => String(row?.trigger_name || ''));
-  const unexpected = names.filter(name => !name.startsWith('overcenter_source_freeze_'));
-  if (names.length !== expectedCount || unexpected.length) {
-    throw failure('TARGET_ACTIVATION_DEPENDENCY_MISMATCH', 'source fence function dependencies are not exactly the copied source-only triggers', {
-      expected_source_trigger_count:expectedCount,
-      observed_function_trigger_count:names.length,
-      unexpected_trigger_names:unexpected,
+function requireRecoverySeedProof(proof, digest) {
+  if (proof?.verified !== true || String(proof?.digest || '').toLowerCase() !== digest) {
+    throw failure('TARGET_ACTIVATION_RECOVERY_SEED_PROOF_REQUIRED', 'authoritative target requires verified GitHub recovery seed evidence', {
+      expected_digest:digest,
+      observed_digest:proof?.digest || null,
     });
   }
-  return names;
+}
+
+async function proveFreshTargetEpoch(client) {
+  const result = await client.query(READ_FRESH_EPOCH_STATE, [SOURCE_ONLY_MIGRATION]);
+  const row = result?.rows?.[0] || {};
+  const triggerCount = Number(row.freeze_triggers ?? NaN);
+  const migrationCount = Number(row.source_only_migrations ?? NaN);
+  if (!Number.isSafeInteger(triggerCount) || !Number.isSafeInteger(migrationCount)) {
+    throw failure('TARGET_ACTIVATION_FRESH_EPOCH_PROOF_INVALID', 'fresh target epoch state could not be counted', {
+      freeze_triggers:row.freeze_triggers ?? null,
+      source_only_migrations:row.source_only_migrations ?? null,
+    });
+  }
+  if (row.freeze_table || row.freeze_function || triggerCount !== 0 || migrationCount !== 0) {
+    throw failure('TARGET_ACTIVATION_SOURCE_EPOCH_STATE_PRESENT', 'source-only cutover control state must not cross into the fresh target epoch', {
+      freeze_table:row.freeze_table || null,
+      freeze_function:row.freeze_function || null,
+      freeze_triggers:triggerCount,
+      source_only_migrations:migrationCount,
+    });
+  }
+  return Object.freeze({ source_freeze_triggers_remaining:0, source_only_migrations_present:0 });
+}
+
+async function proveAuthoritativeTarget({ db, identity, recoverySeedProof }) {
+  requireRecoverySeedProof(recoverySeedProof, identity.digest);
+  return withPinnedClient(db, async client => {
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    try {
+      const freshEpoch = await proveFreshTargetEpoch(client);
+      await client.query('COMMIT');
+      return Object.freeze({
+        source_frozen:true,
+        recovery_seed_verified:true,
+        runtime_source_revision:identity.runtimeRevision,
+        source_freeze_digest:identity.digest,
+        ...freshEpoch,
+      });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    }
+  });
 }
 
 export async function verifyAuthoritativeTarget({
@@ -109,37 +147,15 @@ export async function verifyAuthoritativeTarget({
   authorityMode,
   sourceRevision,
   sourceFreezeDigest,
+  recoverySeedProof,
 } = {}) {
   if (authorityMode === 'shadow') return Object.freeze({ verified:false, reason:'shadow' });
   if (!db || typeof db.query !== 'function') {
     throw failure('TARGET_ACTIVATION_DATABASE_REQUIRED', 'target authority proof requires PostgreSQL');
   }
   const identity = normalizeIdentity({ authorityMode, sourceRevision, sourceFreezeDigest });
-
-  return withPinnedClient(db, async client => {
-    await client.query('BEGIN');
-    try {
-      const { frozenSourceRevision } = await proveFreezeIdentity(client, identity);
-      const remaining = await countSourceFreezeTriggers(client);
-      if (remaining !== 0) {
-        throw failure('TARGET_ACTIVATION_SOURCE_FENCE_REMAINS', 'source-only database write fences remain armed on authoritative target', {
-          remaining,
-        });
-      }
-      await client.query('COMMIT');
-      return Object.freeze({
-        verified:true,
-        source_frozen:true,
-        runtime_source_revision:identity.runtimeRevision,
-        frozen_source_revision:frozenSourceRevision,
-        source_freeze_digest:identity.digest,
-        source_freeze_triggers_remaining:0,
-      });
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => {});
-      throw error;
-    }
-  });
+  const proof = await proveAuthoritativeTarget({ db, identity, recoverySeedProof });
+  return Object.freeze({ verified:true, ...proof });
 }
 
 export async function activateAuthoritativeTarget({
@@ -147,49 +163,13 @@ export async function activateAuthoritativeTarget({
   authorityMode,
   sourceRevision,
   sourceFreezeDigest,
+  recoverySeedProof,
 } = {}) {
   if (authorityMode === 'shadow') return Object.freeze({ activated:false, reason:'shadow' });
   if (!db || typeof db.query !== 'function') {
     throw failure('TARGET_ACTIVATION_DATABASE_REQUIRED', 'target activation requires PostgreSQL');
   }
   const identity = normalizeIdentity({ authorityMode, sourceRevision, sourceFreezeDigest });
-
-  return withPinnedClient(db, async client => {
-    await client.query('BEGIN');
-    try {
-      const { frozenSourceRevision } = await proveFreezeIdentity(client, identity);
-      const before = await countSourceFreezeTriggers(client);
-
-      if (before > 0) {
-        // Migration 059 makes every source-only table fence depend on one trigger
-        // function, while the immutable freeze-row guards use different functions.
-        // Prove that dependency cone is exact before using CASCADE. Dropping the
-        // source-only function requires function ownership rather than ownership of
-        // every imported table, and PostgreSQL removes only the proven dependents.
-        await proveSourceFenceFunctionOwnsExactlySourceTriggers(client, before);
-        await client.query(DROP_SOURCE_FENCE_FUNCTION);
-      }
-
-      const remaining = await countSourceFreezeTriggers(client);
-      if (remaining !== 0) {
-        throw failure('TARGET_ACTIVATION_SOURCE_FENCE_REMAINS', 'source-only database write fences remain armed on authoritative target', {
-          remaining,
-        });
-      }
-
-      await client.query('COMMIT');
-      return Object.freeze({
-        activated:true,
-        source_frozen:true,
-        runtime_source_revision:identity.runtimeRevision,
-        frozen_source_revision:frozenSourceRevision,
-        source_freeze_digest:identity.digest,
-        source_freeze_triggers_removed:before,
-        source_freeze_triggers_remaining:0,
-      });
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => {});
-      throw error;
-    }
-  });
+  const proof = await proveAuthoritativeTarget({ db, identity, recoverySeedProof });
+  return Object.freeze({ activated:true, ...proof });
 }
