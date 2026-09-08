@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { verifyExactRevisionV8 } from './exact-revision-v8-verification.mjs';
+import {
+  createHatchableRuntimeAdapter,
+  verifyExactRevisionV8,
+} from './exact-revision-v8-verification.mjs';
 import { hatchableMcpTransportConfig } from './exact-revision-v8-verification-http.mjs';
 
 const repository='laurajoyhutchins/overcenter';
@@ -20,6 +23,14 @@ const reachability={
   runtime_project:production_project,
   runtime_revision:revision,
   graph_authority:{kind:'github',repository,revision:'c'.repeat(40),derivation:'overcenter-project-graph-v1'},
+  target:{project_ref:'github:laurajoyhutchins/overcenter',horizon:{kind:'transition',ref:'require-production-reachability'}},
+};
+const frozenReachability={
+  schema:'production-reachability-evidence-v1',
+  entrypoint:'/api/orchestration/start',
+  runtime_project:production_project,
+  runtime_revision:revision,
+  boundary:{kind:'retired_source_authority',dependency:'hatchable',state:'frozen'},
   target:{project_ref:'github:laurajoyhutchins/overcenter',horizon:{kind:'transition',ref:'require-production-reachability'}},
 };
 
@@ -55,6 +66,36 @@ test('returns canonical exact-revision evidence with isolated runtime attributio
   assert.equal(result.regression.execution.source_normalization,'hatchable-v8-text-v1');
   assert.notEqual(result.regression.execution.source_manifest_sha256,result.regression.execution.runtime_manifest_sha256);
   assert.deepEqual(result.regression.execution.production_reachability,reachability);
+});
+
+test('accepts an explicitly frozen retired Hatchable production boundary', async()=>{
+  const frozen=adapters();
+  frozen.runtime.runProductionReachability=async()=>frozenReachability;
+  const result=await verifyExactRevisionV8(input,frozen);
+  assert.deepEqual(result.regression.execution.production_reachability,frozenReachability);
+});
+
+test('Hatchable production reachability recognizes the irreversible source freeze without attempting cleanup writes', async()=>{
+  const calls=[];
+  const runtime=createHatchableRuntimeAdapter({
+    callTool:async(name,args)=>{
+      calls.push({name,args});
+      if (name==='run_function' && args.path==='/api/orchestration/start') {
+        return {
+          status:500,
+          body:{
+            ok:false,
+            error:'ORCHESTRATION_START_ERROR',
+            message:'gateway internal/db/query 400: SQLSTATE[55000]: OVERCENTER_SOURCE_FROZEN',
+          },
+        };
+      }
+      throw new Error(`unexpected call ${name}:${args.path || ''}`);
+    },
+  });
+  const result=await runtime.runProductionReachability({project:production_project,repository,revision});
+  assert.deepEqual(result,frozenReachability);
+  assert.equal(calls.length,1);
 });
 
 test('reuses an identical immutable verification deployment without requiring a version bump', async()=>{
