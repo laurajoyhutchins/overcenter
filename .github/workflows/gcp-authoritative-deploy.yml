@@ -1,37 +1,44 @@
-name: GCP hosted shadow deployment
+name: GCP authoritative deployment
 
 on:
-  push:
-    branches:
-      - dev
-      - work/gcp-cloud-run-cloud-sql-bootstrap
   workflow_dispatch:
+    inputs:
+      exact_revision:
+        description: Exact revision already promoted to both dev and main
+        required: true
+        type: string
 
 permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: overcenter-gcp-authoritative-deploy
+  cancel-in-progress: false
+
 jobs:
-  deploy-shadow:
+  deploy-authoritative:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Check out exact source revision
+      - name: Check out exact authoritative source revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ inputs.exact_revision }}
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Prove exact checked-out revision
+      - name: Prove exact revision is production authority
         shell: bash
+        env:
+          EXACT_REVISION: ${{ inputs.exact_revision }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          case "$GITHUB_REF_NAME" in
-            dev|work/gcp-cloud-run-cloud-sql-bootstrap) ;;
-            *) echo "Unexpected deployment ref: $GITHUB_REF_NAME" >&2; exit 1 ;;
-          esac
-          echo "Deploying exact source revision $GITHUB_SHA from $GITHUB_REF_NAME"
+          test "$GITHUB_REF" = "refs/heads/dev"
+          test "$(git rev-parse HEAD)" = "$EXACT_REVISION"
+          test "$GITHUB_SHA" = "$EXACT_REVISION"
+          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXACT_REVISION"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXACT_REVISION"
 
       - name: Authenticate to Google Cloud with GitHub OIDC
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
@@ -39,7 +46,7 @@ jobs:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
-          request_reason: Overcenter shadow deployment ${{ github.sha }}
+          request_reason: Overcenter authoritative deployment ${{ inputs.exact_revision }}
 
       - name: Install Google Cloud CLI
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
@@ -50,9 +57,10 @@ jobs:
           set -euo pipefail
           gcloud auth list --filter=status:ACTIVE --format='value(account)' | grep -Fx "${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}"
 
-      - name: Deploy and verify private Cloud Run shadow runtime
+      - name: Deploy without changing authority epoch
         shell: bash
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
-        run: bash ./scripts/gcp/deploy-shadow.sh
+          EXACT_REVISION: ${{ inputs.exact_revision }}
+        run: bash ./scripts/gcp/deploy-authoritative.sh

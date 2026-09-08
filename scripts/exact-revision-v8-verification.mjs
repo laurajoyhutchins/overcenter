@@ -169,7 +169,24 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
         },
       });
       const startBody = startResponse?.body ?? startResponse?.result?.body ?? startResponse;
-      if (Number(startResponse?.status ?? startResponse?.result?.status ?? 200) !== 200 || startBody?.ok !== true) {
+      const startStatus = Number(startResponse?.status ?? startResponse?.result?.status ?? 200);
+      if (startStatus !== 200 || startBody?.ok !== true) {
+        const startMessage = String(startBody?.message || '');
+        if (
+          startStatus === 500
+          && startBody?.ok === false
+          && startBody?.error === 'ORCHESTRATION_START_ERROR'
+          && startMessage.includes('OVERCENTER_SOURCE_FROZEN')
+        ) {
+          return Object.freeze({
+            schema:'production-reachability-evidence-v1',
+            entrypoint:'/api/orchestration/start',
+            runtime_project:project,
+            runtime_revision:revision,
+            boundary:Object.freeze({ kind:'retired_source_authority', dependency:'hatchable', state:'frozen' }),
+            target:requestedTarget,
+          });
+        }
         reject('VERIFICATION_RUNTIME_REACHABILITY_FAILED', 'production reachability start entrypoint failed');
       }
 
@@ -377,9 +394,8 @@ export async function verifyExactRevisionV8(input, adapters) {
         revision,
         deployment_version: deployment.version,
       });
-      const baseReachabilityValid = (
+      const commonReachabilityValid = (
         productionReachability?.schema === 'production-reachability-evidence-v1'
-        && productionReachability?.entrypoint === '/api/orchestration/horizon-resolve'
         && productionReachability?.runtime_project === productionProject
         && productionReachability?.runtime_revision === revision
         && productionReachability?.target?.project_ref === `github:${repository}`
@@ -387,18 +403,29 @@ export async function verifyExactRevisionV8(input, adapters) {
         && productionReachability?.target?.horizon?.ref === 'require-production-reachability'
       );
       const graphAuthorityValid = (
-        productionReachability?.graph_authority?.kind === 'github'
+        commonReachabilityValid
+        && productionReachability?.entrypoint === '/api/orchestration/horizon-resolve'
+        && productionReachability?.graph_authority?.kind === 'github'
         && productionReachability?.graph_authority?.repository === repository
         && typeof productionReachability?.graph_authority?.revision === 'string'
         && productionReachability.graph_authority.revision.length > 0
         && productionReachability?.graph_authority?.derivation === 'overcenter-project-graph-v1'
       );
       const externalBoundaryValid = (
-        productionReachability?.boundary?.kind === 'external_dependency'
+        commonReachabilityValid
+        && productionReachability?.entrypoint === '/api/orchestration/horizon-resolve'
+        && productionReachability?.boundary?.kind === 'external_dependency'
         && productionReachability?.boundary?.dependency === 'github_app'
         && productionReachability?.boundary?.configuration_key === 'GITHUB_APP_ID'
       );
-      if (!baseReachabilityValid || (!graphAuthorityValid && !externalBoundaryValid)) {
+      const frozenLegacyBoundaryValid = (
+        commonReachabilityValid
+        && productionReachability?.entrypoint === '/api/orchestration/start'
+        && productionReachability?.boundary?.kind === 'retired_source_authority'
+        && productionReachability?.boundary?.dependency === 'hatchable'
+        && productionReachability?.boundary?.state === 'frozen'
+      );
+      if (!graphAuthorityValid && !externalBoundaryValid && !frozenLegacyBoundaryValid) {
         reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID', 'production reachability verifier returned invalid evidence');
       }
       return {
