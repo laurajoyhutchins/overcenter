@@ -19,6 +19,15 @@ async function withPinnedClient(db, operation) {
   }
 }
 
+async function activationPhase(phase, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error && typeof error === 'object' && !error.activationPhase) error.activationPhase = phase;
+    throw error;
+  }
+}
+
 const READ_FREEZE = `SELECT frozen, frozen_at, source_revision, freeze_manifest_sha256
   FROM overcenter_authority_freeze
  WHERE singleton=true
@@ -155,10 +164,10 @@ export async function activateAuthoritativeTarget({
   const identity = normalizeIdentity({ authorityMode, sourceRevision, sourceFreezeDigest });
 
   return withPinnedClient(db, async client => {
-    await client.query('BEGIN');
+    await activationPhase('begin', () => client.query('BEGIN'));
     try {
-      const { frozenSourceRevision } = await proveFreezeIdentity(client, identity);
-      const before = await countSourceFreezeTriggers(client);
+      const { frozenSourceRevision } = await activationPhase('freeze_identity', () => proveFreezeIdentity(client, identity));
+      const before = await activationPhase('source_fence_count_before', () => countSourceFreezeTriggers(client));
 
       if (before > 0) {
         // Migration 059 makes every source-only table fence depend on one trigger
@@ -166,18 +175,20 @@ export async function activateAuthoritativeTarget({
         // Prove that dependency cone is exact before using CASCADE. Dropping the
         // source-only function requires function ownership rather than ownership of
         // every imported table, and PostgreSQL removes only the proven dependents.
-        await proveSourceFenceFunctionOwnsExactlySourceTriggers(client, before);
-        await client.query(DROP_SOURCE_FENCE_FUNCTION);
+        await activationPhase('source_fence_dependencies', () => proveSourceFenceFunctionOwnsExactlySourceTriggers(client, before));
+        await activationPhase('source_fence_drop', () => client.query(DROP_SOURCE_FENCE_FUNCTION));
       }
 
-      const remaining = await countSourceFreezeTriggers(client);
+      const remaining = await activationPhase('source_fence_count_after', () => countSourceFreezeTriggers(client));
       if (remaining !== 0) {
-        throw failure('TARGET_ACTIVATION_SOURCE_FENCE_REMAINS', 'source-only database write fences remain armed on authoritative target', {
+        const error = failure('TARGET_ACTIVATION_SOURCE_FENCE_REMAINS', 'source-only database write fences remain armed on authoritative target', {
           remaining,
         });
+        error.activationPhase = 'source_fence_count_after';
+        throw error;
       }
 
-      await client.query('COMMIT');
+      await activationPhase('commit', () => client.query('COMMIT'));
       return Object.freeze({
         activated:true,
         source_frozen:true,
