@@ -77,6 +77,7 @@ test('freeze locks the entire source state surface before atomically checking ca
   for (const table of SOURCE_LOCK_TABLES) assert.match(statements[0].sql, new RegExp(`\\b${table}\\b`));
   assert.match(statements[1].sql, /UPDATE overcenter_authority_freeze/);
   assert.match(statements[1].sql, /IS NOT DISTINCT FROM/);
+  assert.match(statements[1].sql, /NOT EXISTS\s*\(\s*SELECT 1\s+FROM work_leases\s+WHERE status IN \('claiming', 'active', 'settling'\)\s+AND expires_at > now\(\)/);
   assert.equal(result.frozen, true);
   assert.equal(result.locked_tables, SOURCE_LOCK_TABLES.length);
 });
