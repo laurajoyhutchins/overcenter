@@ -1,6 +1,9 @@
 name: GCP authoritative deployment
 
 on:
+  push:
+    branches:
+      - dev
   workflow_dispatch:
     inputs:
       exact_revision:
@@ -18,6 +21,7 @@ concurrency:
 
 jobs:
   deploy-authoritative:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[deploy-gcp-authority]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -26,18 +30,17 @@ jobs:
       SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
       PROJECT_REF: github:laurajoyhutchins/overcenter
       MIGRATION_TRANSITION: finish-hatchable-gcp-authoritative-state-migration
+      EXACT_REVISION: ${{ inputs.exact_revision || github.sha }}
     steps:
       - name: Check out exact authoritative source revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.exact_revision }}
+          ref: ${{ env.EXACT_REVISION }}
           persist-credentials: false
           fetch-depth: 1
 
       - name: Prove exact revision is production authority
         shell: bash
-        env:
-          EXACT_REVISION: ${{ inputs.exact_revision }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/dev"
@@ -56,7 +59,7 @@ jobs:
           token_format: id_token
           id_token_audience: ${{ env.SERVICE_AUDIENCE }}
           id_token_include_email: true
-          request_reason: Overcenter authoritative deployment ${{ inputs.exact_revision }}
+          request_reason: Overcenter authoritative deployment ${{ env.EXACT_REVISION }}
 
       - name: Install Google Cloud CLI
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
@@ -72,14 +75,12 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
-          EXACT_REVISION: ${{ inputs.exact_revision }}
         run: bash ./scripts/gcp/deploy-authoritative.sh
 
       - name: Prove live authoritative GCP runtime and settle migration
         shell: bash
         env:
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-          EXACT_REVISION: ${{ inputs.exact_revision }}
         run: |
           set -euo pipefail
           test -n "$ID_TOKEN"
