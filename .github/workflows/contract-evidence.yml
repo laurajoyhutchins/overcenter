@@ -53,7 +53,9 @@ jobs:
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
       - name: Print exact generated catalog delta
-        run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
+        run: |
+          node -e 'const fs=require("fs"); const pairs=[["generated/contracts/catalog.json", process.env.RUNNER_TEMP+"/contract-old.json"],[process.env.RUNNER_TEMP+"/contract-evidence/generated/contracts/catalog.json", process.env.RUNNER_TEMP+"/contract-new.json"]]; for (const [src,dst] of pairs) fs.writeFileSync(dst, JSON.stringify(JSON.parse(fs.readFileSync(src,"utf8")), null, 2)+"\n");'
+          diff -u "$RUNNER_TEMP/contract-old.json" "$RUNNER_TEMP/contract-new.json" || true
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
