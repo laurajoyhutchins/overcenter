@@ -30,14 +30,14 @@ DECLARE
   trigger_row record;
 BEGIN
   FOR trigger_row IN
-    SELECT namespace.nspname AS schema_name,
-           relation.relname AS table_name,
-           trigger.tgname AS trigger_name
-      FROM pg_trigger AS trigger
-      JOIN pg_class AS relation ON relation.oid = trigger.tgrelid
-      JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
-     WHERE NOT trigger.tgisinternal
-       AND trigger.tgname LIKE 'overcenter_source_freeze_%'
+    SELECT n.nspname AS schema_name,
+           c.relname AS table_name,
+           t.tgname AS trigger_name
+      FROM pg_trigger AS t
+      JOIN pg_class AS c ON c.oid = t.tgrelid
+      JOIN pg_namespace AS n ON n.oid = c.relnamespace
+     WHERE NOT t.tgisinternal
+       AND t.tgname LIKE 'overcenter_source_freeze_%'
   LOOP
     EXECUTE format(
       'DROP TRIGGER %I ON %I.%I',
@@ -70,11 +70,11 @@ export async function activateAuthoritativeTarget({
     throw failure('TARGET_ACTIVATION_DATABASE_REQUIRED', 'target activation requires PostgreSQL');
   }
 
-  const revision = String(sourceRevision || '').trim().toLowerCase();
+  const runtimeRevision = String(sourceRevision || '').trim().toLowerCase();
   const digest = String(sourceFreezeDigest || '').trim().toLowerCase();
-  if (!SHA40.test(revision) || !SHA256.test(digest)) {
-    throw failure('TARGET_ACTIVATION_IDENTITY_REQUIRED', 'authoritative target activation requires exact source revision and source freeze digest', {
-      source_revision:revision || null,
+  if (!SHA40.test(runtimeRevision) || !SHA256.test(digest)) {
+    throw failure('TARGET_ACTIVATION_IDENTITY_REQUIRED', 'authoritative target activation requires exact runtime revision and source freeze digest', {
+      runtime_source_revision:runtimeRevision || null,
       source_freeze_digest:digest || null,
     });
   }
@@ -84,18 +84,18 @@ export async function activateAuthoritativeTarget({
     try {
       const freezeResult = await client.query(READ_FREEZE);
       const row = freezeResult?.rows?.[0] || null;
-      const observedRevision = String(row?.source_revision || '').trim().toLowerCase();
+      const frozenSourceRevision = String(row?.source_revision || '').trim().toLowerCase();
       const observedDigest = String(row?.freeze_manifest_sha256 || '').trim().toLowerCase();
       if (
         !row
         || row.frozen !== true
         || !row.frozen_at
-        || observedRevision !== revision
+        || !SHA40.test(frozenSourceRevision)
         || observedDigest !== digest
       ) {
-        throw failure('TARGET_ACTIVATION_FREEZE_IDENTITY_MISMATCH', 'authoritative target does not contain the exact frozen source identity', {
-          expected_source_revision:revision,
-          observed_source_revision:observedRevision || null,
+        throw failure('TARGET_ACTIVATION_FREEZE_IDENTITY_MISMATCH', 'authoritative target does not contain the exact frozen-source evidence', {
+          runtime_source_revision:runtimeRevision,
+          frozen_source_revision:frozenSourceRevision || null,
           expected_source_freeze_digest:digest,
           observed_source_freeze_digest:observedDigest || null,
           observed_frozen:row?.frozen === true,
@@ -121,7 +121,8 @@ export async function activateAuthoritativeTarget({
       return Object.freeze({
         activated:true,
         source_frozen:true,
-        source_revision:revision,
+        runtime_source_revision:runtimeRevision,
+        frozen_source_revision:frozenSourceRevision,
         source_freeze_digest:digest,
         source_freeze_triggers_remaining:0,
       });
