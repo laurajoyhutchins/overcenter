@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      TARGET_REVISION: cd92614392c68bd36ac188e81bbce2fcdaa17fb1
+      TARGET_REVISION: 219f4ca6b3ae130cc216fd3425e93e0bebb1f3fc
     steps:
       - name: Check out exact authoritative source revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
