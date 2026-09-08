@@ -179,7 +179,8 @@ test('runtime publish preserves exact revision and artifact validation', async (
 });
 
 test('authoritative target activation removes copied source-freeze triggers without unfreezing source evidence', async () => {
-  const sourceRevision = 'a'.repeat(40);
+  const runtimeRevision = 'a'.repeat(40);
+  const frozenSourceRevision = 'c'.repeat(40);
   const freezeDigest = `sha256:${'b'.repeat(64)}`;
   const calls = [];
   const client = {
@@ -189,7 +190,7 @@ test('authoritative target activation removes copied source-freeze triggers with
         return { rows:[{
           frozen:true,
           frozen_at:'2026-09-08T12:00:00.000Z',
-          source_revision:sourceRevision,
+          source_revision:frozenSourceRevision,
           freeze_manifest_sha256:freezeDigest,
         }] };
       }
@@ -205,20 +206,21 @@ test('authoritative target activation removes copied source-freeze triggers with
   const result = await activateAuthoritativeTarget({
     db,
     authorityMode:'authoritative',
-    sourceRevision,
+    sourceRevision:runtimeRevision,
     sourceFreezeDigest:freezeDigest,
   });
 
   assert.equal(result.activated, true);
   assert.equal(result.source_frozen, true);
-  assert.equal(result.source_revision, sourceRevision);
+  assert.equal(result.runtime_source_revision, runtimeRevision);
+  assert.equal(result.frozen_source_revision, frozenSourceRevision);
   assert.equal(result.source_freeze_digest, freezeDigest);
   assert.ok(calls.some(call => call.text.includes("tgname LIKE 'overcenter_source_freeze_%'") && call.text.includes('DROP TRIGGER')));
   assert.ok(!calls.some(call => /UPDATE\s+overcenter_authority_freeze/i.test(call.text)));
 });
 
-test('authoritative target activation fails closed when imported freeze evidence does not match deployment identity', async () => {
-  const sourceRevision = 'a'.repeat(40);
+test('authoritative target activation fails closed when imported freeze digest does not match cutover identity', async () => {
+  const runtimeRevision = 'a'.repeat(40);
   const freezeDigest = `sha256:${'b'.repeat(64)}`;
   const db = {
     async query(text) {
@@ -227,7 +229,7 @@ test('authoritative target activation fails closed when imported freeze evidence
           frozen:true,
           frozen_at:'2026-09-08T12:00:00.000Z',
           source_revision:'c'.repeat(40),
-          freeze_manifest_sha256:freezeDigest,
+          freeze_manifest_sha256:`sha256:${'d'.repeat(64)}`,
         }] };
       }
       return { rows:[] };
@@ -238,7 +240,7 @@ test('authoritative target activation fails closed when imported freeze evidence
     activateAuthoritativeTarget({
       db,
       authorityMode:'authoritative',
-      sourceRevision,
+      sourceRevision:runtimeRevision,
       sourceFreezeDigest:freezeDigest,
     }),
     error => error?.code === 'TARGET_ACTIVATION_FREEZE_IDENTITY_MISMATCH',
