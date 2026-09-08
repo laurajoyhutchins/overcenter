@@ -87,7 +87,7 @@ async function readManagedWorkspaceBranch({ repo, branch, changes = [] }) {
 
 async function applyAuthorityAwareChangeset(commandInput, runId = null) {
   if (commandInput?.lease_ref === undefined || commandInput?.lease_ref === null) {
-    return applyGithubChangesetRoleAware(commandInput, { db, run_id:runId });
+    return applyGithubChangesetRoleAware(commandInput, { db, run_id:runId, withGitHubAppApiClient });
   }
 
   const authority = createPostgresExecutionAuthorityService({ db });
