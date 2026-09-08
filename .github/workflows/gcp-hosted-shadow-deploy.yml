@@ -11,25 +11,16 @@ permissions:
   id-token: write
 
 jobs:
-  inspect-observation-sources:
+  read-diagnostic-logs:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      EXPECTED_REVISION: d94369c349c57e25b92ceb5f713ea80bb0eee5c6
-      EXPECTED_FREEZE_DIGEST: sha256:3ff040b3ebb60b89af860c1d3a140aef3be58652fdb1abca592ec45fb7c764b5
-      GCP_SERVICE: overcenter-shadow
-      GCP_REGION: us-west1
-      GCP_JOB: overcenter-db-diagnostic
-      CLOUD_SQL_CONNECTION_NAME: project-6b810532-a302-48dc-b56:us-west1:overcenter-postgres
-      RUNTIME_SA: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    timeout-minutes: 5
     steps:
       - name: Prove repository authority is still frozen revision
         shell: bash
         run: |
           set -euo pipefail
           observed="$(git ls-remote https://github.com/laurajoyhutchins/overcenter.git refs/heads/main | cut -f1)"
-          test "$observed" = "$EXPECTED_REVISION"
-          echo "main exact revision: $observed"
+          test "$observed" = "d94369c349c57e25b92ceb5f713ea80bb0eee5c6"
 
       - name: Authenticate to Google Cloud with GitHub OIDC
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
@@ -37,48 +28,18 @@ jobs:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
-          request_reason: Overcenter one-shot Cloud SQL observation diagnosis
+          request_reason: Read one-shot Overcenter Cloud SQL diagnostic logs
 
       - name: Install Google Cloud CLI
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
 
-      - name: Prove authority binding and inspect malformed settled observations
+      - name: Read diagnostic execution logs
         shell: bash
         run: |
           set -euo pipefail
-          trap 'gcloud run jobs delete "$GCP_JOB" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --quiet >/dev/null 2>&1 || true' EXIT
-
-          gcloud run services describe "$GCP_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format=json > "$RUNNER_TEMP/service.json"
-          ready="$(jq -r '.status.latestReadyRevisionName' "$RUNNER_TEMP/service.json")"
-          created="$(jq -r '.status.latestCreatedRevisionName' "$RUNNER_TEMP/service.json")"
-          mode="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_AUTHORITY_MODE") | .value' "$RUNNER_TEMP/service.json")"
-          revision="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_REVISION") | .value' "$RUNNER_TEMP/service.json")"
-          digest="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_FREEZE_DIGEST") | .value' "$RUNNER_TEMP/service.json")"
-          image="$(jq -r '.spec.template.spec.containers[0].image' "$RUNNER_TEMP/service.json")"
-          test -n "$ready" && test "$ready" = "$created"
-          test "$mode" = authoritative
-          test "$revision" = "$EXPECTED_REVISION"
-          test "$digest" = "$EXPECTED_FREEZE_DIGEST"
-          test -n "$image" && test "$image" != null
-
-          code='import("pg").then(async m=>{const p=new m.default.Pool();const r=await p.query("SELECT lease_id::text||$$|$$||coalesce(settle_receipt->>$$schema$$,$$<null>$$)||$$|$$||run_id||$$|$$||coalesce(settled_at::text,$$<null>$$) AS invalid_settlement FROM work_leases WHERE status=$$settled$$ AND claim_receipt->>$$subject$$=$$project_transition$$ AND settle_receipt->>$$subject$$=$$project_transition$$ AND settle_receipt->>$$disposition$$=$$completed$$ AND settle_receipt->$$project_transition$$->>$$project_ref$$=$$github:laurajoyhutchins/overcenter$$ AND coalesce(settle_receipt->>$$schema$$,$$$$)<>$$project-transition-lease-settlement-v1$$ ORDER BY settled_at ASC");console.log("DIAG_ROWS="+JSON.stringify(r.rows));await p.end()})'
-
-          gcloud run jobs deploy "$GCP_JOB" \
+          gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="overcenter-db-diagnostic"' \
             --project="${{ vars.GCP_PROJECT_ID }}" \
-            --region="$GCP_REGION" \
-            --image="$image" \
-            --service-account="$RUNTIME_SA" \
-            --set-cloudsql-instances="$CLOUD_SQL_CONNECTION_NAME" \
-            --set-env-vars="PGHOST=/cloudsql/${CLOUD_SQL_CONNECTION_NAME},PGDATABASE=overcenter,PGUSER=overcenter" \
-            --set-secrets="PGPASSWORD=overcenter-db-password:latest" \
-            --command=node \
-            --args="-e,$code" \
-            --max-retries=0 \
-            --tasks=1 \
-            --task-timeout=120s \
-            --quiet
-
-          gcloud run jobs execute "$GCP_JOB" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --wait --quiet
-          sleep 2
-          gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="overcenter-db-diagnostic" AND textPayload:"DIAG_ROWS="' \
-            --project="${{ vars.GCP_PROJECT_ID }}" --freshness=10m --limit=5 --format='value(textPayload)'
+            --freshness=30m \
+            --limit=100 \
+            --order=asc \
+            --format='table(timestamp,severity,textPayload,jsonPayload.message)'
