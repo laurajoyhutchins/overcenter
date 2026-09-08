@@ -1,4 +1,4 @@
-name: Finalize GCP migration proof dispatcher
+name: Cancel duplicate GCP migration dispatch
 
 on:
   push:
@@ -10,34 +10,18 @@ permissions:
   actions: write
 
 jobs:
-  dispatch:
+  cancel-duplicate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      TARGET_REVISION: 1dbe0ed57932dbdee2e2dd1fe00fd0f0e364de47
     steps:
-      - name: Check out exact authoritative source revision
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          ref: ${{ env.TARGET_REVISION }}
-          persist-credentials: false
-          fetch-depth: 1
-
-      - name: Prove exact revision is on dev and main
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$TARGET_REVISION"
-          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$TARGET_REVISION"
-          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$TARGET_REVISION"
-
-      - name: Dispatch exact GCP authoritative deployment through dev
+      - name: Cancel duplicate queued deployment
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          DUPLICATE_RUN_ID: '34283334816'
         run: |
           set -euo pipefail
-          response="$RUNNER_TEMP/dispatch-response.json"
+          response="$RUNNER_TEMP/cancel-response.json"
           status="$(curl --silent --show-error \
             --output "$response" \
             --write-out '%{http_code}' \
@@ -45,11 +29,10 @@ jobs:
             -H 'Accept: application/vnd.github+json' \
             -H 'X-GitHub-Api-Version: 2022-11-28' \
             -X POST \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/gcp-authoritative-deploy.yml/dispatches" \
-            -d "$(jq -nc --arg revision "$TARGET_REVISION" '{ref:"dev",inputs:{exact_revision:$revision}}')")"
-          if [[ "$status" != 204 ]]; then
-            printf 'workflow_dispatch failed (HTTP %s)\n' "$status" >&2
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${DUPLICATE_RUN_ID}/cancel")"
+          if [[ "$status" != 202 && "$status" != 409 ]]; then
+            printf 'cancel failed (HTTP %s)\n' "$status" >&2
             cat "$response" >&2
             exit 1
           fi
-          printf 'Dispatched exact GCP authoritative deployment for %s through refs/heads/dev\n' "$TARGET_REVISION"
+          printf 'Duplicate deployment run %s cancel response: HTTP %s\n' "$DUPLICATE_RUN_ID" "$status"
