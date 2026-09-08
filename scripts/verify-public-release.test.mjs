@@ -45,6 +45,17 @@ test('current source rejects installation ids, obsolete coordinates, and credent
   assert.deepEqual(findCurrentSourceViolations('README.md', 'laurajoyhutchins/busbar'), []);
 });
 
+test('sealed recovery evidence may name obsolete coordinates but still rejects secrets', () => {
+  const path = '.overcenter/recovery/hatchable-cutover-v1.json';
+  const obsoleteCoordinate = ['portfolio-control-plane-', 'github-app'].join('');
+  const githubToken = ['ghp_', '1234567890abcdefghijklmnopqrstuv'].join('');
+  assert.deepEqual(findCurrentSourceViolations(path, obsoleteCoordinate), []);
+  assert.deepEqual(
+    findCurrentSourceViolations(path, githubToken),
+    [{ path, rule: 'github_token' }],
+  );
+});
+
 test('current source rejects deployment-specific absolute self origins', () => {
   const deploymentOrigin = ['https://example-app-abc123', '.hatchable.site'].join('');
   assert.deepEqual(
