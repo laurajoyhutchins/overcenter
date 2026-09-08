@@ -11,104 +11,48 @@ permissions:
   id-token: write
 
 jobs:
-  enumerate-malformed-observations:
+  authoritative-runtime-probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     env:
-      EXPECTED_REVISION: d94369c349c57e25b92ceb5f713ea80bb0eee5c6
-      EXPECTED_FREEZE_DIGEST: sha256:3ff040b3ebb60b89af860c1d3a140aef3be58652fdb1abca592ec45fb7c764b5
-      GCP_REGION: us-west1
-      AUTH_SERVICE: overcenter-shadow
-      MAINT_SERVICE: overcenter-observation-inspector
-      CLOUD_SQL_CONNECTION_NAME: project-6b810532-a302-48dc-b56:us-west1:overcenter-postgres
-      RUNTIME_SA: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+      PROJECT_REF: github:laurajoyhutchins/overcenter
     steps:
-      - name: Check out maintenance revision
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          persist-credentials: false
-          fetch-depth: 1
-
-      - name: Prove production authority is still frozen revision
-        shell: bash
-        run: |
-          set -euo pipefail
-          observed="$(git ls-remote https://github.com/laurajoyhutchins/overcenter.git refs/heads/main | cut -f1)"
-          test "$observed" = "$EXPECTED_REVISION"
-
-      - name: Authenticate deployer to Google Cloud
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
-        with:
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
-          request_reason: Overcenter read-only observation enumeration
-
-      - name: Install Google Cloud CLI
-        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
-
-      - name: Prove authoritative service binding
-        shell: bash
-        run: |
-          set -euo pipefail
-          gcloud run services describe "$AUTH_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format=json > "$RUNNER_TEMP/auth-service.json"
-          ready="$(jq -r '.status.latestReadyRevisionName' "$RUNNER_TEMP/auth-service.json")"
-          created="$(jq -r '.status.latestCreatedRevisionName' "$RUNNER_TEMP/auth-service.json")"
-          mode="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_AUTHORITY_MODE") | .value' "$RUNNER_TEMP/auth-service.json")"
-          revision="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_REVISION") | .value' "$RUNNER_TEMP/auth-service.json")"
-          digest="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_FREEZE_DIGEST") | .value' "$RUNNER_TEMP/auth-service.json")"
-          test -n "$ready" && test "$ready" = "$created"
-          test "$mode" = authoritative
-          test "$revision" = "$EXPECTED_REVISION"
-          test "$digest" = "$EXPECTED_FREEZE_DIGEST"
-
-      - name: Deploy private read-only observation inspector
-        id: deploy
-        shell: bash
-        run: |
-          set -euo pipefail
-          gcloud run deploy "$MAINT_SERVICE" \
-            --source=. \
-            --project="${{ vars.GCP_PROJECT_ID }}" \
-            --region="$GCP_REGION" \
-            --service-account="$RUNTIME_SA" \
-            --add-cloudsql-instances="$CLOUD_SQL_CONNECTION_NAME" \
-            --set-env-vars="PGHOST=/cloudsql/${CLOUD_SQL_CONNECTION_NAME},PGDATABASE=overcenter,PGUSER=overcenter" \
-            --set-secrets="PGPASSWORD=overcenter-db-password:latest" \
-            --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
-            --no-allow-unauthenticated \
-            --min-instances=0 \
-            --max-instances=1 \
-            --quiet
-          url="$(gcloud run services describe "$MAINT_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(status.url)')"
-          test -n "$url"
-          echo "service_url=$url" >> "$GITHUB_OUTPUT"
-
-      - name: Mint inspector identity token
-        id: inspect-auth
+      - name: Authenticate to authoritative GCP runtime
+        id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           token_format: id_token
-          id_token_audience: ${{ steps.deploy.outputs.service_url }}
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
           id_token_include_email: true
-          request_reason: Call private Overcenter observation inspector
+          create_credentials_file: false
+          request_reason: Overcenter ordinary GCP transition acceptance probe
 
-      - name: Enumerate malformed observations
+      - name: Inspect authoritative GCP runtime
         shell: bash
         env:
-          ID_TOKEN: ${{ steps.inspect-auth.outputs.id_token }}
-          SERVICE_URL: ${{ steps.deploy.outputs.service_url }}
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
         run: |
           set -euo pipefail
-          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $ID_TOKEN" "$SERVICE_URL/inspect-all" > "$RUNNER_TEMP/malformed.json"
-          jq . "$RUNNER_TEMP/malformed.json"
-          jq -e '.ok == true and (.malformed_count | type == "number")' "$RUNNER_TEMP/malformed.json" >/dev/null
+          test -n "$ID_TOKEN"
+          health_status="$(curl --silent --show-error -o "$RUNNER_TEMP/health.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $ID_TOKEN" \
+            "$SERVICE_AUDIENCE/health")"
+          echo "HEALTH_HTTP=$health_status"
+          cat "$RUNNER_TEMP/health.json"
+          test "$health_status" = 200
+          jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null
 
-      - name: Delete temporary observation inspector
-        if: always()
-        shell: bash
-        run: |
-          gcloud run services delete "$MAINT_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --quiet || true
+          inspect_status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $ID_TOKEN" \
+            -H 'content-type: application/json' \
+            -X POST \
+            -d "{\"project_ref\":\"$PROJECT_REF\"}" \
+            "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
+          echo "INSPECT_HTTP=$inspect_status"
+          cat "$RUNNER_TEMP/inspect.json"
+          test "$inspect_status" = 200
+          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null
