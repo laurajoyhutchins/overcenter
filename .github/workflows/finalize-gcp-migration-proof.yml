@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      TARGET_REVISION: 1e06f6a81b30b8c4df4239ba4450be1ab6393c24
+      TARGET_REVISION: f1c61a38c0ad7c5d64d16c84ce906eb96ba9402d
       WORKFLOW: gcp-authoritative-deploy.yml
     steps:
       - name: Check out exact verified source for ref proof
