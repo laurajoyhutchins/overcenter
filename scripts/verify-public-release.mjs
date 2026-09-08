@@ -7,6 +7,7 @@ export { detectSecretPatterns } from './public-release-rules.mjs';
 
 const REQUIRED_FILES = Object.freeze(['README.md', 'LICENSE', 'SECURITY.md']);
 const DEVELOPMENT_JOURNAL_PREFIXES = Object.freeze(['docs/superpowers/', 'public/docs/superpowers/']);
+const RECOVERY_EVIDENCE_PREFIX = '.overcenter/recovery/';
 
 const CURRENT_SOURCE_RULES = Object.freeze([
   ['hatchable_project_id', /\bproj_[A-Za-z0-9]{12}\b/],
@@ -25,6 +26,10 @@ function isProductionRuntimeSource(path) {
     && !path.endsWith('.test.js');
 }
 
+function isSealedRecoveryEvidence(path) {
+  return path.startsWith(RECOVERY_EVIDENCE_PREFIX);
+}
+
 function materializesInstallationCredentialsInGit(text) {
   return /\bcreateEncryptedGitHubInstallationLease\s*\(/.test(text)
     && /\/git\/(?:blobs|trees|commits|ref|refs)\b/.test(text);
@@ -35,7 +40,10 @@ export function findCurrentSourceViolations(pathInput, textInput) {
   const text = String(textInput ?? '');
   return [
     ...CURRENT_SOURCE_RULES
-      .filter(([, pattern]) => pattern.test(text))
+      .filter(([rule, pattern]) => {
+        if (rule === 'obsolete_product_coordinate' && isSealedRecoveryEvidence(path)) return false;
+        return pattern.test(text);
+      })
       .map(([rule]) => ({ path, rule })),
     ...(isProductionRuntimeSource(path) && materializesInstallationCredentialsInGit(text)
       ? [{ path, rule: 'managed_repository_credential_transport' }]
