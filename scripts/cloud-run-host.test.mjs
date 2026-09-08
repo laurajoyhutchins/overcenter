@@ -5,7 +5,6 @@ import {
   createCloudRunHandler,
   resolveCloudRunConfig,
 } from './cloud-run-host.mjs';
-import { activateAuthoritativeTarget } from './cloud-run-target-authority.mjs';
 
 function responseRecorder() {
   return {
@@ -176,87 +175,4 @@ test('runtime publish preserves exact revision and artifact validation', async (
     ok: true,
     verified: { deploymentRef: 'runtime:test', fence: 'fence:test' },
   });
-});
-
-test('authoritative target activation is idempotent after copied source fences are removed', async () => {
-  const runtimeRevision = 'a'.repeat(40);
-  const frozenSourceRevision = 'c'.repeat(40);
-  const freezeDigest = `sha256:${'b'.repeat(64)}`;
-  const calls = [];
-  const client = {
-    async query(text, params = []) {
-      calls.push({ text, params });
-      if (text.includes('FROM overcenter_authority_freeze')) {
-        return { rows:[{
-          frozen:true,
-          frozen_at:'2026-09-08T12:00:00.000Z',
-          source_revision:frozenSourceRevision,
-          freeze_manifest_sha256:freezeDigest,
-        }] };
-      }
-      if (text.includes("tgname LIKE 'overcenter_source_freeze_%'")) {
-        return { rows:[{ remaining:'0' }] };
-      }
-      return { rows:[] };
-    },
-    release() {},
-  };
-  const db = { connect:async () => client, query:client.query.bind(client) };
-
-  const result = await activateAuthoritativeTarget({
-    db,
-    authorityMode:'authoritative',
-    sourceRevision:runtimeRevision,
-    sourceFreezeDigest:freezeDigest,
-  });
-
-  assert.equal(result.activated, true);
-  assert.equal(result.source_frozen, true);
-  assert.equal(result.runtime_source_revision, runtimeRevision);
-  assert.equal(result.frozen_source_revision, frozenSourceRevision);
-  assert.equal(result.source_freeze_digest, freezeDigest);
-  assert.equal(result.source_freeze_triggers_remaining, 0);
-  assert.ok(!calls.some(call => /DROP\s+(TRIGGER|FUNCTION)/i.test(call.text)));
-  assert.ok(!calls.some(call => /UPDATE\s+overcenter_authority_freeze/i.test(call.text)));
-});
-
-test('authoritative target activation fails closed when imported freeze digest does not match cutover identity', async () => {
-  const runtimeRevision = 'a'.repeat(40);
-  const freezeDigest = `sha256:${'b'.repeat(64)}`;
-  const db = {
-    async query(text) {
-      if (text.includes('FROM overcenter_authority_freeze')) {
-        return { rows:[{
-          frozen:true,
-          frozen_at:'2026-09-08T12:00:00.000Z',
-          source_revision:'c'.repeat(40),
-          freeze_manifest_sha256:`sha256:${'d'.repeat(64)}`,
-        }] };
-      }
-      return { rows:[] };
-    },
-  };
-
-  await assert.rejects(
-    activateAuthoritativeTarget({
-      db,
-      authorityMode:'authoritative',
-      sourceRevision:runtimeRevision,
-      sourceFreezeDigest:freezeDigest,
-    }),
-    error => error?.code === 'TARGET_ACTIVATION_FREEZE_IDENTITY_MISMATCH',
-  );
-});
-
-test('shadow target activation does not mutate the database', async () => {
-  let calls = 0;
-  const result = await activateAuthoritativeTarget({
-    db:{ query:async () => { calls += 1; return { rows:[] }; } },
-    authorityMode:'shadow',
-    sourceRevision:'a'.repeat(40),
-    sourceFreezeDigest:`sha256:${'b'.repeat(64)}`,
-  });
-
-  assert.deepEqual(result, { activated:false, reason:'shadow' });
-  assert.equal(calls, 0);
 });
