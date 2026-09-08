@@ -1,0 +1,61 @@
+name: GCP authoritative writer cutover
+
+on:
+  workflow_dispatch:
+    inputs:
+      exact_revision:
+        description: Exact Git revision already deployed in shadow mode
+        required: true
+        type: string
+      source_freeze_digest:
+        description: Frozen Hatchable source manifest digest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: overcenter-gcp-authoritative-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact cutover revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.exact_revision }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove exact main authority
+        shell: bash
+        env:
+          EXACT_REVISION: ${{ inputs.exact_revision }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_REVISION"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXACT_REVISION"
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          request_reason: Overcenter authoritative cutover ${{ inputs.exact_revision }}
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+
+      - name: Enable exactly one GCP writer
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          EXACT_REVISION: ${{ inputs.exact_revision }}
+          SOURCE_FREEZE_DIGEST: ${{ inputs.source_freeze_digest }}
+        run: bash ./scripts/gcp/promote-authoritative.sh
