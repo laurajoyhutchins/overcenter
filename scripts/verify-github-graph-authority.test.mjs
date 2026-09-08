@@ -128,13 +128,18 @@ test('post-cutover GCP deployment path cannot demote authoritative runtime to sh
   assert.doesNotMatch(bootstrap, /gh workflow run/);
 });
 
-test('authoritative deployment proves live GCP inspection and a safe semantic operation', async () => {
+test('authoritative deployment proves live GCP inspection by settling the migration transition itself', async () => {
   const workflow = await readFile('.github/workflows/gcp-authoritative-deploy.yml', 'utf8');
   assert.match(workflow, /token_format:\s*id_token/);
   assert.match(workflow, /id_token_audience:/);
   assert.match(workflow, /\/health/);
   assert.match(workflow, /\/api\/authoritative-state\/project-inspect/);
   assert.match(workflow, /\/api\/worker-command/);
-  assert.match(workflow, /production\.promote/);
+  assert.match(workflow, /project\.advance/);
+  assert.match(workflow, /finish-hatchable-gcp-authoritative-state-migration/);
+  assert.match(workflow, /execution_result/);
+  assert.match(workflow, /disposition.*completed/);
+  assert.match(workflow, /PROJECT_COMPLETE/);
+  assert.doesNotMatch(workflow, /production\.promote/);
   assert.match(workflow, /authority_mode.*authoritative/);
 });
