@@ -20,6 +20,11 @@ jobs:
   deploy-authoritative:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      GCP_SERVICE: overcenter-shadow
+      GCP_REGION: us-west1
+      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+      PROJECT_REF: github:laurajoyhutchins/overcenter
     steps:
       - name: Check out exact authoritative source revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -41,11 +46,15 @@ jobs:
           test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXACT_REVISION"
 
       - name: Authenticate to Google Cloud with GitHub OIDC
+        id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
+          id_token_include_email: true
           request_reason: Overcenter authoritative deployment ${{ inputs.exact_revision }}
 
       - name: Install Google Cloud CLI
@@ -64,3 +73,62 @@ jobs:
           OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
           EXACT_REVISION: ${{ inputs.exact_revision }}
         run: bash ./scripts/gcp/deploy-authoritative.sh
+
+      - name: Prove live authoritative GCP runtime
+        shell: bash
+        env:
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+          EXACT_REVISION: ${{ inputs.exact_revision }}
+        run: |
+          set -euo pipefail
+          test -n "$ID_TOKEN"
+
+          gcloud run services describe "$GCP_SERVICE" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --region="$GCP_REGION" \
+            --format=json > "$RUNNER_TEMP/service.json"
+          ready="$(jq -r '.status.latestReadyRevisionName' "$RUNNER_TEMP/service.json")"
+          created="$(jq -r '.status.latestCreatedRevisionName' "$RUNNER_TEMP/service.json")"
+          mode="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_AUTHORITY_MODE") | .value' "$RUNNER_TEMP/service.json")"
+          revision="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_REVISION") | .value' "$RUNNER_TEMP/service.json")"
+          digest="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_FREEZE_DIGEST") | .value' "$RUNNER_TEMP/service.json")"
+          url="$(jq -r '.status.url' "$RUNNER_TEMP/service.json")"
+          test -n "$ready" && test "$ready" = "$created"
+          test "$mode" = authoritative
+          test "$revision" = "$EXACT_REVISION"
+          test "$url" = "$SERVICE_AUDIENCE"
+          test "$digest" = 'sha256:3ff040b3ebb60b89af860c1d3a140aef3be58652fdb1abca592ec45fb7c764b5'
+
+          health_status="$(curl --silent --show-error -o "$RUNNER_TEMP/health.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $ID_TOKEN" \
+            "$SERVICE_AUDIENCE/health")"
+          test "$health_status" = 200
+          jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null
+
+          inspect_status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $ID_TOKEN" \
+            -H 'content-type: application/json' \
+            -X POST \
+            -d "{\"project_ref\":\"$PROJECT_REF\"}" \
+            "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
+          test "$inspect_status" = 200
+          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null
+
+          promote_status="$(curl --silent --show-error -o "$RUNNER_TEMP/promote.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $ID_TOKEN" \
+            -H 'content-type: application/json' \
+            -X POST \
+            -d '{"command":"production.promote","input":{"repo":"laurajoyhutchins/overcenter"}}' \
+            "$SERVICE_AUDIENCE/api/worker-command")"
+          test "$promote_status" = 200
+          jq -e '.ok == true' "$RUNNER_TEMP/promote.json" >/dev/null
+
+          printf '%s\n' \
+            "GCP runtime proof complete" \
+            "Cloud Run revision: $ready" \
+            "Authority mode: $mode" \
+            "Source revision: $revision" \
+            "Source freeze digest: $digest" \
+            "Health: authoritative Cloud SQL ready" \
+            "Project inspect: migrated authority readable" \
+            "Safe semantic operation: production.promote converged"
