@@ -26,6 +26,7 @@ const maintainedTests = [
   'cloud-run-target-activation-exit.test.mjs',
   'cloud-run-target-authority.test.mjs',
   'codex-agent-execution-workflow.test.mjs',
+  'gcp-activation-cnb-launcher.test.mjs',
   'postgres-state-manifest.test.mjs',
   'source-authority-fence.test.mjs',
   'verify-github-workflow-dispatch.test.mjs',
