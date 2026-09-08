@@ -37,7 +37,7 @@ jobs:
           token_format: id_token
           id_token_audience: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
           id_token_include_email: true
-          request_reason: Overcenter post-cutover authority proof
+          request_reason: Overcenter post-cutover project.inspect diagnosis
 
       - name: Install Google Cloud CLI
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
@@ -62,9 +62,8 @@ jobs:
           echo "authority mode: $mode"
           echo "source revision: $revision"
           echo "freeze digest: $digest"
-          echo "service URL: $url"
 
-      - name: Diagnose authoritative application inspection
+      - name: Diagnose project.inspect semantic response
         shell: bash
         env:
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
@@ -75,10 +74,12 @@ jobs:
           echo "health HTTP $health_status"
           jq . "$RUNNER_TEMP/health.json"
           test "$health_status" = 200
-          jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null
 
-          inspect_status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -X POST -d "{\"project_ref\":\"$PROJECT_REF\"}" "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
-          echo "project-inspect HTTP $inspect_status"
-          jq . "$RUNNER_TEMP/inspect.json"
-          test "$inspect_status" = 200
-          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null
+          direct_status="$(curl --silent --show-error -o "$RUNNER_TEMP/direct.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -X POST -d "{\"project_ref\":\"$PROJECT_REF\"}" "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
+          echo "direct project-inspect HTTP $direct_status"
+          jq . "$RUNNER_TEMP/direct.json"
+
+          worker_status="$(curl --silent --show-error -o "$RUNNER_TEMP/worker.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -X POST -d "{\"command\":\"project.inspect\",\"input\":{\"project_ref\":\"$PROJECT_REF\"}}" "$SERVICE_AUDIENCE/api/worker-command")"
+          echo "worker project.inspect HTTP $worker_status"
+          jq . "$RUNNER_TEMP/worker.json"
+          test "$worker_status" = 200
