@@ -9,8 +9,6 @@ RUNTIME_SA="${OVERCENTER_RUNTIME_SERVICE_ACCOUNT:-overcenter-runtime@project-6b8
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-laurajoyhutchins/overcenter}"
 GITHUB_REPOSITORY_ID="${GITHUB_REPOSITORY_ID:-1339925321}"
 GITHUB_REPOSITORY_OWNER_ID="${GITHUB_REPOSITORY_OWNER_ID:-219002713}"
-DEPLOY_REF="${GCP_DEPLOY_REF:-work/gcp-cloud-run-cloud-sql-bootstrap}"
-DEPLOY_WORKFLOW="${GCP_DEPLOY_WORKFLOW:-gcp-hosted-shadow-deploy.yml}"
 
 for command in gcloud gh; do
   if ! command -v "$command" >/dev/null 2>&1; then
@@ -94,7 +92,7 @@ if ! gcloud iam workload-identity-pools describe "$POOL_ID" \
 fi
 
 ATTRIBUTE_MAPPING="google.subject=assertion.sub,attribute.repository_id=assertion.repository_id,attribute.repository_owner_id=assertion.repository_owner_id,attribute.ref=assertion.ref"
-ATTRIBUTE_CONDITION="assertion.repository_id == '${GITHUB_REPOSITORY_ID}' && assertion.repository_owner_id == '${GITHUB_REPOSITORY_OWNER_ID}' && (assertion.ref == 'refs/heads/work/gcp-cloud-run-cloud-sql-bootstrap' || assertion.ref == 'refs/heads/dev')"
+ATTRIBUTE_CONDITION="assertion.repository_id == '${GITHUB_REPOSITORY_ID}' && assertion.repository_owner_id == '${GITHUB_REPOSITORY_OWNER_ID}' && assertion.ref == 'refs/heads/dev'"
 
 if gcloud iam workload-identity-pools providers describe "$PROVIDER_ID" \
     --project="$PROJECT_ID" --location=global --workload-identity-pool="$POOL_ID" >/dev/null 2>&1; then
@@ -139,12 +137,8 @@ gh variable set GCP_PROJECT_ID --repo "$GITHUB_REPOSITORY" --body "$PROJECT_ID"
 gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER --repo "$GITHUB_REPOSITORY" --body "$WIF_PROVIDER"
 gh variable set GCP_DEPLOY_SERVICE_ACCOUNT --repo "$GITHUB_REPOSITORY" --body "$DEPLOYER_SA"
 
-# Bootstrap completion is itself the deployment trigger. This keeps the human
-# boundary to one idempotent command and lets GitHub own exact-revision execution.
-gh workflow run "$DEPLOY_WORKFLOW" \
-  --repo "$GITHUB_REPOSITORY" \
-  --ref "$DEPLOY_REF"
-
+# Bootstrap provisions identity only. Post-cutover deployment is an explicit
+# authority-preserving operation after dev and main resolve to one exact SHA.
 printf '%s\n' \
   "Overcenter GitHub OIDC bootstrap ready" \
   "Google project:   ${PROJECT_ID}" \
@@ -153,5 +147,4 @@ printf '%s\n' \
   "Build identity:   ${BUILD_SA}" \
   "Runtime identity: ${RUNTIME_SA}" \
   "WIF provider:     ${WIF_PROVIDER}" \
-  "GitHub repo:      ${GITHUB_REPOSITORY}" \
-  "Deployment:       dispatched ${DEPLOY_WORKFLOW} at ${DEPLOY_REF}"
+  "GitHub repo:      ${GITHUB_REPOSITORY}"
