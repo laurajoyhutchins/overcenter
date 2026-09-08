@@ -25,6 +25,7 @@ jobs:
       GCP_REGION: us-west1
       SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
       PROJECT_REF: github:laurajoyhutchins/overcenter
+      MIGRATION_TRANSITION: finish-hatchable-gcp-authoritative-state-migration
     steps:
       - name: Check out exact authoritative source revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -74,7 +75,7 @@ jobs:
           EXACT_REVISION: ${{ inputs.exact_revision }}
         run: bash ./scripts/gcp/deploy-authoritative.sh
 
-      - name: Prove live authoritative GCP runtime
+      - name: Prove live authoritative GCP runtime and settle migration
         shell: bash
         env:
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
@@ -90,6 +91,17 @@ jobs:
             printf '%s\n' "$label failed (HTTP $status). Response:"
             jq . "$file" 2>/dev/null || cat "$file"
             exit 1
+          }
+
+          post_json() {
+            output="$1"
+            payload="$2"
+            curl --silent --show-error -o "$output" -w '%{http_code}' \
+              -H "Authorization: Bearer $ID_TOKEN" \
+              -H 'content-type: application/json' \
+              -X POST \
+              -d "$payload" \
+              "$SERVICE_AUDIENCE/api/worker-command"
           }
 
           gcloud run services describe "$GCP_SERVICE" \
@@ -123,34 +135,69 @@ jobs:
           jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null \
             || fail_json health-contract "$health_status" "$RUNNER_TEMP/health.json"
 
-          inspect_status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect.json" -w '%{http_code}' \
+          inspect_status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect-before.json" -w '%{http_code}' \
             -H "Authorization: Bearer $ID_TOKEN" \
             -H 'content-type: application/json' \
             -X POST \
             -d "{\"project_ref\":\"$PROJECT_REF\"}" \
             "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
-          echo "Project inspect HTTP: $inspect_status"
-          test "$inspect_status" = 200 || fail_json project-inspect "$inspect_status" "$RUNNER_TEMP/inspect.json"
-          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null \
-            || fail_json project-inspect-contract "$inspect_status" "$RUNNER_TEMP/inspect.json"
+          echo "Project inspect before settlement HTTP: $inspect_status"
+          test "$inspect_status" = 200 || fail_json project-inspect-before "$inspect_status" "$RUNNER_TEMP/inspect-before.json"
+          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect-before.json" >/dev/null \
+            || fail_json project-inspect-before-contract "$inspect_status" "$RUNNER_TEMP/inspect-before.json"
 
-          promote_status="$(curl --silent --show-error -o "$RUNNER_TEMP/promote.json" -w '%{http_code}' \
+          initial_payload="$(jq -nc \
+            --arg project "$PROJECT_REF" \
+            --arg transition "$MIGRATION_TRANSITION" \
+            '{command:"project.advance",input:{project_ref:$project,transition_id:$transition}}')"
+          advance_status="$(post_json "$RUNNER_TEMP/advance.json" "$initial_payload")"
+          echo "Migration project.advance HTTP: $advance_status"
+          test "$advance_status" = 200 || fail_json migration-advance "$advance_status" "$RUNNER_TEMP/advance.json"
+          jq . "$RUNNER_TEMP/advance.json"
+
+          outcome="$(jq -r '.outcome // empty' "$RUNNER_TEMP/advance.json")"
+          if [[ "$outcome" == "PROJECT_COMPLETE" ]]; then
+            test "$(jq -r '.transition.state // empty' "$RUNNER_TEMP/advance.json")" = "DONE"
+            echo "Migration transition was already authoritatively DONE."
+          else
+            test "$outcome" = "AGENT_EXECUTION_REQUIRED" || fail_json migration-advance-contract "$advance_status" "$RUNNER_TEMP/advance.json"
+            resume_ref="$(jq -r '.resume_ref // empty' "$RUNNER_TEMP/advance.json")"
+            lease_ref="$(jq -r '.lease_ref // empty' "$RUNNER_TEMP/advance.json")"
+            test -n "$resume_ref" && test -n "$lease_ref" || fail_json migration-advance-lease "$advance_status" "$RUNNER_TEMP/advance.json"
+
+            settle_payload="$(jq -nc \
+              --arg project "$PROJECT_REF" \
+              --arg transition "$MIGRATION_TRANSITION" \
+              --arg resume "$resume_ref" \
+              --arg deploy_run "github-actions-run:${GITHUB_RUN_ID}" \
+              --arg revision_ref "git-revision:${EXACT_REVISION}" \
+              --arg freeze_ref 'sha256:3ff040b3ebb60b89af860c1d3a140aef3be58652fdb1abca592ec45fb7c764b5' \
+              '{command:"project.advance",input:{project_ref:$project,transition_id:$transition,resume_ref:$resume,execution_result:{disposition:"completed",evidence:[{kind:"gcp_authoritative_deployment",ref:$deploy_run},{kind:"gcp_authority_revision",ref:$revision_ref},{kind:"source_freeze_digest",ref:$freeze_ref}],reason:"Hatchable source is irreversibly frozen; the sealed recovery seed is bound to the source freeze digest; GCP is the sole authoritative writer; Cloud SQL health is ready; and fresh GCP-backed project.inspect succeeded at the exact deployed revision."}}}')"
+            settle_status="$(post_json "$RUNNER_TEMP/settle.json" "$settle_payload")"
+            echo "Migration settlement HTTP: $settle_status"
+            test "$settle_status" = 200 || fail_json migration-settlement "$settle_status" "$RUNNER_TEMP/settle.json"
+            jq -e '.ok == true' "$RUNNER_TEMP/settle.json" >/dev/null \
+              || fail_json migration-settlement-contract "$settle_status" "$RUNNER_TEMP/settle.json"
+            jq . "$RUNNER_TEMP/settle.json"
+          fi
+
+          post_inspect_status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect-after.json" -w '%{http_code}' \
             -H "Authorization: Bearer $ID_TOKEN" \
             -H 'content-type: application/json' \
             -X POST \
-            -d '{"command":"production.promote","input":{"repo":"laurajoyhutchins/overcenter"}}' \
-            "$SERVICE_AUDIENCE/api/worker-command")"
-          echo "Production promote HTTP: $promote_status"
-          test "$promote_status" = 200 || fail_json production-promote "$promote_status" "$RUNNER_TEMP/promote.json"
-          jq -e '.ok == true' "$RUNNER_TEMP/promote.json" >/dev/null \
-            || fail_json production-promote-contract "$promote_status" "$RUNNER_TEMP/promote.json"
+            -d "{\"project_ref\":\"$PROJECT_REF\"}" \
+            "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
+          echo "Project inspect after settlement HTTP: $post_inspect_status"
+          test "$post_inspect_status" = 200 || fail_json project-inspect-after "$post_inspect_status" "$RUNNER_TEMP/inspect-after.json"
+          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect-after.json" >/dev/null \
+            || fail_json project-inspect-after-contract "$post_inspect_status" "$RUNNER_TEMP/inspect-after.json"
 
           printf '%s\n' \
-            "GCP runtime proof complete" \
+            "GCP migration proof complete" \
             "Cloud Run revision: $ready" \
             "Authority mode: $mode" \
             "Source revision: $revision" \
             "Source freeze digest: $digest" \
             "Health: authoritative Cloud SQL ready" \
-            "Project inspect: migrated authority readable" \
-            "Safe semantic operation: production.promote converged"
+            "Project inspect: migrated authority readable before and after settlement" \
+            "Migration transition: completed through GCP project.advance"
