@@ -4,22 +4,25 @@ import pg from 'pg';
 
 import { createCloudRunHandler, resolveCloudRunConfig } from './cloud-run-host.mjs';
 import { createCloudRunReadOnlyProjectInspector, createCloudRunSemanticWorker } from './cloud-run-semantic-runtime.mjs';
-import { verifyAuthoritativeTarget } from './cloud-run-target-authority.mjs';
+import { readRecoverySeedProof, verifyAuthoritativeTarget } from './cloud-run-target-authority.mjs';
 import { applyPostgresMigrations, SOURCE_ONLY_POSTGRES_MIGRATIONS } from './postgres-migrations.mjs';
 
 const config = resolveCloudRunConfig(process.env);
 const { Pool } = pg;
 const pool = new Pool(config.postgres);
+const recoverySeedProof = await readRecoverySeedProof(process.env.OVERCENTER_SOURCE_FREEZE_DIGEST);
 
-// Runtime startup must not perform the one-time authority cutover DDL. The
-// deployment boundary activates the target first; the serving process only
-// proves that immutable frozen-source evidence is present and no copied
-// source-only write fence remains before it performs any durable startup work.
+// Runtime startup must remain a read-only authority proof. Migration 059 is
+// source-epoch cutover control state and is deliberately absent from canonical
+// Cloud SQL. The serving process proves the sealed GitHub recovery seed matches
+// the frozen-source digest and that no source-only fence machinery crossed the
+// authority boundary before it performs any durable startup work.
 const targetAuthority = await verifyAuthoritativeTarget({
   db:pool,
   authorityMode:config.authorityMode,
   sourceRevision:process.env.OVERCENTER_SOURCE_REVISION,
   sourceFreezeDigest:process.env.OVERCENTER_SOURCE_FREEZE_DIGEST,
+  recoverySeedProof,
 });
 console.log(`Overcenter target authority: ${JSON.stringify(targetAuthority)}`);
 
