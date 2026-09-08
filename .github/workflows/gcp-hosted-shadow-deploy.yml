@@ -17,6 +17,7 @@ jobs:
       GCP_SERVICE: overcenter-shadow
       GCP_REGION: us-west1
       PROJECT_REF: github:laurajoyhutchins/overcenter
+      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
     steps:
       - name: Prove repository authority is still frozen revision
         shell: bash
@@ -27,11 +28,15 @@ jobs:
           echo "main exact revision: $observed"
 
       - name: Authenticate to Google Cloud with GitHub OIDC
+        id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+          id_token_include_email: true
           request_reason: Overcenter post-cutover authority proof
 
       - name: Install Google Cloud CLI
@@ -53,24 +58,24 @@ jobs:
           test "$mode" = authoritative
           test "$revision" = "$EXPECTED_REVISION"
           test "$digest" = "$EXPECTED_FREEZE_DIGEST"
-          test -n "$url" && test "$url" != null
+          test "$url" = "$SERVICE_AUDIENCE"
           echo "ready revision: $ready"
           echo "authority mode: $mode"
           echo "source revision: $revision"
           echo "freeze digest: $digest"
-          echo "service_url=$url" >> "$GITHUB_OUTPUT"
+          echo "service URL: $url"
 
       - name: Prove authoritative application and Cloud SQL health
         shell: bash
         env:
-          SERVICE_URL: ${{ steps.cloudrun.outputs.service_url }}
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
         run: |
           set -euo pipefail
-          token="$(gcloud auth print-identity-token --impersonate-service-account="${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}" --audiences="$SERVICE_URL")"
-          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $token" "$SERVICE_URL/health" > "$RUNNER_TEMP/health.json"
+          test -n "$ID_TOKEN"
+          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $ID_TOKEN" "$SERVICE_AUDIENCE/health" > "$RUNNER_TEMP/health.json"
           jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null
           jq . "$RUNNER_TEMP/health.json"
-          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $token" -H 'content-type: application/json' -X POST -d "{\"project_ref\":\"$PROJECT_REF\"}" "$SERVICE_URL/api/authoritative-state/project-inspect" > "$RUNNER_TEMP/inspect.json"
+          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -X POST -d "{\"project_ref\":\"$PROJECT_REF\"}" "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect" > "$RUNNER_TEMP/inspect.json"
           jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null
           echo 'project inspection:'
           jq . "$RUNNER_TEMP/inspect.json"
