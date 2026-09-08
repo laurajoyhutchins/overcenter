@@ -57,6 +57,31 @@ print('' if value is None else value)
 PY
 }
 
+emit_startup_failure_diagnostics() {
+  local failed_revision="$1"
+  echo "Authoritative Cloud Run deployment failed before readiness." >&2
+  if [[ -z "$failed_revision" ]]; then
+    echo "No failed revision identity could be read back from Cloud Run." >&2
+    return 0
+  fi
+
+  echo "Failed revision: $failed_revision" >&2
+  echo "=== Cloud Run revision conditions ===" >&2
+  gcloud run revisions describe "$failed_revision" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --format='yaml(status.conditions,status.logUrl)' >&2 || true
+
+  echo "=== Cloud Run revision startup logs ===" >&2
+  gcloud logging read \
+    "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"$SERVICE\" AND resource.labels.revision_name=\"$failed_revision\"" \
+    --project="$PROJECT_ID" \
+    --limit=100 \
+    --freshness=30m \
+    --order=asc \
+    --format='value(timestamp,severity,textPayload,jsonPayload.message)' >&2 || true
+}
+
 describe
 BEFORE_READY="$(field status.latestReadyRevisionName)"
 BEFORE_CREATED="$(field status.latestCreatedRevisionName)"
@@ -83,6 +108,7 @@ fi
 
 # The current authoritative epoch is a precondition, not an input to choose.
 # Preserve that epoch while replacing only the source artifact/revision.
+set +e
 gcloud run deploy "$SERVICE" \
   --source . \
   --project="$PROJECT_ID" \
@@ -96,6 +122,17 @@ gcloud run deploy "$SERVICE" \
   --min-instances=0 \
   --max-instances=1 \
   --quiet
+DEPLOY_STATUS=$?
+set -e
+
+if [[ "$DEPLOY_STATUS" -ne 0 ]]; then
+  FAILED_CREATED=""
+  if describe; then
+    FAILED_CREATED="$(field status.latestCreatedRevisionName)"
+  fi
+  emit_startup_failure_diagnostics "$FAILED_CREATED"
+  exit "$DEPLOY_STATUS"
+fi
 
 describe
 AFTER_READY="$(field status.latestReadyRevisionName)"
