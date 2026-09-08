@@ -12,6 +12,7 @@ PASSWORD_SECRET="${OVERCENTER_DB_PASSWORD_SECRET:-overcenter-db-password}"
 GITHUB_APP_ID_VALUE="${OVERCENTER_GITHUB_APP_ID:-4616688}"
 GITHUB_APP_PRIVATE_KEY_SECRET="${OVERCENTER_GITHUB_APP_PRIVATE_KEY_SECRET:-overcenter-github-app-private-key}"
 EXACT_REVISION="${EXACT_REVISION:?EXACT_REVISION is required}"
+ACTIVATION_JOB="${OVERCENTER_TARGET_ACTIVATION_JOB:-${SERVICE}-target-activate}"
 
 if [[ ! "$EXACT_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
   echo "EXACT_REVISION must be a lowercase 40-character Git SHA" >&2
@@ -103,6 +104,32 @@ emit_startup_failure_diagnostics() {
     --format='value(timestamp,severity,textPayload,jsonPayload.message)' >&2 || true
 }
 
+emit_activation_failure_diagnostics() {
+  echo "Authoritative target activation job failed before service deployment." >&2
+  echo "=== Cloud Run job executions ===" >&2
+  gcloud run jobs executions list \
+    --job="$ACTIVATION_JOB" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --limit=3 \
+    --format='table(name,status.completionTime,status.conditions[0].type,status.conditions[0].message)' >&2 || true
+  echo "=== Cloud Run target activation logs ===" >&2
+  gcloud logging read \
+    "resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"$ACTIVATION_JOB\"" \
+    --project="$PROJECT_ID" \
+    --limit=100 \
+    --freshness=30m \
+    --order=asc \
+    --format='value(timestamp,severity,textPayload,jsonPayload.message)' >&2 || true
+}
+
+cleanup_activation_job() {
+  gcloud run jobs delete "$ACTIVATION_JOB" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --quiet >/dev/null 2>&1 || true
+}
+
 describe
 BEFORE_READY="$(field status.latestReadyRevisionName)"
 BEFORE_CREATED="$(field status.latestCreatedRevisionName)"
@@ -135,6 +162,39 @@ fi
 if [[ -n "$BEFORE_CREATED" && "$BEFORE_CREATED" != "$BEFORE_READY" ]]; then
   echo "Recovering from failed Cloud Run revision $BEFORE_CREATED; authority remains $BEFORE_READY"
 fi
+
+# Target activation is a one-shot deployment transaction, never web-runtime
+# startup behavior. It uses the same Cloud SQL socket, runtime service account,
+# and database secret as the serving process, performs zero retries, proves the
+# imported frozen-source identity, removes only migration-059 source-only write
+# fences, verifies zero remain, then the temporary job resource is deleted.
+cleanup_activation_job
+set +e
+gcloud run jobs deploy "$ACTIVATION_JOB" \
+  --source . \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --service-account="$RUNTIME_SA" \
+  --set-cloudsql-instances="$CONNECTION_NAME" \
+  --set-env-vars="PGHOST=/cloudsql/${CONNECTION_NAME},PGDATABASE=${DB_NAME},PGUSER=${DB_USER},OVERCENTER_AUTHORITY_MODE=authoritative,OVERCENTER_SOURCE_REVISION=${EXACT_REVISION},OVERCENTER_SOURCE_FREEZE_DIGEST=${BEFORE_FREEZE}" \
+  --set-secrets="PGPASSWORD=${PASSWORD_SECRET}:latest" \
+  --command=node \
+  --args=scripts/cloud-run-target-activate.mjs \
+  --tasks=1 \
+  --parallelism=1 \
+  --max-retries=0 \
+  --task-timeout=5m \
+  --execute-now \
+  --wait \
+  --quiet
+ACTIVATION_STATUS=$?
+set -e
+if [[ "$ACTIVATION_STATUS" -ne 0 ]]; then
+  emit_activation_failure_diagnostics
+  cleanup_activation_job
+  exit "$ACTIVATION_STATUS"
+fi
+cleanup_activation_job
 
 # The current authoritative epoch is a precondition, not an input to choose.
 # Preserve that epoch while replacing only the source artifact/revision.
