@@ -1,36 +1,48 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { canonicalJson, sha256Text } from '../lib/canonical-json.js';
 import {
   activateAuthoritativeTarget,
   verifyAuthoritativeTarget,
+  verifyRecoverySeedProof,
 } from './cloud-run-target-authority.mjs';
 
 const runtimeRevision = 'a'.repeat(40);
-const frozenSourceRevision = 'c'.repeat(40);
-const freezeDigest = `sha256:${'b'.repeat(64)}`;
 
-function dbWithFreeze({ remaining = ['0'], observedDigest = freezeDigest, dependents = [] } = {}) {
+async function sealedSeed() {
+  const body = {
+    schema:'overcenter-github-recovery-seed-v1',
+    project_ref:'github:laurajoyhutchins/overcenter',
+    repository:'laurajoyhutchins/overcenter',
+    transition_confirmations:[],
+    repository_branch_roles:[],
+    repository_dispositions:[],
+    source_coordinates:{
+      transition_confirmations_count:0,
+      transition_confirmations_max_settled_at:null,
+      branch_roles_count:0,
+      branch_roles_max_updated_at:null,
+      repository_dispositions_count:0,
+      repository_dispositions_max_updated_at:null,
+    },
+  };
+  const digest = `sha256:${await sha256Text(canonicalJson(body))}`;
+  return { seed:{ ...body, digest }, digest };
+}
+
+function freshEpochDb({ freezeTable = null, freezeFunction = null, freezeTriggers = '0', sourceOnlyMigrations = '0' } = {}) {
   const calls = [];
-  let countRead = 0;
   const client = {
     async query(text, params = []) {
       calls.push({ text, params });
-      if (text.includes('FROM overcenter_authority_freeze')) {
+      if (text.includes("to_regclass('overcenter_authority_freeze')")) {
         return { rows:[{
-          frozen:true,
-          frozen_at:'2026-09-08T12:00:00.000Z',
-          source_revision:frozenSourceRevision,
-          freeze_manifest_sha256:observedDigest,
+          freeze_table:freezeTable,
+          freeze_function:freezeFunction,
+          freeze_triggers:freezeTriggers,
+          source_only_migrations:sourceOnlyMigrations,
         }] };
-      }
-      if (text.includes("tgname LIKE 'overcenter_source_freeze_%'") && text.includes('count(*)')) {
-        const value = remaining[Math.min(countRead, remaining.length - 1)];
-        countRead += 1;
-        return { rows:[{ remaining:value }] };
-      }
-      if (text.includes('tgfoid') && text.includes('overcenter_reject_source_writes_when_frozen')) {
-        return { rows:dependents.map(trigger_name => ({ trigger_name })) };
       }
       return { rows:[] };
     },
@@ -39,87 +51,86 @@ function dbWithFreeze({ remaining = ['0'], observedDigest = freezeDigest, depend
   return { calls, db:{ connect:async () => client, query:client.query.bind(client) } };
 }
 
-test('runtime verification proves authoritative target identity without issuing DDL', async () => {
-  const { calls, db } = dbWithFreeze();
-  const result = await verifyAuthoritativeTarget({
+async function authorityInput(db) {
+  const { seed, digest } = await sealedSeed();
+  const recoverySeedProof = await verifyRecoverySeedProof(seed, digest);
+  return {
     db,
     authorityMode:'authoritative',
     sourceRevision:runtimeRevision,
-    sourceFreezeDigest:freezeDigest,
-  });
+    sourceFreezeDigest:digest,
+    recoverySeedProof,
+  };
+}
+
+test('sealed recovery seed proof recomputes the digest and rejects tampering', async () => {
+  const { seed, digest } = await sealedSeed();
+  const proof = await verifyRecoverySeedProof(seed, digest);
+  assert.equal(proof.verified, true);
+  assert.equal(proof.digest, digest);
+
+  await assert.rejects(
+    verifyRecoverySeedProof({ ...seed, repository:'laurajoyhutchins/not-overcenter' }, digest),
+    error => error?.code === 'TARGET_ACTIVATION_RECOVERY_SEED_MISMATCH'
+      && error?.may_have_mutated === false,
+  );
+});
+
+test('runtime verification proves fresh target epoch without DDL', async () => {
+  const { calls, db } = freshEpochDb();
+  const result = await verifyAuthoritativeTarget(await authorityInput(db));
 
   assert.equal(result.verified, true);
   assert.equal(result.source_frozen, true);
+  assert.equal(result.recovery_seed_verified, true);
   assert.equal(result.source_freeze_triggers_remaining, 0);
-  assert.ok(!calls.some(call => /DROP\s+(TRIGGER|FUNCTION)/i.test(call.text)));
-  assert.ok(!calls.some(call => /UPDATE\s+overcenter_authority_freeze/i.test(call.text)));
+  assert.equal(result.source_only_migrations_present, 0);
+  assert.ok(calls.some(call => /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/i.test(call.text)));
+  assert.ok(!calls.some(call => /\b(DROP|ALTER|CREATE|INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(call.text)));
 });
 
-test('runtime verification fails closed while copied source-only write fences remain', async () => {
-  const { db } = dbWithFreeze({ remaining:['12'] });
+test('runtime verification fails closed if source-only freeze table crossed epochs', async () => {
+  const { db } = freshEpochDb({ freezeTable:'overcenter_authority_freeze' });
+  await assert.rejects(
+    verifyAuthoritativeTarget(await authorityInput(db)),
+    error => error?.code === 'TARGET_ACTIVATION_SOURCE_EPOCH_STATE_PRESENT'
+      && error?.details?.freeze_table === 'overcenter_authority_freeze'
+      && error?.may_have_mutated === false,
+  );
+});
+
+test('runtime verification fails closed if migration 059 was applied on target', async () => {
+  const { db } = freshEpochDb({ sourceOnlyMigrations:'1' });
+  await assert.rejects(
+    verifyAuthoritativeTarget(await authorityInput(db)),
+    error => error?.code === 'TARGET_ACTIVATION_SOURCE_EPOCH_STATE_PRESENT'
+      && error?.details?.source_only_migrations === 1
+      && error?.may_have_mutated === false,
+  );
+});
+
+test('deployment activation is the same read-only fresh-epoch proof', async () => {
+  const { calls, db } = freshEpochDb();
+  const result = await activateAuthoritativeTarget(await authorityInput(db));
+  assert.equal(result.activated, true);
+  assert.equal(result.recovery_seed_verified, true);
+  assert.equal(result.source_freeze_triggers_remaining, 0);
+  assert.ok(!calls.some(call => /\b(DROP|ALTER|CREATE|INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(call.text)));
+});
+
+test('authority proof requires the recovery seed digest bound to the source freeze', async () => {
+  const { db } = freshEpochDb();
+  const { seed, digest } = await sealedSeed();
+  const recoverySeedProof = await verifyRecoverySeedProof(seed, digest);
   await assert.rejects(
     verifyAuthoritativeTarget({
       db,
       authorityMode:'authoritative',
       sourceRevision:runtimeRevision,
-      sourceFreezeDigest:freezeDigest,
+      sourceFreezeDigest:`sha256:${'f'.repeat(64)}`,
+      recoverySeedProof,
     }),
-    error => error?.code === 'TARGET_ACTIVATION_SOURCE_FENCE_REMAINS'
-      && error?.details?.remaining === 12
+    error => error?.code === 'TARGET_ACTIVATION_RECOVERY_SEED_PROOF_REQUIRED'
       && error?.may_have_mutated === false,
   );
-});
-
-test('deployment activation drops only the shared source-fence function and its proven trigger dependents', async () => {
-  const dependents = [
-    'overcenter_source_freeze_execution_state',
-    'overcenter_source_freeze_orchestration_runs',
-    'overcenter_source_freeze_work_leases',
-  ];
-  const { calls, db } = dbWithFreeze({ remaining:['3', '0'], dependents });
-  const result = await activateAuthoritativeTarget({
-    db,
-    authorityMode:'authoritative',
-    sourceRevision:runtimeRevision,
-    sourceFreezeDigest:freezeDigest,
-  });
-
-  assert.equal(result.activated, true);
-  assert.equal(result.source_frozen, true);
-  assert.equal(result.source_freeze_triggers_remaining, 0);
-  assert.ok(calls.some(call => /DROP FUNCTION\s+overcenter_reject_source_writes_when_frozen\(\)\s+CASCADE/i.test(call.text)));
-  assert.ok(!calls.some(call => /DROP\s+TRIGGER/i.test(call.text)));
-  assert.ok(!calls.some(call => /UPDATE\s+overcenter_authority_freeze/i.test(call.text)));
-});
-
-test('deployment activation fails closed if the shared function has any unexpected trigger dependent', async () => {
-  const { calls, db } = dbWithFreeze({
-    remaining:['1'],
-    dependents:['overcenter_source_freeze_orchestration_runs', 'unrelated_trigger'],
-  });
-
-  await assert.rejects(
-    activateAuthoritativeTarget({
-      db,
-      authorityMode:'authoritative',
-      sourceRevision:runtimeRevision,
-      sourceFreezeDigest:freezeDigest,
-    }),
-    error => error?.code === 'TARGET_ACTIVATION_DEPENDENCY_MISMATCH'
-      && error?.may_have_mutated === false,
-  );
-  assert.ok(!calls.some(call => /DROP FUNCTION/i.test(call.text)));
-});
-
-test('deployment activation is idempotent when source-only trigger dependents are already gone', async () => {
-  const { calls, db } = dbWithFreeze({ remaining:['0'] });
-  const result = await activateAuthoritativeTarget({
-    db,
-    authorityMode:'authoritative',
-    sourceRevision:runtimeRevision,
-    sourceFreezeDigest:freezeDigest,
-  });
-  assert.equal(result.activated, true);
-  assert.equal(result.source_freeze_triggers_remaining, 0);
-  assert.ok(!calls.some(call => /DROP FUNCTION/i.test(call.text)));
 });
