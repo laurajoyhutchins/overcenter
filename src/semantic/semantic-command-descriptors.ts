@@ -147,7 +147,7 @@ const githubApplyTextReplacementsSchema = Object.freeze({
           expected_count:{type:'integer',minimum:1,default:1},
         },
       },
-      description:'Exact text replacements read from the same immutable workspace observation that the later mutation is fenced against.',
+      description:'Exact text replacements read from the same immutable workspace observation that the later mutation is mechanically fenced against.',
     },
     commit_message:{type:'string',minLength:1,maxLength:10000},
   },
@@ -271,6 +271,30 @@ const projectAmendSchema = Object.freeze({
   properties:{
     project_ref:{type:'string',pattern:'^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
     expected_revision:{type:'string',pattern:'^[0-9a-fA-F]{40}$'},
+    amendment:{type:'object'},
+  },
+  additionalProperties:false,
+});
+
+const projectAddConversationSchema = Object.freeze({
+  type:'object',
+  required:['project_ref','expected_revision','conversation','amendment'],
+  properties:{
+    project_ref:{type:'string',pattern:'^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'},
+    expected_revision:{type:'string',pattern:'^[0-9a-fA-F]{40}$'},
+    conversation:{
+      type:'object',
+      required:['text'],
+      properties:{
+        text:{type:'string',minLength:1,maxLength:125000},
+        citations:{
+          type:'array',
+          maxItems:128,
+          items:{type:'object',required:['kind','ref'],properties:{kind:{type:'string',minLength:1},ref:{type:'string',minLength:1}},additionalProperties:false},
+        },
+      },
+      additionalProperties:false,
+    },
     amendment:{type:'object'},
   },
   additionalProperties:false,
@@ -406,6 +430,14 @@ const PROJECT_AUTHORING_DESCRIPTORS = Object.freeze({
     projectAmendSchema,
     'primary',
     WORKER_AND_MCP_EXPOSURE,
+  ),
+  'project.add_conversation':descriptor(
+    'project.add_conversation',
+    'project.add_conversation',
+    'Apply explicit conversation-derived graph judgment through canonical project authoring. The reasoning layer supplies the semantic amendment and bounded conversation provenance; the deterministic graph kernel validates and applies that amendment at an exact Git authority revision and returns authoritative diff/readback evidence.',
+    projectAddConversationSchema,
+    'primary',
+    Object.freeze({worker:false,mcp:true}),
   ),
 });
 
