@@ -60,3 +60,5 @@ jobs:
           done
           test -n "$run_id"
           echo "Dispatched trusted dev workflow run $run_id at exact revision $TARGET_REVISION"
+
+# rerun-marker: 2026-09-08T16:00:00Z
