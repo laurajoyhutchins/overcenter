@@ -23,6 +23,7 @@ async function javascriptFiles(directory) {
 
 const maintainedTests = [
   'cloud-run-host.test.mjs',
+  'cloud-run-target-authority.test.mjs',
   'codex-agent-execution-workflow.test.mjs',
   'postgres-state-manifest.test.mjs',
   'source-authority-fence.test.mjs',
