@@ -26,9 +26,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 gcloud config set project "$PROJECT_ID" >/dev/null
 TMP="${RUNNER_TEMP:-/tmp}/overcenter-authoritative-deploy.json"
+READY_TMP="${RUNNER_TEMP:-/tmp}/overcenter-authoritative-ready-revision.json"
 
 describe() {
   gcloud run services describe "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --format=json > "$TMP"
+}
+
+describe_revision() {
+  local revision="$1"
+  gcloud run revisions describe "$revision" --project="$PROJECT_ID" --region="$REGION" --format=json > "$READY_TMP"
 }
 
 env_value() {
@@ -37,6 +43,21 @@ import json,sys
 name=sys.argv[2]
 with open(sys.argv[1], encoding='utf-8') as f: body=json.load(f)
 env=((body.get('spec') or {}).get('template') or {}).get('spec',{}).get('containers',[{}])[0].get('env',[])
+for item in env:
+    if item.get('name') == name:
+        print(item.get('value',''))
+        break
+else:
+    print('')
+PY
+}
+
+revision_env_value() {
+  python3 - "$READY_TMP" "$1" <<'PY'
+import json,sys
+name=sys.argv[2]
+with open(sys.argv[1], encoding='utf-8') as f: body=json.load(f)
+env=(body.get('spec') or {}).get('containers',[{}])[0].get('env',[])
 for item in env:
     if item.get('name') == name:
         print(item.get('value',''))
@@ -85,25 +106,34 @@ emit_startup_failure_diagnostics() {
 describe
 BEFORE_READY="$(field status.latestReadyRevisionName)"
 BEFORE_CREATED="$(field status.latestCreatedRevisionName)"
-BEFORE_MODE="$(env_value OVERCENTER_AUTHORITY_MODE)"
-BEFORE_SOURCE="$(env_value OVERCENTER_SOURCE_REVISION)"
-BEFORE_FREEZE="$(env_value OVERCENTER_SOURCE_FREEZE_DIGEST)"
 
-if [[ -z "$BEFORE_READY" || "$BEFORE_READY" != "$BEFORE_CREATED" ]]; then
-  echo "Cloud Run has no single ready latest revision before deployment" >&2
+# A failed attempted revision is allowed to remain latestCreated. Recovery must
+# anchor the authority epoch to the latest revision that actually became ready,
+# not to the failed desired service template. The post-deploy proof below still
+# requires the replacement to become both latestCreated and latestReady.
+if [[ -z "$BEFORE_READY" ]]; then
+  echo "Cloud Run has no ready authoritative revision before deployment" >&2
   exit 1
 fi
+describe_revision "$BEFORE_READY"
+BEFORE_MODE="$(revision_env_value OVERCENTER_AUTHORITY_MODE)"
+BEFORE_SOURCE="$(revision_env_value OVERCENTER_SOURCE_REVISION)"
+BEFORE_FREEZE="$(revision_env_value OVERCENTER_SOURCE_FREEZE_DIGEST)"
+
 if [[ "$BEFORE_MODE" != "authoritative" ]]; then
-  echo "refusing deployment because current GCP runtime is not authoritative: ${BEFORE_MODE:-<none>}" >&2
+  echo "refusing deployment because current ready GCP runtime is not authoritative: ${BEFORE_MODE:-<none>}" >&2
   exit 1
 fi
 if [[ ! "$BEFORE_SOURCE" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "current GCP runtime has no exact source revision" >&2
+  echo "current ready GCP runtime has no exact source revision" >&2
   exit 1
 fi
 if [[ ! "$BEFORE_FREEZE" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-  echo "current GCP runtime has no sealed source-freeze digest" >&2
+  echo "current ready GCP runtime has no sealed source-freeze digest" >&2
   exit 1
+fi
+if [[ -n "$BEFORE_CREATED" && "$BEFORE_CREATED" != "$BEFORE_READY" ]]; then
+  echo "Recovering from failed Cloud Run revision $BEFORE_CREATED; authority remains $BEFORE_READY"
 fi
 
 # The current authoritative epoch is a precondition, not an input to choose.
