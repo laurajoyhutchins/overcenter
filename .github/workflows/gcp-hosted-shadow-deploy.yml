@@ -11,7 +11,7 @@ permissions:
   id-token: write
 
 jobs:
-  maintain-observation-residue:
+  enumerate-malformed-observations:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -19,11 +19,9 @@ jobs:
       EXPECTED_FREEZE_DIGEST: sha256:3ff040b3ebb60b89af860c1d3a140aef3be58652fdb1abca592ec45fb7c764b5
       GCP_REGION: us-west1
       AUTH_SERVICE: overcenter-shadow
-      MAINT_SERVICE: overcenter-prefreeze-maintenance
+      MAINT_SERVICE: overcenter-observation-inspector
       CLOUD_SQL_CONNECTION_NAME: project-6b810532-a302-48dc-b56:us-west1:overcenter-postgres
       RUNTIME_SA: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
-      PROJECT_REF: github:laurajoyhutchins/overcenter
-      AUTH_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
     steps:
       - name: Check out maintenance revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -44,7 +42,7 @@ jobs:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
-          request_reason: Overcenter private pre-freeze observation maintenance
+          request_reason: Overcenter read-only observation enumeration
 
       - name: Install Google Cloud CLI
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
@@ -63,9 +61,8 @@ jobs:
           test "$mode" = authoritative
           test "$revision" = "$EXPECTED_REVISION"
           test "$digest" = "$EXPECTED_FREEZE_DIGEST"
-          echo "authoritative revision: $ready"
 
-      - name: Deploy private temporary maintenance service
+      - name: Deploy private read-only observation inspector
         id: deploy
         shell: bash
         run: |
@@ -87,8 +84,8 @@ jobs:
           test -n "$url"
           echo "service_url=$url" >> "$GITHUB_OUTPUT"
 
-      - name: Mint maintenance service identity token
-        id: maint-auth
+      - name: Mint inspector identity token
+        id: inspect-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
@@ -97,55 +94,20 @@ jobs:
           token_format: id_token
           id_token_audience: ${{ steps.deploy.outputs.service_url }}
           id_token_include_email: true
-          request_reason: Call private Overcenter observation maintenance service
+          request_reason: Call private Overcenter observation inspector
 
-      - name: Inspect and repair only malformed pre-freeze residue
+      - name: Enumerate malformed observations
         shell: bash
         env:
-          ID_TOKEN: ${{ steps.maint-auth.outputs.id_token }}
+          ID_TOKEN: ${{ steps.inspect-auth.outputs.id_token }}
           SERVICE_URL: ${{ steps.deploy.outputs.service_url }}
         run: |
           set -euo pipefail
-          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $ID_TOKEN" "$SERVICE_URL/inspect" > "$RUNNER_TEMP/residue.json"
-          echo 'pre-freeze residue:'
-          jq . "$RUNNER_TEMP/residue.json"
-          jq -e '.ok == true and (.candidate_count | type == "number")' "$RUNNER_TEMP/residue.json" >/dev/null
-          if [[ "$(jq -r '.candidate_count' "$RUNNER_TEMP/residue.json")" -gt 0 ]]; then
-            curl --silent --show-error --fail-with-body -H "Authorization: Bearer $ID_TOKEN" -X POST "$SERVICE_URL/repair" > "$RUNNER_TEMP/repair.json"
-            echo 'repair result:'
-            jq . "$RUNNER_TEMP/repair.json"
-            jq -e '.ok == true' "$RUNNER_TEMP/repair.json" >/dev/null
-          fi
-          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $ID_TOKEN" "$SERVICE_URL/inspect" > "$RUNNER_TEMP/after.json"
-          echo 'post-repair residue:'
-          jq . "$RUNNER_TEMP/after.json"
-          jq -e '.ok == true and .candidate_count == 0' "$RUNNER_TEMP/after.json" >/dev/null
+          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $ID_TOKEN" "$SERVICE_URL/inspect-all" > "$RUNNER_TEMP/malformed.json"
+          jq . "$RUNNER_TEMP/malformed.json"
+          jq -e '.ok == true and (.malformed_count | type == "number")' "$RUNNER_TEMP/malformed.json" >/dev/null
 
-      - name: Mint authoritative service identity token
-        id: auth-runtime
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
-        with:
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
-          token_format: id_token
-          id_token_audience: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
-          id_token_include_email: true
-          request_reason: Verify authoritative Overcenter after residue repair
-
-      - name: Prove authoritative project inspection
-        shell: bash
-        env:
-          ID_TOKEN: ${{ steps.auth-runtime.outputs.id_token }}
-        run: |
-          set -euo pipefail
-          status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -X POST -d "{\"project_ref\":\"$PROJECT_REF\"}" "$AUTH_AUDIENCE/api/authoritative-state/project-inspect")"
-          echo "project.inspect HTTP $status"
-          jq . "$RUNNER_TEMP/inspect.json"
-          test "$status" = 200
-          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null
-
-      - name: Delete temporary maintenance service
+      - name: Delete temporary observation inspector
         if: always()
         shell: bash
         run: |
