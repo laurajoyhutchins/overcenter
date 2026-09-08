@@ -254,6 +254,15 @@ const projectInspectSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const invocationObservationSchema = Object.freeze({
+  type:'object',
+  required:['invocation_id'],
+  properties:{
+    invocation_id:{type:'string',pattern:'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'},
+  },
+  additionalProperties:false,
+});
+
 const projectDefineSchema = Object.freeze({
   type:'object',
   required:['project_ref','expected_revision','definition'],
@@ -369,6 +378,22 @@ const DESCRIPTORS = Object.freeze({
     'project.inspect',
     'Inspect authoritative repository-owned project state by project identity only. The runtime adapter derives the exact GitHub authority revision and graph frontier while keeping repository layout and host-specific runtime coordinates outside the primary semantic intent.',
     projectInspectSchema,
+    'primary',
+    WORKER_AND_MCP_EXPOSURE,
+  ),
+  'invocation.peek':descriptor(
+    'invocation.peek',
+    'invocation.peek',
+    'Read the bounded authoritative state of one exact durable command invocation without reconstructing prior session context or creating new execution state.',
+    invocationObservationSchema,
+    'primary',
+    WORKER_AND_MCP_EXPOSURE,
+  ),
+  'invocation.attach':descriptor(
+    'invocation.attach',
+    'invocation.attach',
+    'Reconnect to one exact durable command invocation and return its stable invocation reference plus current bounded authoritative observation without creating parallel session state.',
+    invocationObservationSchema,
     'primary',
     WORKER_AND_MCP_EXPOSURE,
   ),
