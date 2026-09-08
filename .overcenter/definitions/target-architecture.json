@@ -1324,6 +1324,53 @@
       }
     },
     {
+      "id": "establish-harness-regression-benchmark",
+      "priority": 174,
+      "requires": [
+        "establish-exhaustive-test-audit-harness",
+        "expose-overcenter-metrics-semantic-surface"
+      ],
+      "executor": {
+        "kind": "agent",
+        "role": "verification",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Establish a revision-bound HarnessBench-style regression capability for Overcenter that evaluates the same representative project-transition episodes under controlled harness configurations, so changes to agent packets, semantic commands, context/state handling, recovery, permissions, and execution machinery can be measured for verified outcome quality, efficiency, and regressions without changing the underlying task or silently creating a second execution truth.",
+        "acceptance_evidence": [
+          {
+            "kind": "ablation",
+            "requirement": "The benchmark can execute the same case across explicitly versioned harness configurations while holding model/task/budget controls fixed enough to attribute differences to harness changes. At minimum support controlled comparisons for self-contained versus thin agent packets, semantic-command versus safely representable legacy agent bookkeeping paths, deterministic recovery versus new-reasoning-boundary recovery, and enabled/disabled mechanically delegated execution paths without weakening production authority checks."
+          },
+          {
+            "kind": "corpus",
+            "requirement": "Define a bounded replayable benchmark corpus of representative historical and synthetic Overcenter transition episodes spanning clean success, stale authority, deterministic recovery, indeterminate mutation, operator escalation, disposable-agent resume, and mechanically delegable work. Every case binds exact project/graph/source revisions, execution contract version, expected authoritative outcome, and required evidence; benchmark fixtures are evidence only and never become project authority."
+          },
+          {
+            "kind": "evolution-regression",
+            "requirement": "A harness change cannot be declared an improvement from aggregate wins alone: the benchmark reports per-case regressions and retention of previously solved capability, with an explicit regression gate for harness-induced forgetting across prior benchmark cases. Adding a tool, packet field, recovery path, or semantic operation must be able to demonstrate that previously passing representative cases remain passing or surface the exact regression."
+          },
+          {
+            "kind": "failure-taxonomy",
+            "requirement": "Produce deterministic failure classifications that distinguish execution-alignment defects such as stale authority use, ignored or contradicted tool/provider readback, unverified completion, recovery-path noncompliance, output/settlement contract drift, and agent-performed mechanically knowable bookkeeping. Every classification drills to exact run/transition/command/evidence identities and does not depend on prompt-content surveillance."
+          },
+          {
+            "kind": "metrics",
+            "requirement": "Score each run from canonical durable Overcenter facts and the existing metrics semantic surface, including verified transition success, verified transitions per agent execution boundary, first-pass success, operator-action-required rate, automatic recovery success, recovery requiring a new reasoning boundary, semantic coordination round trips, deterministic-work leakage to the agent, stale-authority/indeterminate-effect failures, latency, and bounded tool/token or execution-cost measures where authoritatively observable. Unknown coverage remains explicitly unknown rather than inferred."
+          },
+          {
+            "kind": "replay",
+            "requirement": "Repeated evaluation of the same frozen case and harness configuration is deterministic with respect to fixture identity, harness/version identity, scoring derivation, and expected authority assertions; stochastic reasoning variation is recorded as run evidence rather than allowed to change the benchmark definition or settlement truth."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Automated tests plus an exact-final-revision dogfood run compare at least two materially different Overcenter harness configurations on the frozen corpus and produce a machine-readable report showing wins, regressions, failure classes, coverage unknowns, and drill-down evidence. The implementation reuses canonical execution journals, receipts, metrics, and exact-revision evidence rather than introducing a parallel benchmark state machine."
+          }
+        ]
+      }
+    },
+    {
       "id": "establish-outcome-integrity-semantic-mutation-benchmark",
       "priority": 179,
       "requires": [
@@ -2616,6 +2663,38 @@
           {
             "kind": "regression",
             "requirement": "A focused RED-to-GREEN regression reproduces the dogfood sequence: epoch N mutates an exact lease-derived workspace candidate and that candidate is merged, the transition truthfully requeues, epoch N+1 resumes the same unchanged transition definition, and completed settlement confirms the epoch N authoritative effect rather than requiring a nonexistent epoch N+1 candidate workspace."
+          }
+        ]
+      }
+    },
+    {
+      "id": "repair-explicit-github-changeset-provider-injection",
+      "priority": 1900,
+      "requires": [],
+      "executor": {
+        "kind": "agent",
+        "role": "implementation",
+        "skill": "test-driven-development"
+      },
+      "execution_intent": {
+        "schema": "project-execution-intent-v1",
+        "desired_outcome": "Repair the explicit runtime-provider refactor so every GitHub changeset path that requires GitHub App authentication consumes a composition-root-injected GitHub App client rather than ambient secret access, restoring project.amend and other affected changeset callers without reintroducing Hatchable config imports into semantic libraries.",
+        "acceptance_evidence": [
+          {
+            "kind": "callsite",
+            "requirement": "Audit production call sites of applyGithubChangesetRoleAware/applyGithubChangesetWithGitHubApp and ensure composition roots pass the explicit GitHub App provider wherever authenticated changeset execution is expected. Do not restore ambient Hatchable config imports inside github-app-auth or github-apply-changeset."
+          },
+          {
+            "kind": "project-authoring",
+            "requirement": "At the exact repaired revision, a bounded project.amend dogfood mutation reaches the durable GitHub changeset claim, stages and integrates an exact-head candidate, and authoritative project.inspect readback observes the resulting graph revision."
+          },
+          {
+            "kind": "regression",
+            "requirement": "Add focused tests proving applyGithubChangesetWithGitHubApp uses an injected withGitHubAppApiClient provider and does not require ambient secret/config access when that provider is supplied; a missing provider path must fail explicitly rather than being hidden behind PROJECT_AUTHORING_MUTATION_UNCONFIRMED."
+          },
+          {
+            "kind": "verification",
+            "requirement": "Canonical node:test/developer verification passes at the exact final revision, and the deployed runtime readback proves the source-authoritative fix works without relying on the temporary Hatchable-only recovery patch."
           }
         ]
       }
