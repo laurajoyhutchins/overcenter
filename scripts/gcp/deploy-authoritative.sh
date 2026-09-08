@@ -168,6 +168,9 @@ fi
 # and database secret as the serving process, performs zero retries, proves the
 # imported frozen-source identity, removes only migration-059 source-only write
 # fences, verifies zero remain, then the temporary job resource is deleted.
+# Source deploys produce Cloud Native Buildpacks images. Custom commands must
+# pass through the CNB launcher so launch-layer PATH/env (including Node) is
+# materialized before the activation process starts.
 cleanup_activation_job
 set +e
 gcloud run jobs deploy "$ACTIVATION_JOB" \
@@ -178,8 +181,8 @@ gcloud run jobs deploy "$ACTIVATION_JOB" \
   --set-cloudsql-instances="$CONNECTION_NAME" \
   --set-env-vars="PGHOST=/cloudsql/${CONNECTION_NAME},PGDATABASE=${DB_NAME},PGUSER=${DB_USER},OVERCENTER_AUTHORITY_MODE=authoritative,OVERCENTER_SOURCE_REVISION=${EXACT_REVISION},OVERCENTER_SOURCE_FREEZE_DIGEST=${BEFORE_FREEZE}" \
   --set-secrets="PGPASSWORD=${PASSWORD_SECRET}:latest" \
-  --command=node \
-  --args=scripts/cloud-run-target-activate.mjs \
+  --command=/cnb/lifecycle/launcher \
+  --args="--,node,scripts/cloud-run-target-activate.mjs" \
   --tasks=1 \
   --parallelism=1 \
   --max-retries=0 \
