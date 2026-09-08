@@ -100,3 +100,30 @@ test('unrecognized project transition observation provenance still fails closed'
     error => error?.code === 'PROJECT_GRAPH_OBSERVATIONS_INVALID',
   );
 });
+
+test('post-cutover GCP deployment path cannot demote authoritative runtime to shadow', async () => {
+  for (const retiredPath of [
+    '.github/workflows/gcp-hosted-shadow-deploy.yml',
+    'scripts/gcp/deploy-shadow.sh',
+  ]) {
+    await assert.rejects(readFile(retiredPath, 'utf8'), /ENOENT/);
+  }
+
+  const workflow = await readFile('.github/workflows/gcp-authoritative-deploy.yml', 'utf8');
+  const deploy = await readFile('scripts/gcp/deploy-authoritative.sh', 'utf8');
+  const bootstrap = await readFile('scripts/gcp/bootstrap-github-oidc.sh', 'utf8');
+
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /\n\s*push:/);
+  assert.match(workflow, /refs\/heads\/main/);
+  assert.match(workflow, /deploy-authoritative\.sh/);
+
+  assert.match(deploy, /BEFORE_MODE/);
+  assert.match(deploy, /BEFORE_FREEZE/);
+  assert.match(deploy, /OVERCENTER_AUTHORITY_MODE=authoritative/);
+  assert.doesNotMatch(deploy, /OVERCENTER_AUTHORITY_MODE=shadow/);
+
+  assert.doesNotMatch(bootstrap, /gcp-hosted-shadow-deploy/);
+  assert.doesNotMatch(bootstrap, /gcp-cloud-run-cloud-sql-bootstrap/);
+  assert.doesNotMatch(bootstrap, /gh workflow run/);
+});
