@@ -7,6 +7,13 @@ const config = resolveCloudRunConfig(process.env);
 const { Pool } = pg;
 const pool = new Pool(config.postgres);
 
+function classifiedExitCode(error) {
+  if (error?.code === '42501') return 13; // PostgreSQL insufficient_privilege
+  if (error?.code === '55000') return 14; // frozen-source rejection / object state
+  if (String(error?.code || '').startsWith('TARGET_ACTIVATION_')) return 15;
+  return 1;
+}
+
 try {
   const result = await activateAuthoritativeTarget({
     db:pool,
@@ -30,7 +37,7 @@ try {
     details:error?.details || null,
     may_have_mutated:error?.may_have_mutated === true,
   }));
-  process.exitCode = 1;
+  process.exitCode = classifiedExitCode(error);
 } finally {
   await pool.end();
 }

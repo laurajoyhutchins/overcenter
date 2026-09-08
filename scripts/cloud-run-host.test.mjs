@@ -178,7 +178,7 @@ test('runtime publish preserves exact revision and artifact validation', async (
   });
 });
 
-test('authoritative target activation removes copied source-freeze triggers without unfreezing source evidence', async () => {
+test('authoritative target activation is idempotent after copied source fences are removed', async () => {
   const runtimeRevision = 'a'.repeat(40);
   const frozenSourceRevision = 'c'.repeat(40);
   const freezeDigest = `sha256:${'b'.repeat(64)}`;
@@ -215,7 +215,8 @@ test('authoritative target activation removes copied source-freeze triggers with
   assert.equal(result.runtime_source_revision, runtimeRevision);
   assert.equal(result.frozen_source_revision, frozenSourceRevision);
   assert.equal(result.source_freeze_digest, freezeDigest);
-  assert.ok(calls.some(call => call.text.includes("tgname LIKE 'overcenter_source_freeze_%'") && call.text.includes('DROP TRIGGER')));
+  assert.equal(result.source_freeze_triggers_remaining, 0);
+  assert.ok(!calls.some(call => /DROP\s+(TRIGGER|FUNCTION)/i.test(call.text)));
   assert.ok(!calls.some(call => /UPDATE\s+overcenter_authority_freeze/i.test(call.text)));
 });
 
