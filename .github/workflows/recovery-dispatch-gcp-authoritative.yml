@@ -1,0 +1,46 @@
+name: Recovery dispatch GCP authoritative deployment
+
+on:
+  push:
+    branches:
+      - recovery/gcp-authoritative-dispatch-cb8b8062
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EXACT_REVISION: dfe14c46454d77f5922fd7e9c25f2f73f24fa050
+    steps:
+      - name: Check out recovery dispatcher
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Prove dispatcher is anchored to exact authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXACT_REVISION"
+          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXACT_REVISION"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXACT_REVISION"
+
+      - name: Dispatch manual-only authoritative workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          body="$(jq -nc --arg revision "$EXACT_REVISION" '{ref:"dev",inputs:{exact_revision:$revision}}')"
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -d "$body" \
+            "https://api.github.com/repos/laurajoyhutchins/overcenter/actions/workflows/gcp-authoritative-deploy.yml/dispatches"
