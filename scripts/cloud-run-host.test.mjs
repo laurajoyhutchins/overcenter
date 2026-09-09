@@ -177,6 +177,35 @@ test('shadow mode exposes read-only project inspection without enabling semantic
   });
 });
 
+test('private runtime exposes read-only authority proof inspection without invoking semantic writes', async () => {
+  let proofCalls = 0;
+  let workerCalls = 0;
+  const handler = createCloudRunHandler({
+    db: { query: async () => ({ rows: [] }) },
+    runtime: { publishAndVerify: async () => { throw new Error('not called'); } },
+    authorityProofInspect: async input => {
+      proofCalls += 1;
+      return { schema:'overcenter-authority-proof-inspect-v1', phase:input.phase, counts:{ runs:1 } };
+    },
+    workerCommand: async () => { workerCalls += 1; return { status:200, body:{ ok:true } }; },
+    authorityMode:'authoritative',
+  });
+  const response = responseRecorder();
+  await handler(await request({
+    method:'POST',
+    url:'/api/authoritative-state/proof-inspect',
+    body:JSON.stringify({ phase:'failed-attempt', project_ref:'github:owner/repo' }),
+  }), response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(proofCalls, 1);
+  assert.equal(workerCalls, 0);
+  assert.deepEqual(JSON.parse(response.body), {
+    ok:true,
+    authority_mode:'authoritative',
+    proof:{ schema:'overcenter-authority-proof-inspect-v1', phase:'failed-attempt', counts:{ runs:1 } },
+  });
+});
+
 test('shadow mode rejects semantic worker commands before invocation', async () => {
   let calls = 0;
   const handler = createCloudRunHandler({

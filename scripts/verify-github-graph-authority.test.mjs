@@ -130,19 +130,20 @@ test('post-cutover GCP deployment path cannot demote authoritative runtime to sh
 
 test('authoritative deployment proves a reversible ordinary GCP transition and durable settlement', async () => {
   const workflow = await readFile('.github/workflows/gcp-authoritative-deploy.yml', 'utf8');
-  const proof = await readFile('scripts/gcp/prove-authoritative-runtime.sh', 'utf8');
-  const inspector = await readFile('scripts/cloud-run-authority-proof-inspect.mjs', 'utf8');
+  const proof = await readFile('scripts/gcp/prove-authoritative-runtime-http.sh', 'utf8');
+  const inspector = await readFile('scripts/cloud-run-authority-proof-runtime.mjs', 'utf8');
 
   assert.match(workflow, /token_format:\s*id_token/);
   assert.match(workflow, /id_token_audience:/);
-  assert.match(workflow, /prove-authoritative-runtime\.sh inspect-failed/);
   assert.match(workflow, /deploy-authoritative\.sh/);
-  assert.match(workflow, /prove-authoritative-runtime\.sh prove/);
+  assert.match(workflow, /prove-authoritative-runtime-http\.sh/);
   assert.match(workflow, /finish-hatchable-gcp-authoritative-state-migration/);
+  assert.doesNotMatch(workflow, /prove-authoritative-runtime\.sh inspect-failed/);
   assert.doesNotMatch(workflow, /production\.promote/);
 
   assert.match(proof, /\/health/);
   assert.match(proof, /\/api\/authoritative-state\/project-inspect/);
+  assert.match(proof, /\/api\/authoritative-state\/proof-inspect/);
   assert.match(proof, /\/api\/worker-command/);
   assert.match(proof, /project\.advance/);
   assert.match(proof, /AGENT_EXECUTION_REQUIRED/);
@@ -151,6 +152,7 @@ test('authoritative deployment proves a reversible ordinary GCP transition and d
   assert.match(proof, /settle_receipt/);
   assert.match(proof, /active_transition_leases/);
   assert.match(proof, /source_only_migrations/);
+  assert.doesNotMatch(proof, /gcloud logging read/);
   assert.doesNotMatch(proof, /disposition:\"completed\"/);
 
   assert.match(inspector, /READ ONLY/);
