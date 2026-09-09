@@ -15,6 +15,8 @@ on:
         options:
           - project.inspect
           - project.advance
+          - github.apply_changeset
+          - github.apply_text_replacements
       project_ref:
         description: Canonical repository-owned project ref
         required: true
@@ -35,6 +37,11 @@ on:
         type: string
       execution_result_json:
         description: Optional JSON settlement result paired with resume_ref
+        required: false
+        default: ''
+        type: string
+      command_input_json:
+        description: Bounded canonical input for an admitted lease-scoped internal mutation
         required: false
         default: ''
         type: string
@@ -59,6 +66,7 @@ jobs:
       TRANSITION_ID: ${{ inputs.transition_id }}
       RESUME_REF: ${{ inputs.resume_ref }}
       EXECUTION_RESULT_JSON: ${{ inputs.execution_result_json }}
+      COMMAND_INPUT_JSON: ${{ inputs.command_input_json }}
       REQUEST_ID: ${{ inputs.request_id }}
     steps:
       - name: Check out exact invocation source
@@ -79,18 +87,31 @@ jobs:
           test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_HEAD"
           test "$PROJECT_REF" = 'github:laurajoyhutchins/overcenter'
           case "$COMMAND" in
-            project.inspect|project.advance) ;;
+            project.inspect|project.advance|github.apply_changeset|github.apply_text_replacements) ;;
             *) echo "unsupported semantic command: $COMMAND" >&2; exit 2 ;;
           esac
-          if [ "$COMMAND" = project.inspect ]; then
-            test -z "$TRANSITION_ID"
-            test -z "$RESUME_REF"
-            test -z "$EXECUTION_RESULT_JSON"
-          fi
-          if [ -n "$EXECUTION_RESULT_JSON" ]; then
-            test -n "$RESUME_REF"
-            jq -e 'type == "object"' <<<"$EXECUTION_RESULT_JSON" >/dev/null
-          fi
+          case "$COMMAND" in
+            project.inspect)
+              test -z "$TRANSITION_ID"
+              test -z "$RESUME_REF"
+              test -z "$EXECUTION_RESULT_JSON"
+              test -z "$COMMAND_INPUT_JSON"
+              ;;
+            project.advance)
+              test -z "$COMMAND_INPUT_JSON"
+              if [ -n "$EXECUTION_RESULT_JSON" ]; then
+                test -n "$RESUME_REF"
+                jq -e 'type == "object"' <<<"$EXECUTION_RESULT_JSON" >/dev/null
+              fi
+              ;;
+            github.apply_changeset|github.apply_text_replacements)
+              test -z "$TRANSITION_ID"
+              test -z "$RESUME_REF"
+              test -z "$EXECUTION_RESULT_JSON"
+              test -n "$COMMAND_INPUT_JSON"
+              jq -e 'type == "object" and (.lease_ref | type == "string" and length > 0)' <<<"$COMMAND_INPUT_JSON" >/dev/null
+              ;;
+          esac
 
       - name: Authenticate to authoritative GCP runtime
         id: auth
@@ -110,18 +131,25 @@ jobs:
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
         run: |
           set -euo pipefail
-          input="$(jq -n --arg project_ref "$PROJECT_REF" '{project_ref:$project_ref}')"
-          if [ "$COMMAND" = project.advance ]; then
-            if [ -n "$TRANSITION_ID" ]; then
-              input="$(jq --arg transition_id "$TRANSITION_ID" '. + {transition_id:$transition_id}' <<<"$input")"
-            fi
-            if [ -n "$RESUME_REF" ]; then
-              input="$(jq --arg resume_ref "$RESUME_REF" '. + {resume_ref:$resume_ref}' <<<"$input")"
-            fi
-            if [ -n "$EXECUTION_RESULT_JSON" ]; then
-              input="$(jq --argjson execution_result "$EXECUTION_RESULT_JSON" '. + {execution_result:$execution_result}' <<<"$input")"
-            fi
-          fi
+          case "$COMMAND" in
+            github.apply_changeset|github.apply_text_replacements)
+              input="$COMMAND_INPUT_JSON"
+              ;;
+            *)
+              input="$(jq -n --arg project_ref "$PROJECT_REF" '{project_ref:$project_ref}')"
+              if [ "$COMMAND" = project.advance ]; then
+                if [ -n "$TRANSITION_ID" ]; then
+                  input="$(jq --arg transition_id "$TRANSITION_ID" '. + {transition_id:$transition_id}' <<<"$input")"
+                fi
+                if [ -n "$RESUME_REF" ]; then
+                  input="$(jq --arg resume_ref "$RESUME_REF" '. + {resume_ref:$resume_ref}' <<<"$input")"
+                fi
+                if [ -n "$EXECUTION_RESULT_JSON" ]; then
+                  input="$(jq --argjson execution_result "$EXECUTION_RESULT_JSON" '. + {execution_result:$execution_result}' <<<"$input")"
+                fi
+              fi
+              ;;
+          esac
           payload="$(jq -n --arg command "$COMMAND" --argjson input "$input" '{command:$command,input:$input}')"
           status="$(curl --silent --show-error -o "$RUNNER_TEMP/semantic-response.json" -w '%{http_code}' \
             -H "Authorization: Bearer $ID_TOKEN" \
