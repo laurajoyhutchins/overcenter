@@ -1,0 +1,65 @@
+name: GCP command ingress
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-command-ingress.yml
+      - scripts/cloud-run-command-ingress.mjs
+      - scripts/cloud-run-command-ingress-host.mjs
+      - scripts/gcp/deploy-command-ingress.sh
+      - package.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: overcenter-gcp-command-ingress
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GCP_REGION: us-west1
+      OVERCENTER_TARGET_SERVICE: overcenter-shadow
+    steps:
+      - name: Check out exact dev revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Prove deployment source is current dev head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/dev"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$GITHUB_SHA"
+
+      - name: Test ingress transport contract
+        run: node --test scripts/cloud-run-command-ingress-host.test.mjs
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          request_reason: Deploy stateless Overcenter command ingress ${{ github.sha }}
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+
+      - name: Deploy stateless ingress
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
+        run: bash ./scripts/gcp/deploy-command-ingress.sh

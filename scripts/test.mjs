@@ -22,15 +22,16 @@ async function javascriptFiles(directory) {
 }
 
 const maintainedTests = [
+  'cloud-run-command-ingress-host.test.mjs',
   'cloud-run-host.test.mjs',
   'cloud-run-target-activation-exit.test.mjs',
   'cloud-run-target-authority.test.mjs',
   'codex-agent-execution-workflow.test.mjs',
   'gcp-activation-cnb-launcher.test.mjs',
+  'gcp-command-ingress-deploy.test.mjs',
   'postgres-state-manifest.test.mjs',
   'source-authority-fence.test.mjs',
   'verify-github-workflow-dispatch.test.mjs',
-  'verify-gcp-semantic-command-bridge.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
   'verify-legacy-scheduled-cycle-cron-retirement.test.mjs',
