@@ -15,14 +15,17 @@ on:
         options:
           - project.inspect
           - project.advance
+          - project.amend
+          - github.pull_request.mark_ready
           - github.apply_changeset
           - github.apply_text_replacements
       project_ref:
-        description: Canonical repository-owned project ref
-        required: true
+        description: Canonical target project ref for project commands; empty for lease/integration commands
+        required: false
+        default: ''
         type: string
       expected_head:
-        description: Exact converged dev/main revision expected by the caller
+        description: Exact converged Overcenter dev/main control-plane revision expected by the caller
         required: true
         type: string
       transition_id:
@@ -76,7 +79,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: overcenter-gcp-semantic-${{ inputs.project_ref }}
+  group: overcenter-gcp-semantic-control-plane
   cancel-in-progress: false
 
 jobs:
@@ -116,26 +119,60 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXPECTED_HEAD"
           test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_HEAD"
-          test "$PROJECT_REF" = 'github:laurajoyhutchins/overcenter'
           case "$COMMAND" in
-            project.inspect|project.advance|github.apply_changeset|github.apply_text_replacements) ;;
+            project.inspect|project.advance|project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) ;;
             *) echo "unsupported semantic command: $COMMAND" >&2; exit 2 ;;
           esac
           case "$COMMAND" in
             project.inspect)
+              [[ "$PROJECT_REF" =~ ^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
               test -z "$TRANSITION_ID"
               test -z "$RESUME_REF"
               test -z "$EXECUTION_RESULT_JSON"
               test -z "$command_input_json"
               ;;
             project.advance)
+              [[ "$PROJECT_REF" =~ ^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
               test -z "$command_input_json"
               if [ -n "$EXECUTION_RESULT_JSON" ]; then
                 test -n "$RESUME_REF"
                 jq -e 'type == "object"' <<<"$EXECUTION_RESULT_JSON" >/dev/null
               fi
               ;;
+            project.amend)
+              [[ "$PROJECT_REF" =~ ^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+              test -z "$TRANSITION_ID"
+              test -z "$RESUME_REF"
+              test -z "$EXECUTION_RESULT_JSON"
+              test -n "$command_input_json"
+              jq -e \
+                --arg project_ref "$PROJECT_REF" \
+                'type == "object"
+                  and (keys == ["amendment","expected_revision","project_ref"])
+                  and (.project_ref == $project_ref)
+                  and (.expected_revision | type == "string" and test("^[0-9a-f]{40}$"))
+                  and ((.amendment | type) == "object")' \
+                <<<"$command_input_json" >/dev/null
+              ;;
+            github.pull_request.mark_ready)
+              test -z "$PROJECT_REF"
+              test -z "$TRANSITION_ID"
+              test -z "$RESUME_REF"
+              test -z "$EXECUTION_RESULT_JSON"
+              test -n "$command_input_json"
+              jq -e '
+                type == "object"
+                and ((keys - ["expected_head","pull_request","repo","run_id"]) | length == 0)
+                and has("repo") and has("pull_request") and has("expected_head")
+                and (.repo | type == "string" and test("^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"))
+                and (.pull_request | type == "number")
+                and (.pull_request >= 1 and .pull_request == (.pull_request | floor))
+                and (.expected_head | type == "string" and test("^[0-9a-f]{40}$"))
+                and ((has("run_id") | not) or (.run_id | type == "string" and length > 0 and length <= 512))' \
+                <<<"$command_input_json" >/dev/null
+              ;;
             github.apply_changeset|github.apply_text_replacements)
+              test -z "$PROJECT_REF"
               test -z "$TRANSITION_ID"
               test -z "$RESUME_REF"
               test -z "$EXECUTION_RESULT_JSON"
@@ -164,7 +201,7 @@ jobs:
           set -euo pipefail
           command_input_json="${COMMAND_INPUT_0}${COMMAND_INPUT_1}${COMMAND_INPUT_2}${COMMAND_INPUT_3}${COMMAND_INPUT_4}${COMMAND_INPUT_5}"
           case "$COMMAND" in
-            github.apply_changeset|github.apply_text_replacements)
+            project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements)
               input="$command_input_json"
               ;;
             *)
