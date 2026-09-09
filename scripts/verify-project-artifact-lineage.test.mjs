@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import {
   reconstructProjectArtifactLineage,
   classifyProjectArtifactLineage,
+  bindProjectArtifact,
+  classifyProjectArtifactBinding,
 } from '../lib/project-artifact-lineage.js';
 
 const SHA = '94587c05ff813795bd2c8832af72d5c0dda18cec';
@@ -85,4 +87,50 @@ test('orphaning requires exact Overcenter ownership and absence of live continua
     live_execution_provider_ids: [],
     overcenter_owned_provider_ids: [],
   }).classification, 'ambiguous');
+});
+
+test('explicit issue binding can mechanically satisfy an artifact while an unbound lookalike remains ambiguous', () => {
+  const binding = bindProjectArtifact({
+    project_ref: 'github:laurajoyhutchins/overcenter',
+    transition_id: 'add-project-artifact-binding',
+    authority_revision: SHA,
+    repository: 'laurajoyhutchins/overcenter',
+    provider: { kind: 'issue', id: 732 },
+    relationship: 'full_coverage_equivalence',
+    satisfaction: { condition: 'closed' },
+  });
+
+  assert.equal(binding.schema, 'project-artifact-binding-v1');
+  assert.deepEqual(binding.provider, { repository: 'laurajoyhutchins/overcenter', kind: 'issue', id: 732 });
+  assert.equal(classifyProjectArtifactBinding(binding, {
+    provider: { repository: 'laurajoyhutchins/overcenter', kind: 'issue', id: 732, state: 'closed' },
+  }).classification, 'satisfied');
+
+  assert.equal(classifyProjectArtifactBinding(null, {
+    provider: { repository: 'laurajoyhutchins/overcenter', kind: 'issue', id: 733, state: 'closed' },
+    title: 'add project artifact binding',
+    body: 'Looks equivalent by prose but has no durable binding.',
+  }).classification, 'ambiguous');
+});
+
+test('artifact binding requires exact semantic subject and auditable provider identity', () => {
+  assert.throws(() => bindProjectArtifact({
+    project_ref: 'github:laurajoyhutchins/overcenter',
+    authority_revision: SHA,
+    repository: 'laurajoyhutchins/overcenter',
+    provider: { kind: 'issue', id: 732 },
+    relationship: 'full_coverage_equivalence',
+    satisfaction: { condition: 'closed' },
+    title: 'add project artifact binding',
+  }), /transition identity/);
+
+  assert.throws(() => bindProjectArtifact({
+    project_ref: 'github:laurajoyhutchins/overcenter',
+    transition_id: 'add-project-artifact-binding',
+    authority_revision: SHA,
+    repository: 'laurajoyhutchins/overcenter',
+    provider: { kind: 'issue', id: '732-ish' },
+    relationship: 'full_coverage_equivalence',
+    satisfaction: { condition: 'closed' },
+  }), /provider object identity/);
 });
