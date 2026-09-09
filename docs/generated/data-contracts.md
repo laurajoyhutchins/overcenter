@@ -77,6 +77,7 @@
 
 ## Unclassified historical debt
 
+- `http:api/gcp-semantic-command-dispatch.js#request-response`
 - `http:api/github-actions-storage.js#request-response`
 - `http:api/github-apply-changeset.js#request-response`
 - `http:api/github-apply-text-replacements.js#request-response`
