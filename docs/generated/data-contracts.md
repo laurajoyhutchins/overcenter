@@ -9,6 +9,7 @@
 - `github.apply_text_replacements.input` — authority `semantic-command:github.apply_text_replacements#input`; SemVer `semantic-command-contract`
 - `github.release.create.input` — authority `semantic-command:github.release.create#input`; SemVer `semantic-command-contract`
 - `orchestration.diagnose.input` — authority `semantic-command:orchestration.diagnose#input`; SemVer `semantic-command-contract`
+- `orchestration.maintain.input` — authority `semantic-command:orchestration.maintain#input`; SemVer `semantic-command-contract`
 - `production.promote.input` — authority `semantic-command:production.promote#input`; SemVer `semantic-command-contract`; 1 projection
 - `production.reconcile.input` — authority `semantic-command:production.reconcile#input`; SemVer `semantic-command-contract`; 1 projection
 - `project.advance.input` — authority `semantic-command:project.advance#input`; SemVer `semantic-command-contract`; 1 projection
@@ -196,7 +197,6 @@
 - `repo-data:.overcenter/definitions/target-architecture.json#overcenter-project-definition-v1`
 - `repo-data:.overcenter/project-definitions.json#project-definition-discovery-v1`
 - `semantic-command:github.pull_request.mark_ready#input`
-- `semantic-command:orchestration.maintain#input`
 - `typescript:src/adapters/mcp/production-promotion.ts#ProductionPromotionMcpRuntime`
 - `typescript:src/adapters/mcp/project-advance.ts#ProjectAdvanceMcpRuntime`
 - `typescript:src/adapters/mcp/project-inspect.ts#ProjectInspectMcpRuntime`
