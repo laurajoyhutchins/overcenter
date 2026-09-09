@@ -127,6 +127,7 @@ const githubApplyChangesetSchema = Object.freeze({
     lease_ref:{type:'string',minLength:1,maxLength:128,description:'Project-transition lease reference from AGENT_EXECUTION_REQUIRED.'},
     changes:{type:'array',minItems:1,items:githubChangesetChangeSchema,description:'Complete repository changes. Repository, branch, base, expected head, retry identity, and credential authority are derived from the lease.'},
     commit_message:{type:'string',minLength:1,maxLength:10000},
+    coalesce_previous_mechanical:{type:'boolean',description:'When true, replace the immediately preceding same-workspace mechanical cleanup head with one combined mechanical commit. The lease, exact workspace head, and mechanical-parent preconditions are revalidated before mutation.'},
   },
   additionalProperties:false,
 });
