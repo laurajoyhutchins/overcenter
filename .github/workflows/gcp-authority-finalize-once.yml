@@ -1,4 +1,4 @@
-# Re-run after bounded GCP semantic invocation repair.
+# Re-run after bounded GCP semantic WIF branch repair.
 name: One-shot finalize GCP authority
 
 on:
