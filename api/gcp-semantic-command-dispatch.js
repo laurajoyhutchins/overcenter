@@ -12,8 +12,11 @@ const REF = 'dev';
 const SHA40 = /^[0-9a-f]{40}$/;
 const TRANSITION = /^\S{1,256}$/;
 const RESUME = /^\S{1,512}$/;
-const ALLOWED_COMMANDS = new Set(['project.inspect', 'project.advance']);
-const ALLOWED_FIELDS = new Set(['command', 'expected_head', 'transition_id', 'resume_ref', 'execution_result']);
+const PROJECT_COMMANDS = new Set(['project.inspect', 'project.advance']);
+const LEASE_MUTATION_COMMANDS = new Set(['github.apply_changeset', 'github.apply_text_replacements']);
+const ALLOWED_COMMANDS = new Set([...PROJECT_COMMANDS, ...LEASE_MUTATION_COMMANDS]);
+const ALLOWED_FIELDS = new Set(['command', 'expected_head', 'transition_id', 'resume_ref', 'execution_result', 'input']);
+const MAX_COMMAND_INPUT_BYTES = 60000;
 
 const secrets = Object.freeze({
   get(name) {
@@ -40,13 +43,26 @@ function normalizeExecutionResult(value) {
   return encoded;
 }
 
+function normalizeLeaseMutationInput(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw invalid('input must be an object for lease-scoped GitHub mutations');
+  }
+  const encoded = JSON.stringify(value);
+  if (Buffer.byteLength(encoded, 'utf8') > MAX_COMMAND_INPUT_BYTES) {
+    throw invalid('input is too large for the bounded GCP workflow bridge');
+  }
+  return encoded;
+}
+
 function normalize(bodyInput) {
   const body = bodyInput && typeof bodyInput === 'object' && !Array.isArray(bodyInput) ? bodyInput : {};
   const unknown = Object.keys(body).filter((key) => !ALLOWED_FIELDS.has(key));
   if (unknown.length) throw invalid('request contains unknown fields', { fields: unknown.sort() });
 
   const command = String(body.command || '').trim();
-  if (!ALLOWED_COMMANDS.has(command)) throw invalid('command must be project.inspect or project.advance');
+  if (!ALLOWED_COMMANDS.has(command)) {
+    throw invalid('command is not admitted by the bounded GCP semantic bridge');
+  }
 
   const expectedHead = String(body.expected_head || '').trim().toLowerCase();
   if (!SHA40.test(expectedHead)) throw invalid('expected_head must be an exact 40-character Git SHA');
@@ -55,19 +71,34 @@ function normalize(bodyInput) {
   const resumeRef = body.resume_ref === undefined ? '' : String(body.resume_ref).trim();
   const executionResult = normalizeExecutionResult(body.execution_result);
 
-  if (command === 'project.inspect' && (transitionId || resumeRef || executionResult)) {
-    throw invalid('project.inspect does not accept advance continuation fields');
+  if (PROJECT_COMMANDS.has(command)) {
+    if (body.input !== undefined) throw invalid('project commands do not accept input');
+    if (command === 'project.inspect' && (transitionId || resumeRef || executionResult)) {
+      throw invalid('project.inspect does not accept advance continuation fields');
+    }
+    if (transitionId && !TRANSITION.test(transitionId)) throw invalid('transition_id is invalid');
+    if (resumeRef && !RESUME.test(resumeRef)) throw invalid('resume_ref is invalid');
+    if (executionResult && !resumeRef) throw invalid('execution_result requires resume_ref');
+    return {
+      command,
+      expected_head: expectedHead,
+      transition_id: transitionId,
+      resume_ref: resumeRef,
+      execution_result_json: executionResult,
+      command_input_json: '',
+    };
   }
-  if (transitionId && !TRANSITION.test(transitionId)) throw invalid('transition_id is invalid');
-  if (resumeRef && !RESUME.test(resumeRef)) throw invalid('resume_ref is invalid');
-  if (executionResult && !resumeRef) throw invalid('execution_result requires resume_ref');
 
+  if (transitionId || resumeRef || executionResult) {
+    throw invalid('lease-scoped GitHub mutations do not accept project.advance continuation fields');
+  }
   return {
     command,
     expected_head: expectedHead,
-    transition_id: transitionId,
-    resume_ref: resumeRef,
-    execution_result_json: executionResult,
+    transition_id: '',
+    resume_ref: '',
+    execution_result_json: '',
+    command_input_json: normalizeLeaseMutationInput(body.input),
   };
 }
 
@@ -89,6 +120,7 @@ export default async function (req, res) {
         transition_id: request.transition_id,
         resume_ref: request.resume_ref,
         execution_result_json: request.execution_result_json,
+        command_input_json: request.command_input_json,
       },
     }, {
       // Deliberately use the raw GitHub App identity rather than the Hatchable
