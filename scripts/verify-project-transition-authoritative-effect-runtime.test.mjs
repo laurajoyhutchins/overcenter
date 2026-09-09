@@ -2,7 +2,39 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { projectTransitionAuthoritativeEffectConfirmationFor } from '../lib/project-transition-authoritative-effect.js';
+import { resolveActiveProjectTransitionLeaseRef } from '../lib/project-transition-authoritative-effect-github-runtime.js';
 import { projectTransitionPullRequestDetailNumbers, projectTransitionPullRequestReadQuery } from '../lib/project-transition-authoritative-effect-github-query.js';
+
+test('authoritative-effect runtime resolves active project transition lease from durable lease authority', async () => {
+  const queries = [];
+  const db = {
+    async query(sql, params) {
+      queries.push({ sql, params });
+      return { rows:[{ lease_ref:'11111111-1111-4111-8111-111111111111' }] };
+    },
+  };
+  const leaseRef = await resolveActiveProjectTransitionLeaseRef(db, 'run-1', '2026-09-09T17:00:00.000Z');
+  assert.equal(leaseRef, '11111111-1111-4111-8111-111111111111');
+  assert.equal(queries.length, 1);
+  assert.match(queries[0].sql, /FROM work_leases/);
+  assert.doesNotMatch(queries[0].sql, /execution_state/);
+  assert.deepEqual(queries[0].params, ['run-1', '2026-09-09T17:00:00.000Z']);
+});
+
+test('authoritative-effect runtime fails closed when durable active lease authority is ambiguous', async () => {
+  const db = {
+    async query() {
+      return { rows:[
+        { lease_ref:'11111111-1111-4111-8111-111111111111' },
+        { lease_ref:'22222222-2222-4222-8222-222222222222' },
+      ] };
+    },
+  };
+  await assert.rejects(
+    () => resolveActiveProjectTransitionLeaseRef(db, 'run-1', '2026-09-09T17:00:00.000Z'),
+    (error) => error?.code === 'PROJECT_TRANSITION_AUTHORITATIVE_EFFECT_LEASE_AMBIGUOUS',
+  );
+});
 
 const SHA = {
   authority:'1111111111111111111111111111111111111111',
