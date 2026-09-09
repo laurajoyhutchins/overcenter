@@ -1,3 +1,4 @@
+# Re-run after GCP mutation-certainty hardening.
 name: One-shot finalize GCP authority
 
 on:
