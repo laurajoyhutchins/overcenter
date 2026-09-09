@@ -1,4 +1,4 @@
-# Re-run after GCP mutation-certainty hardening.
+# Re-run after bounded GCP semantic invocation repair.
 name: One-shot finalize GCP authority
 
 on:
