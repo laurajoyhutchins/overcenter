@@ -305,6 +305,33 @@ test('authoritative advancement rejects a stale semantic replay before a second 
   assert.equal(first.graph.revision, authoritativeRevision);
 });
 
+test('post-staging recovery persistence failure remains mutation-aware', async () => {
+  const recoveryError = Object.assign(new Error('operation_state unavailable'), { code:'RECOVERY_STORE_DOWN', may_have_mutated:false });
+  const runtime = createProjectAuthoringProductionRuntime({
+    resolveAuthority:async () => ({ ...authority(initialRevision), branch:'dev' }),
+    readDefinitionFacts:async ({ revision }) => revision === stagedRevision
+      ? { ...facts(revision, amendedDefinition), definitions:[{ path:'.overcenter/definitions/project.json', content:`${JSON.stringify(amendedDefinition, null, 2)}\n` }] }
+      : facts(revision, baseDefinition),
+    readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
+    readSourceRevision:async () => initialRevision,
+    applyChangeset:async () => ({ ok:true, new_head:stagedRevision }),
+    deriveProjectGraph:async ({ authority:observed }) => ({ schema:'overcenter-project-graph-v1', revision:observed.revision }),
+    integrateChangeset:async () => ({ ok:true, outcome:'waiting', pull_request:42, waiting_on:['checks'] }),
+    beginProjectAuthoringRecovery:async () => { throw recoveryError; },
+  });
+
+  await assert.rejects(
+    () => runtime.amend({
+      project_ref:projectRef,
+      expected_revision:initialRevision,
+      amendment:{ upsert_transitions:[{ id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] },
+    }),
+    (error) => error?.code === 'PROJECT_AUTHORING_RECOVERY_PERSISTENCE_FAILED'
+      && error?.may_have_mutated === true
+      && error?.details?.cause_code === 'RECOVERY_STORE_DOWN',
+  );
+});
+
 test('pending project.amend persists durable external-verification recovery coordinates', async () => {
   let recoveryInput = null;
   const runtime = createProjectAuthoringProductionRuntime({
