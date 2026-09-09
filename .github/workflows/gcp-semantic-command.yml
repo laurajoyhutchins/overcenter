@@ -16,6 +16,7 @@ on:
           - project.inspect
           - project.advance
           - project.amend
+          - orchestration.maintain
           - github.pull_request.mark_ready
           - github.apply_changeset
           - github.apply_text_replacements
@@ -120,10 +121,17 @@ jobs:
           test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXPECTED_HEAD"
           # Production convergence is enforced by promotion/deployment, not generic semantic admission.
           case "$COMMAND" in
-            project.inspect|project.advance|project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) ;;
+            project.inspect|project.advance|project.amend|orchestration.maintain|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) ;;
             *) echo "unsupported semantic command: $COMMAND" >&2; exit 2 ;;
           esac
           case "$COMMAND" in
+            orchestration.maintain)
+              test -z "$PROJECT_REF"
+              test -z "$TRANSITION_ID"
+              test -z "$RESUME_REF"
+              test -z "$EXECUTION_RESULT_JSON"
+              test -z "$command_input_json"
+              ;;
             project.inspect)
               [[ "$PROJECT_REF" =~ ^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
               test -z "$TRANSITION_ID"
@@ -201,6 +209,9 @@ jobs:
           set -euo pipefail
           command_input_json="${COMMAND_INPUT_0}${COMMAND_INPUT_1}${COMMAND_INPUT_2}${COMMAND_INPUT_3}${COMMAND_INPUT_4}${COMMAND_INPUT_5}"
           case "$COMMAND" in
+            orchestration.maintain)
+              input='{}'
+              ;;
             project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements)
               input="$command_input_json"
               ;;
