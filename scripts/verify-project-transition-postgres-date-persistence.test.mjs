@@ -4,6 +4,7 @@ import test from 'node:test';
 import { prepareProjectTransitionLeasePersistence } from '../lib/project-transition-lease-store.js';
 import { createProjectTransitionLeaseService } from '../lib/project-transition-leases.js';
 import { PRODUCTIVE_STAGES } from '../lib/work-lifecycle.js';
+import { createCloudRunDatabaseBinding } from './cloud-run-database-binding.mjs';
 
 function responsibilitiesFor(target) {
   const index = PRODUCTIVE_STAGES.indexOf(target);
@@ -13,12 +14,20 @@ function responsibilitiesFor(target) {
   ]));
 }
 
-test('project transition acquisition canonicalizes node-postgres Date deadlines before durable persistence', async () => {
+test('Cloud Run project transition acquisition canonicalizes node-postgres Date deadlines before durable persistence', async () => {
   const deadline = new Date('2026-08-27T14:00:00.000Z');
-  let persisted = null;
   const run = Object.freeze({ run_id:'run-pg-date', status:'active', deadline_at:deadline });
+  const pgPool = {
+    async query() { return { rows:[run] }; },
+    async connect() { throw new Error('transaction client is not needed by this focused adapter probe'); },
+  };
+  const db = createCloudRunDatabaseBinding(pgPool);
+  let persisted = null;
   const store = {
-    async getRun(runId) { return runId === run.run_id ? run : null; },
+    async getRun(runId) {
+      const result = await db.query('SELECT run');
+      return result.rows.find(row => row.run_id === runId) || null;
+    },
     async getLease() { return null; },
     async getLeaseByAcquireIdempotency() { return null; },
     async getSlot() { return null; },
