@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createExecutionAuthorityService } from '../lib/execution-authority-core.js';
 import { deriveProjectTransitionGithubWorkspace } from '../lib/project-transition-github-workspace.js';
-import { applyGithubChangeset, coalesceGithubMechanicalChangeset } from '../lib/github-apply-changeset.js';
+import { applyGithubChangeset, coalesceGithubMechanicalChangeset, createGithubApiAdapter } from '../lib/github-apply-changeset.js';
 
 const REPOSITORY = 'laurajoyhutchins/overcenter';
 const PROJECT_REF = `github:${REPOSITORY}`;
@@ -171,4 +171,32 @@ test('mechanical coalescing replaces the exact mechanical head with one linear r
   assert.equal(result.parent_sha, grandparentSha);
   assert.equal(result.new_head, replacementSha);
   assert.deepEqual(replaced, { repo: 'example/project', branch: 'work/coalescing-contract', expectedHead: parentSha, sha: replacementSha });
+});
+
+test('mechanical head replacement uses atomic GraphQL beforeOid fencing', async () => {
+  const expectedHead = '8'.repeat(40);
+  const replacementSha = '9'.repeat(40);
+  const calls = [];
+  const apiClient = {
+    async call(provider, request) {
+      calls.push({ provider, request });
+      if (request.method === 'GET' && request.path === '/repos/example/project') {
+        return { status: 200, body: { node_id: 'R_example' }, headers: {} };
+      }
+      if (request.method === 'POST' && request.path === '/graphql') {
+        return { status: 200, body: { data: { updateRefs: { clientMutationId: null } } }, headers: {} };
+      }
+      throw new Error(`unexpected GitHub request ${request.method} ${request.path}`);
+    },
+  };
+  const github = createGithubApiAdapter(apiClient);
+  await github.replaceBranch('example/project', 'work/coalescing-contract', expectedHead, replacementSha);
+  const mutation = calls.find(call => call.request.path === '/graphql')?.request;
+  assert.ok(mutation, 'expected GraphQL ref mutation');
+  assert.deepEqual(mutation.body.variables.refUpdates, [{
+    name: 'refs/heads/work/coalescing-contract',
+    beforeOid: expectedHead,
+    afterOid: replacementSha,
+    force: true,
+  }]);
 });
