@@ -135,18 +135,11 @@ test('consecutive mechanical changesets fail before mutation with an executable 
   assert.equal(result.phase, 'preflight');
   assert.equal(result.may_have_mutated, false);
   assert.deepEqual(result.remedy, {
-    strategy:'coalesce_or_chain',
-    grouped_patch:{
-      action:'replace_parent_and_current_with_one_changeset',
-      base_sha:baseSha,
-      expected_head:parentSha,
-      instruction:'Combine the parent mechanical cleanup and this cleanup into one changeset against the parent commit parent.',
-    },
-    dependency_chain:{
-      action:'use_non_mechanical_followup_with_exact_revision_dependency',
-      depends_on:parentSha,
-      instruction:'If the second edit requires the first edit as an intermediate state, express that dependency explicitly and use a non-mechanical follow-up commit message.',
-    },
+    strategy:'canonical_command',
+    command:'github.coalesce_changeset',
+    expected_head:parentSha,
+    base_sha:baseSha,
+    instruction:'Coalesce the pending mechanical cleanup into the immediately preceding same-lease mechanical workspace head; do not relabel the cleanup or create a follow-up commit.',
   });
   assert.equal(mutationCalls, 0);
 });
