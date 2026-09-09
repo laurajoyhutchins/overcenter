@@ -1,0 +1,132 @@
+name: Temporary settle proven GCP migration transition
+
+on:
+  push:
+    branches: [work/gcp-cloud-run-cloud-sql-bootstrap]
+    paths: [.github/workflows/temporary-gcp-migration-settle-push.yml]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AUTHORITY_REVISION: 4abf1588131441f654eff2e68a50086612f6b5c2
+  PROJECT_REF: github:laurajoyhutchins/overcenter
+  MIGRATION_TRANSITION: finish-hatchable-gcp-authoritative-state-migration
+  SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+  GCP_REGION: us-west1
+  INSPECTOR_SERVICE: overcenter-migration-settlement-inspector
+  CLOUD_SQL_CONNECTION_NAME: project-6b810532-a302-48dc-b56:us-west1:overcenter-postgres
+  RUNTIME_SA: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.AUTHORITY_REVISION }}
+          path: authoritative
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Authenticate to current GCP authority
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
+          id_token_include_email: true
+          request_reason: Settle proven Overcenter GCP migration transition
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      - name: Prove live exact authority revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready="$(gcloud run services describe overcenter-shadow --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(status.latestReadyRevisionName)')"
+          created="$(gcloud run services describe overcenter-shadow --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(status.latestCreatedRevisionName)')"
+          source="$(gcloud run services describe overcenter-shadow --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(spec.template.spec.containers[0].env[?name=OVERCENTER_SOURCE_REVISION].value)')"
+          test "$ready" = "$created"
+          test "$source" = "$AUTHORITY_REVISION"
+          echo "runtime_revision=$ready" >> "$GITHUB_ENV"
+      - name: Inspect, acquire, and settle migration transition
+        env:
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          post() { local out="$1" payload="$2"; curl --silent --show-error -o "$out" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -X POST -d "$payload" "$SERVICE_AUDIENCE/api/worker-command"; }
+          inspect_payload="$(jq -nc --arg project "$PROJECT_REF" '{command:"project.inspect",input:{project_ref:$project}}')"
+          status="$(post "$RUNNER_TEMP/inspect-before.json" "$inspect_payload")"; test "$status" = 200; jq . "$RUNNER_TEMP/inspect-before.json"
+          jq -e --arg rev "$AUTHORITY_REVISION" '.ok==true and .authority_revision==$rev' "$RUNNER_TEMP/inspect-before.json" >/dev/null
+          acquire_payload="$(jq -nc --arg project "$PROJECT_REF" --arg transition "$MIGRATION_TRANSITION" '{command:"project.advance",input:{project_ref:$project,transition_id:$transition}}')"
+          status="$(post "$RUNNER_TEMP/acquire.json" "$acquire_payload")"; test "$status" = 200; jq . "$RUNNER_TEMP/acquire.json"
+          outcome="$(jq -r '.outcome // empty' "$RUNNER_TEMP/acquire.json")"
+          if [[ "$outcome" == "PROJECT_COMPLETE" ]]; then
+            echo 'already_done=true' >> "$GITHUB_ENV"
+            exit 0
+          fi
+          test "$outcome" = AGENT_EXECUTION_REQUIRED
+          resume="$(jq -r '.resume_ref // empty' "$RUNNER_TEMP/acquire.json")"
+          lease="$(jq -r '.lease_ref // empty' "$RUNNER_TEMP/acquire.json")"
+          test -n "$resume"; test -n "$lease"
+          echo "migration_run=$resume" >> "$GITHUB_ENV"
+          echo "migration_lease=$lease" >> "$GITHUB_ENV"
+          settle_payload="$(jq -nc --arg project "$PROJECT_REF" --arg resume "$resume" --arg manifest 'sha256:47eb097f3f3b7f1ad1357d244f9eef7b5b790ebf2bfc9e02eab27806e606df04' --arg freeze 'sha256:3ff040b3ebb60b89af860c1d3a140aef3be58652fdb1abca592ec45fb7c764b5' --arg schema 'sha256:2f9bd1dbf24e9a882f6ebe5b3cf43870f7794d647c486ca6da369a98a43879eb' --arg runtime 'github-actions-run:34309030181' --arg repo 'github-pr:727' '{command:"project.advance",input:{project_ref:$project,resume_ref:$resume,execution_result:{disposition:"completed",evidence:[{kind:"migration_semantic_manifest",ref:$manifest},{kind:"source_freeze_digest",ref:$freeze},{kind:"gcp_canonical_schema",ref:$schema},{kind:"gcp_authority_proof",ref:$runtime},{kind:"repository_migration_evidence",ref:$repo}],reason:"Frozen Hatchable recovery truth is digest-bound and present in GitHub; all 24 source state classes are accounted for; canonical Cloud SQL schema and exact GCP runtime are proven; GCP ordinary acquire/settle succeeds; Hatchable remains frozen; and exactly one authoritative writer exists."}}}')"
+          status="$(post "$RUNNER_TEMP/settle.json" "$settle_payload")"; test "$status" = 200; jq . "$RUNNER_TEMP/settle.json"
+          jq -e '.ok==true' "$RUNNER_TEMP/settle.json" >/dev/null
+          status="$(post "$RUNNER_TEMP/inspect-after.json" "$inspect_payload")"; test "$status" = 200; jq . "$RUNNER_TEMP/inspect-after.json"
+          jq -e --arg rev "$AUTHORITY_REVISION" --arg transition "$MIGRATION_TRANSITION" '.ok==true and .authority_revision==$rev and ((.frontier // []) | index($transition) | not)' "$RUNNER_TEMP/inspect-after.json" >/dev/null
+      - name: Deploy private read-only Cloud SQL inspector
+        if: env.already_done != 'true'
+        id: inspector
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd authoritative
+          gcloud run deploy "$INSPECTOR_SERVICE" --source . --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --service-account="$RUNTIME_SA" --add-cloudsql-instances="$CLOUD_SQL_CONNECTION_NAME" --set-env-vars="PGHOST=/cloudsql/${CLOUD_SQL_CONNECTION_NAME},PGDATABASE=overcenter,PGUSER=overcenter" --set-secrets="PGPASSWORD=overcenter-db-password:latest" --command=/cnb/lifecycle/launcher --args="--,node,scripts/cloud-run-authority-proof-http.mjs" --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" --no-allow-unauthenticated --min-instances=0 --max-instances=1 --quiet
+          url="$(gcloud run services describe "$INSPECTOR_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(status.url)')"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Mint inspector token
+        if: env.already_done != 'true'
+        id: inspector_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ steps.inspector.outputs.url }}
+          request_reason: Read final migration settlement from Cloud SQL
+      - name: Independently prove durable settlement
+        if: env.already_done != 'true'
+        env:
+          URL: ${{ steps.inspector.outputs.url }}
+          TOKEN: ${{ steps.inspector_auth.outputs.id_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="$(jq -nc --arg run "$migration_run" '{run_id:$run}')"
+          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' -X POST -d "$payload" "$URL/inspect" > "$RUNNER_TEMP/durable.json"
+          jq . "$RUNNER_TEMP/durable.json"
+          jq -e --arg run "$migration_run" --arg lease "$migration_lease" '.ok==true and .proof.run.run_id==$run and (.proof.run.status != "active") and ([.proof.leases[] | select(.lease_ref==$lease and .status=="settled")] | length)==1 and (.proof.slots|length)==0 and (.proof.active_transition_leases|length)==0 and .proof.target_epoch.freeze_table_present==false and .proof.target_epoch.freeze_function_present==false and .proof.target_epoch.freeze_trigger_count==0 and .proof.target_epoch.migration_059_present==false' "$RUNNER_TEMP/durable.json" >/dev/null
+          jq -e --arg lease "$migration_lease" '[.proof.leases[] | select(.lease_ref==$lease) | .settle_receipt | select(. != null) | select(.disposition=="completed")] | length==1' "$RUNNER_TEMP/durable.json" >/dev/null
+          cp "$RUNNER_TEMP/durable.json" "$RUNNER_TEMP/final-migration-durable-readback.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: final-migration-settlement-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/inspect-before.json
+            ${{ runner.temp }}/acquire.json
+            ${{ runner.temp }}/settle.json
+            ${{ runner.temp }}/inspect-after.json
+            ${{ runner.temp }}/final-migration-durable-readback.json
+          if-no-files-found: ignore
+      - name: Delete temporary inspector
+        if: always()
+        shell: bash
+        run: gcloud run services delete "$INSPECTOR_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --quiet || true
