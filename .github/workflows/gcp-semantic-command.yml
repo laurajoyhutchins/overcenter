@@ -76,6 +76,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
   id-token: write
 
 concurrency:
@@ -118,7 +119,6 @@ jobs:
           test "$GITHUB_SHA" = "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXPECTED_HEAD"
-          # Production convergence is enforced by promotion/deployment, not generic semantic admission.
           case "$COMMAND" in
             project.inspect|project.advance|project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) ;;
             *) echo "unsupported semantic command: $COMMAND" >&2; exit 2 ;;
@@ -145,14 +145,7 @@ jobs:
               test -z "$RESUME_REF"
               test -z "$EXECUTION_RESULT_JSON"
               test -n "$command_input_json"
-              jq -e \
-                --arg project_ref "$PROJECT_REF" \
-                'type == "object"
-                  and (keys == ["amendment","expected_revision","project_ref"])
-                  and (.project_ref == $project_ref)
-                  and (.expected_revision | type == "string" and test("^[0-9a-f]{40}$"))
-                  and ((.amendment | type) == "object")' \
-                <<<"$command_input_json" >/dev/null
+              jq -e --arg project_ref "$PROJECT_REF" 'type == "object" and (keys == ["amendment","expected_revision","project_ref"]) and (.project_ref == $project_ref) and (.expected_revision | type == "string" and test("^[0-9a-f]{40}$")) and ((.amendment | type) == "object")' <<<"$command_input_json" >/dev/null
               ;;
             github.pull_request.mark_ready)
               test -z "$PROJECT_REF"
@@ -160,16 +153,7 @@ jobs:
               test -z "$RESUME_REF"
               test -z "$EXECUTION_RESULT_JSON"
               test -n "$command_input_json"
-              jq -e '
-                type == "object"
-                and ((keys - ["expected_head","pull_request","repo","run_id"]) | length == 0)
-                and has("repo") and has("pull_request") and has("expected_head")
-                and (.repo | type == "string" and test("^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"))
-                and (.pull_request | type == "number")
-                and (.pull_request >= 1 and .pull_request == (.pull_request | floor))
-                and (.expected_head | type == "string" and test("^[0-9a-f]{40}$"))
-                and ((has("run_id") | not) or (.run_id | type == "string" and length > 0 and length <= 512))' \
-                <<<"$command_input_json" >/dev/null
+              jq -e 'type == "object" and ((keys - ["expected_head","pull_request","repo","run_id"]) | length == 0) and has("repo") and has("pull_request") and has("expected_head") and (.repo | type == "string" and test("^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$")) and (.pull_request | type == "number") and (.pull_request >= 1 and .pull_request == (.pull_request | floor)) and (.expected_head | type == "string" and test("^[0-9a-f]{40}$")) and ((has("run_id") | not) or (.run_id | type == "string" and length > 0 and length <= 512))' <<<"$command_input_json" >/dev/null
               ;;
             github.apply_changeset|github.apply_text_replacements)
               test -z "$PROJECT_REF"
@@ -201,33 +185,30 @@ jobs:
           set -euo pipefail
           command_input_json="${COMMAND_INPUT_0}${COMMAND_INPUT_1}${COMMAND_INPUT_2}${COMMAND_INPUT_3}${COMMAND_INPUT_4}${COMMAND_INPUT_5}"
           case "$COMMAND" in
-            project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements)
-              input="$command_input_json"
-              ;;
+            project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) input="$command_input_json" ;;
             *)
               input="$(jq -n --arg project_ref "$PROJECT_REF" '{project_ref:$project_ref}')"
               if [ "$COMMAND" = project.advance ]; then
-                if [ -n "$TRANSITION_ID" ]; then
-                  input="$(jq --arg transition_id "$TRANSITION_ID" '. + {transition_id:$transition_id}' <<<"$input")"
-                fi
-                if [ -n "$RESUME_REF" ]; then
-                  input="$(jq --arg resume_ref "$RESUME_REF" '. + {resume_ref:$resume_ref}' <<<"$input")"
-                fi
-                if [ -n "$EXECUTION_RESULT_JSON" ]; then
-                  input="$(jq --argjson execution_result "$EXECUTION_RESULT_JSON" '. + {execution_result:$execution_result}' <<<"$input")"
-                fi
+                if [ -n "$TRANSITION_ID" ]; then input="$(jq --arg transition_id "$TRANSITION_ID" '. + {transition_id:$transition_id}' <<<"$input")"; fi
+                if [ -n "$RESUME_REF" ]; then input="$(jq --arg resume_ref "$RESUME_REF" '. + {resume_ref:$resume_ref}' <<<"$input")"; fi
+                if [ -n "$EXECUTION_RESULT_JSON" ]; then input="$(jq --argjson execution_result "$EXECUTION_RESULT_JSON" '. + {execution_result:$execution_result}' <<<"$input")"; fi
               fi
               ;;
           esac
           payload="$(jq -n --arg command "$COMMAND" --argjson input "$input" '{command:$command,input:$input}')"
-          status="$(curl --silent --show-error -o "$RUNNER_TEMP/semantic-response.json" -w '%{http_code}' \
-            -H "Authorization: Bearer $ID_TOKEN" \
-            -H 'content-type: application/json' \
-            -H 'x-overcenter-authority-mode: authoritative' \
-            -H "x-overcenter-request-id: $REQUEST_ID" \
-            -X POST \
-            -d "$payload" \
-            "$SERVICE_AUDIENCE/api/worker-command")"
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/semantic-response.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -H 'x-overcenter-authority-mode: authoritative' -H "x-overcenter-request-id: $REQUEST_ID" -X POST -d "$payload" "$SERVICE_AUDIENCE/api/worker-command")"
           jq . "$RUNNER_TEMP/semantic-response.json" || cat "$RUNNER_TEMP/semantic-response.json"
           test "$status" = 200
           jq -e '.ok == true' "$RUNNER_TEMP/semantic-response.json" >/dev/null
+
+      - name: Record bounded semantic response
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -f "$RUNNER_TEMP/semantic-response.json" || exit 0
+          sanitized="$(jq -c 'walk(if type == "object" then del(.lease_token,.token,.authorization,.id_token) else . end)' "$RUNNER_TEMP/semantic-response.json")"
+          body="$(jq -n --arg request_id "$REQUEST_ID" --arg command "$COMMAND" --arg expected_head "$EXPECTED_HEAD" --arg response "$sanitized" '{body:("### GCP semantic response\n\n- request_id: `" + $request_id + "`\n- command: `" + $command + "`\n- expected_head: `" + $expected_head + "`\n\n```json\n" + $response + "\n```")}')"
+          gh api --method POST -H 'Accept: application/vnd.github+json' "/repos/${GITHUB_REPOSITORY}/issues/732/comments" --input - <<<"$body"
