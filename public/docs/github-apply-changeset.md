@@ -67,6 +67,8 @@ Formatting and other mechanical cleanup must be batched. If an existing branch a
 
 This is intentionally narrow. A substantive follow-up such as `fix: repair operator behavior` remains allowed. The guard prevents file-by-file formatter/style commit streams without turning commit-message classification into a general workflow policy.
 
+The rejection includes the canonical recovery operation `github.apply_changeset` with `coalesce_mechanical_head: true`. That recovery is deliberately bounded: `expected_head` must exactly match the current workspace head, which must still be the exact mechanical commit being replaced, its durable successful changeset receipt must belong to the same project-transition lease, and it must have exactly one parent. Overcenter then builds the combined repair from that parent and force-moves only the managed work branch to the replacement commit. A stale head, another lease, a non-mechanical head, missing receipt authority, or malformed parent fails closed before the ref mutation. Replaying the same semantic request remains idempotent through the normal changeset receipt.
+
 ## Atomicity boundary
 
 The command creates Git objects before it mutates the branch ref: one tree carrying complete text content for create/update entries, one commit, then one branch create/update. GitHub materializes the corresponding blobs as part of tree creation. GitHub may retain unreachable objects if the final ref operation fails. The branch itself never receives a partial subset of the changeset: it either remains unchanged or points to the single complete changeset commit.
