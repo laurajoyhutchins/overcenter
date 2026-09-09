@@ -52,13 +52,6 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Capture exact generated evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-contract-evidence
-          path: ${{ runner.temp }}/contract-evidence
-          if-no-files-found: error
-          retention-days: 1
       - name: Print exact generated catalog delta
         run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
       - name: Verify committed generated evidence
