@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createExecutionAuthorityService } from '../lib/execution-authority-core.js';
 import { deriveProjectTransitionGithubWorkspace } from '../lib/project-transition-github-workspace.js';
+import { applyGithubChangeset } from '../lib/github-apply-changeset.js';
 
 const REPOSITORY = 'laurajoyhutchins/overcenter';
 const PROJECT_REF = `github:${REPOSITORY}`;
@@ -103,4 +104,49 @@ test('project transition mutation authority accepts the opaque plink lease refer
   const authority = await fixture().require({ lease_ref:`plink:${LEASE_REF}`, repository:REPOSITORY });
   assert.equal(authority.lease_ref, LEASE_REF);
   assert.equal(authority.transition_id, TRANSITION_ID);
+});
+
+test('consecutive mechanical changesets fail before mutation with an executable coalescing remedy', async () => {
+  const baseSha = '3'.repeat(40);
+  const parentSha = '4'.repeat(40);
+  let mutationCalls = 0;
+  const github = {
+    async resolveCommit() { return { sha:baseSha, tree_sha:'5'.repeat(40) }; },
+    async getBranch() { return { sha:parentSha }; },
+    async getCommit() { return { sha:parentSha, tree_sha:'6'.repeat(40), message:'lint: normalize fixtures' }; },
+    async getPathEntries() { throw new Error('mechanical coalescing must fail before path planning'); },
+    async createTree() { mutationCalls += 1; throw new Error('must not mutate'); },
+    async createCommit() { mutationCalls += 1; throw new Error('must not mutate'); },
+    async createBranch() { mutationCalls += 1; throw new Error('must not mutate'); },
+    async updateBranch() { mutationCalls += 1; throw new Error('must not mutate'); },
+  };
+
+  const result = await applyGithubChangeset({
+    repo:'example/project',
+    base_sha:baseSha,
+    branch:'fix/coalescing-contract',
+    expected_head:parentSha,
+    changes:[{ path:'example.txt', operation:'update', content:'next\n' }],
+    commit_message:'format: normalize example',
+  }, { github });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'MECHANICAL_CHANGESET_MUST_COALESCE');
+  assert.equal(result.phase, 'preflight');
+  assert.equal(result.may_have_mutated, false);
+  assert.deepEqual(result.remedy, {
+    strategy:'coalesce_or_chain',
+    grouped_patch:{
+      action:'replace_parent_and_current_with_one_changeset',
+      base_sha:baseSha,
+      expected_head:parentSha,
+      instruction:'Combine the parent mechanical cleanup and this cleanup into one changeset against the parent commit parent.',
+    },
+    dependency_chain:{
+      action:'use_non_mechanical_followup_with_exact_revision_dependency',
+      depends_on:parentSha,
+      instruction:'If the second edit requires the first edit as an intermediate state, express that dependency explicitly and use a non-mechanical follow-up commit message.',
+    },
+  });
+  assert.equal(mutationCalls, 0);
 });
