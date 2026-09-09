@@ -128,18 +128,35 @@ test('post-cutover GCP deployment path cannot demote authoritative runtime to sh
   assert.doesNotMatch(bootstrap, /gh workflow run/);
 });
 
-test('authoritative deployment proves live GCP inspection by settling the migration transition itself', async () => {
+test('authoritative deployment proves a reversible ordinary GCP transition and durable settlement', async () => {
   const workflow = await readFile('.github/workflows/gcp-authoritative-deploy.yml', 'utf8');
+  const proof = await readFile('scripts/gcp/prove-authoritative-runtime.sh', 'utf8');
+  const inspector = await readFile('scripts/cloud-run-authority-proof-inspect.mjs', 'utf8');
+
   assert.match(workflow, /token_format:\s*id_token/);
   assert.match(workflow, /id_token_audience:/);
-  assert.match(workflow, /\/health/);
-  assert.match(workflow, /\/api\/authoritative-state\/project-inspect/);
-  assert.match(workflow, /\/api\/worker-command/);
-  assert.match(workflow, /project\.advance/);
+  assert.match(workflow, /prove-authoritative-runtime\.sh inspect-failed/);
+  assert.match(workflow, /deploy-authoritative\.sh/);
+  assert.match(workflow, /prove-authoritative-runtime\.sh prove/);
   assert.match(workflow, /finish-hatchable-gcp-authoritative-state-migration/);
-  assert.match(workflow, /execution_result/);
-  assert.match(workflow, /disposition.*completed/);
-  assert.match(workflow, /PROJECT_COMPLETE/);
   assert.doesNotMatch(workflow, /production\.promote/);
-  assert.match(workflow, /authority_mode.*authoritative/);
+
+  assert.match(proof, /\/health/);
+  assert.match(proof, /\/api\/authoritative-state\/project-inspect/);
+  assert.match(proof, /\/api\/worker-command/);
+  assert.match(proof, /project\.advance/);
+  assert.match(proof, /AGENT_EXECUTION_REQUIRED/);
+  assert.match(proof, /disposition:\"requeue\"/);
+  assert.match(proof, /requeue_class:\"insufficient_execution_window\"/);
+  assert.match(proof, /settle_receipt/);
+  assert.match(proof, /active_transition_leases/);
+  assert.match(proof, /source_only_migrations/);
+  assert.doesNotMatch(proof, /disposition:\"completed\"/);
+
+  assert.match(inspector, /READ ONLY/);
+  assert.match(inspector, /FROM orchestration_runs/);
+  assert.match(inspector, /FROM work_leases/);
+  assert.match(inspector, /FROM execution_state/);
+  assert.match(inspector, /FROM work_lease_slots/);
+  assert.match(inspector, /overcenter_authority_freeze/);
 });
