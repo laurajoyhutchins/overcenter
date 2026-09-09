@@ -17,6 +17,25 @@ function normalizedTransactionStatements(statements) {
   });
 }
 
+function normalizeDatabaseRow(row) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
+  let changed = false;
+  const normalized = Object.fromEntries(Object.entries(row).map(([key, value]) => {
+    if (value instanceof Date) {
+      changed = true;
+      return [key, value.toISOString()];
+    }
+    return [key, value];
+  }));
+  return changed ? normalized : row;
+}
+
+function normalizeDatabaseResult(result) {
+  if (!result || !Array.isArray(result.rows)) return result;
+  const rows = result.rows.map(normalizeDatabaseRow);
+  return Object.freeze({ ...result, rows:Object.freeze(rows) });
+}
+
 export function createCloudRunDatabaseBinding(db) {
   if (!db || typeof db.query !== 'function') {
     throw Object.assign(new Error('Cloud Run database provider requires query support'), {
@@ -33,7 +52,9 @@ export function createCloudRunDatabaseBinding(db) {
   }
 
   return Object.freeze({
-    query:(sql, params) => db.query(sql, params),
+    async query(sql, params) {
+      return normalizeDatabaseResult(await db.query(sql, params));
+    },
     async transaction(statements) {
       const normalized = normalizedTransactionStatements(statements);
       const client = await db.connect();
@@ -43,7 +64,7 @@ export function createCloudRunDatabaseBinding(db) {
         began = true;
         const results = [];
         for (const statement of normalized) {
-          results.push(await client.query(statement.sql, statement.params));
+          results.push(normalizeDatabaseResult(await client.query(statement.sql, statement.params)));
         }
         await client.query('COMMIT');
         return Object.freeze({ results:Object.freeze(results) });
