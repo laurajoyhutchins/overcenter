@@ -1,0 +1,77 @@
+name: GCP production promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      exact_revision:
+        description: Exact verified dev revision to promote to production
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: overcenter-gcp-production-promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+    steps:
+      - name: Check out exact development revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.exact_revision }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Prove exact development source
+        shell: bash
+        env:
+          EXACT_REVISION: ${{ inputs.exact_revision }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/dev"
+          test "$(git rev-parse HEAD)" = "$EXACT_REVISION"
+          test "$GITHUB_SHA" = "$EXACT_REVISION"
+          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXACT_REVISION"
+
+      - name: Authenticate to current GCP authority
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
+          id_token_include_email: true
+          request_reason: Overcenter semantic production promotion ${{ inputs.exact_revision }}
+
+      - name: Promote through Overcenter semantic authority
+        shell: bash
+        env:
+          EXACT_REVISION: ${{ inputs.exact_revision }}
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/promotion.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $ID_TOKEN" \
+            -H 'content-type: application/json' \
+            -X POST \
+            -d '{"command":"production.promote","input":{"repo":"laurajoyhutchins/overcenter"}}' \
+            "$SERVICE_AUDIENCE/api/worker-command")"
+          if [[ "$status" != 200 ]]; then
+            printf 'production.promote failed (HTTP %s)\n' "$status" >&2
+            jq . "$RUNNER_TEMP/promotion.json" >&2 2>/dev/null || cat "$RUNNER_TEMP/promotion.json" >&2
+            exit 1
+          fi
+          jq -e --arg revision "$EXACT_REVISION" \
+            '.ok == true and .source_revision == $revision and .production_revision == $revision and (.verification_ref | type == "string")' \
+            "$RUNNER_TEMP/promotion.json" >/dev/null
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXACT_REVISION"
