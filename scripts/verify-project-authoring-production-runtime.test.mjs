@@ -305,6 +305,32 @@ test('authoritative advancement rejects a stale semantic replay before a second 
   assert.equal(first.graph.revision, authoritativeRevision);
 });
 
+test('pending project.amend persists durable external-verification recovery coordinates', async () => {
+  let recoveryInput = null;
+  const runtime = createProjectAuthoringProductionRuntime({
+    resolveAuthority:async () => ({ ...authority(initialRevision), branch:'dev' }),
+    readDefinitionFacts:async ({ revision }) => facts(revision, revision === stagedRevision ? amendedDefinition : baseDefinition),
+    readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
+    readSourceRevision:async () => initialRevision,
+    applyChangeset:async () => ({ ok:true, new_head:stagedRevision }),
+    deriveProjectGraph:async ({ authority:observed }) => ({ schema:'overcenter-project-graph-v1', revision:observed.revision }),
+    integrateChangeset:async () => ({ ok:true, outcome:'waiting', pull_request:42, waiting_on:['required_checks'] }),
+    beginProjectAuthoringRecovery:async (input) => { recoveryInput = input; return { ok:true, outcome:'WAITING_EXTERNAL_VERIFICATION', recovery_ref:'project-authoring:github:example/project:pending-test', staged_revision:input.staged_revision, waiting_on:input.waiting_on }; },
+  });
+  await assert.rejects(
+    () => runtime.amend({ project_ref:projectRef, expected_revision:initialRevision, amendment:{ upsert_transitions:[{ id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] } }),
+    (error) => error?.code === 'PROJECT_AUTHORING_INTEGRATION_PENDING' && error?.may_have_mutated === true && error?.details?.recovery?.outcome === 'WAITING_EXTERNAL_VERIFICATION' && error?.details?.recovery?.recovery_ref === 'project-authoring:github:example/project:pending-test',
+  );
+  assert.equal(recoveryInput.command, 'project.amend');
+  assert.equal(recoveryInput.project_ref, projectRef);
+  assert.match(recoveryInput.idempotency_key, /^project-amend-v1:[0-9a-f]{64}$/);
+  assert.equal(recoveryInput.request_sha256, recoveryInput.idempotency_key.split(':').at(-1));
+  assert.equal(recoveryInput.expected_revision, initialRevision);
+  assert.equal(recoveryInput.staged_revision, stagedRevision);
+  assert.equal(recoveryInput.pull_request, 42);
+  assert.deepEqual(recoveryInput.waiting_on, ['required_checks']);
+});
+
 test('project.amend allows an unrelated obligation change while a disjoint transition is executing', async () => {
   const definition = {
     schema:'overcenter-project-definition-v1',
