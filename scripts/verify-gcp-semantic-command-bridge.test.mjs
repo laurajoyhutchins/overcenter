@@ -5,6 +5,8 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const api = await readFile(new URL('api/gcp-semantic-command-dispatch.js', root), 'utf8');
 const workflow = await readFile(new URL('.github/workflows/gcp-semantic-command.yml', root), 'utf8');
+const maintenanceWorkflow = await readFile(new URL('.github/workflows/gcp-orchestration-maintain.yml', root), 'utf8');
+const legacyMaintenance = await readFile(new URL('api/orchestration/maintain-scheduled.js', root), 'utf8');
 
 test('bounded GCP broker admits lease-scoped GitHub mutations without broadening source authority', () => {
   assert.match(api, /LEASE_MUTATION_COMMANDS = new Set\(\['github\.apply_changeset', 'github\.apply_text_replacements'\]\)/);
@@ -34,4 +36,16 @@ test('GCP workflow preserves exact-revision and fixed-project fences while reass
   assert.match(workflow, /github\.apply_changeset\|github\.apply_text_replacements\)\n\s+input="\$command_input_json"/);
   assert.match(workflow, /x-overcenter-authority-mode: authoritative/);
   assert.match(workflow, /x-overcenter-request-id: \$REQUEST_ID/);
+});
+
+test('maintenance wakes independently through trusted GCP transport and Hatchable no longer owns the schedule', () => {
+  assert.match(maintenanceWorkflow, /workflow_run:/);
+  assert.match(maintenanceWorkflow, /Exact revision V8 verification/);
+  assert.match(maintenanceWorkflow, /cron: ['\"]17 \* \* \* \*['\"]/);
+  assert.match(maintenanceWorkflow, /group: overcenter-gcp-semantic-control-plane/);
+  assert.match(maintenanceWorkflow, /id-token: write/);
+  assert.match(maintenanceWorkflow, /\{command:\$command,input:\{\}\}/);
+  assert.match(maintenanceWorkflow, /x-overcenter-authority-mode: authoritative/);
+  assert.doesNotMatch(legacyMaintenance, /export const schedule/);
+  assert.doesNotMatch(legacyMaintenance, /createPostgresSubjectAwareOrchestrationMaintenanceService/);
 });
