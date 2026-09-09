@@ -1,0 +1,107 @@
+name: Temporary GCP canonical schema identity
+
+on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+    paths:
+      - .github/workflows/temporary-gcp-schema-identity-push.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  EXACT_REVISION: 9c19617c011ce0a37f40d71f38e506366e600757
+  INSPECTOR_SERVICE: overcenter-schema-proof-inspector
+  GCP_REGION: us-west1
+  CLOUD_SQL_CONNECTION_NAME: project-6b810532-a302-48dc-b56:us-west1:overcenter-postgres
+  RUNTIME_SA: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact authoritative source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXACT_REVISION }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Add ephemeral read-only schema endpoint
+        shell: bash
+        run: |
+          cat > scripts/temp-schema-proof-http.mjs <<'EOF'
+          import { createServer } from 'node:http';
+          import { createHash } from 'node:crypto';
+          import pg from 'pg';
+          const { Pool } = pg;
+          const pool = new Pool({host:process.env.PGHOST,database:process.env.PGDATABASE,user:process.env.PGUSER,password:process.env.PGPASSWORD});
+          const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+          const server=createServer(async(req,res)=>{
+            try {
+              if(req.method==='GET'&&req.url==='/health'){await pool.query('SELECT 1');res.writeHead(200,{'content-type':'application/json'});return res.end('{"ok":true}\n');}
+              if(req.method!=='GET'||req.url!=='/schema'){res.writeHead(404);return res.end();}
+              const tables=(await pool.query(`SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name`)).rows;
+              const schema=[];
+              for(const t of tables){const columns=(await pool.query(`SELECT column_name,data_type,udt_name,is_nullable,column_default,ordinal_position FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position`,[t.table_schema,t.table_name])).rows;schema.push({schema:t.table_schema,name:t.table_name,columns});}
+              const migrations=(await pool.query(`SELECT name,sha256 FROM overcenter_schema_migrations ORDER BY name`)).rows;
+              const body={schema:'overcenter-gcp-canonical-schema-v1',tables:schema.map(t=>({schema:t.schema,name:t.name,schema_sha256:hash(t.columns)})),migrations,source_only_059_present:migrations.some(m=>m.name==='059_authoritative_state_freeze.sql')};
+              body.schema_digest='sha256:'+hash(body);
+              res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify(body)+'\n');
+            }catch(e){res.writeHead(500,{'content-type':'application/json'});res.end(JSON.stringify({ok:false,error:e.message})+'\n');}
+          });
+          server.listen(Number(process.env.PORT||8080),'0.0.0.0');
+          EOF
+      - name: Authenticate deployer
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          request_reason: Read canonical Overcenter Cloud SQL schema identity
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      - name: Deploy private schema inspector
+        id: inspector
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$INSPECTOR_SERVICE" --source . --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" \
+            --service-account="$RUNTIME_SA" --add-cloudsql-instances="$CLOUD_SQL_CONNECTION_NAME" \
+            --set-env-vars="PGHOST=/cloudsql/${CLOUD_SQL_CONNECTION_NAME},PGDATABASE=overcenter,PGUSER=overcenter" \
+            --set-secrets="PGPASSWORD=overcenter-db-password:latest" \
+            --command=/cnb/lifecycle/launcher --args="--,node,scripts/temp-schema-proof-http.mjs" \
+            --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
+            --no-allow-unauthenticated --min-instances=0 --max-instances=1 --quiet
+          url="$(gcloud run services describe "$INSPECTOR_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(status.url)')"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Mint inspector token
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ steps.inspector.outputs.url }}
+          request_reason: Invoke canonical schema inspector
+      - name: Capture schema identity
+        env:
+          URL: ${{ steps.inspector.outputs.url }}
+          TOKEN: ${{ steps.auth.outputs.id_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $TOKEN" "$URL/schema" > "$RUNNER_TEMP/gcp-schema-identity.json"
+          jq -e '.schema == "overcenter-gcp-canonical-schema-v1" and .source_only_059_present == false' "$RUNNER_TEMP/gcp-schema-identity.json" >/dev/null
+          jq '{schema,schema_digest,table_count:(.tables|length),migration_count:(.migrations|length),source_only_059_present}' "$RUNNER_TEMP/gcp-schema-identity.json"
+      - name: Upload schema identity
+        uses: actions/upload-artifact@v4
+        with:
+          name: gcp-canonical-schema-identity-${{ github.run_id }}
+          path: ${{ runner.temp }}/gcp-schema-identity.json
+      - name: Delete temporary inspector
+        if: always()
+        shell: bash
+        run: gcloud run services delete "$INSPECTOR_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --quiet || true
