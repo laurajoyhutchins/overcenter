@@ -25,7 +25,7 @@ test('materializes the exact production revision and proves the immutable deploy
       observe: async () => ({
         repository,
         revision,
-        files: [{ path: 'api/example.js', content: 'export const value=1;\n' }],
+        files: [{ path: 'api/gcp-semantic-command-dispatch.js', content: 'export const value=1;\n' }],
       }),
     },
     runtime: {
@@ -55,7 +55,7 @@ test('materializes the exact production revision and proves the immutable deploy
   assert.equal(result?.deployment_version, 13);
   assert.equal(result?.regression.failed, 0);
   assert.deepEqual(stageRequest.deletes, ['api/stale.js']);
-  const sourceWrite = stageRequest.writes.find(item => item.path === 'api/example.js');
+  const sourceWrite = stageRequest.writes.find(item => item.path === 'api/gcp-semantic-command-dispatch.js');
   assert.equal(sourceWrite.content, 'export const value=1;');
   const receiptWrite = stageRequest.writes.find(item => item.path === 'public/.overcenter/source-materialization.json');
   const receipt = JSON.parse(receiptWrite.content);
@@ -193,7 +193,7 @@ test('rejects immutable deployment drift before production regression certificat
   let regressionsRan = false;
   const adapters = {
     source: {
-      observe: async () => ({ repository, revision, files: [{ path: 'api/example.js', content: 'x\n' }] }),
+      observe: async () => ({ repository, revision, files: [{ path: 'api/gcp-semantic-command-dispatch.js', content: 'x\n' }] }),
     },
     runtime: {
       inspect: async () => ({ project: 'production-slot', version: 20, files: [] }),
@@ -202,7 +202,7 @@ test('rejects immutable deployment drift before production regression certificat
       deploy: async () => ({ version: 21 }),
       inspectDeployment: async () => ({
         version: 21,
-        files: staged.map(file => file.path === 'api/example.js' ? { ...file, hash: 'f'.repeat(64) } : file),
+        files: staged.map(file => file.path === 'api/gcp-semantic-command-dispatch.js' ? { ...file, hash: 'f'.repeat(64) } : file),
       }),
       runRegressions: async () => { regressionsRan = true; return { ok: true, schema: 'regression-verification-v1', failed: 0 }; },
     },
@@ -221,11 +221,11 @@ test('typed materialization no-op requires exact verified revision evidence and 
   let effects = 0;
   const result = await materializeProduction({ repo: repository }, {
     resolveProductionSource: async repo => ({ repository:repo, branch:'main', revision }),
-    observeSource: async coordinate => ({ ...coordinate, files:[{ path:'lib/example.js', content }] }),
+    observeSource: async coordinate => ({ ...coordinate, files:[{ path:'lib/github-workflow-dispatch.js', content }] }),
     observeRuntime: async () => ({
       runtime_ref:'runtime:production',
       version:30,
-      files:[{ path:'lib/example.js', hash, size:Buffer.byteLength(content) }],
+      files:[{ path:'lib/github-workflow-dispatch.js', hash, size:Buffer.byteLength(content) }],
       verified_revision:revision,
       verification_ref:'immutable:runtime:30',
     }),
@@ -266,7 +266,7 @@ test('typed materialization makes mutation certainty monotonic once staging begi
   await assert.rejects(
     materializeProduction({ repo:repository }, {
       resolveProductionSource: async repo => ({ repository:repo, branch:'main', revision }),
-      observeSource: async coordinate => ({ ...coordinate, files:[{ path:'lib/example.js', content:'new' }] }),
+      observeSource: async coordinate => ({ ...coordinate, files:[{ path:'lib/github-workflow-dispatch.js', content:'new' }] }),
       observeRuntime: async () => ({ runtime_ref:'runtime:production', version:40, files:[] }),
       stageRuntime: async () => { throw new Error('transport disappeared after stage request'); },
       inspectRuntimeDraft: async () => ({ runtime_ref:'runtime:production', version:40, files:[] }),

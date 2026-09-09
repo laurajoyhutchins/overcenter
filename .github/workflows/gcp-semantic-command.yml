@@ -15,6 +15,7 @@ on:
         options:
           - project.inspect
           - project.advance
+          - project.define
           - project.amend
           - github.pull_request.mark_ready
           - github.apply_changeset
@@ -120,7 +121,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXPECTED_HEAD"
           case "$COMMAND" in
-            project.inspect|project.advance|project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) ;;
+            project.inspect|project.advance|project.define|project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) ;;
             *) echo "unsupported semantic command: $COMMAND" >&2; exit 2 ;;
           esac
           case "$COMMAND" in
@@ -138,6 +139,14 @@ jobs:
                 test -n "$RESUME_REF"
                 jq -e 'type == "object"' <<<"$EXECUTION_RESULT_JSON" >/dev/null
               fi
+              ;;
+            project.define)
+              [[ "$PROJECT_REF" =~ ^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+              test -z "$TRANSITION_ID"
+              test -z "$RESUME_REF"
+              test -z "$EXECUTION_RESULT_JSON"
+              test -n "$command_input_json"
+              jq -e --arg project_ref "$PROJECT_REF" 'type == "object" and (keys == ["definition","expected_revision","project_ref"]) and (.project_ref == $project_ref) and (.expected_revision | type == "string" and test("^[0-9a-f]{40}$")) and ((.definition | type) == "object")' <<<"$command_input_json" >/dev/null
               ;;
             project.amend)
               [[ "$PROJECT_REF" =~ ^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
@@ -185,7 +194,7 @@ jobs:
           set -euo pipefail
           command_input_json="${COMMAND_INPUT_0}${COMMAND_INPUT_1}${COMMAND_INPUT_2}${COMMAND_INPUT_3}${COMMAND_INPUT_4}${COMMAND_INPUT_5}"
           case "$COMMAND" in
-            project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) input="$command_input_json" ;;
+            project.define|project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) input="$command_input_json" ;;
             *)
               input="$(jq -n --arg project_ref "$PROJECT_REF" '{project_ref:$project_ref}')"
               if [ "$COMMAND" = project.advance ]; then

@@ -155,6 +155,14 @@ function normalizeVersion(value: number, field: string): number {
   return version;
 }
 
+const HATCHABLE_TRANSPORT_SOURCE_PATHS = Object.freeze(new Set([
+  'api/gcp-semantic-command-dispatch.js',
+  'hatchable.toml',
+  'lib/github-app-auth.js',
+  'lib/github-transport.js',
+  'lib/github-workflow-dispatch.js',
+]));
+
 function runtimePath(pathInput: string): boolean {
   const path = String(pathInput || '');
   if (path === SOURCE_MATERIALIZATION_RECEIPT_PATH) return false;
@@ -196,7 +204,7 @@ async function desiredRecords(
   const records: MaterializedSourceRecord[] = [];
   for (const file of files) {
     const path = String(file?.path || '');
-    if (!runtimePath(path)) continue;
+    if (!HATCHABLE_TRANSPORT_SOURCE_PATHS.has(path)) continue;
     if (seen.has(path)) reject('PRODUCTION_MATERIALIZATION_DUPLICATE_SOURCE_PATH', `duplicate source path: ${path}`);
     if (typeof file?.content !== 'string' || file.content.includes('\u0000')) reject('PRODUCTION_MATERIALIZATION_SOURCE_INVALID', `source must be UTF-8 text: ${path}`);
     seen.add(path);
