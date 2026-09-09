@@ -1,0 +1,280 @@
+name: Temporary exact-SHA GCP authority proof
+
+on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+    paths:
+      - .github/workflows/temporary-gcp-authority-proof-push.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: temporary-exact-sha-gcp-authority-proof
+  cancel-in-progress: false
+
+env:
+  EXACT_REVISION: 9c19617c011ce0a37f40d71f38e506366e600757
+  DIAGNOSTIC_REVISION: 33fcc60d67c56e8c2918000f81928e1e0a27759c
+  SOURCE_FREEZE_DIGEST: sha256:3ff040b3ebb60b89af860c1d3a140aef3be58652fdb1abca592ec45fb7c764b5
+  GCP_SERVICE: overcenter-shadow
+  INSPECTOR_SERVICE: overcenter-authority-proof-inspector
+  GCP_REGION: us-west1
+  CLOUD_SQL_CONNECTION_NAME: project-6b810532-a302-48dc-b56:us-west1:overcenter-postgres
+  RUNTIME_SA: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+  PROJECT_REF: github:laurajoyhutchins/overcenter
+  FAILED_TRANSITION: finish-hatchable-gcp-authoritative-state-migration
+  FAILED_OBSERVED_AT: 2026-09-09T00:27:08.894Z
+  ACCEPTANCE_TRANSITION: make-mechanical-changeset-coalescing-actionable
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out read-only diagnostic transport
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.DIAGNOSTIC_REVISION }}
+          path: diagnostic
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out exact authoritative production revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXACT_REVISION }}
+          path: authoritative
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Prove checkout identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C diagnostic rev-parse HEAD)" = "$DIAGNOSTIC_REVISION"
+          test "$(git -C authoritative rev-parse HEAD)" = "$EXACT_REVISION"
+          test "$(git ls-remote https://github.com/laurajoyhutchins/overcenter.git refs/heads/main | cut -f1)" = "$EXACT_REVISION"
+          printf 'diagnostic=%s\nauthoritative=%s\n' "$DIAGNOSTIC_REVISION" "$EXACT_REVISION"
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          request_reason: Exact-SHA Overcenter GCP authority proof
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+
+      - name: Deploy private read-only Cloud SQL inspector
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud config set project "${{ vars.GCP_PROJECT_ID }}" >/dev/null
+          gcloud run deploy "$INSPECTOR_SERVICE" \
+            --source diagnostic \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --region="$GCP_REGION" \
+            --service-account="$RUNTIME_SA" \
+            --add-cloudsql-instances="$CLOUD_SQL_CONNECTION_NAME" \
+            --set-env-vars="PGHOST=/cloudsql/${CLOUD_SQL_CONNECTION_NAME},PGDATABASE=overcenter,PGUSER=overcenter,OVERCENTER_AUTHORITY_MODE=shadow" \
+            --set-secrets="PGPASSWORD=overcenter-db-password:latest" \
+            --command=/cnb/lifecycle/launcher \
+            --args="--,node,scripts/cloud-run-authority-proof-http.mjs" \
+            --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
+            --no-allow-unauthenticated \
+            --min-instances=0 \
+            --max-instances=1 \
+            --quiet
+          gcloud run services describe "$INSPECTOR_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format=json > "$RUNNER_TEMP/inspector-service.json"
+          url="$(jq -r '.status.url' "$RUNNER_TEMP/inspector-service.json")"
+          ready="$(jq -r '.status.latestReadyRevisionName' "$RUNNER_TEMP/inspector-service.json")"
+          created="$(jq -r '.status.latestCreatedRevisionName' "$RUNNER_TEMP/inspector-service.json")"
+          test -n "$url" && test "$url" != null
+          test -n "$ready" && test "$ready" = "$created"
+          echo "INSPECTOR_URL=$url" >> "$GITHUB_ENV"
+          echo "Inspector revision: $ready"
+
+      - name: Read failed GCP project.advance durable state before repair deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          token="$(gcloud auth print-identity-token --audiences="$INSPECTOR_URL")"
+          jq -nc --arg project "$PROJECT_REF" --arg transition "$FAILED_TRANSITION" --arg observed "$FAILED_OBSERVED_AT" \
+            '{phase:"failed-attempt",project_ref:$project,transition_id:$transition,observed_at:$observed}' > "$RUNNER_TEMP/failed-request.json"
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/failed-proof-response.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $token" -H 'content-type: application/json' \
+            -X POST --data-binary @"$RUNNER_TEMP/failed-request.json" \
+            "$INSPECTOR_URL/api/authoritative-state/proof-inspect")"
+          test "$status" = 200 || { cat "$RUNNER_TEMP/failed-proof-response.json"; exit 1; }
+          jq -e '.ok == true and .proof.schema == "overcenter-authority-proof-inspect-v1"' "$RUNNER_TEMP/failed-proof-response.json" >/dev/null
+          jq '.proof' "$RUNNER_TEMP/failed-proof-response.json" > "$RUNNER_TEMP/failed-attempt.json"
+          runs="$(jq -r '.counts.runs' "$RUNNER_TEMP/failed-attempt.json")"
+          leases="$(jq -r '.counts.leases' "$RUNNER_TEMP/failed-attempt.json")"
+          active="$(jq -r '.counts.active_transition_leases' "$RUNNER_TEMP/failed-attempt.json")"
+          printf 'FAILED_ATTEMPT_COUNTS runs=%s leases=%s active_transition_leases=%s\n' "$runs" "$leases" "$active"
+          jq '{run,execution_state,leases,slots,active_transition_leases,counts,target_epoch}' "$RUNNER_TEMP/failed-attempt.json"
+          test "$runs" -le 1
+          if [[ "$runs" = 0 ]]; then test "$leases" = 0; fi
+          jq -e '.target_epoch.freeze_table == null and .target_epoch.freeze_function == null and .target_epoch.freeze_triggers == 0 and .target_epoch.source_only_migrations == 0' "$RUNNER_TEMP/failed-attempt.json" >/dev/null
+
+      - name: Deploy exact repaired revision as GCP authority
+        shell: bash
+        working-directory: authoritative
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          EXACT_REVISION: ${{ env.EXACT_REVISION }}
+        run: bash ./scripts/gcp/deploy-authoritative.sh
+
+      - name: Prove exact Cloud Run source revision and health
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run services describe "$GCP_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format=json > "$RUNNER_TEMP/service.json"
+          ready="$(jq -r '.status.latestReadyRevisionName' "$RUNNER_TEMP/service.json")"
+          created="$(jq -r '.status.latestCreatedRevisionName' "$RUNNER_TEMP/service.json")"
+          revision="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_REVISION") | .value' "$RUNNER_TEMP/service.json")"
+          mode="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_AUTHORITY_MODE") | .value' "$RUNNER_TEMP/service.json")"
+          digest="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "OVERCENTER_SOURCE_FREEZE_DIGEST") | .value' "$RUNNER_TEMP/service.json")"
+          url="$(jq -r '.status.url' "$RUNNER_TEMP/service.json")"
+          test -n "$ready" && test "$ready" = "$created"
+          test "$revision" = "$EXACT_REVISION"
+          test "$mode" = authoritative
+          test "$digest" = "$SOURCE_FREEZE_DIGEST"
+          test -n "$url" && test "$url" != null
+          echo "SERVICE_URL=$url" >> "$GITHUB_ENV"
+          echo "CLOUD_RUN_REVISION=$ready" >> "$GITHUB_ENV"
+          token="$(gcloud auth print-identity-token --audiences="$url")"
+          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $token" "$url/health" > "$RUNNER_TEMP/health.json"
+          jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null
+          printf 'Cloud Run revision=%s source=%s mode=%s freeze=%s\n' "$ready" "$revision" "$mode" "$digest"
+
+      - name: Reconcile failed attempt and run reversible ordinary GCP cycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          prod_token="$(gcloud auth print-identity-token --audiences="$SERVICE_URL")"
+          inspector_token="$(gcloud auth print-identity-token --audiences="$INSPECTOR_URL")"
+
+          prod_post() {
+            local path="$1" output="$2" payload="$3" status
+            status="$(curl --silent --show-error -o "$output" -w '%{http_code}' \
+              -H "Authorization: Bearer $prod_token" -H 'content-type: application/json' \
+              -X POST -d "$payload" "$SERVICE_URL$path")"
+            test "$status" = 200 || { echo "POST $path failed HTTP $status" >&2; cat "$output" >&2; exit 1; }
+          }
+          worker() {
+            local output="$1" payload="$2"
+            prod_post /api/worker-command "$output" "$payload"
+            jq -e '.ok == true' "$output" >/dev/null
+          }
+          project_inspect() {
+            local output="$1"
+            prod_post /api/authoritative-state/project-inspect "$output" "$(jq -nc --arg project "$PROJECT_REF" '{project_ref:$project}')"
+            jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$output" >/dev/null
+          }
+          proof_inspect() {
+            local output="$1" payload="$2" status
+            status="$(curl --silent --show-error -o "$output.response" -w '%{http_code}' \
+              -H "Authorization: Bearer $inspector_token" -H 'content-type: application/json' \
+              -X POST -d "$payload" "$INSPECTOR_URL/api/authoritative-state/proof-inspect")"
+            test "$status" = 200 || { cat "$output.response" >&2; exit 1; }
+            jq -e '.ok == true and .proof.schema == "overcenter-authority-proof-inspect-v1"' "$output.response" >/dev/null
+            jq '.proof' "$output.response" > "$output"
+          }
+
+          project_inspect "$RUNNER_TEMP/inspect-before-recovery.json"
+          runs="$(jq -r '.counts.runs' "$RUNNER_TEMP/failed-attempt.json")"
+          leases="$(jq -r '.counts.leases' "$RUNNER_TEMP/failed-attempt.json")"
+          active="$(jq -r '.counts.active_transition_leases' "$RUNNER_TEMP/failed-attempt.json")"
+          if [[ "$runs" = 1 ]]; then
+            failed_run="$(jq -r '.run.run_id' "$RUNNER_TEMP/failed-attempt.json")"
+            failed_status="$(jq -r '.run.status' "$RUNNER_TEMP/failed-attempt.json")"
+            if [[ "$failed_status" = active ]]; then
+              if [[ "$active" = 0 ]]; then
+                recover_acquire="$(jq -nc --arg project "$PROJECT_REF" --arg resume "$failed_run" '{command:"project.advance",input:{project_ref:$project,resume_ref:$resume}}')"
+                worker "$RUNNER_TEMP/recover-acquire.json" "$recover_acquire"
+                jq -e --arg run "$failed_run" '.outcome == "AGENT_EXECUTION_REQUIRED" and .resume_ref == $run and (.lease_ref|type == "string")' "$RUNNER_TEMP/recover-acquire.json" >/dev/null
+              elif [[ "$active" != 1 ]]; then
+                echo "ambiguous failed active lease count: $active" >&2
+                exit 1
+              fi
+              recover_settle="$(jq -nc --arg project "$PROJECT_REF" --arg resume "$failed_run" --arg probe "github-actions-run:${GITHUB_RUN_ID}" '{command:"project.advance",input:{project_ref:$project,resume_ref:$resume,execution_result:{disposition:"requeue",requeue_class:"insufficient_execution_window",reason:"Recovered failed pre-fix GCP acceptance probe; no substantive transition execution was started.",evidence:[{kind:"gcp_runtime_acceptance_probe_recovery",ref:$probe}]}}}')"
+              worker "$RUNNER_TEMP/recover-settle.json" "$recover_settle"
+              jq -e '.resume_ref == null' "$RUNNER_TEMP/recover-settle.json" >/dev/null
+            else
+              test "$active" = 0
+            fi
+          else
+            test "$runs" = 0 && test "$leases" = 0
+          fi
+
+          project_inspect "$RUNNER_TEMP/inspect-recovered.json"
+          acceptance_transition="$(jq -r --arg preferred "$ACCEPTANCE_TRANSITION" --arg excluded "$FAILED_TRANSITION" '(.inspection.frontier_details // []) as $d | (($d | map(select(.id == $preferred and .availability == "available")) | first | .id) // ($d | map(select(.id != $excluded and .availability == "available")) | first | .id) // empty)' "$RUNNER_TEMP/inspect-recovered.json")"
+          test -n "$acceptance_transition" || { jq '.inspection.frontier_details' "$RUNNER_TEMP/inspect-recovered.json" >&2; exit 1; }
+
+          advance="$(jq -nc --arg project "$PROJECT_REF" --arg transition "$acceptance_transition" '{command:"project.advance",input:{project_ref:$project,transition_id:$transition}}')"
+          worker "$RUNNER_TEMP/acceptance-advance.json" "$advance"
+          jq -e '.outcome == "AGENT_EXECUTION_REQUIRED" and (.resume_ref|type == "string") and (.lease_ref|type == "string")' "$RUNNER_TEMP/acceptance-advance.json" >/dev/null
+          probe_run="$(jq -r '.resume_ref' "$RUNNER_TEMP/acceptance-advance.json")"
+          lease_ref="$(jq -r '.lease_ref' "$RUNNER_TEMP/acceptance-advance.json")"
+
+          project_inspect "$RUNNER_TEMP/inspect-occupied.json"
+          jq -e --arg id "$acceptance_transition" '.inspection.frontier_details[] | select(.id == $id) | .availability == "occupied" and .occupied == true' "$RUNNER_TEMP/inspect-occupied.json" >/dev/null
+
+          settle="$(jq -nc --arg project "$PROJECT_REF" --arg resume "$probe_run" --arg deploy_run "github-actions-run:${GITHUB_RUN_ID}" --arg revision_ref "git-revision:${EXACT_REVISION}" '{command:"project.advance",input:{project_ref:$project,resume_ref:$resume,execution_result:{disposition:"requeue",requeue_class:"insufficient_execution_window",reason:"Post-migration GCP acceptance probe only; substantive transition execution was intentionally not started.",evidence:[{kind:"gcp_runtime_acceptance_probe",ref:$deploy_run},{kind:"gcp_authority_revision",ref:$revision_ref}]}}}')"
+          worker "$RUNNER_TEMP/acceptance-settle.json" "$settle"
+          jq -e '.resume_ref == null' "$RUNNER_TEMP/acceptance-settle.json" >/dev/null
+
+          project_inspect "$RUNNER_TEMP/inspect-after.json"
+          jq -e --arg id "$acceptance_transition" '.inspection.frontier_details[] | select(.id == $id) | .availability == "available" and .occupied == false' "$RUNNER_TEMP/inspect-after.json" >/dev/null
+
+          durable_payload="$(jq -nc --arg project "$PROJECT_REF" --arg transition "$acceptance_transition" --arg run "$probe_run" '{phase:"acceptance-cycle",project_ref:$project,transition_id:$transition,run_id:$run}')"
+          proof_inspect "$RUNNER_TEMP/acceptance-cycle.json" "$durable_payload"
+          jq -e --arg run "$probe_run" --arg lease "$lease_ref" '.run.run_id == $run and .run.status != "active" and .run.finished_at != null and (.leases | map(select(.lease_id == $lease and .status == "settled" and .settle_plan.disposition == "requeue" and .settle_receipt != null)) | length == 1) and .counts.slots == 0 and .counts.active_transition_leases == 0 and .target_epoch.freeze_table == null and .target_epoch.freeze_function == null and .target_epoch.freeze_triggers == 0 and .target_epoch.source_only_migrations == 0' "$RUNNER_TEMP/acceptance-cycle.json" >/dev/null
+
+          jq -n \
+            --arg cloud_run_revision "$CLOUD_RUN_REVISION" \
+            --arg source_revision "$EXACT_REVISION" \
+            --arg source_freeze_digest "$SOURCE_FREEZE_DIGEST" \
+            --arg transition "$acceptance_transition" \
+            --arg run "$probe_run" \
+            --arg lease "$lease_ref" \
+            --slurpfile failed "$RUNNER_TEMP/failed-attempt.json" \
+            --slurpfile durable "$RUNNER_TEMP/acceptance-cycle.json" \
+            --slurpfile final "$RUNNER_TEMP/inspect-after.json" \
+            '{schema:"overcenter-gcp-authority-proof-v1",cloud_run_revision:$cloud_run_revision,source_revision:$source_revision,source_freeze_digest:$source_freeze_digest,failed_attempt:$failed[0],acceptance:{transition_id:$transition,run_id:$run,lease_ref:$lease,durable:$durable[0]},final_project_inspect:$final[0]}' \
+            > "$RUNNER_TEMP/gcp-authority-proof.json"
+
+          printf '%s\n' \
+            'GCP_AUTHORITY_PROOF_OK' \
+            "cloud_run_revision=$CLOUD_RUN_REVISION" \
+            "source_revision=$EXACT_REVISION" \
+            "acceptance_transition=$acceptance_transition" \
+            "acceptance_run=$probe_run" \
+            "acceptance_lease=$lease_ref" \
+            'settlement=requeue' \
+            'stranded_active_leases=0'
+          jq '{failed_attempt:{run:.failed_attempt.run,leases:.failed_attempt.leases,execution_state:.failed_attempt.execution_state,counts:.failed_attempt.counts},acceptance:{transition_id:.acceptance.transition_id,run_id:.acceptance.run_id,lease_ref:.acceptance.lease_ref,run:.acceptance.durable.run,leases:.acceptance.durable.leases,counts:.acceptance.durable.counts}}' "$RUNNER_TEMP/gcp-authority-proof.json"
+
+      - name: Upload durable proof artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: overcenter-gcp-authority-proof-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/failed-attempt.json
+            ${{ runner.temp }}/acceptance-cycle.json
+            ${{ runner.temp }}/gcp-authority-proof.json
+            ${{ runner.temp }}/inspect-after.json
+          if-no-files-found: warn
+
+      - name: Delete temporary read-only inspector
+        if: always()
+        shell: bash
+        run: |
+          gcloud run services delete "$INSPECTOR_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --quiet || true
