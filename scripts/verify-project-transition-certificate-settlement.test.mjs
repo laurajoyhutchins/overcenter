@@ -1,0 +1,111 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  createProjectTransitionSettlementCertificate,
+  projectTransitionObligationFingerprint,
+  replayProjectTransitionSettlementCertificate,
+} from '../lib/project-transition-certificate-settlement.js';
+
+const sha = (ch) => ch.repeat(40);
+const authority = Object.freeze({ kind:'github', repository:'owner/repo', revision:sha('a'), derivation:'overcenter-project-graph-v1' });
+const project_ref = 'github:owner/repo';
+
+function transition(overrides = {}) {
+  return {
+    id:'ship-feature',
+    priority:10,
+    requires:[],
+    executor:{ kind:'agent', role:'implementation' },
+    phase_bindings:{},
+    execution_intent:{
+      schema:'project-execution-intent-v1',
+      desired_outcome:'Ship the verified feature.',
+      acceptance_evidence:[
+        { kind:'tests', requirement:'Focused tests pass.' },
+        { kind:'verification', requirement:'Exact authoritative verification passes.' },
+      ],
+    },
+    ...overrides,
+  };
+}
+
+const evidence = Object.freeze([
+  Object.freeze({ kind:'tests', ref:'github:owner/repo/actions/runs/10@' + sha('b') }),
+  Object.freeze({ kind:'verification', ref:'github:owner/repo@' + sha('c') }),
+]);
+
+async function certificateFor(current = transition(), extra = {}) {
+  return createProjectTransitionSettlementCertificate({ project_ref, transition:current, authority, evidence, ...extra });
+}
+
+test('valid current certificate replays deterministically and idempotently', async () => {
+  const current = transition();
+  const certificate = await certificateFor(current);
+  const first = await replayProjectTransitionSettlementCertificate({ project_ref, transition:current, certificate });
+  const second = await replayProjectTransitionSettlementCertificate({ project_ref, transition:current, certificate:structuredClone(certificate) });
+  assert.equal(first.certificate_ref, second.certificate_ref);
+  assert.equal(first.obligation_fingerprint, await projectTransitionObligationFingerprint(current));
+});
+
+test('unrelated graph amendment does not change a transition obligation identity', async () => {
+  const current = transition();
+  const before = await projectTransitionObligationFingerprint(current);
+  const unrelatedGraphNode = transition({ id:'other-work', priority:999, execution_intent:{ schema:'project-execution-intent-v1', desired_outcome:'Unrelated.', acceptance_evidence:[] } });
+  assert.ok(unrelatedGraphNode);
+  assert.equal(await projectTransitionObligationFingerprint(current), before);
+});
+
+test('changed acceptance semantics invalidate a prior certificate', async () => {
+  const original = transition();
+  const certificate = await certificateFor(original);
+  const changed = transition({ execution_intent:{ ...original.execution_intent, desired_outcome:'Ship the verified feature with stronger semantics.' } });
+  await assert.rejects(
+    replayProjectTransitionSettlementCertificate({ project_ref, transition:changed, certificate }),
+    (error) => error?.code === 'PROJECT_TRANSITION_CERTIFICATE_OBLIGATION_STALE',
+  );
+});
+
+test('changed dependency semantics invalidate a prior certificate', async () => {
+  const original = transition();
+  const certificate = await certificateFor(original);
+  const changed = transition({ requires:['prepare-feature'] });
+  await assert.rejects(
+    replayProjectTransitionSettlementCertificate({ project_ref, transition:changed, certificate, predecessor_certificates:[] }),
+    (error) => ['PROJECT_TRANSITION_CERTIFICATE_OBLIGATION_STALE','PROJECT_TRANSITION_CERTIFICATE_PREREQUISITE_CLOSURE_INVALID'].includes(error?.code),
+  );
+});
+
+test('missing declared acceptance evidence fails closed before certificate creation', async () => {
+  await assert.rejects(
+    createProjectTransitionSettlementCertificate({ project_ref, transition:transition(), authority, evidence:[evidence[0]] }),
+    (error) => error?.code === 'PROJECT_TRANSITION_CERTIFICATE_EVIDENCE_INCOMPLETE' && error?.details?.missing_kinds?.includes('verification'),
+  );
+});
+
+test('predecessor closure is exact and certificate-addressed', async () => {
+  const predecessorTransition = transition({ id:'prepare-feature', requires:[], execution_intent:{ schema:'project-execution-intent-v1', desired_outcome:'Prepare.', acceptance_evidence:[{kind:'tests',requirement:'Pass.'}] } });
+  const predecessor = await createProjectTransitionSettlementCertificate({ project_ref, transition:predecessorTransition, authority, evidence:[{kind:'tests',ref:'run:prepare'}] });
+  const current = transition({ requires:['prepare-feature'] });
+  const certificate = await createProjectTransitionSettlementCertificate({ project_ref, transition:current, authority, evidence, predecessor_certificates:[predecessor] });
+  const replay = await replayProjectTransitionSettlementCertificate({ project_ref, transition:current, certificate, predecessor_certificates:[predecessor] });
+  assert.equal(replay.certificate.prerequisites.length, 1);
+  assert.equal(replay.certificate.prerequisites[0].transition_id, 'prepare-feature');
+  assert.match(replay.certificate.prerequisites[0].certificate_ref, /^sha256:[0-9a-f]{64}$/);
+});
+
+test('missing prerequisite certificate fails closed', async () => {
+  const current = transition({ requires:['prepare-feature'] });
+  await assert.rejects(
+    createProjectTransitionSettlementCertificate({ project_ref, transition:current, authority, evidence, predecessor_certificates:[] }),
+    (error) => error?.code === 'PROJECT_TRANSITION_CERTIFICATE_PREREQUISITE_CLOSURE_INVALID',
+  );
+});
+
+test('certificate subject cannot be replayed for another transition', async () => {
+  const current = transition();
+  const certificate = await certificateFor(current);
+  await assert.rejects(
+    replayProjectTransitionSettlementCertificate({ project_ref, transition:transition({ id:'other-transition' }), certificate }),
+    (error) => error?.code === 'PROJECT_TRANSITION_CERTIFICATE_SUBJECT_STALE',
+  );
+});
