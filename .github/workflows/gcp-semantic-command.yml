@@ -20,7 +20,7 @@ on:
         required: true
         type: string
       expected_head:
-        description: Exact main revision expected by the caller
+        description: Exact converged dev/main revision expected by the caller
         required: true
         type: string
       transition_id:
@@ -72,9 +72,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_REF" = "refs/heads/dev"
           test "$GITHUB_SHA" = "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXPECTED_HEAD"
           test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_HEAD"
           test "$PROJECT_REF" = 'github:laurajoyhutchins/overcenter'
           case "$COMMAND" in
