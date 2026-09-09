@@ -30,6 +30,7 @@ const maintainedTests = [
   'gcp-activation-cnb-launcher.test.mjs',
   'gcp-command-forwarder.test.mjs',
   'gcp-command-ingress-deploy.test.mjs',
+  'gcp-production-promote-dispatch.test.mjs',
   'gcp-semantic-project-amend-bridge.test.mjs',
   'postgres-state-manifest.test.mjs',
   'source-authority-fence.test.mjs',
