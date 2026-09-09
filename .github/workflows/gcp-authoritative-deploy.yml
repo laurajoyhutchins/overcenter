@@ -69,12 +69,6 @@ jobs:
           set -euo pipefail
           gcloud auth list --filter=status:ACTIVE --format='value(account)' | grep -Fx "${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}"
 
-      - name: Inspect failed GCP project.advance state read-only
-        shell: bash
-        env:
-          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-        run: bash ./scripts/gcp/prove-authoritative-runtime.sh inspect-failed
-
       - name: Deploy without changing authority epoch
         shell: bash
         env:
@@ -90,4 +84,4 @@ jobs:
           OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
           EXACT_REVISION: ${{ inputs.exact_revision }}
-        run: bash ./scripts/gcp/prove-authoritative-runtime.sh prove
+        run: bash ./scripts/gcp/prove-authoritative-runtime-http.sh
