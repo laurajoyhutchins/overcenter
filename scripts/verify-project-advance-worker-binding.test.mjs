@@ -102,6 +102,34 @@ if (response.body?.run_id !== existingRunId || response.body?.status !== 'finish
 if (response.body?.resume_ref != null) throw new Error('project.advance returned a resume_ref after terminal execution settlement');
 `;
 
+const diagnosticProbe = `
+import { executeSemanticWorkerCommand } from './lib/worker-transport.js';
+const logs = [];
+const response = await executeSemanticWorkerCommand('project.advance', {
+  project_ref:'github:laurajoyhutchins/overcenter',
+  transition_id:'finish-hatchable-gcp-authoritative-state-migration',
+}, {
+  db:{ async query() { return { rows:[] }; } },
+  projectAdvance:{
+    async advance() {
+      const error = new Error('sensitive provider failure body must not cross the worker boundary');
+      error.code = 'RUNTIME_PROVIDER_UNAVAILABLE';
+      error.details = { provider:'api', secret:'must-not-leak', may_have_mutated:false };
+      throw error;
+    },
+  },
+  logger:{ error(message) { logs.push(message); } },
+});
+if (response.status !== 500) throw new Error('internal project.advance failure did not remain a 500');
+if (response.body?.error_code !== 'PROJECT_ADVANCE_ERROR') throw new Error('public semantic error code changed');
+if (response.body?.details?.diagnostic_error_code !== 'RUNTIME_PROVIDER_UNAVAILABLE') throw new Error('stable diagnostic error code was lost');
+if (response.body?.details?.diagnostic_failure_kind !== 'runtime_provider') throw new Error('diagnostic failure kind was lost');
+if (response.body?.may_have_mutated !== false) throw new Error('mutation certainty changed');
+const serialized = JSON.stringify(response.body);
+if (serialized.includes('sensitive provider failure body') || serialized.includes('must-not-leak')) throw new Error('raw internal details crossed the worker boundary');
+if (!logs.some((entry) => entry.includes('RUNTIME_PROVIDER_UNAVAILABLE'))) throw new Error('structured internal log lost the original code');
+`;
+
 function runProbe(source) {
   return spawnSync(process.execPath, [
     '--experimental-loader',
@@ -119,6 +147,11 @@ test('project.advance worker transport composes run and advance services', () =>
 
 test('project.advance execution completion terminates through the same semantic boundary', () => {
   const result = runProbe(completionProbe);
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
+test('project.advance internal failures preserve safe machine diagnostics without raw details', () => {
+  const result = runProbe(diagnosticProbe);
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
