@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createExecutionAuthorityService } from '../lib/execution-authority-core.js';
 import { deriveProjectTransitionGithubWorkspace } from '../lib/project-transition-github-workspace.js';
 import { applyGithubChangeset, coalesceGithubMechanicalChangeset, createGithubApiAdapter } from '../lib/github-apply-changeset.js';
+import { semanticCommandDescriptor } from '../lib/semantic-command-descriptors.js';
 
 const REPOSITORY = 'laurajoyhutchins/overcenter';
 const PROJECT_REF = `github:${REPOSITORY}`;
@@ -104,6 +105,14 @@ test('project transition mutation authority accepts the opaque plink lease refer
   const authority = await fixture().require({ lease_ref:`plink:${LEASE_REF}`, repository:REPOSITORY });
   assert.equal(authority.lease_ref, LEASE_REF);
   assert.equal(authority.transition_id, TRANSITION_ID);
+});
+
+test('canonical mechanical coalescing command is lease-scoped and derives Git coordinates', () => {
+  const descriptor = semanticCommandDescriptor('github.coalesce_changeset');
+  assert.deepEqual(descriptor.required_fields, ['lease_ref', 'changes', 'commit_message']);
+  assert.deepEqual(descriptor.semantic_fields, ['lease_ref', 'changes', 'commit_message']);
+  assert.equal(descriptor.exposure.worker, true);
+  assert.equal(descriptor.exposure.mcp, false);
 });
 
 test('consecutive mechanical changesets fail before mutation with an executable coalescing remedy', async () => {
