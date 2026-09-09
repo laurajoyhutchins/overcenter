@@ -96,7 +96,7 @@ test('explicit issue binding can mechanically satisfy an artifact while an unbou
     authority_revision: SHA,
     repository: 'laurajoyhutchins/overcenter',
     provider: { kind: 'issue', id: 732 },
-    relationship: 'satisfies',
+    relationship: 'full_coverage_equivalence',
     satisfaction: { condition: 'closed' },
   });
 
@@ -119,7 +119,7 @@ test('artifact binding requires exact semantic subject and auditable provider id
     authority_revision: SHA,
     repository: 'laurajoyhutchins/overcenter',
     provider: { kind: 'issue', id: 732 },
-    relationship: 'satisfies',
+    relationship: 'full_coverage_equivalence',
     satisfaction: { condition: 'closed' },
     title: 'add project artifact binding',
   }), /transition identity/);
@@ -130,7 +130,7 @@ test('artifact binding requires exact semantic subject and auditable provider id
     authority_revision: SHA,
     repository: 'laurajoyhutchins/overcenter',
     provider: { kind: 'issue', id: '732-ish' },
-    relationship: 'satisfies',
+    relationship: 'full_coverage_equivalence',
     satisfaction: { condition: 'closed' },
   }), /provider object identity/);
 });
