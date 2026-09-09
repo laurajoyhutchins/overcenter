@@ -10,7 +10,7 @@ function responsibilitiesFor(target) {
   return Object.fromEntries(PRODUCTIVE_STAGES.map((stage, stageIndex) => [stage, { applicable:true, satisfied:stageIndex < index }]));
 }
 
-function graph(revision) {
+function graph(revision, desiredOutcome = 'Ship transition A.') {
   return {
     schema:'project-graph-authority-v1',
     project_ref:'github:laurajoyhutchins/overcenter',
@@ -22,6 +22,11 @@ function graph(revision) {
       lifecycle:{current_stage:'ENABLE',responsibilities:responsibilitiesFor('ENABLE')},
       executor:{kind:'agent',role:'implementation',skill:'test-driven-development'},
       phase_bindings:{},
+      execution_intent:{
+        schema:'project-execution-intent-v1',
+        desired_outcome:desiredOutcome,
+        acceptance_evidence:[{kind:'tests',requirement:'Focused tests pass.'}],
+      },
     }],
     horizons:[],
   };
@@ -107,6 +112,25 @@ test('unchanged transition authority survives an unrelated authoritative graph r
     authority_changed:true,
     changes:[],
   });
+});
+
+test('execution intent changes invalidate an existing lease across graph revisions', async () => {
+  const f = fixture();
+  const acquired = await f.service.acquire({
+    run_id:'run-1',
+    project_ref:'github:laurajoyhutchins/overcenter',
+    transition_id:'transition-a',
+    lease_seconds:600,
+    idempotency_key:'semantic-revision-change',
+  });
+
+  f.setGraph(graph('2'.repeat(40), 'Ship transition A with stronger acceptance semantics.'));
+  await expectCode(() => f.service.require({
+    lease_ref:acquired.lease_ref,
+    run_id:'run-1',
+    repository:'laurajoyhutchins/overcenter',
+    transition_id:'transition-a',
+  }), 'PROJECT_TRANSITION_AUTHORITY_STALE');
 });
 
 test('idempotent lease acquisition replay preserves graph revision evidence for targeted resume', async () => {
