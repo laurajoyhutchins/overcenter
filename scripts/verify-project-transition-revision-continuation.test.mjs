@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createProjectTransitionLeaseService } from '../lib/project-transition-leases.js';
+import { projectTransitionDefinitionFingerprint } from '../lib/project-transition-observations.js';
 import { reconcileProjectTransitionChange } from '../lib/project-graph-reconciliation.js';
 import { PRODUCTIVE_STAGES } from '../lib/work-lifecycle.js';
 
@@ -131,6 +132,16 @@ test('execution intent changes invalidate an existing lease across graph revisio
     repository:'laurajoyhutchins/overcenter',
     transition_id:'transition-a',
   }), 'PROJECT_TRANSITION_AUTHORITY_STALE');
+});
+
+test('durable transition confirmation identity changes with execution intent', async () => {
+  const before = graph('1'.repeat(40), 'Ship transition A.').nodes[0];
+  const after = graph('1'.repeat(40), 'Ship transition A with stronger acceptance semantics.').nodes[0];
+
+  assert.notEqual(
+    await projectTransitionDefinitionFingerprint(before),
+    await projectTransitionDefinitionFingerprint(after),
+  );
 });
 
 test('idempotent lease acquisition replay preserves graph revision evidence for targeted resume', async () => {
