@@ -65,6 +65,7 @@
 - `authoritative-state.recovery-seed.http-boundary` — authority `http:api/authoritative-state/recovery-seed.js#request-response`; SemVer `adapter-layout`
 - `compact.execution-state.store` — authority `typescript:src/ports/compact-execution-state-store.ts#CompactExecutionStateStore`; SemVer `adapter-layout`; 9 projections
 - `execution.authority.store-port` — authority `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityStore`
+- `gcp.semantic-command-dispatch.http-boundary` — authority `http:api/gcp-semantic-command-dispatch.js#request-response`; SemVer `adapter-layout`
 - `github.repository.rename.http-boundary` — authority `http:api/github-repository-rename.js#request-response`; SemVer `adapter-layout`
 - `project.advance.runtime-host` — authority `typescript:src/ports/project-advance-runtime-host.ts#ProjectAdvanceRuntimeHost`
 - `project.amend.validation-boundary` — authority `typescript:src/semantic/project-authoring-runtime.ts#ProjectAuthoringAmendmentValidation`; SemVer `internal-module-layout`
@@ -77,7 +78,6 @@
 
 ## Unclassified historical debt
 
-- `http:api/gcp-semantic-command-dispatch.js#request-response`
 - `http:api/github-actions-storage.js#request-response`
 - `http:api/github-apply-changeset.js#request-response`
 - `http:api/github-apply-text-replacements.js#request-response`

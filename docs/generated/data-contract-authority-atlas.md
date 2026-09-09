@@ -764,6 +764,27 @@ _None._
 
 _None._
 
+## `gcp.semantic-command-dispatch.http-boundary`
+
+- Significance: `boundary-internal`
+- Lifecycle: `unclassified`
+- SemVer: `adapter-layout`
+- Authority: `http:api/gcp-semantic-command-dispatch.js#request-response` (`http`)
+- Authority source: `api/gcp-semantic-command-dispatch.js#request-response`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
 ## `github.apply_changeset.input`
 
 - Significance: `public`
