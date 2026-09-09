@@ -152,7 +152,7 @@ if (response.body?.details?.diagnostic_error_code !== '08006') throw new Error('
 if (response.body?.details?.diagnostic_failure_kind !== 'database_infrastructure') throw new Error('database infrastructure classification was lost');
 if (response.body?.may_have_mutated !== true) throw new Error('unannotated database failure was incorrectly declared non-mutating');
 if (response.body?.details?.may_have_mutated !== true) throw new Error('database mutation uncertainty was not preserved in diagnostic details');
-if (response.body?.details?.recovery_allowed !== false) throw new Error('database infrastructure failure unexpectedly allowed automatic recovery');
+if (response.body?.automatic_recovery_allowed !== false) throw new Error('database infrastructure failure unexpectedly allowed automatic recovery');
 `;
 
 function runProbe(source) {
