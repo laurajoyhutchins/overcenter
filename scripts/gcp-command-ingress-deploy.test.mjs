@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 
 const deployScript = await readFile(new URL('./gcp/deploy-command-ingress.sh', import.meta.url), 'utf8');
+const bootstrapScript = await readFile(new URL('./gcp/bootstrap-command-ingress.sh', import.meta.url), 'utf8');
 
 test('command ingress preserves buildpack runtime environment', () => {
   assert.match(deployScript, /--command=\/cnb\/lifecycle\/launcher/);
@@ -10,10 +11,24 @@ test('command ingress preserves buildpack runtime environment', () => {
   assert.doesNotMatch(deployScript, /--command=node\b/);
 });
 
+test('recurring ingress deploy cannot create principals or edit IAM', () => {
+  assert.doesNotMatch(deployScript, /service-accounts create/);
+  assert.doesNotMatch(deployScript, /add-iam-policy-binding/);
+  assert.match(deployScript, /COMMAND_INGRESS_IDENTITY_BOOTSTRAP_REQUIRED/);
+  assert.match(deployScript, /bootstrap-command-ingress\.sh/);
+});
+
+test('one-time bootstrap creates a project-role-free ingress identity with service-scoped invocation only', () => {
+  assert.match(bootstrapScript, /service-accounts create/);
+  assert.match(bootstrapScript, /roles\/iam\.serviceAccountUser/);
+  assert.match(bootstrapScript, /roles\/run\.invoker/);
+  assert.match(bootstrapScript, /projects get-iam-policy/);
+  assert.match(bootstrapScript, /unexpectedly has project-level IAM roles/);
+});
+
 test('command ingress remains physically separated from authoritative storage', () => {
   assert.doesNotMatch(deployScript, /--(?:add|set)-cloudsql-instances/);
   assert.doesNotMatch(deployScript, /--set-secrets=/);
-  assert.match(deployScript, /roles\/run\.invoker/);
   assert.match(deployScript, /forbidden in \('PGHOST','PGPORT','PGDATABASE','PGUSER','PGPASSWORD','DATABASE_URL','GITHUB_APP_PRIVATE_KEY'\)/);
 });
 

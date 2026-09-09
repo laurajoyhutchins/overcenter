@@ -38,25 +38,15 @@ fi
 
 INGRESS_SA="${INGRESS_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 if ! gcloud iam service-accounts describe "$INGRESS_SA" --project="$PROJECT_ID" >/dev/null 2>&1; then
-  gcloud iam service-accounts create "$INGRESS_SA_NAME" \
-    --project="$PROJECT_ID" \
-    --display-name="Overcenter stateless command ingress"
+  cat >&2 <<EOF
+COMMAND_INGRESS_IDENTITY_BOOTSTRAP_REQUIRED
+Dedicated ingress identity is not available to the deployer:
+  ${INGRESS_SA}
+Run scripts/gcp/bootstrap-command-ingress.sh once with a GCP administrator identity.
+Recurring GitHub Actions deployment intentionally cannot create service accounts or edit IAM.
+EOF
+  exit 3
 fi
-
-# The deploy identity may attach only this dedicated runtime identity. The
-# ingress identity itself receives no project role and no database/secret role.
-gcloud iam service-accounts add-iam-policy-binding "$INGRESS_SA" \
-  --project="$PROJECT_ID" \
-  --member="serviceAccount:${ACTIVE_ACCOUNT}" \
-  --role="roles/iam.serviceAccountUser" >/dev/null
-
-# Service-scoped invocation is the ingress identity's only authority needed by
-# Overcenter. Do not grant project-wide run.invoker.
-gcloud run services add-iam-policy-binding "$TARGET_SERVICE" \
-  --project="$PROJECT_ID" \
-  --region="$REGION" \
-  --member="serviceAccount:${INGRESS_SA}" \
-  --role="roles/run.invoker" >/dev/null
 
 gcloud run deploy "$INGRESS_SERVICE" \
   --source . \
