@@ -309,7 +309,9 @@ test('pending project.amend persists durable external-verification recovery coor
   let recoveryInput = null;
   const runtime = createProjectAuthoringProductionRuntime({
     resolveAuthority:async () => ({ ...authority(initialRevision), branch:'dev' }),
-    readDefinitionFacts:async ({ revision }) => facts(revision, revision === stagedRevision ? amendedDefinition : baseDefinition),
+    readDefinitionFacts:async ({ revision }) => revision === stagedRevision
+      ? { ...facts(revision, amendedDefinition), definitions:[{ path:'.overcenter/definitions/project.json', content:`${JSON.stringify(amendedDefinition, null, 2)}\n` }] }
+      : facts(revision, baseDefinition),
     readRepositoryDisposition:async (repository) => ({ repository, disposition:'ACTIVE' }),
     readSourceRevision:async () => initialRevision,
     applyChangeset:async () => ({ ok:true, new_head:stagedRevision }),
