@@ -93,6 +93,8 @@ const maintainedTests = [
   'verify-outcome-integrity-inspection.test.mjs',
   'verify-outcome-integrity-v0.test.mjs',
   'verify-project-artifact-lineage.test.mjs',
+  'verify-project-artifact-binding.test.mjs',
+  'verify-project-artifact-binding-runtime.test.mjs',
   'verify-runtime-provider-composition.test.mjs',
   'production-reconcile-operation.test.mjs',
   'production-reconcile-host.test.mjs',
