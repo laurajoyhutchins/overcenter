@@ -1,9 +1,11 @@
-import { hatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
+import { config } from 'hatchable';
+import { createGitHubAppAuth } from 'lib/github-app-auth.js';
 
 export const access = 'admin';
 export const methods = ['GET'];
 
-const withGitHubAppApiClient = hatchableRuntimeProviders.githubAppAuth.withApiClient;
+const secrets = Object.freeze({ get(name) { return config.get(name); } });
+const withGitHubAppApiClient = createGitHubAppAuth({ secrets }).withApiClient;
 
 export default async function (req, res) {
   const repo = String(req.query?.repo || '');
