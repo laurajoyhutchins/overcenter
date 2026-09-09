@@ -154,6 +154,45 @@ test('consecutive mechanical changesets fail before mutation with an executable 
   assert.equal(mutationCalls, 0);
 });
 
+test('lease-scoped mechanical coalescing rejects a different lease before Git mutation', async () => {
+  const parentSha = 'f'.repeat(40);
+  let withGithubCalls = 0;
+  const authority = fixture();
+  const db = {
+    async query(sql) {
+      if (sql.includes('SELECT idempotency_key, receipt FROM github_changeset_receipts')) {
+        return {
+          rows: [{
+            idempotency_key: 'project-transition-changeset-v1:other-lease',
+            receipt: {
+              ok: true,
+              commit_sha: parentSha,
+              execution_authority: { lease_ref: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+            },
+          }],
+        };
+      }
+      throw new Error(`unexpected db query: ${sql}`);
+    },
+  };
+
+  await assert.rejects(
+    () => coalesceGithubLeaseScopedChangeset({
+      lease_ref: LEASE_REF,
+      changes: [{ path: 'example.txt', operation: 'update', content: 'next\n' }],
+      commit_message: 'format: normalize example',
+    }, {
+      executionAuthority: authority,
+      readBranch: async () => ({ sha: parentSha }),
+      withGithub: async () => { withGithubCalls += 1; throw new Error('must not mutate'); },
+      db,
+    }),
+    (error) => error?.code === 'MECHANICAL_COALESCE_PARENT_AUTHORITY_MISMATCH'
+      && error?.details?.may_have_mutated === false,
+  );
+  assert.equal(withGithubCalls, 0);
+});
+
 test('mechanical coalescing replaces the exact mechanical head with one linear repair commit', async () => {
   const grandparentSha = '2'.repeat(40);
   const parentSha = '3'.repeat(40);
