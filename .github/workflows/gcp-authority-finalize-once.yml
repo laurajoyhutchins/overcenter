@@ -1,4 +1,4 @@
-# Re-run after bounded GCP semantic WIF branch repair.
+# Re-run after bounded production reconciliation repair.
 name: One-shot finalize GCP authority
 
 on:
@@ -80,16 +80,33 @@ jobs:
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
         run: |
           set -euo pipefail
-          status="$(curl --silent --show-error -o "$RUNNER_TEMP/reconcile.json" -w '%{http_code}' \
-            -H "Authorization: Bearer $ID_TOKEN" \
-            -H 'content-type: application/json' \
-            -X POST \
-            -d '{"command":"production.reconcile","input":{"repo":"laurajoyhutchins/overcenter"}}' \
-            "$SERVICE_AUDIENCE/api/worker-command")"
-          cat "$RUNNER_TEMP/reconcile.json" | jq . >&2 2>/dev/null || cat "$RUNNER_TEMP/reconcile.json" >&2
-          test "$status" = 200
-          jq -e --arg revision "$EXACT_REVISION" '.ok == true and .outcome == "converged" and .development_revision == $revision and .production_revision == $revision' "$RUNNER_TEMP/reconcile.json" >/dev/null
-          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXACT_REVISION"
+          for attempt in $(seq 1 12); do
+            status="$(curl --silent --show-error -o "$RUNNER_TEMP/reconcile.json" -w '%{http_code}' \
+              -H "Authorization: Bearer $ID_TOKEN" \
+              -H 'content-type: application/json' \
+              -X POST \
+              -d '{"command":"production.reconcile","input":{"repo":"laurajoyhutchins/overcenter"}}' \
+              "$SERVICE_AUDIENCE/api/worker-command")"
+            cat "$RUNNER_TEMP/reconcile.json" | jq . >&2 2>/dev/null || cat "$RUNNER_TEMP/reconcile.json" >&2
+            test "$status" = 200
+            jq -e --arg revision "$EXACT_REVISION" '.ok == true and .development_revision == $revision and .production_revision == $revision' "$RUNNER_TEMP/reconcile.json" >/dev/null
+            outcome="$(jq -r '.outcome' "$RUNNER_TEMP/reconcile.json")"
+            case "$outcome" in
+              converged|already_converged)
+                test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXACT_REVISION"
+                exit 0
+                ;;
+              materialization_pending)
+                sleep 5
+                ;;
+              *)
+                echo "unsupported production.reconcile outcome: $outcome" >&2
+                exit 1
+                ;;
+            esac
+          done
+          echo 'production.reconcile did not reach a terminal converged outcome in the bounded retry window' >&2
+          exit 1
 
       - name: Install Google Cloud CLI
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
