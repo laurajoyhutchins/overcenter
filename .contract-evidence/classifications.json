@@ -11,6 +11,11 @@
       "significance": "boundary-internal",
       "semver_kind": "adapter-layout"
     },
+    "http:api/gcp-semantic-command-dispatch.js#request-response": {
+      "logical_contract": "gcp.semantic-command-dispatch.http-boundary",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout"
+    },
     "http:api/github-repository-rename.js#request-response": {
       "logical_contract": "github.repository.rename.http-boundary",
       "significance": "boundary-internal",
