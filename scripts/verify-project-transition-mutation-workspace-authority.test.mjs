@@ -163,12 +163,12 @@ test('mechanical coalescing replaces the exact mechanical head with one linear r
     async getPathEntries() { return new Map([['example.txt', { path: 'example.txt', mode: '100644', type: 'blob', sha: '7'.repeat(40) }]]); },
     async createTree(repo, baseTree, entries) { assert.equal(baseTree, '6'.repeat(40)); assert.equal(entries[0].content, 'next\n'); return treeSha; },
     async createCommit(repo, request) { assert.equal(request.parentSha, grandparentSha); assert.equal(request.treeSha, treeSha); return replacementSha; },
-    async replaceBranch(repo, branch, sha) { replaced = { repo, branch, sha }; },
+    async replaceBranch(repo, branch, expectedHead, sha) { replaced = { repo, branch, expectedHead, sha }; },
   };
   const result = await coalesceGithubMechanicalChangeset({ repo: 'example/project', branch: 'work/coalescing-contract', expected_head: parentSha, changes: [{ path: 'example.txt', operation: 'update', content: 'next', ensure_final_newline: true }], commit_message: 'format: normalize example' }, { github });
   assert.equal(result.ok, true);
   assert.equal(result.old_head, parentSha);
   assert.equal(result.parent_sha, grandparentSha);
   assert.equal(result.new_head, replacementSha);
-  assert.deepEqual(replaced, { repo: 'example/project', branch: 'work/coalescing-contract', sha: replacementSha });
+  assert.deepEqual(replaced, { repo: 'example/project', branch: 'work/coalescing-contract', expectedHead: parentSha, sha: replacementSha });
 });
