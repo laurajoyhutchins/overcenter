@@ -21,3 +21,8 @@ description = "GitHub App ID for repository-scoped Overcenter mutations."
 key = "GITHUB_APP_PRIVATE_KEY"
 required = true
 description = "Private key for the narrowly installed Overcenter GitHub App. Stored as a Hatchable project secret."
+
+[[secret]]
+key = "OVERCENTER_GCP_COMMAND_INGRESS_URL"
+required = false
+description = "Non-secret HTTPS URL for the stateless GCP command ingress. When unset, Hatchable command forwarding fails closed before dispatch."
