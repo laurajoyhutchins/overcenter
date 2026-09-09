@@ -5,7 +5,7 @@ import {
   createCloudRunHandler,
   resolveCloudRunConfig,
 } from './cloud-run-host.mjs';
-import { createCloudRunDatabaseBinding } from './cloud-run-semantic-runtime.mjs';
+import { createCloudRunDatabaseBinding } from './cloud-run-database-binding.mjs';
 
 function responseRecorder() {
   return {
