@@ -1,11 +1,6 @@
 name: GCP authoritative deployment
 
 on:
-  push:
-    branches:
-      - dev
-    paths:
-      - .github/workflows/gcp-authoritative-deploy.yml
   workflow_dispatch:
     inputs:
       exact_revision:
@@ -37,14 +32,14 @@ jobs:
       - name: Check out exact authoritative source revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.exact_revision || github.sha }}
+          ref: ${{ inputs.exact_revision }}
           persist-credentials: false
           fetch-depth: 1
 
       - name: Prove exact revision is production authority
         shell: bash
         env:
-          EXACT_REVISION: ${{ inputs.exact_revision || github.sha }}
+          EXACT_REVISION: ${{ inputs.exact_revision }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/dev"
@@ -63,7 +58,7 @@ jobs:
           token_format: id_token
           id_token_audience: ${{ env.SERVICE_AUDIENCE }}
           id_token_include_email: true
-          request_reason: Overcenter authoritative deployment ${{ inputs.exact_revision || github.sha }}
+          request_reason: Overcenter authoritative deployment ${{ inputs.exact_revision }}
 
       - name: Install Google Cloud CLI
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
@@ -85,7 +80,7 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
-          EXACT_REVISION: ${{ inputs.exact_revision || github.sha }}
+          EXACT_REVISION: ${{ inputs.exact_revision }}
         run: bash ./scripts/gcp/deploy-authoritative.sh
 
       - name: Reconcile failed attempt and prove reversible GCP acceptance cycle
@@ -94,5 +89,5 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-          EXACT_REVISION: ${{ inputs.exact_revision || github.sha }}
+          EXACT_REVISION: ${{ inputs.exact_revision }}
         run: bash ./scripts/gcp/prove-authoritative-runtime.sh prove
