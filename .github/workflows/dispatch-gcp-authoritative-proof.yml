@@ -1,0 +1,28 @@
+name: Dispatch GCP authoritative proof
+
+on:
+  push:
+    branches:
+      - ops/dispatch-gcp-authoritative-proof-20260908
+    paths:
+      - .github/workflows/dispatch-gcp-authoritative-proof.yml
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch exact repaired revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXACT_REVISION: 9c19617c011ce0a37f40d71f38e506366e600757
+        run: |
+          set -euo pipefail
+          jq -nc --arg exact "$EXACT_REVISION" '{ref:"dev",inputs:{exact_revision:$exact}}' \
+            | gh api \
+                --method POST \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/gcp-authoritative-deploy.yml/dispatches" \
+                --input -
