@@ -1,6 +1,7 @@
 name: One-shot finalize GCP authority
 
 on:
+  workflow_dispatch:
   push:
     branches: [dev]
     paths:
@@ -73,21 +74,23 @@ jobs:
           id_token_include_email: true
           request_reason: Finalize Overcenter GCP authority ${{ github.sha }}
 
-      - name: Converge production ref through Overcenter
+      - name: Promote exact production revision through Overcenter
         shell: bash
         env:
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
         run: |
           set -euo pipefail
-          status="$(curl --silent --show-error -o "$RUNNER_TEMP/reconcile.json" -w '%{http_code}' \
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/promotion.json" -w '%{http_code}' \
             -H "Authorization: Bearer $ID_TOKEN" \
             -H 'content-type: application/json' \
             -X POST \
-            -d '{"command":"production.reconcile","input":{"repo":"laurajoyhutchins/overcenter"}}' \
+            -d '{"command":"production.promote","input":{"repo":"laurajoyhutchins/overcenter"}}' \
             "$SERVICE_AUDIENCE/api/worker-command")"
-          cat "$RUNNER_TEMP/reconcile.json" | jq . >&2 2>/dev/null || cat "$RUNNER_TEMP/reconcile.json" >&2
+          cat "$RUNNER_TEMP/promotion.json" | jq . >&2 2>/dev/null || cat "$RUNNER_TEMP/promotion.json" >&2
           test "$status" = 200
-          jq -e --arg revision "$EXACT_REVISION" '.ok == true and .outcome == "converged" and .development_revision == $revision and .production_revision == $revision' "$RUNNER_TEMP/reconcile.json" >/dev/null
+          jq -e --arg revision "$EXACT_REVISION" \
+            '.ok == true and .source_revision == $revision and .production_revision == $revision and (.verification_ref | type == "string" and length > 0)' \
+            "$RUNNER_TEMP/promotion.json" >/dev/null
           test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXACT_REVISION"
 
       - name: Install Google Cloud CLI
