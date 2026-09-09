@@ -72,7 +72,16 @@ try {
         ORDER BY created_at,lease_id`,
       [runId],
     ) : [];
-    const execution = runId ? await many(
+    const execution = TRANSITION_ID ? await many(
+      client,
+      `SELECT subject_key,subject_kind,project_ref,transition_id,authority_epoch,lease_ref,run_id,
+              authority_repository,authority_revision,expires_at,hard_expires_at,updated_at
+         FROM execution_state
+        WHERE (run_id=$1)
+           OR (project_ref=$2 AND transition_id=$3 AND subject_kind='project_transition')
+        ORDER BY subject_key`,
+      [runId, PROJECT_REF, TRANSITION_ID],
+    ) : (runId ? await many(
       client,
       `SELECT subject_key,subject_kind,project_ref,transition_id,authority_epoch,lease_ref,run_id,
               authority_repository,authority_revision,expires_at,hard_expires_at,updated_at
@@ -80,7 +89,7 @@ try {
         WHERE run_id=$1
         ORDER BY subject_key`,
       [runId],
-    ) : [];
+    ) : []);
     const slots = runId ? await many(
       client,
       `SELECT s.work_ref,s.gate,s.lease_id,s.expires_at
