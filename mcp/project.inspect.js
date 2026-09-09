@@ -1,35 +1,15 @@
-import { composeHatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
-import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { createGitHubProjectGraphRuntime } from 'lib/project-graph-github-runtime.js';
-import { projectInspectForGitHub } from 'lib/project-inspect-github-runtime.js';
+import { createHatchableGcpCommandAdapter } from 'lib/hatchable-gcp-command-adapter.js';
 import { semanticCommandDescriptor } from 'lib/semantic-command-descriptors.js';
 
 const descriptor = semanticCommandDescriptor('project.inspect');
+const adapter = createHatchableGcpCommandAdapter();
 
 export const access = 'admin';
 export default {
   name:descriptor.mcp_name,
   description:descriptor.description,
   inputSchema:descriptor.input_schema,
-  async handler(args,ctx) {
-    const providers = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
-    const { db } = providers;
-    const response = await executeCorrelatedCommand(
-      'project.inspect',
-      args || {},
-      (input) => projectInspectForGitHub({
-        db,
-        withGitHubAppApiClient:providers.githubAppAuth.withApiClient,
-        createGitHubProjectGraphRuntime,
-      }).inspect(input),
-      {
-        statusForFailure:() => null,
-        defaultError:'PROJECT_INSPECT_ERROR',
-        defaultMessage:'project.inspect failed',
-        flattenDetails:true,
-        db,
-      },
-    );
-    return response.body;
+  async handler(args) {
+    return adapter.execute('project.inspect', args || {});
   },
 };
