@@ -57,11 +57,14 @@ jobs:
         run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
       - name: Package exact generated evidence for repair
         run: |
+          mkdir -p "$RUNNER_TEMP/contract-evidence-before/generated/contracts" "$RUNNER_TEMP/contract-evidence-before/docs/generated"
+          cp generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence-before/generated/contracts/catalog.json"
+          cp docs/generated/data-contracts.md "$RUNNER_TEMP/contract-evidence-before/docs/generated/data-contracts.md"
+          cp docs/generated/data-contract-authority-atlas.md "$RUNNER_TEMP/contract-evidence-before/docs/generated/data-contract-authority-atlas.md"
           tar -czf "$RUNNER_TEMP/contract-evidence-generated.tgz" \
-            -C "$RUNNER_TEMP/contract-evidence" \
-            generated/contracts/catalog.json \
-            docs/generated/data-contracts.md \
-            docs/generated/data-contract-authority-atlas.md
+            -C "$RUNNER_TEMP" \
+            contract-evidence \
+            contract-evidence-before
       - name: Upload exact generated evidence for repair
         uses: actions/upload-artifact@v4
         with:
