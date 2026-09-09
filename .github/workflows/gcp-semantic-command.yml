@@ -25,7 +25,7 @@ on:
         default: ''
         type: string
       expected_head:
-        description: Exact converged Overcenter dev/main control-plane revision expected by the caller
+        description: Exact Overcenter dev control-plane revision expected by the caller
         required: true
         type: string
       transition_id:
@@ -118,7 +118,7 @@ jobs:
           test "$GITHUB_SHA" = "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXPECTED_HEAD"
-          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_HEAD"
+          # Production convergence is enforced by promotion/deployment, not generic semantic admission.
           case "$COMMAND" in
             project.inspect|project.advance|project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) ;;
             *) echo "unsupported semantic command: $COMMAND" >&2; exit 2 ;;
