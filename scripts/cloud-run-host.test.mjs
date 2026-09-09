@@ -105,7 +105,7 @@ test('Cloud Run Postgres binding supplies ordered atomic transactions over pg Po
   ]);
 });
 
-test('Cloud Run Postgres binding rolls back and releases on transactional failure', async () => {
+test('Cloud Run Postgres binding proves rollback-success failures did not durably mutate', async () => {
   const events = [];
   const expected = Object.assign(new Error('lease insert failed'), { code:'23505' });
   const pool = {
@@ -124,9 +124,46 @@ test('Cloud Run Postgres binding rolls back and releases on transactional failur
   const db = createCloudRunDatabaseBinding(pool);
   await assert.rejects(
     db.transaction([{ sql:'INSERT lease', params:[] }]),
-    error => error === expected,
+    error => error === expected && error?.may_have_mutated === false,
   );
   assert.deepEqual(events, ['BEGIN', 'INSERT lease', 'ROLLBACK', 'RELEASE']);
+});
+
+test('Cloud Run Postgres binding marks connection acquisition failure as non-mutating', async () => {
+  const expected = Object.assign(new Error('database connection unavailable'), { code:'08006' });
+  const pool = {
+    async query() { return { rows:[] }; },
+    async connect() { throw expected; },
+  };
+  const db = createCloudRunDatabaseBinding(pool);
+  await assert.rejects(
+    db.transaction([{ sql:'INSERT lease', params:[] }]),
+    error => error === expected && error?.may_have_mutated === false,
+  );
+});
+
+test('Cloud Run Postgres binding marks failed COMMIT as mutation-ambiguous', async () => {
+  const events = [];
+  const expected = Object.assign(new Error('database connection lost while committing'), { code:'08006' });
+  const pool = {
+    async query() { return { rows:[] }; },
+    async connect() {
+      return {
+        async query(sql) {
+          events.push(sql);
+          if (sql === 'COMMIT') throw expected;
+          return { rows:[] };
+        },
+        release() { events.push('RELEASE'); },
+      };
+    },
+  };
+  const db = createCloudRunDatabaseBinding(pool);
+  await assert.rejects(
+    db.transaction([{ sql:'INSERT lease', params:[] }]),
+    error => error === expected && error?.may_have_mutated === true,
+  );
+  assert.deepEqual(events, ['BEGIN', 'INSERT lease', 'COMMIT', 'ROLLBACK', 'RELEASE']);
 });
 
 test('health checks the database before reporting ready', async () => {
