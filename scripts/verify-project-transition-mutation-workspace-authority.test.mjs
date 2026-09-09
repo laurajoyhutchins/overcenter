@@ -368,6 +368,39 @@ test('atomic ref replacement classifies explicit GraphQL rejection as not mutate
   );
 });
 
+test('mechanical coalescing reconciles transport loss when authoritative branch readback proves the replacement', async () => {
+  const expectedHead = '3'.repeat(40);
+  const replacementSha = '4'.repeat(40);
+  const grandparentSha = '2'.repeat(40);
+  let currentHead = expectedHead;
+  let replaceCalls = 0;
+  const github = {
+    async getBranch() { return { sha: currentHead }; },
+    async getCommit() { return { sha: expectedHead, tree_sha: '5'.repeat(40), message: 'lint: normalize fixtures', parents: [grandparentSha] }; },
+    async getPathEntries() { return new Map([['example.txt', { path: 'example.txt', mode: '100644', type: 'blob', sha: '6'.repeat(40) }]]); },
+    async createTree() { return '7'.repeat(40); },
+    async createCommit() { return replacementSha; },
+    async replaceBranch() {
+      replaceCalls += 1;
+      currentHead = replacementSha;
+      throw new Error('connection lost after ref update');
+    },
+  };
+
+  const result = await coalesceGithubMechanicalChangeset({
+    repo: 'example/project',
+    branch: 'work/coalescing-contract',
+    expected_head: expectedHead,
+    changes: [{ path: 'example.txt', operation: 'update', content: 'next\n' }],
+    commit_message: 'format: normalize example',
+  }, { github });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.commit_sha, replacementSha);
+  assert.equal(result.idempotent_replay, true);
+  assert.equal(replaceCalls, 1, 'authoritative readback must reconcile the uncertain ref update without retrying it');
+});
+
 test('atomic ref replacement preserves possible mutation on transport loss', async () => {
   const apiClient = {
     async call(provider, request) {
