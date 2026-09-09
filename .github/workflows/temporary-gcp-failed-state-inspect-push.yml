@@ -40,6 +40,7 @@ jobs:
           request_reason: Read failed Overcenter GCP durable state
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
       - name: Deploy private read-only inspector
+        id: inspector
         shell: bash
         run: |
           set -euo pipefail
@@ -53,15 +54,28 @@ jobs:
             --no-allow-unauthenticated --min-instances=0 --max-instances=1 --quiet
           url="$(gcloud run services describe "$INSPECTOR_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(status.url)')"
           test -n "$url"
-          echo "INSPECTOR_URL=$url" >> "$GITHUB_ENV"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Mint private inspector identity token
+        id: inspector_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ steps.inspector.outputs.url }}
+          request_reason: Invoke private Overcenter GCP proof inspector
       - name: Read failed durable state directly
         shell: bash
+        env:
+          INSPECTOR_URL: ${{ steps.inspector.outputs.url }}
+          INSPECTOR_ID_TOKEN: ${{ steps.inspector_auth.outputs.id_token }}
         run: |
           set -euo pipefail
-          token="$(gcloud auth print-identity-token --audiences="$INSPECTOR_URL")"
+          test -n "$INSPECTOR_ID_TOKEN"
           payload="$(jq -nc --arg project "$PROJECT_REF" --arg transition "$FAILED_TRANSITION" --arg observed "$FAILED_OBSERVED_AT" '{phase:"failed-attempt",project_ref:$project,transition_id:$transition,observed_at:$observed}')"
           status="$(curl --silent --show-error -o "$RUNNER_TEMP/failed-state-response.json" -w '%{http_code}' \
-            -H "Authorization: Bearer $token" -H 'content-type: application/json' -X POST -d "$payload" "$INSPECTOR_URL/inspect")"
+            -H "Authorization: Bearer $INSPECTOR_ID_TOKEN" -H 'content-type: application/json' -X POST -d "$payload" "$INSPECTOR_URL/inspect")"
           test "$status" = 200 || { cat "$RUNNER_TEMP/failed-state-response.json"; exit 1; }
           jq -e '.ok == true and .proof.schema == "overcenter-authority-proof-inspect-v1"' "$RUNNER_TEMP/failed-state-response.json" >/dev/null
           jq '.proof' "$RUNNER_TEMP/failed-state-response.json" > "$RUNNER_TEMP/failed-state.json"
