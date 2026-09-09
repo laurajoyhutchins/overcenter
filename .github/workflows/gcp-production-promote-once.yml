@@ -1,6 +1,7 @@
 name: One-shot GCP authority promotion
 
 on:
+  workflow_dispatch:
   push:
     branches: [dev]
     paths:
