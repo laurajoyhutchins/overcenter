@@ -1,0 +1,81 @@
+name: Diagnose authoritative GCP runtime once
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-runtime-diagnose-once.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: overcenter-gcp-runtime-diagnose-once
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GCP_SERVICE: overcenter-shadow
+      GCP_REGION: us-west1
+      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+      PROJECT_REF: github:laurajoyhutchins/overcenter
+      EXPECTED_AUTHORITY_REVISION: 4abf1588131441f654eff2e68a50086612f6b5c2
+    steps:
+      - name: Authenticate read-only probe to current GCP authority
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
+          id_token_include_email: true
+          request_reason: Read-only Overcenter GCP runtime diagnosis ${{ github.sha }}
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+
+      - name: Inspect deployed authority identity
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          gcloud run services describe "$GCP_SERVICE" --project="$GCP_PROJECT_ID" --region="$GCP_REGION" --format=json > "$RUNNER_TEMP/service.json"
+          jq '{ready:.status.latestReadyRevisionName,created:.status.latestCreatedRevisionName,url:.status.url,authority_mode:(.spec.template.spec.containers[0].env[]|select(.name=="OVERCENTER_AUTHORITY_MODE")|.value),source_revision:(.spec.template.spec.containers[0].env[]|select(.name=="OVERCENTER_SOURCE_REVISION")|.value)}' "$RUNNER_TEMP/service.json"
+          test "$(jq -r '.status.latestReadyRevisionName' "$RUNNER_TEMP/service.json")" = "$(jq -r '.status.latestCreatedRevisionName' "$RUNNER_TEMP/service.json")"
+          test "$(jq -r '.spec.template.spec.containers[0].env[]|select(.name=="OVERCENTER_AUTHORITY_MODE")|.value' "$RUNNER_TEMP/service.json")" = authoritative
+          test "$(jq -r '.spec.template.spec.containers[0].env[]|select(.name=="OVERCENTER_SOURCE_REVISION")|.value' "$RUNNER_TEMP/service.json")" = "$EXPECTED_AUTHORITY_REVISION"
+
+      - name: Probe Cloud SQL connectivity through runtime health
+        shell: bash
+        env:
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/health.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" "$SERVICE_AUDIENCE/health")"
+          echo "health_http_status=$status"
+          jq . "$RUNNER_TEMP/health.json"
+          test "$status" = 200
+          jq -e '.ok == true and .database == "ready" and .authority_mode == "authoritative"' "$RUNNER_TEMP/health.json" >/dev/null
+
+      - name: Probe semantic read path through project.inspect
+        shell: bash
+        env:
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -nc --arg project "$PROJECT_REF" '{project_ref:$project}')"
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/inspect.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -X POST -d "$payload" "$SERVICE_AUDIENCE/api/authoritative-state/project-inspect")"
+          echo "project_inspect_http_status=$status"
+          jq '{ok,authority_mode,error,inspection_ok:.inspection.ok,frontier_count:(.inspection.frontier_details // [] | length)}' "$RUNNER_TEMP/inspect.json"
+          test "$status" = 200
+          jq -e '.ok == true and .authority_mode == "authoritative" and .inspection.ok == true' "$RUNNER_TEMP/inspect.json" >/dev/null
+
+      - name: Read-path diagnosis complete
+        run: echo 'GCP authority identity, Cloud SQL health query, and semantic project inspection all passed.'
