@@ -42,7 +42,6 @@ jobs:
       - name: Install contract evidence tooling
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
       - name: Run contract evidence tests
-        continue-on-error: true
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
       - name: Generate candidate contract evidence once
         run: |
@@ -55,23 +54,6 @@ jobs:
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
       - name: Print exact generated catalog delta
         run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
-      - name: Package exact generated evidence for repair
-        run: |
-          mkdir -p "$RUNNER_TEMP/contract-evidence-before/generated/contracts" "$RUNNER_TEMP/contract-evidence-before/docs/generated"
-          cp generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence-before/generated/contracts/catalog.json"
-          cp docs/generated/data-contracts.md "$RUNNER_TEMP/contract-evidence-before/docs/generated/data-contracts.md"
-          cp docs/generated/data-contract-authority-atlas.md "$RUNNER_TEMP/contract-evidence-before/docs/generated/data-contract-authority-atlas.md"
-          tar -czf "$RUNNER_TEMP/contract-evidence-generated.tgz" \
-            -C "$RUNNER_TEMP" \
-            contract-evidence \
-            contract-evidence-before
-      - name: Upload exact generated evidence for repair
-        uses: actions/upload-artifact@v4
-        with:
-          name: contract-evidence-generated-${{ github.sha }}
-          path: ${{ runner.temp }}/contract-evidence-generated.tgz
-          if-no-files-found: error
-          retention-days: 1
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
