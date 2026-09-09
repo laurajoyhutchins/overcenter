@@ -68,6 +68,39 @@ test('dispatches only after exact branch-head preflight and confirms the run ide
   });
 });
 
+test('request_id prevents a concurrent same-head workflow run from stealing dispatch identity', async () => {
+  const requestId = 'gcp-semantic-command:project.advance:0123456789abcdef0123456789abcdef01234567';
+  const createdAt = new Date().toISOString();
+  const unrelated = {
+    id: 123,
+    head_sha: expectedHead,
+    head_branch: 'dev',
+    event: 'workflow_dispatch',
+    display_title: 'GCP semantic project.inspect gcp-semantic-command:project.inspect:0123456789abcdef0123456789abcdef01234567',
+    status: 'queued',
+    conclusion: null,
+    html_url: 'https://github.com/laurajoyhutchins/overcenter/actions/runs/123',
+    created_at: createdAt,
+  };
+  const correlated = {
+    ...unrelated,
+    id: 124,
+    display_title: `GCP semantic project.advance ${requestId}`,
+    html_url: 'https://github.com/laurajoyhutchins/overcenter/actions/runs/124',
+  };
+  const { withApp } = fakeWithApp({ runs: [unrelated, correlated] });
+
+  const result = await dispatchGitHubWorkflowWithGitHubApp({
+    repo,
+    workflow: 'gcp-semantic-command.yml',
+    ref: 'dev',
+    expected_head: expectedHead,
+    inputs: { request_id: requestId, command: 'project.advance' },
+  }, { withGitHubAppApiClient: withApp, sleep: async () => {} });
+
+  assert.equal(result.workflow_run_id, 124);
+});
+
 test('head mismatch fails closed before workflow dispatch', async () => {
   const { withApp, calls } = fakeWithApp({ observedHead: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' });
 
