@@ -130,6 +130,31 @@ if (serialized.includes('sensitive provider failure body') || serialized.include
 if (!logs.some((entry) => entry.includes('RUNTIME_PROVIDER_UNAVAILABLE'))) throw new Error('structured internal log lost the original code');
 `;
 
+const databaseDiagnosticProbe = `
+import { executeSemanticWorkerCommand } from './lib/worker-transport.js';
+const response = await executeSemanticWorkerCommand('project.advance', {
+  project_ref:'github:laurajoyhutchins/overcenter',
+  transition_id:'finish-hatchable-gcp-authoritative-state-migration',
+}, {
+  db:{ async query() { return { rows:[] }; } },
+  projectAdvance:{
+    async advance() {
+      const error = new Error('database connection terminated unexpectedly');
+      error.code = '08006';
+      throw error;
+    },
+  },
+  logger:{ error() {} },
+});
+if (response.status !== 500) throw new Error('database project.advance failure did not remain a 500');
+if (response.body?.error_code !== 'PROJECT_ADVANCE_ERROR') throw new Error('public semantic error code changed');
+if (response.body?.details?.diagnostic_error_code !== '08006') throw new Error('database SQLSTATE diagnostic was lost');
+if (response.body?.details?.diagnostic_failure_kind !== 'database_infrastructure') throw new Error('database infrastructure classification was lost');
+if (response.body?.may_have_mutated !== true) throw new Error('unannotated database failure was incorrectly declared non-mutating');
+if (response.body?.details?.may_have_mutated !== true) throw new Error('database mutation uncertainty was not preserved in diagnostic details');
+if (response.body?.details?.recovery_allowed !== false) throw new Error('database infrastructure failure unexpectedly allowed automatic recovery');
+`;
+
 function runProbe(source) {
   return spawnSync(process.execPath, [
     '--experimental-loader',
@@ -152,6 +177,11 @@ test('project.advance execution completion terminates through the same semantic 
 
 test('project.advance internal failures preserve safe machine diagnostics without raw details', () => {
   const result = runProbe(diagnosticProbe);
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
+test('project.advance unannotated database failures preserve mutation uncertainty', () => {
+  const result = runProbe(databaseDiagnosticProbe);
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
