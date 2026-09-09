@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createExecutionAuthorityService } from '../lib/execution-authority-core.js';
 import { deriveProjectTransitionGithubWorkspace } from '../lib/project-transition-github-workspace.js';
-import { applyGithubChangeset } from '../lib/github-apply-changeset.js';
+import { applyGithubChangeset, coalesceGithubMechanicalChangeset } from '../lib/github-apply-changeset.js';
 
 const REPOSITORY = 'laurajoyhutchins/overcenter';
 const PROJECT_REF = `github:${REPOSITORY}`;
@@ -149,4 +149,26 @@ test('consecutive mechanical changesets fail before mutation with an executable 
     },
   });
   assert.equal(mutationCalls, 0);
+});
+
+test('mechanical coalescing replaces the exact mechanical head with one linear repair commit', async () => {
+  const grandparentSha = '2'.repeat(40);
+  const parentSha = '3'.repeat(40);
+  const replacementSha = '4'.repeat(40);
+  const treeSha = '5'.repeat(40);
+  let replaced = null;
+  const github = {
+    async getBranch() { return { sha: parentSha }; },
+    async getCommit() { return { sha: parentSha, tree_sha: '6'.repeat(40), message: 'lint: normalize fixtures', parents: [grandparentSha] }; },
+    async getPathEntries() { return new Map([['example.txt', { path: 'example.txt', mode: '100644', type: 'blob', sha: '7'.repeat(40) }]]); },
+    async createTree(repo, baseTree, entries) { assert.equal(baseTree, '6'.repeat(40)); assert.equal(entries[0].content, 'next\n'); return treeSha; },
+    async createCommit(repo, request) { assert.equal(request.parentSha, grandparentSha); assert.equal(request.treeSha, treeSha); return replacementSha; },
+    async replaceBranch(repo, branch, sha) { replaced = { repo, branch, sha }; },
+  };
+  const result = await coalesceGithubMechanicalChangeset({ repo: 'example/project', branch: 'work/coalescing-contract', expected_head: parentSha, changes: [{ path: 'example.txt', operation: 'update', content: 'next', ensure_final_newline: true }], commit_message: 'format: normalize example' }, { github });
+  assert.equal(result.ok, true);
+  assert.equal(result.old_head, parentSha);
+  assert.equal(result.parent_sha, grandparentSha);
+  assert.equal(result.new_head, replacementSha);
+  assert.deepEqual(replaced, { repo: 'example/project', branch: 'work/coalescing-contract', sha: replacementSha });
 });
