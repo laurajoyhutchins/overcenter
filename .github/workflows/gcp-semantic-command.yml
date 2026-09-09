@@ -40,8 +40,33 @@ on:
         required: false
         default: ''
         type: string
-      command_input_json:
-        description: Bounded canonical input for an admitted lease-scoped internal mutation
+      command_input_0:
+        description: Bounded internal mutation input chunk 0
+        required: false
+        default: ''
+        type: string
+      command_input_1:
+        description: Bounded internal mutation input chunk 1
+        required: false
+        default: ''
+        type: string
+      command_input_2:
+        description: Bounded internal mutation input chunk 2
+        required: false
+        default: ''
+        type: string
+      command_input_3:
+        description: Bounded internal mutation input chunk 3
+        required: false
+        default: ''
+        type: string
+      command_input_4:
+        description: Bounded internal mutation input chunk 4
+        required: false
+        default: ''
+        type: string
+      command_input_5:
+        description: Bounded internal mutation input chunk 5
         required: false
         default: ''
         type: string
@@ -66,7 +91,12 @@ jobs:
       TRANSITION_ID: ${{ inputs.transition_id }}
       RESUME_REF: ${{ inputs.resume_ref }}
       EXECUTION_RESULT_JSON: ${{ inputs.execution_result_json }}
-      COMMAND_INPUT_JSON: ${{ inputs.command_input_json }}
+      COMMAND_INPUT_0: ${{ inputs.command_input_0 }}
+      COMMAND_INPUT_1: ${{ inputs.command_input_1 }}
+      COMMAND_INPUT_2: ${{ inputs.command_input_2 }}
+      COMMAND_INPUT_3: ${{ inputs.command_input_3 }}
+      COMMAND_INPUT_4: ${{ inputs.command_input_4 }}
+      COMMAND_INPUT_5: ${{ inputs.command_input_5 }}
       REQUEST_ID: ${{ inputs.request_id }}
     steps:
       - name: Check out exact invocation source
@@ -80,6 +110,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          command_input_json="${COMMAND_INPUT_0}${COMMAND_INPUT_1}${COMMAND_INPUT_2}${COMMAND_INPUT_3}${COMMAND_INPUT_4}${COMMAND_INPUT_5}"
           test "$GITHUB_REF" = "refs/heads/dev"
           test "$GITHUB_SHA" = "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -95,10 +126,10 @@ jobs:
               test -z "$TRANSITION_ID"
               test -z "$RESUME_REF"
               test -z "$EXECUTION_RESULT_JSON"
-              test -z "$COMMAND_INPUT_JSON"
+              test -z "$command_input_json"
               ;;
             project.advance)
-              test -z "$COMMAND_INPUT_JSON"
+              test -z "$command_input_json"
               if [ -n "$EXECUTION_RESULT_JSON" ]; then
                 test -n "$RESUME_REF"
                 jq -e 'type == "object"' <<<"$EXECUTION_RESULT_JSON" >/dev/null
@@ -108,8 +139,8 @@ jobs:
               test -z "$TRANSITION_ID"
               test -z "$RESUME_REF"
               test -z "$EXECUTION_RESULT_JSON"
-              test -n "$COMMAND_INPUT_JSON"
-              jq -e 'type == "object" and (.lease_ref | type == "string" and length > 0)' <<<"$COMMAND_INPUT_JSON" >/dev/null
+              test -n "$command_input_json"
+              jq -e 'type == "object" and (.lease_ref | type == "string" and length > 0)' <<<"$command_input_json" >/dev/null
               ;;
           esac
 
@@ -131,9 +162,10 @@ jobs:
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
         run: |
           set -euo pipefail
+          command_input_json="${COMMAND_INPUT_0}${COMMAND_INPUT_1}${COMMAND_INPUT_2}${COMMAND_INPUT_3}${COMMAND_INPUT_4}${COMMAND_INPUT_5}"
           case "$COMMAND" in
             github.apply_changeset|github.apply_text_replacements)
-              input="$COMMAND_INPUT_JSON"
+              input="$command_input_json"
               ;;
             *)
               input="$(jq -n --arg project_ref "$PROJECT_REF" '{project_ref:$project_ref}')"
