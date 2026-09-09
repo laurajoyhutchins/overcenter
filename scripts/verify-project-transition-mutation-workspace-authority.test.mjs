@@ -200,3 +200,67 @@ test('mechanical head replacement uses atomic GraphQL beforeOid fencing', async 
     force: true,
   }]);
 });
+
+test('mechanical coalescing rejects stale head before creating Git objects', async () => {
+  const expectedHead = 'a'.repeat(40);
+  let mutationCalls = 0;
+  const github = {
+    async getBranch() { return { sha: 'b'.repeat(40) }; },
+    async getCommit() { throw new Error('must not read stale parent'); },
+    async getPathEntries() { throw new Error('must not plan stale changes'); },
+    async createTree() { mutationCalls += 1; },
+    async createCommit() { mutationCalls += 1; },
+    async replaceBranch() { mutationCalls += 1; },
+  };
+  await assert.rejects(
+    () => coalesceGithubMechanicalChangeset({ repo: 'example/project', branch: 'work/coalescing-contract', expected_head: expectedHead, changes: [{ path: 'example.txt', operation: 'update', content: 'next\n' }], commit_message: 'format: normalize example' }, { github }),
+    (error) => error?.code === 'HEAD_MISMATCH' && error?.details?.may_have_mutated === false,
+  );
+  assert.equal(mutationCalls, 0);
+});
+
+test('mechanical coalescing rejects a non-mechanical parent before mutation', async () => {
+  const expectedHead = 'c'.repeat(40);
+  let mutationCalls = 0;
+  const github = {
+    async getBranch() { return { sha: expectedHead }; },
+    async getCommit() { return { sha: expectedHead, tree_sha: 'd'.repeat(40), message: 'feat: substantive work', parents: ['e'.repeat(40)] }; },
+    async getPathEntries() { throw new Error('must not plan non-mechanical parent'); },
+    async createTree() { mutationCalls += 1; },
+    async createCommit() { mutationCalls += 1; },
+    async replaceBranch() { mutationCalls += 1; },
+  };
+  await assert.rejects(
+    () => coalesceGithubMechanicalChangeset({ repo: 'example/project', branch: 'work/coalescing-contract', expected_head: expectedHead, changes: [{ path: 'example.txt', operation: 'update', content: 'next\n' }], commit_message: 'format: normalize example' }, { github }),
+    (error) => error?.code === 'MECHANICAL_COALESCE_PARENT_NOT_MECHANICAL' && error?.details?.may_have_mutated === false,
+  );
+  assert.equal(mutationCalls, 0);
+});
+
+test('atomic ref replacement classifies explicit GraphQL rejection as not mutated', async () => {
+  const apiClient = {
+    async call(provider, request) {
+      if (request.method === 'GET') return { status: 200, body: { node_id: 'R_example' }, headers: {} };
+      return { status: 200, body: { errors: [{ message: 'beforeOid does not match' }] }, headers: {} };
+    },
+  };
+  const github = createGithubApiAdapter(apiClient);
+  await assert.rejects(
+    () => github.replaceBranch('example/project', 'work/coalescing-contract', '1'.repeat(40), '2'.repeat(40)),
+    (error) => error?.code === 'GITHUB_REF_REJECTED' && error?.details?.may_have_mutated === false,
+  );
+});
+
+test('atomic ref replacement preserves possible mutation on transport loss', async () => {
+  const apiClient = {
+    async call(provider, request) {
+      if (request.method === 'GET') return { status: 200, body: { node_id: 'R_example' }, headers: {} };
+      throw Object.assign(new Error('connection lost after send'), { status: 0 });
+    },
+  };
+  const github = createGithubApiAdapter(apiClient);
+  await assert.rejects(
+    () => github.replaceBranch('example/project', 'work/coalescing-contract', '3'.repeat(40), '4'.repeat(40)),
+    (error) => error?.code === 'GITHUB_TRANSPORT_ERROR' && error?.details?.may_have_mutated === true,
+  );
+});
