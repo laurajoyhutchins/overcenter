@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createExecutionAuthorityService } from '../lib/execution-authority-core.js';
 import { deriveProjectTransitionGithubWorkspace } from '../lib/project-transition-github-workspace.js';
 import { applyGithubChangeset, coalesceGithubMechanicalChangeset, createGithubApiAdapter } from '../lib/github-apply-changeset.js';
+import { coalesceGithubLeaseScopedChangeset } from '../lib/github-worker-mutations.js';
 import { semanticCommandDescriptor } from '../lib/semantic-command-descriptors.js';
 
 const REPOSITORY = 'laurajoyhutchins/overcenter';
@@ -173,6 +174,81 @@ test('mechanical coalescing replaces the exact mechanical head with one linear r
   assert.equal(result.parent_sha, grandparentSha);
   assert.equal(result.new_head, replacementSha);
   assert.deepEqual(replaced, { repo: 'example/project', branch: 'work/coalescing-contract', expectedHead: parentSha, sha: replacementSha });
+});
+
+test('lease-scoped mechanical coalescing persists the replacement as replayable same-lease effect evidence', async () => {
+  const parentSha = '8'.repeat(40);
+  const grandparentSha = '9'.repeat(40);
+  const replacementSha = 'a'.repeat(40);
+  const treeSha = 'b'.repeat(40);
+  let currentHead = parentSha;
+  let replaceCalls = 0;
+  const authority = fixture();
+  const parentAuthority = await authority.require({ lease_ref: LEASE_REF });
+  let durableRow = {
+    idempotency_key: 'project-transition-changeset-v1:parent',
+    commit_sha: parentSha,
+    tree_sha: 'c'.repeat(40),
+    receipt: {
+      ok: true,
+      commit_sha: parentSha,
+      execution_authority: parentAuthority,
+      idempotency_key: 'project-transition-changeset-v1:parent',
+    },
+  };
+  const db = {
+    async query(sql, params) {
+      if (sql.includes('SELECT idempotency_key, receipt FROM github_changeset_receipts')) {
+        return { rows: durableRow.commit_sha === params[2] ? [{ idempotency_key: durableRow.idempotency_key, receipt: durableRow.receipt }] : [] };
+      }
+      if (sql.includes('UPDATE github_changeset_receipts')) {
+        assert.equal(params[6], parentSha);
+        durableRow = { ...durableRow, commit_sha: params[3], tree_sha: params[4], receipt: JSON.parse(params[5]) };
+        return { rowCount: 1, rows: [{ idempotency_key: durableRow.idempotency_key }] };
+      }
+      throw new Error(`unexpected db query: ${sql}`);
+    },
+  };
+  const github = {
+    async getBranch() { return { sha: currentHead }; },
+    async getCommit() { return { sha: parentSha, tree_sha: 'd'.repeat(40), message: 'lint: normalize fixtures', parents: [grandparentSha] }; },
+    async getPathEntries() { return new Map([['example.txt', { path: 'example.txt', mode: '100644', type: 'blob', sha: 'e'.repeat(40) }]]); },
+    async createTree() { return treeSha; },
+    async createCommit() { return replacementSha; },
+    async replaceBranch(repo, branch, expectedHead, sha) {
+      assert.equal(expectedHead, parentSha);
+      assert.equal(sha, replacementSha);
+      replaceCalls += 1;
+      currentHead = replacementSha;
+    },
+  };
+  const options = {
+    executionAuthority: authority,
+    readBranch: async () => ({ sha: currentHead }),
+    withGithub: async (_request, callback) => callback(github),
+    db,
+  };
+  const request = {
+    lease_ref: LEASE_REF,
+    changes: [{ path: 'example.txt', operation: 'update', content: 'next', ensure_final_newline: true }],
+    commit_message: 'format: normalize example',
+  };
+
+  const first = await coalesceGithubLeaseScopedChangeset(request, options);
+  assert.equal(first.ok, true);
+  assert.equal(first.commit_sha, replacementSha);
+  assert.equal(first.coalesced_from, parentSha);
+  assert.equal(first.idempotency_key, durableRow.idempotency_key);
+  assert.match(first.coalesce_request_sha256, /^[0-9a-f]{64}$/);
+  assert.equal(durableRow.commit_sha, replacementSha);
+  assert.equal(durableRow.receipt.coalesce_request_sha256, first.coalesce_request_sha256);
+
+  const replay = await coalesceGithubLeaseScopedChangeset(request, options);
+  assert.equal(replay.ok, true);
+  assert.equal(replay.commit_sha, replacementSha);
+  assert.equal(replay.idempotent_replay, true);
+  assert.equal(replay.coalesce_request_sha256, first.coalesce_request_sha256);
+  assert.equal(replaceCalls, 1, 'exact replay must not replace the branch twice');
 });
 
 test('mechanical head replacement uses atomic GraphQL beforeOid fencing', async () => {
