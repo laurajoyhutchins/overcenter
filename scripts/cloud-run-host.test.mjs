@@ -5,6 +5,7 @@ import {
   createCloudRunHandler,
   resolveCloudRunConfig,
 } from './cloud-run-host.mjs';
+import { createCloudRunDatabaseBinding } from './cloud-run-database-binding.mjs';
 
 function responseRecorder() {
   return {
@@ -64,6 +65,68 @@ test('resolveCloudRunConfig fails closed when Postgres credentials are incomplet
     error => error?.code === 'POSTGRES_CONFIG_REQUIRED'
       && error?.details?.missing?.includes('PGPASSWORD'),
   );
+});
+
+test('Cloud Run Postgres binding supplies ordered atomic transactions over pg Pool', async () => {
+  const events = [];
+  const pool = {
+    async query(sql, params) {
+      events.push(['pool', sql, params]);
+      return { rows:[{ direct:true }] };
+    },
+    async connect() {
+      return {
+        async query(sql, params) {
+          events.push(['client', sql, params]);
+          if (sql === 'SELECT one') return { rows:[{ value:1 }] };
+          if (sql === 'SELECT two') return { rows:[{ value:2 }] };
+          return { rows:[] };
+        },
+        release() { events.push(['release']); },
+      };
+    },
+  };
+  const db = createCloudRunDatabaseBinding(pool);
+  const direct = await db.query('SELECT direct', ['x']);
+  const transaction = await db.transaction([
+    { sql:'SELECT one', params:['a'] },
+    { sql:'SELECT two', params:['b'] },
+  ]);
+
+  assert.deepEqual(direct.rows, [{ direct:true }]);
+  assert.deepEqual(transaction.results.map(result => result.rows), [[{ value:1 }], [{ value:2 }]]);
+  assert.deepEqual(events, [
+    ['pool', 'SELECT direct', ['x']],
+    ['client', 'BEGIN', undefined],
+    ['client', 'SELECT one', ['a']],
+    ['client', 'SELECT two', ['b']],
+    ['client', 'COMMIT', undefined],
+    ['release'],
+  ]);
+});
+
+test('Cloud Run Postgres binding rolls back and releases on transactional failure', async () => {
+  const events = [];
+  const expected = Object.assign(new Error('lease insert failed'), { code:'23505' });
+  const pool = {
+    async query() { return { rows:[] }; },
+    async connect() {
+      return {
+        async query(sql) {
+          events.push(sql);
+          if (sql === 'INSERT lease') throw expected;
+          return { rows:[] };
+        },
+        release() { events.push('RELEASE'); },
+      };
+    },
+  };
+  const db = createCloudRunDatabaseBinding(pool);
+  await assert.rejects(
+    db.transaction([{ sql:'INSERT lease', params:[] }]),
+    error => error === expected,
+  );
+  assert.deepEqual(events, ['BEGIN', 'INSERT lease', 'ROLLBACK', 'RELEASE']);
 });
 
 test('health checks the database before reporting ready', async () => {

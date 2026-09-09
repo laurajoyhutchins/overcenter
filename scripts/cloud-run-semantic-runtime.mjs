@@ -6,6 +6,7 @@ import { projectInspectForGitHub } from '../lib/project-inspect-github-runtime.j
 import { createRuntimeProviders } from '../lib/runtime-providers.js';
 import { createWorkerCommandHandler } from '../lib/worker-command-handler.js';
 import { executeSemanticWorkerCommand } from '../lib/worker-transport.js';
+import { createCloudRunDatabaseBinding } from './cloud-run-database-binding.mjs';
 
 function requiredEnvSecretProvider(env) {
   return Object.freeze({
@@ -34,10 +35,11 @@ function unavailableProvider(provider, method) {
 }
 
 export function composeCloudRunRuntimeProviders({ db, env = process.env } = {}) {
+  const database = createCloudRunDatabaseBinding(db);
   const secrets = requiredEnvSecretProvider(env);
   const githubAppAuth = createGitHubAppAuth({ secrets });
   return createRuntimeProviders({
-    db,
+    db:database,
     secrets,
     githubAppAuth,
     storage:Object.freeze({
@@ -49,9 +51,10 @@ export function composeCloudRunRuntimeProviders({ db, env = process.env } = {}) 
 }
 
 export function createCloudRunReadOnlyProjectInspector({ db, env = process.env } = {}) {
-  const providers = composeCloudRunRuntimeProviders({ db, env });
+  const database = createCloudRunDatabaseBinding(db);
+  const providers = composeCloudRunRuntimeProviders({ db:database, env });
   const inspector = projectInspectForGitHub({
-    db,
+    db:database,
     withGitHubAppApiClient:providers.githubAppAuth.withApiClient,
     createGitHubProjectGraphRuntime,
   });
@@ -59,7 +62,8 @@ export function createCloudRunReadOnlyProjectInspector({ db, env = process.env }
 }
 
 export function createCloudRunSemanticWorker({ db, env = process.env, logger = console } = {}) {
-  const providers = composeCloudRunRuntimeProviders({ db, env });
+  const database = createCloudRunDatabaseBinding(db);
+  const providers = composeCloudRunRuntimeProviders({ db:database, env });
   const handler = createWorkerCommandHandler({
     providers,
     commandFailure,
