@@ -184,6 +184,12 @@ const githubReleaseSchema = Object.freeze({
   },
 });
 
+const orchestrationMaintainSchema = Object.freeze({
+  type:'object',
+  properties:{},
+  additionalProperties:false,
+});
+
 const orchestrationDiagnoseSchema = Object.freeze({
   type:'object',
   required:['run_id'],
@@ -330,6 +336,14 @@ const DESCRIPTORS = Object.freeze({
     'Create an immutable lightweight Git tag at an exact observed Git commit and a GitHub Release for that tag. Fail closed on expected-state drift or conflicting existing state. Exact replay converges through durable idempotency evidence; no tag retargeting, release editing, deletion, asset upload, note generation, or commit inference is performed.',
     githubReleaseSchema,
     'advanced',
+    INTERNAL_EXPOSURE,
+  ),
+  'orchestration.maintain':descriptor(
+    'orchestration.maintain',
+    'orchestration.maintain',
+    'Run bounded deterministic maintenance over current compact coordination and unresolved recovery state. The caller supplies no work target or recovery recipe; Overcenter discovers only already-authorized maintenance obligations and never selects semantic work.',
+    orchestrationMaintainSchema,
+    'operator',
     INTERNAL_EXPOSURE,
   ),
   'orchestration.diagnose':descriptor(
