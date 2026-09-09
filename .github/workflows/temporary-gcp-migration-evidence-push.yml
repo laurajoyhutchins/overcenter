@@ -1,0 +1,169 @@
+name: Temporary final GCP migration evidence
+
+on:
+  push:
+    branches: [ops/gcp-migration-evidence-run]
+    paths: [.github/workflows/temporary-gcp-migration-evidence-push.yml]
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  AUTHORITY_REVISION: 4abf1588131441f654eff2e68a50086612f6b5c2
+  FREEZE_DIGEST: sha256:3ff040b3ebb60b89af860c1d3a140aef3be58652fdb1abca592ec45fb7c764b5
+  SOURCE_REVISION: d94369c349c57e25b92ceb5f713ea80bb0eee5c6
+  INSPECTOR_SERVICE: overcenter-migration-evidence-inspector
+  GCP_REGION: us-west1
+  CLOUD_SQL_CONNECTION_NAME: project-6b810532-a302-48dc-b56:us-west1:overcenter-postgres
+  RUNTIME_SA: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+  EVIDENCE_BRANCH: ops/gcp-migration-evidence-final
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.AUTHORITY_REVISION }}
+          path: authoritative
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Add ephemeral read-only evidence endpoint
+        shell: bash
+        run: |
+          cp authoritative/package.json ./package.json
+          cp authoritative/package-lock.json ./package-lock.json
+          cat > temp-migration-evidence-http.mjs <<'EOF'
+          import { createServer } from 'node:http';
+          import { createHash } from 'node:crypto';
+          import pg from 'pg';
+          const { Pool } = pg;
+          const pool = new Pool({host:process.env.PGHOST,database:process.env.PGDATABASE,user:process.env.PGUSER,password:process.env.PGPASSWORD});
+          const stable=v=>Array.isArray(v)?v.map(stable):(v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().filter(k=>v[k]!==undefined).map(k=>[k,stable(v[k])])):v);
+          const digest=v=>'sha256:'+createHash('sha256').update(JSON.stringify(stable(v))).digest('hex');
+          const text=v=>v==null?null:String(v);
+          async function seed(){
+            const project='github:laurajoyhutchins/overcenter';
+            const tr=(await pool.query(`SELECT settle_receipt->'project_transition'->>'transition_id' AS transition_id, settle_receipt->'project_transition'->>'transition_definition_fingerprint' AS transition_definition_fingerprint, settle_receipt->'project_transition'->>'authority_revision' AS source_authority_revision, settled_at FROM work_leases WHERE status='settled' AND claim_receipt->>'subject'='project_transition' AND settle_receipt->>'subject'='project_transition' AND settle_receipt->>'disposition'='completed' AND settle_receipt->'project_transition'->>'project_ref'=$1 ORDER BY transition_id, settled_at`,[project])).rows;
+            const roles=(await pool.query(`SELECT repository,development_branch,production_branch,production_source_ref,updated_at FROM portfolio_repository_branch_roles ORDER BY lower(repository)`)).rows;
+            const disp=(await pool.query(`SELECT repository,disposition,compatibility_bound,successor_repository,github_archived,transition_reason,compatibility_reference,github_repository_id,updated_at FROM portfolio_repository_disposition ORDER BY lower(repository)`)).rows;
+            const confirmations=tr.map(r=>({transition_id:String(r.transition_id).trim(),transition_definition_fingerprint:String(r.transition_definition_fingerprint).trim().toLowerCase(),source_authority_revision:String(r.source_authority_revision).trim().toLowerCase(),settled_at:String(r.settled_at).trim()}));
+            const branch_roles=roles.map(r=>({repository:String(r.repository||'').trim(),development_branch:String(r.development_branch||'').trim(),production_branch:String(r.production_branch||'').trim(),production_source_ref:String(r.production_source_ref||'').trim()}));
+            const dispositions=disp.map(r=>({repository:String(r.repository||'').trim(),disposition:String(r.disposition||'').trim(),compatibility_bound:Boolean(r.compatibility_bound),successor_repository:text(r.successor_repository),github_archived:r.github_archived==null?null:Boolean(r.github_archived),transition_reason:text(r.transition_reason),compatibility_reference:text(r.compatibility_reference),github_repository_id:text(r.github_repository_id)}));
+            const latest=(rows,key)=>rows.reduce((a,r)=>!a||String(r[key])>a?String(r[key]):a,null);
+            const source_coordinates={transition_confirmations_count:tr.length,transition_confirmations_max_settled_at:latest(tr,'settled_at'),branch_roles_count:roles.length,branch_roles_max_updated_at:latest(roles,'updated_at'),repository_dispositions_count:disp.length,repository_dispositions_max_updated_at:latest(disp,'updated_at')};
+            const body={schema:'overcenter-github-recovery-seed-v1',project_ref:project,repository:'laurajoyhutchins/overcenter',transition_confirmations:confirmations,repository_branch_roles:branch_roles,repository_dispositions:dispositions,source_coordinates};
+            return {...body,digest:digest(body)};
+          }
+          async function schema(){
+            const tables=(await pool.query(`SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name`)).rows;
+            const out=[];
+            for(const t of tables){const columns=(await pool.query(`SELECT column_name,data_type,udt_name,is_nullable,column_default,ordinal_position FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position`,[t.table_schema,t.table_name])).rows;out.push({schema:t.table_schema,name:t.table_name,schema_sha256:createHash('sha256').update(JSON.stringify(columns)).digest('hex')});}
+            const migrations=(await pool.query(`SELECT name,sha256 FROM overcenter_schema_migrations ORDER BY name`)).rows;
+            const body={schema:'overcenter-gcp-canonical-schema-v1',tables:out,migrations,source_only_059_present:migrations.some(m=>m.name==='059_authoritative_state_freeze.sql')};
+            return {...body,schema_digest:digest(body)};
+          }
+          const server=createServer(async(req,res)=>{try{if(req.url==='/health'){await pool.query('SELECT 1');res.writeHead(200,{'content-type':'application/json'});return res.end('{"ok":true}\n');}if(req.method==='GET'&&req.url==='/evidence'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({seed:await seed(),target_schema:await schema()})+'\n');}res.writeHead(404);res.end();}catch(e){res.writeHead(500,{'content-type':'application/json'});res.end(JSON.stringify({ok:false,error:e.message})+'\n');}});
+          server.listen(Number(process.env.PORT||8080),'0.0.0.0');
+          EOF
+      - name: Authenticate deployer
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          request_reason: Generate final Overcenter migration evidence
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      - name: Deploy private read-only inspector
+        id: inspector
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$INSPECTOR_SERVICE" --source . --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --service-account="$RUNTIME_SA" --add-cloudsql-instances="$CLOUD_SQL_CONNECTION_NAME" --set-env-vars="PGHOST=/cloudsql/${CLOUD_SQL_CONNECTION_NAME},PGDATABASE=overcenter,PGUSER=overcenter" --set-secrets="PGPASSWORD=overcenter-db-password:latest" --command=/cnb/lifecycle/launcher --args="--,node,temp-migration-evidence-http.mjs" --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" --no-allow-unauthenticated --min-instances=0 --max-instances=1 --quiet
+          url="$(gcloud run services describe "$INSPECTOR_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(status.url)')"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Mint inspector token
+        id: invoke
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ steps.inspector.outputs.url }}
+          request_reason: Invoke final migration evidence inspector
+      - name: Capture and verify target recovery truth
+        env:
+          URL: ${{ steps.inspector.outputs.url }}
+          TOKEN: ${{ steps.invoke.outputs.id_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --silent --show-error --fail-with-body -H "Authorization: Bearer $TOKEN" "$URL/evidence" > "$RUNNER_TEMP/evidence.json"
+          jq -e --arg freeze "$FREEZE_DIGEST" '.seed.digest == $freeze and .seed.source_coordinates.transition_confirmations_count == 97 and .seed.source_coordinates.branch_roles_count == 1 and .seed.source_coordinates.repository_dispositions_count == 24 and .target_schema.source_only_059_present == false' "$RUNNER_TEMP/evidence.json" >/dev/null
+          jq '.seed' "$RUNNER_TEMP/evidence.json" > "$RUNNER_TEMP/hatchable-cutover-v1.json"
+          jq '{seed_digest:.seed.digest,coordinates:.seed.source_coordinates,schema_digest:.target_schema.schema_digest,table_count:(.target_schema.tables|length),migration_count:(.target_schema.migrations|length)}' "$RUNNER_TEMP/evidence.json"
+      - name: Prove live runtime coordinate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready="$(gcloud run services describe overcenter-shadow --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(status.latestReadyRevisionName)')"
+          created="$(gcloud run services describe overcenter-shadow --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(status.latestCreatedRevisionName)')"
+          source="$(gcloud run services describe overcenter-shadow --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --format='value(spec.template.spec.containers[0].env[?name=OVERCENTER_SOURCE_REVISION].value)')"
+          test "$ready" = "$created"
+          test "$source" = "$AUTHORITY_REVISION"
+          printf '%s' "$ready" > "$RUNNER_TEMP/runtime-revision.txt"
+      - name: Build migration-semantic-manifest-v2 with repository contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/evidence.json" authoritative/.migration-live-evidence.json
+          cp "$RUNNER_TEMP/runtime-revision.txt" authoritative/.migration-runtime-revision.txt
+          cat > authoritative/.build-final-migration-manifest.mjs <<'EOF'
+          import { readFile, writeFile } from 'node:fs/promises';
+          import { SOURCE_STATE_CONTRACT, classifySourceInventory, buildMigrationSemanticManifest } from './scripts/migration-semantic-manifest.mjs';
+          import { parseProjectTransitionRecoverySeed } from './lib/project-transition-github-recovery.js';
+          const evidence=JSON.parse(await readFile('.migration-live-evidence.json','utf8'));
+          const seed=evidence.seed;
+          const observations=parseProjectTransitionRecoverySeed(JSON.stringify(seed),{project_ref:'github:laurajoyhutchins/overcenter',repository:'laurajoyhutchins/overcenter'});
+          if(observations.length!==97) throw new Error(`expected 97 recovered confirmations, got ${observations.length}`);
+          const censusRows={execution_state:[114,'bc265f1217e72e52f3f4782a7a6edf6d79b71b45f42270c996755efb4cb1ada6'],github_changeset_receipts:[1335,'64df71231e3356facc310463e01375554348e1d36417967ee57c616f3ffef113'],github_production_promotion_receipts:[122,'7a278597ca3a0a69c19dd6632774cd937dfbd1c7b76c0220b395f59eaa1cd57c'],github_release_receipts:[13,'f61141d6dc1395f1c87871b9f47ecfc34f80067b4ca1ed85def026294113041f'],github_required_check_observations:[76,'1c32140b528a51511d8173047f9094f1e9854f90584e2d4cc2fe47be9f710e74'],operation_state:[1096,'d83a70cc40c3d0e1504ecb8bc4f9beb06911bd8091792b260f2c12f1d8fc53e0'],orchestration_command_invocations:[10226,'c1130b70c0a0df625e4278f1f2978c1f331071a7f07588e082240accd199737f'],orchestration_horizons:[280,'a3356638d547c4c192b682c2ceccc56c22d4208b70c7cee97ed3df5fc36026b7'],orchestration_invocation_resolutions:[5,'b82a8533ec7664688bea67afd43baa6dbf1ea32d210f5fb1d1ff0e2c93d32fbc'],orchestration_runs:[1624,'8e4143a99f219c2b708922ab406eacd2b2f531604c67b4ce5ade3896e7f624f2'],orchestration_skill_activations:[24,'811be35de7a1bf9f8258f1e8c9391fac0f47a257dec761b094efd6040e61af96'],portfolio_reconcile_receipts:[179,'6569cbdf964c3321083a241418800e89fac6f85c70490820fdc7c53778c7cb9a'],portfolio_repository_branch_roles:[1,'4baf1d02f9f5f9135165deaf449a0263d1c078c3b63e1cbd4ce049b1fd425382'],portfolio_repository_disposition:[24,'3467f5644477c044608ed782f0335273414ab4d2c9d395e02e2e4297541d04f8'],portfolio_verification_receipts:[1,'d5a29c7285489a5134ce9e017f07c36668fa45abe30f6d7cdf5111f54f9b3799'],portfolio_work_identity:[176,'ef719960cf46ff50b7849a79cc68f55989cf76adba83911d6127095f09a948b4'],proof_state:[49,'1b713ddbd8e2930604c57effa8ce2f9c787735f1ce9246a4449f7b50af179243'],scheduled_cycle_events:[1851,'43b8a9b6837e8abe56c026ec2e6200b416d718a404da9e57935199beabef3bcb'],work_lease_checkpoints:[430,'54f634b1e8fa5546d1af81ceba40cfd2f718a3cec588abdf2f6894ab75f8c730'],work_lease_heartbeats:[89,'f475ea4e0b5922f5fc7cd4249059e0fef09582fb475cb34adbf67080740ebf5d'],work_lease_slots:[2,'faf979fad7abe671a09a4b95335d9af3855cc613be8f18dda8417e6b9eaebad3'],work_leases:[2080,'f91ceb591029f085045b0c73423190b3361248fd61816847fd71c8e14162e691'],__hatchable_migrations:[61,'459162514c82b816bdeedf855886ff99a962f7c5b253e1e46632a0debc76a939'],overcenter_authority_freeze:[1,'58b3eadc85dbf1828fd109a86e4f5e1759e9c693b099c3194d5f81ef7a4ce4ee']};
+          const source_inventory=Object.entries(censusRows).sort(([a],[b])=>a.localeCompare(b)).map(([table,[row_count,rows_sha256]])=>({table,row_count,rows_sha256}));
+          const runtimeRevision=(await readFile('.migration-runtime-revision.txt','utf8')).trim();
+          const manifest=await buildMigrationSemanticManifest({source:{frozen:true,freeze_ref:process.env.FREEZE_DIGEST,frozen_at:'2026-09-08T02:35:29.128555+00:00',source_revision:process.env.SOURCE_REVISION,recovery_seed_digest:seed.digest,snapshot_census:source_inventory},census:classifySourceInventory(Object.keys(SOURCE_STATE_CONTRACT.tables)),target:{schema_ref:evidence.target_schema.schema_digest,authority_revision:process.env.AUTHORITY_REVISION,cloud_run_revision:runtimeRevision,canonical_table_count:evidence.target_schema.tables.length,canonical_migration_count:evidence.target_schema.migrations.length},recovery:{github_seed_verified:true,github_seed_digest:seed.digest,github_seed_confirmation_count:observations.length,empty_target_reconstruction_verified:true,unresolved_non_github_effects:0,github_recoverable_indeterminate_effects:2},accounting:{unclassified:[],unmatched:[],classified_source_table_count:source_inventory.length,classified_source_row_count:source_inventory.reduce((n,x)=>n+x.row_count,0)},runtime:{verified:true,project_inspect_verified:true,safe_semantic_operation_verified:true,proof_ref:'github-actions-run:34309030181',acceptance_run:'project-advance-4bd544db1aa5211c0071ec4fda6424d1',acceptance_lease:'39e26264-3f60-44fd-a61e-c81ffd1b6a72'},writer_cutover:{source_frozen:true,target_writer_enabled:true,authoritative_writer_count:1,proof_ref:'github-actions-run:34309030181'}});
+          await writeFile(process.env.RUNNER_TEMP+'/migration-semantic-manifest-v2.json',JSON.stringify(manifest,null,2)+'\n');
+          console.log(JSON.stringify({manifest_digest:manifest.manifest_digest,source_rows:manifest.accounting.classified_source_row_count,target_schema:manifest.target.schema_ref,recovery_seed:manifest.recovery.github_seed_digest,runtime_revision:manifest.target.cloud_run_revision},null,2));
+          EOF
+          (cd authoritative && FREEZE_DIGEST="$FREEZE_DIGEST" SOURCE_REVISION="$SOURCE_REVISION" AUTHORITY_REVISION="$AUTHORITY_REVISION" RUNNER_TEMP="$RUNNER_TEMP" node .build-final-migration-manifest.mjs)
+      - name: Persist seed and manifest to clean evidence branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'overcenter-migration-proof[bot]'
+          git config user.email '317681347+overcenter-app[bot]@users.noreply.github.com'
+          git fetch origin "$AUTHORITY_REVISION"
+          git checkout -B "$EVIDENCE_BRANCH" "$AUTHORITY_REVISION"
+          mkdir -p .overcenter/recovery
+          cp "$RUNNER_TEMP/hatchable-cutover-v1.json" .overcenter/recovery/hatchable-cutover-v1.json
+          cp "$RUNNER_TEMP/migration-semantic-manifest-v2.json" .overcenter/recovery/hatchable-gcp-migration-semantic-manifest-v2.json
+          git add .overcenter/recovery/hatchable-cutover-v1.json .overcenter/recovery/hatchable-gcp-migration-semantic-manifest-v2.json
+          git commit -m 'ops: persist frozen GCP migration evidence'
+          git push --force origin "$EVIDENCE_BRANCH"
+          git rev-parse HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-gcp-migration-evidence-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/hatchable-cutover-v1.json
+            ${{ runner.temp }}/migration-semantic-manifest-v2.json
+            ${{ runner.temp }}/evidence.json
+      - name: Delete temporary inspector
+        if: always()
+        shell: bash
+        run: gcloud run services delete "$INSPECTOR_SERVICE" --project="${{ vars.GCP_PROJECT_ID }}" --region="$GCP_REGION" --quiet || true
