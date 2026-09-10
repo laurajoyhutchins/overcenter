@@ -120,6 +120,18 @@ test('repository executor requests preserve semantic authority across provider s
 
   const bound = bindRepositoryExecutionResult(first, { status: 'completed', summary: 'done', evidence: [{ kind: 'test', detail: 'green' }] });
   assert.equal(validateRepositoryExecutionResult(bound, first).status, 'completed');
+  assert.deepEqual(bound.capabilities, { network_policy: 'restricted', repository_mutation: false });
   assert.throws(() => validateRepositoryExecutionResult({ ...bound, authority_revision: '5555555555555555555555555555555555555555' }, first), /does not match request/);
+  assert.throws(() => validateRepositoryExecutionResult({ ...bound, lease_ref: 'stale-lease' }, first), /does not match request/);
+  assert.throws(() => validateRepositoryExecutionResult({ ...bound, run_id: 'other-run' }, first), /does not match request/);
+  assert.throws(() => validateRepositoryExecutionResult({ ...bound, transition_definition_fingerprint: '6'.repeat(64) }, first), /does not match request/);
   assert.throws(() => validateRepositoryExecutionResult({ ...bound, executor_identity: 'other' }, first), /does not match request/);
+  assert.throws(() => validateRepositoryExecutionResult({ ...bound, capabilities: { ...bound.capabilities, network_policy: 'unrestricted' } }, first), /capabilities do not match request/);
+  assert.throws(() => bindRepositoryExecutionResult(first, { status: 'completed', summary: 'x'.repeat(4097), evidence: [{ kind: 'test', detail: 'green' }] }), /summary is invalid/);
+  assert.throws(() => bindRepositoryExecutionResult(first, { status: 'completed', summary: 'done', evidence: Array.from({ length: 33 }, () => ({ kind: 'test', detail: 'green' })) }), /evidence is invalid/);
+  assert.throws(() => createRepositoryExecutionRequest(packet, {
+    executor_identity: 'unsafe-provider',
+    executor_fingerprint: '7'.repeat(64),
+    network_policy: 'ambient',
+  }), /network_policy is invalid/);
 });
