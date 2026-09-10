@@ -70,3 +70,18 @@ test('Codex output has a bounded machine-readable contract', async () => {
   assert.deepEqual(parsed.properties?.status?.enum, ['completed', 'blocked']);
   assert.equal(parsed.properties?.evidence?.type, 'array');
 });
+
+test('repository execution is routed through a provider-neutral exact-revision contract', async () => {
+  const contract = await repositoryText('lib/exact-revision-repository-executor.js');
+  const worker = await repositoryText('scripts/codex-project-agent-execution.mjs');
+
+  assert.match(contract, /repository-executor-request-v1/);
+  assert.match(contract, /authority_revision/);
+  assert.match(contract, /transition_id/);
+  assert.match(contract, /lease_ref/);
+  assert.match(contract, /network_policy/);
+  assert.match(contract, /executor_identity/);
+  assert.match(contract, /executor_fingerprint/);
+  assert.match(contract, /validateRepositoryExecutionResult/);
+  assert.match(worker, /exact-revision-repository-executor\.js/);
+});
