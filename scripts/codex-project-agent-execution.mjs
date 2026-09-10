@@ -3,6 +3,7 @@ import { appendFile, chmod, lstat, readFile, writeFile } from 'node:fs/promises'
 import { resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { connectHatchableRemoteMcp } from './exact-revision-v8-verification-http.mjs';
+import { bindRepositoryExecutionResult, createRepositoryExecutionRequest } from '../lib/exact-revision-repository-executor.js';
 
 const SHA40 = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -11,6 +12,11 @@ const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
 const EXPIRY_RESERVE_MS = 2 * 60 * 1000;
 const GIT_DIFF_LABEL = 'git diff';
+const CODEX_REPOSITORY_EXECUTOR = Object.freeze({
+  executor_identity: 'github-actions-codex',
+  executor_fingerprint: '69305e17a251977cf0e04449f8a1ed47360b4ee3a149ad738cc3789b0ea37e5a',
+  network_policy: 'restricted',
+});
 
 function reject(code, message, details = {}) {
   throw Object.assign(new Error(message), { code, details });
@@ -58,6 +64,7 @@ function normalizePacket(body, repository, transitionId) {
   if (!SHA40.test(revision)) reject('CODEX_AUTHORITY_MISMATCH', 'project.advance authority revision is not an exact Git SHA');
   if (body?.transition?.id !== transitionId) reject('CODEX_TRANSITION_MISMATCH', 'project.advance returned another transition');
   const leaseRef = required(body.lease_ref, 'project.advance lease_ref');
+  const resumeRef = required(body.resume_ref, 'project.advance resume_ref');
   const runId = required(body.run_id, 'project.advance run_id');
   const expiresAt = required(body.expires_at, 'project.advance expires_at');
   const expiry = Date.parse(expiresAt);
@@ -72,6 +79,8 @@ function normalizePacket(body, repository, transitionId) {
     transition_id: transitionId,
     run_id: runId,
     lease_ref: leaseRef,
+    resume_ref: resumeRef,
+    authorized_mutations: Object.freeze([...(Array.isArray(body.lease_authorized_mutations) ? body.lease_authorized_mutations : [])]),
     expires_at: expiresAt,
     transition_definition_fingerprint: transitionDefinitionFingerprint,
     authority: Object.freeze({ kind: 'github', repository, revision, derivation: String(body.authority.derivation || '') }),
@@ -263,8 +272,9 @@ async function execute(env = process.env) {
   const schemaPath = required(env.CODEX_RESULT_SCHEMA, 'CODEX_RESULT_SCHEMA');
   const workspace = required(env.CODEX_WORKSPACE, 'CODEX_WORKSPACE');
   const packet = safeJsonParse(await readFile(packetPath, 'utf8'), 'CODEX_PACKET_INVALID', 'Codex packet is not valid JSON');
+  const executionRequest = createRepositoryExecutionRequest(packet, CODEX_REPOSITORY_EXECUTOR);
   const head = String(await runGit(workspace, ['rev-parse', 'HEAD'])).trim().toLowerCase();
-  if (head !== packet?.authority?.revision) reject('CODEX_CHECKOUT_MISMATCH', 'workspace HEAD does not equal packet authority revision', { expected: packet?.authority?.revision, actual: head });
+  if (head !== executionRequest.authority_revision) reject('CODEX_CHECKOUT_MISMATCH', 'workspace HEAD does not equal executor authority revision', { expected: executionRequest.authority_revision, actual: head });
   const expiry = Date.parse(packet.expires_at);
   const remainingMs = expiry - Date.now() - EXPIRY_RESERVE_MS;
   if (!Number.isFinite(remainingMs) || remainingMs <= 0) reject('CODEX_LEASE_WINDOW_EXPIRED', 'execution lease no longer has a safe mutation window');
@@ -298,7 +308,8 @@ async function execute(env = process.env) {
 
   const result = validateCodexResult(safeJsonParse(await readFile(resultPath, 'utf8'), 'CODEX_RESULT_INVALID', 'Codex final result is not valid JSON'));
   if (result.status === 'blocked') reject('CODEX_EXECUTION_BLOCKED', result.summary, { evidence: result.evidence });
-  process.stdout.write(`${JSON.stringify({ ok: true, status: result.status, evidence_count: result.evidence.length })}\n`);
+  const executorResult = bindRepositoryExecutionResult(executionRequest, result);
+  process.stdout.write(`${JSON.stringify({ ok: true, status: executorResult.status, executor_identity: executorResult.executor_identity, evidence_count: executorResult.evidence.length })}\n`);
 }
 
 async function apply(env = process.env) {
