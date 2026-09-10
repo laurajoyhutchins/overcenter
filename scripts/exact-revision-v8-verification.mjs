@@ -147,6 +147,45 @@ export function createHatchableRuntimeAdapter({ callTool } = {}) {
         project_ref: projectRef,
         horizon: Object.freeze({ kind: 'transition', ref: transitionRef }),
       });
+
+      try {
+        const transportResponse = await callTool('run_function', {
+          project_id: project,
+          path: '/api/gcp-semantic-command-dispatch',
+          method: 'POST',
+          body: {
+            command: 'project.inspect',
+            project_ref: projectRef,
+            expected_head: 'not-a-sha',
+          },
+        });
+        const transportBody = transportResponse?.body ?? transportResponse?.result?.body ?? transportResponse;
+        const transportStatus = Number(transportResponse?.status ?? transportResponse?.result?.status ?? 200);
+        if (
+          transportStatus === 422
+          && transportBody?.ok === false
+          && transportBody?.error === 'GCP_SEMANTIC_DISPATCH_INVALID'
+          && transportBody?.may_have_mutated === false
+          && String(transportBody?.message || '').includes('expected_head')
+        ) {
+          return Object.freeze({
+            schema: 'production-reachability-evidence-v1',
+            entrypoint: '/api/gcp-semantic-command-dispatch',
+            runtime_project: project,
+            runtime_revision: revision,
+            boundary: Object.freeze({
+              kind: 'authority_transport',
+              transport: 'hatchable_to_gcp',
+              state: 'reachable',
+              validation: 'exact_head_fail_closed',
+            }),
+            target: requestedTarget,
+          });
+        }
+      } catch {
+        // Transitional deployments may not expose the GCP transport shim yet.
+      }
+
       const runId = `exact-revision-reachability-${revision}-${randomUUID()}`;
       const startResponse = await callTool('run_function', {
         project_id: project,
@@ -425,7 +464,15 @@ export async function verifyExactRevisionV8(input, adapters) {
         && productionReachability?.boundary?.dependency === 'hatchable'
         && productionReachability?.boundary?.state === 'frozen'
       );
-      if (!graphAuthorityValid && !externalBoundaryValid && !frozenLegacyBoundaryValid) {
+      const gcpTransportBoundaryValid = (
+        commonReachabilityValid
+        && productionReachability?.entrypoint === '/api/gcp-semantic-command-dispatch'
+        && productionReachability?.boundary?.kind === 'authority_transport'
+        && productionReachability?.boundary?.transport === 'hatchable_to_gcp'
+        && productionReachability?.boundary?.state === 'reachable'
+        && productionReachability?.boundary?.validation === 'exact_head_fail_closed'
+      );
+      if (!graphAuthorityValid && !externalBoundaryValid && !frozenLegacyBoundaryValid && !gcpTransportBoundaryValid) {
         reject('VERIFICATION_RUNTIME_REACHABILITY_INVALID', 'production reachability verifier returned invalid evidence');
       }
       return {
