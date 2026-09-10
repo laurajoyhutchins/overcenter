@@ -27,7 +27,6 @@ jobs:
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          token_format: access_token
           request_reason: One-time Overcenter command ingress IAM bootstrap ${{ github.sha }}
 
       - name: Install Google Cloud CLI
