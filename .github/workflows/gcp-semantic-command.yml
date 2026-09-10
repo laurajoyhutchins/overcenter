@@ -20,6 +20,7 @@ on:
           - orchestration.maintain
           - github.pull_request.mark_ready
           - github.apply_changeset
+          - github.coalesce_changeset
           - github.apply_text_replacements
       project_ref:
         description: Canonical target project ref for project commands; empty for lease/integration commands
