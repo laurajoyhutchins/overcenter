@@ -55,12 +55,13 @@ test('PR integration is brokered through GCP instead of thawing Hatchable GitHub
   assert.match(workflow, /project\.amend\|github\.pull_request\.mark_ready\|github\.apply_changeset\|github\.apply_text_replacements\)/);
 });
 
-test('Hatchable project.amend is a transport relay and never composes local authoring authority', () => {
-  assert.doesNotMatch(mcpAmend, /composeHatchableRuntimeProviders/);
+test('Hatchable project.amend composes only transport authority and delegates semantic execution', () => {
+  assert.match(mcpAmend, /composeHatchableRuntimeProviders/);
   assert.doesNotMatch(mcpAmend, /executeSemanticWorkerCommand/);
   assert.doesNotMatch(mcpAmend, /projectAuthoringFor/);
+  assert.doesNotMatch(mcpAmend, /createProjectAuthoringHostRuntime/);
   assert.match(mcpAmend, /dispatchGcpProjectAmendViaWorkflow/);
-  assert.match(mcpAmend, /expected_revision/);
+  assert.match(mcpAmend, /githubAppAuth\.withApiClient/);
 });
 
 test('project.amend response recording is bounded and preserves authoritative success identity', () => {
