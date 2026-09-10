@@ -62,10 +62,12 @@ test('provider mutation idempotency and recovery use operation_state with bespok
     assert.equal(first.outcome, 'claimed');
     assert.equal(first.operation.state, 'prepared');
     assert.equal(first.operation.recovery_payload.attempt_token, 'attempt-1');
+    assert.equal(first.operation.attempt_epoch, 1);
 
     const inProgress = await store.claim({ command, scope, idempotency_key:'changeset-1', request_sha256:requestSha, attempt_token:'attempt-2', created_at:'2026-09-01T21:01:00.000Z', stale_before:'2026-09-01T20:59:00.000Z', recovery_payload:{ phase:'claim' } });
     assert.equal(inProgress.outcome, 'in_progress');
     assert.equal(inProgress.operation.recovery_payload.attempt_token, 'attempt-1');
+    assert.equal(inProgress.operation.attempt_epoch, 1);
 
     const conflict = await store.claim({ command, scope, idempotency_key:'changeset-1', request_sha256:'b'.repeat(64), attempt_token:'attempt-conflict', created_at:'2026-09-01T21:01:30.000Z', stale_before:'2026-09-01T20:59:30.000Z', recovery_payload:{ phase:'claim' } });
     assert.equal(conflict.outcome, 'conflict');
@@ -74,6 +76,7 @@ test('provider mutation idempotency and recovery use operation_state with bespok
     assert.equal(takeover.outcome, 'claimed');
     assert.equal(takeover.recovered, true);
     assert.equal(takeover.operation.recovery_payload.attempt_token, 'attempt-2');
+    assert.equal(takeover.operation.attempt_epoch, 2);
 
     assert.equal(await store.heartbeat({ command, scope, idempotency_key:'changeset-1', attempt_token:'attempt-1', updated_at:'2026-09-01T21:11:00.000Z', phase:'stale-owner' }), false);
     assert.equal(await store.heartbeat({ command, scope, idempotency_key:'changeset-1', attempt_token:'attempt-2', updated_at:'2026-09-01T21:11:00.000Z', phase:'prepare-effect' }), true);
@@ -82,9 +85,19 @@ test('provider mutation idempotency and recovery use operation_state with bespok
     assert.equal(indeterminate.state, 'indeterminate');
     assert.equal(indeterminate.may_have_mutated, true);
     assert.equal(indeterminate.recovery_payload.commit_sha, 'd'.repeat(40));
+    assert.equal(indeterminate.attempt_epoch, 2);
 
-    const succeeded = await store.succeed({ command, scope, idempotency_key:'changeset-1', attempt_token:'attempt-2', updated_at:'2026-09-01T21:13:00.000Z', effect_kind:'github_commit_branch', effect_ref:'overcenter/test@' + 'd'.repeat(40), effect_sha256:'e'.repeat(64), result_sha256:'f'.repeat(64), resolution:{ branch_name:'overcenter/test', commit_sha:'d'.repeat(40) } });
+    const resumed = await store.resumeIndeterminate({ command, scope, idempotency_key:'changeset-1', request_sha256:requestSha, prior_attempt_token:'attempt-2', attempt_token:'attempt-3', updated_at:'2026-09-01T21:12:30.000Z', recovery_payload:{ phase:'recover-effect', branch_name:'overcenter/test', commit_sha:'d'.repeat(40) } });
+    assert.equal(resumed.state, 'indeterminate');
+    assert.equal(resumed.recovery_payload.attempt_token, 'attempt-3');
+    assert.equal(resumed.attempt_epoch, 3);
+
+    const staleSucceeded = await store.succeed({ command, scope, idempotency_key:'changeset-1', attempt_token:'attempt-2', updated_at:'2026-09-01T21:12:45.000Z', effect_kind:'github_commit_branch', effect_ref:'overcenter/test@' + 'd'.repeat(40), effect_sha256:'e'.repeat(64), result_sha256:'f'.repeat(64), resolution:{ branch_name:'overcenter/test', commit_sha:'d'.repeat(40) } });
+    assert.equal(staleSucceeded, null);
+
+    const succeeded = await store.succeed({ command, scope, idempotency_key:'changeset-1', attempt_token:'attempt-3', updated_at:'2026-09-01T21:13:00.000Z', effect_kind:'github_commit_branch', effect_ref:'overcenter/test@' + 'd'.repeat(40), effect_sha256:'e'.repeat(64), result_sha256:'f'.repeat(64), resolution:{ branch_name:'overcenter/test', commit_sha:'d'.repeat(40) } });
     assert.equal(succeeded.state, 'succeeded');
+    assert.equal(succeeded.attempt_epoch, 3);
     assert.equal(succeeded.recovery_payload, null);
 
     const replay = await store.claim({ command, scope, idempotency_key:'changeset-1', request_sha256:requestSha, attempt_token:'attempt-3', created_at:'2026-09-01T21:14:00.000Z', stale_before:'2026-09-01T21:09:00.000Z', recovery_payload:{ phase:'claim' } });
