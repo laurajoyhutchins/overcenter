@@ -1,0 +1,68 @@
+name: GCP orchestration maintenance
+
+on:
+  workflow_run:
+    workflows: ["Exact revision V8 verification"]
+    types: [completed]
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: overcenter-gcp-semantic-control-plane
+  cancel-in-progress: false
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+    steps:
+      - name: Check out current authoritative development source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: dev
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify current development authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$(git ls-remote origin refs/heads/dev | cut -f1)"
+
+      - name: Authenticate to authoritative GCP runtime
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
+          id_token_include_email: true
+          request_reason: Overcenter deterministic maintenance ${{ github.run_id }}:${{ github.run_attempt }}
+
+      - name: Run bounded deterministic maintenance
+        shell: bash
+        env:
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -n --arg command 'orchestration.maintain' '{command:$command,input:{}}')"
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/maintenance-response.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $ID_TOKEN" \
+            -H 'content-type: application/json' \
+            -H 'x-overcenter-authority-mode: authoritative' \
+            -H "x-overcenter-request-id: maintenance:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" \
+            -X POST \
+            -d "$payload" \
+            "$SERVICE_AUDIENCE/api/worker-command")"
+          jq . "$RUNNER_TEMP/maintenance-response.json" || cat "$RUNNER_TEMP/maintenance-response.json"
+          test "$status" = 200
+          jq -e '.ok == true' "$RUNNER_TEMP/maintenance-response.json" >/dev/null

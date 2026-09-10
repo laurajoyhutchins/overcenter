@@ -9,13 +9,14 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
+const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'orchestration.maintain', 'production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
 const expectedSurface = new Map([
   ['github.apply_changeset', 'advanced'],
   ['github.apply_text_replacements', 'advanced'],
   ['github.pull_request.mark_ready', 'advanced'],
   ['github.release.create', 'advanced'],
   ['orchestration.diagnose', 'operator'],
+  ['orchestration.maintain', 'operator'],
   ['production.reconcile', 'primary'],
   ['production.promote', 'primary'],
   ['project.advance', 'primary'],
@@ -31,6 +32,7 @@ const expectedExposure = new Map([
   ['github.pull_request.mark_ready', { worker:true, mcp:false }],
   ['github.release.create', { worker:true, mcp:false }],
   ['orchestration.diagnose', { worker:true, mcp:false }],
+  ['orchestration.maintain', { worker:true, mcp:false }],
   ['work.settle', { worker:true, mcp:false }],
 ]);
 const primaryMcpFiles = ['production.reconcile.js', 'production.promote.js', 'project.advance.js', 'project.amend.js', 'project.define.js', 'project.inspect.js', 'release.publish.js'];

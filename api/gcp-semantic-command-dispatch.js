@@ -15,9 +15,10 @@ const TRANSITION = /^\S{1,256}$/;
 const RESUME = /^\S{1,512}$/;
 const PROJECT_COMMANDS = new Set(['project.inspect', 'project.advance']);
 const PROJECT_AUTHORING_COMMANDS = new Set(['project.amend']);
+const CONTROL_COMMANDS = new Set(['orchestration.maintain']);
 const GITHUB_INTEGRATION_COMMANDS = new Set(['github.pull_request.mark_ready']);
 const LEASE_MUTATION_COMMANDS = new Set(['github.apply_changeset', 'github.apply_text_replacements']);
-const ALLOWED_COMMANDS = new Set([...PROJECT_COMMANDS, ...PROJECT_AUTHORING_COMMANDS, ...GITHUB_INTEGRATION_COMMANDS, ...LEASE_MUTATION_COMMANDS]);
+const ALLOWED_COMMANDS = new Set([...PROJECT_COMMANDS, ...PROJECT_AUTHORING_COMMANDS, ...CONTROL_COMMANDS, ...GITHUB_INTEGRATION_COMMANDS, ...LEASE_MUTATION_COMMANDS]);
 const ALLOWED_FIELDS = new Set(['command', 'project_ref', 'expected_head', 'transition_id', 'resume_ref', 'execution_result', 'input']);
 const PROJECT_AMEND_INPUT_FIELDS = new Set(['project_ref', 'expected_revision', 'amendment']);
 const GITHUB_PR_READY_INPUT_FIELDS = new Set(['repo', 'pull_request', 'expected_head', 'run_id']);
@@ -109,6 +110,11 @@ function normalize(bodyInput) {
   const transitionId = body.transition_id === undefined ? '' : String(body.transition_id).trim();
   const resumeRef = body.resume_ref === undefined ? '' : String(body.resume_ref).trim();
   const executionResult = normalizeExecutionResult(body.execution_result);
+
+  if (CONTROL_COMMANDS.has(command)) {
+    if (projectRef || transitionId || resumeRef || executionResult || body.input !== undefined) throw invalid('control commands do not accept caller-selected semantic state');
+    return { command, project_ref: '', expected_head: expectedHead, transition_id: '', resume_ref: '', execution_result_json: '', command_input_json: '' };
+  }
 
   if (PROJECT_COMMANDS.has(command)) {
     if (!projectRef) throw invalid('project commands require project_ref');

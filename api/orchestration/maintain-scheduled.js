@@ -1,10 +1,11 @@
-import { createPostgresSubjectAwareOrchestrationMaintenanceService } from 'lib/orchestration-maintenance-subjects.js';
-
 export const access = 'scheduler';
 export const methods = ['POST'];
-export const schedule = '17 * * * *';
 
 export default async function (_req, res) {
-  const result = await createPostgresSubjectAwareOrchestrationMaintenanceService({ limit: 100 }).maintain();
-  return res.status(200).json(result);
+  return res.status(410).json({
+    ok:false,
+    error:'HATCHABLE_MAINTENANCE_SCHEDULE_RETIRED',
+    message:'Authoritative orchestration maintenance is scheduled and executed through the GCP control plane.',
+    may_have_mutated:false,
+  });
 }
