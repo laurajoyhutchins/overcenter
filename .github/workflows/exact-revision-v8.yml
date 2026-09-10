@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: overcenter-exact-revision-v8-verifier
+  group: overcenter-hatchable-mcp
   cancel-in-progress: false
 
 jobs:

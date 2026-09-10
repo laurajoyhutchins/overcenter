@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const revision = 'a'.repeat(40);
 const repository = 'laurajoyhutchins/overcenter';
+const SHARED_HATCHABLE_MCP_GROUP = 'overcenter-hatchable-mcp';
 
 test('production runtime adapter paces remote calls so large stale projections do not burst the Hatchable MCP transport', async () => {
   const { createProductionRuntimeAdapter } = await import('./production-materialization-http.mjs');
@@ -36,6 +38,17 @@ test('production runtime adapter paces remote calls so large stale projections d
     'write_files',
   ]);
   assert.deepEqual(waits, [1000, 1000, 1000, 1000]);
+});
+
+test('Hatchable MCP workflows share one non-cancelling account-rate concurrency lane', () => {
+  const exactRevision = readFileSync(new URL('../.github/workflows/exact-revision-v8.yml', import.meta.url), 'utf8');
+  const productionMaterialization = readFileSync(new URL('../.github/workflows/production-materialization.yml', import.meta.url), 'utf8');
+  const group = source => source.match(/concurrency:\s*\n\s*group:\s*([^\n]+)/)?.[1]?.trim();
+
+  assert.equal(group(exactRevision), SHARED_HATCHABLE_MCP_GROUP);
+  assert.equal(group(productionMaterialization), SHARED_HATCHABLE_MCP_GROUP);
+  assert.match(exactRevision, /concurrency:\s*\n\s*group:\s*overcenter-hatchable-mcp\s*\n\s*cancel-in-progress:\s*false/);
+  assert.match(productionMaterialization, /concurrency:\s*\n\s*group:\s*overcenter-hatchable-mcp\s*\n\s*cancel-in-progress:\s*false/);
 });
 
 test('production materialization CLI enables pacing for the live Hatchable transport', async () => {
