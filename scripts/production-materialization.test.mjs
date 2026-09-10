@@ -72,7 +72,7 @@ test('production branch updates are serialized into the dist-aware production ma
   assert.equal(existsSync(workflowUrl), true, 'production materialization workflow is missing');
   const workflow = readFileSync(workflowUrl, 'utf8');
   assert.match(workflow, /branches:\s*\[main\]/);
-  assert.match(workflow, /group:\s*overcenter-production-materialization/);
+  assert.match(workflow, /group:\s*overcenter-hatchable-mcp/);
   assert.match(workflow, /cancel-in-progress:\s*false/);
   const build = workflow.indexOf('npm run build:runtime');
   const materialize = workflow.indexOf('node scripts/production-materialization-dist-http.mjs');
