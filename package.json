@@ -10,6 +10,7 @@
   "packageManager": "npm@10.9.2",
   "scripts": {
     "test": "node scripts/test.mjs",
+    "test:audit": "node scripts/test-audit.mjs",
     "build": "node scripts/build.mjs",
     "build:runtime": "node scripts/build.mjs runtime",
     "build:portable": "node scripts/build.mjs portable",
