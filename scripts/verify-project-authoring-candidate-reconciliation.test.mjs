@@ -4,6 +4,8 @@ import { reconcileProjectAuthoringCandidate } from '../lib/project-authoring-can
 
 const staged = 'a'.repeat(40);
 const derived = 'b'.repeat(40);
+const stagedBase = 'c'.repeat(40);
+const derivedBase = 'd'.repeat(40);
 
 const base = {
   staged_revision: staged,
@@ -21,6 +23,42 @@ test('authorized derivative candidate is adopted only with fresh exact-head veri
     staged_revision: staged,
     advanced: true,
   });
+});
+
+test('routine compatible base movement is reconciled mechanically', () => {
+  assert.deepEqual(reconcileProjectAuthoringCandidate({
+    ...base,
+    verified_revision:derived,
+    staged_base_revision:stagedBase,
+    current_base_revision:derivedBase,
+    base_descendant_of_staged:true,
+    base_semantics_compatible:true,
+  }), {
+    candidate_revision:derived,
+    staged_revision:staged,
+    advanced:true,
+    base_revision:derivedBase,
+    staged_base_revision:stagedBase,
+    base_advanced:true,
+  });
+});
+
+test('conflicting or underivable base movement fails closed', () => {
+  for (const input of [
+    { base_descendant_of_staged:false, base_semantics_compatible:true },
+    { base_descendant_of_staged:true, base_semantics_compatible:false },
+  ]) {
+    assert.throws(
+      () => reconcileProjectAuthoringCandidate({
+        ...base,
+        verified_revision:derived,
+        staged_base_revision:stagedBase,
+        current_base_revision:derivedBase,
+        ...input,
+      }),
+      (error) => error?.code === 'PROJECT_AUTHORING_BASE_RECONCILIATION_REQUIRED' && error?.may_have_mutated === false,
+    );
+  }
 });
 
 test('stale verification bound to the staged candidate is rejected', () => {
