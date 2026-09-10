@@ -5,6 +5,9 @@ import { createProjectAuthoringHostRuntime } from '../lib/project-authoring-host
 import { applyProjectTransitionObservations } from '../lib/project-transition-observations.js';
 import { evaluateProjectGraph } from '../lib/project-graph.js';
 import { createProjectTransitionLeaseService } from '../lib/project-transition-leases.js';
+import { canonicalJson, sha256Text } from '../lib/canonical-json.js';
+import { projectTransitionDependencyFingerprint } from '../lib/project-transition-dependency-fingerprint.js';
+import { projectTransitionRevisionFingerprint } from '../lib/project-transition-revision-fingerprint.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const stagedRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -456,6 +459,21 @@ function migrationLifecycle(complete = false) {
   };
 }
 
+async function migrationSettlementCertificate(transition) {
+  const revisionFingerprint = await projectTransitionRevisionFingerprint({ transition_id:transition.id, priority:transition.priority, executor:transition.executor, phase_bindings:transition.phase_bindings, execution_intent:transition.execution_intent });
+  const dependencyFingerprint = await projectTransitionDependencyFingerprint({ transition_id:transition.id, requires:transition.requires || [] });
+  const obligationFingerprint = await sha256Text(canonicalJson({ schema:'project-transition-obligation-fingerprint-v1', transition_revision_fingerprint:revisionFingerprint, transition_dependency_fingerprint:dependencyFingerprint }));
+  const subject = Object.freeze({ project_ref:projectRef, transition_id:transition.id, obligation_fingerprint:obligationFingerprint });
+  return Object.freeze({
+    schema:'project-transition-certificate-v1',
+    subject,
+    authority:Object.freeze({ kind:'github', repository:'example/project', revision:migrationRevision1, derivation:'overcenter-project-graph-v1' }),
+    prerequisites:Object.freeze([]),
+    authoritative_effects:Object.freeze([{ kind:'authority', ref:`github:example/project@${migrationRevision1}`, subject }]),
+    claimed_outcome:Object.freeze({ disposition:'completed' }),
+  });
+}
+
 function concurrentMigrationHarness(initialDefinition) {
   let currentDefinition = initialDefinition;
   let currentRevision = migrationRevision1;
@@ -503,6 +521,11 @@ function concurrentMigrationHarness(initialDefinition) {
         && lease.transition_id === transitionId
         && lease.status === 'active'
         && Date.parse(lease.expires_at) > Date.parse(observedAt));
+    },
+    async getLatestSettledLeaseForTransition(ref, transitionId) {
+      if (ref !== projectRef || transitionId !== 'A') return null;
+      const transition = graph().nodes.find((node) => node.id === transitionId);
+      return { settlement_certificate:await migrationSettlementCertificate(transition) };
     },
     async settleLeaseAtomically(input) {
       lastSettlement = input;
