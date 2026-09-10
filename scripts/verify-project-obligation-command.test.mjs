@@ -20,7 +20,7 @@ assert.deepEqual(request.amendment, {
     id:'persist-project-context',
     priority:50,
     requires:['project-authoring'],
-    executor:{ kind:'agent', role:'implementation' },
+    executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' },
     execution_intent:{
       schema:'project-execution-intent-v1',
       desired_outcome:'Important project judgment is durable and available to later workers.',
