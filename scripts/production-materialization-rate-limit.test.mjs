@@ -41,3 +41,49 @@ test('production materialization CLI enables pacing for the live Hatchable trans
   const { PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS } = await import('./production-materialization-http.mjs');
   assert.equal(PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS, 1100);
 });
+
+test('production verification proves the thin GCP transport boundary after deployment instead of requiring a retired Hatchable regression endpoint', async () => {
+  const { createProductionRuntimeAdapter } = await import('./production-materialization-http.mjs');
+  const calls = [];
+  const runtime = createProductionRuntimeAdapter({
+    callTool: async (name, args) => {
+      calls.push([name, args]);
+      if (name === 'run_function' && args.path === '/api/gcp-semantic-command-dispatch') {
+        return {
+          status: 422,
+          body: {
+            ok: false,
+            error: 'GCP_SEMANTIC_DISPATCH_INVALID',
+            message: 'expected_head must be an exact 40-character Git SHA',
+            may_have_mutated: false,
+          },
+        };
+      }
+      throw new Error(`unexpected tool call: ${name}:${args.path || ''}`);
+    },
+  });
+
+  const evidence = await runtime.runRegressions({ project: 'prod', revision });
+
+  assert.deepEqual(calls, [[
+    'run_function',
+    {
+      project_id: 'prod',
+      path: '/api/gcp-semantic-command-dispatch',
+      method: 'POST',
+      body: {
+        command: 'project.inspect',
+        project_ref: 'github:laurajoyhutchins/overcenter',
+        expected_head: 'not-a-sha',
+      },
+    },
+  ]]);
+  assert.deepEqual(evidence, {
+    ok: true,
+    schema: 'regression-verification-v1',
+    passed: 1,
+    failed: 0,
+    boundary: 'hatchable_to_gcp',
+    validation: 'exact_head_fail_closed',
+  });
+});
