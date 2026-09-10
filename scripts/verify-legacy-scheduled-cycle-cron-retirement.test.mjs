@@ -19,7 +19,13 @@ test('legacy scheduled-cycle reconcilers are callable but not scheduled', async 
   }
 });
 
-test('graph-native orchestration maintenance remains scheduled', async () => {
-  const source = await readFile(new URL('api/orchestration/maintain-scheduled.js', root), 'utf8');
-  assert.match(source, /export const schedule\s*=\s*'17 \* \* \* \*';/u);
+test('graph-native orchestration maintenance is scheduled by the GCP control plane, not Hatchable', async () => {
+  const legacySource = await readFile(new URL('api/orchestration/maintain-scheduled.js', root), 'utf8');
+  const workflow = await readFile(new URL('.github/workflows/gcp-orchestration-maintain.yml', root), 'utf8');
+  assert.doesNotMatch(legacySource, /export const schedule\s*=/u);
+  assert.doesNotMatch(legacySource, /createPostgresSubjectAwareOrchestrationMaintenanceService/u);
+  assert.match(legacySource, /HATCHABLE_MAINTENANCE_SCHEDULE_RETIRED/u);
+  assert.match(workflow, /cron:\s*'17 \* \* \* \*'/u);
+  assert.match(workflow, /orchestration\.maintain/u);
+  assert.match(workflow, /x-overcenter-authority-mode: authoritative/u);
 });
