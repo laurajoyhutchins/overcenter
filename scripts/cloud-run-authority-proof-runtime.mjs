@@ -63,7 +63,7 @@ export function createCloudRunAuthorityProofInspector({ db }) {
           : (runId ? await many(client, `SELECT subject_key,subject_kind,project_ref,transition_id,authority_epoch,lease_ref,run_id,authority_repository,authority_revision,expires_at,hard_expires_at,updated_at FROM execution_state WHERE run_id=$1 ORDER BY subject_key`, [runId]) : []);
       const slots = runId ? await many(client, `SELECT s.work_ref,s.gate,s.lease_id,s.expires_at FROM work_lease_slots s JOIN work_leases l ON l.lease_id=s.lease_id WHERE l.run_id=$1 ORDER BY s.work_ref,s.gate`, [runId]) : [];
       const activeTransitionLeases = quiescent
-        ? await many(client, `SELECT lease_id,run_id,status,created_at,expires_at FROM work_leases WHERE claim_receipt->>'subject'='project_transition' AND claim_receipt->'project_transition'->>'project_ref'=$1 AND status='active' AND expires_at > now() ORDER BY created_at,lease_id`, [projectRef])
+        ? await many(client, `SELECT lease_id,run_id,status,created_at,expires_at FROM work_leases WHERE gate='project_transition' AND claim_receipt->>'subject'='project_transition' AND claim_receipt->'project_transition'->>'project_ref'=$1 AND status='active' AND expires_at > now() ORDER BY created_at,lease_id`, [projectRef])
         : transitionId
           ? await many(client, `SELECT lease_id,run_id,status,created_at,expires_at FROM work_leases WHERE claim_receipt->>'subject'='project_transition' AND claim_receipt->'project_transition'->>'project_ref'=$1 AND claim_receipt->'project_transition'->>'transition_id'=$2 AND status='active' AND expires_at > now() ORDER BY created_at,lease_id`, [projectRef, transitionId])
           : [];
