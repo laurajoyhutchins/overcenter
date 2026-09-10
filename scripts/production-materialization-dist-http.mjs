@@ -4,6 +4,7 @@ import { connectHatchableRemoteMcp } from './exact-revision-v8-verification-http
 import {
   createProductionRuntimeAdapter,
   productionMaterializationInputFromEnv,
+  PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS,
 } from './production-materialization-http.mjs';
 import { materializeProductionRevision } from './production-materialization.mjs';
 import { createRuntimeArtifactSourceAdapter } from './runtime-artifact-source.mjs';
@@ -14,7 +15,10 @@ export async function runProductionMaterializationDistHttpCli(env = process.env)
   try {
     const result = await materializeProductionRevision(input, {
       source: createRuntimeArtifactSourceAdapter(createCheckoutSourceAdapter()),
-      runtime: createProductionRuntimeAdapter({ callTool: connection.callTool }),
+      runtime: createProductionRuntimeAdapter({
+        callTool: connection.callTool,
+        minimumCallIntervalMs: PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS,
+      }),
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return result;

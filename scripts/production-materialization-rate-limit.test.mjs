@@ -51,9 +51,16 @@ test('Hatchable MCP workflows share one non-cancelling account-rate concurrency 
   assert.match(productionMaterialization, /concurrency:\s*\n\s*group:\s*overcenter-hatchable-mcp\s*\n\s*cancel-in-progress:\s*false/);
 });
 
-test('production materialization CLI enables pacing for the live Hatchable transport', async () => {
+test('production materialization dist CLI wires pacing into the live Hatchable transport', async () => {
   const { PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS } = await import('./production-materialization-http.mjs');
   assert.equal(PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS, 1100);
+
+  const distDriver = readFileSync(new URL('./production-materialization-dist-http.mjs', import.meta.url), 'utf8');
+  assert.match(distDriver, /PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS/);
+  assert.match(
+    distDriver,
+    /createProductionRuntimeAdapter\(\{\s*callTool:\s*connection\.callTool,\s*minimumCallIntervalMs:\s*PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS,?\s*\}\)/s,
+  );
 });
 
 test('production verification proves the thin GCP transport boundary after deployment instead of requiring a retired Hatchable regression endpoint', async () => {
