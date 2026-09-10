@@ -90,7 +90,7 @@ test('remote production adapter fences, stages, deploys, and reads immutable fil
     { current_version: 5 }, { files: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }] },
     { current_version: 5 }, { errors: [], would_deploy: {} }, { version: 6 }, { current_version: 6 },
     { version: 6, file_manifest: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }] },
-    { status: 200, body: { ok: true, schema: 'regression-verification-v1', passed: 700, failed: 0 } },
+    { status: 422, body: { ok: false, error: 'GCP_SEMANTIC_DISPATCH_INVALID', may_have_mutated: false, message: 'expected_head must be a 40-character lowercase Git SHA' } },
   ];
   const runtime = http.createProductionRuntimeAdapter?.({
     callTool: async (name, args) => {
@@ -113,7 +113,7 @@ test('remote production adapter fences, stages, deploys, and reads immutable fil
   assert.deepEqual(await runtime.inspectDeployment({ project: 'prod', version: 6 }), {
     version: 6, files: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }],
   });
-  assert.equal((await runtime.runRegressions({ project: 'prod' })).failed, 0);
+  assert.equal((await runtime.runRegressions({ project: 'prod', repository })).failed, 0);
   assert.deepEqual(calls.map(([name]) => name), [
     'get_project', 'list_files',
     'get_project', 'delete_file', 'write_files',
