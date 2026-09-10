@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveProjectExplanation } from '../lib/project-explanation-model.js';
+import { deriveProjectExplanation, queryProjectExplanation } from '../lib/project-explanation-model.js';
 const REV = 'a'.repeat(40);
 const OLD_REV = 'b'.repeat(40);
 function nodes() { return [
@@ -76,4 +76,21 @@ test('derives deterministic change explanations between exact authority revision
   assert.deepEqual(foundation.changed, { value:true, from_authority_revision:OLD_REV, facts:['status'] });
   assert.deepEqual(result.summary.changed, ['foundation']);
   assert.deepEqual(result, deriveProjectExplanation(input));
+});
+
+test('exposes bounded typed project and transition queries without prose authority', () => {
+  const input = { project_ref:'github:example/project', authority_revision:REV, nodes:nodes() };
+  const transition = queryProjectExplanation(input, { kind:'transition', transition_id:'occupied' });
+  assert.equal(transition.schema, 'project-explanation-query-v1');
+  assert.deepEqual(transition.query, { kind:'transition', transition_id:'occupied' });
+  assert.equal(transition.project_ref, 'github:example/project');
+  assert.equal(transition.authority_revision, REV);
+  assert.equal(transition.result.id, 'occupied');
+  assert.equal(transition.result.status, 'ready');
+  assert.equal('transitions' in transition, false);
+
+  const project = queryProjectExplanation(input, { kind:'project' });
+  assert.deepEqual(project.query, { kind:'project' });
+  assert.deepEqual(project.result.ready, ['foundation','occupied']);
+  assert.equal('transitions' in project.result, false);
 });
