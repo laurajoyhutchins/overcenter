@@ -1,0 +1,44 @@
+name: GCP command ingress bootstrap once
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-command-ingress-bootstrap-once.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Authenticate direct GitHub OIDC principal
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          token_format: access_token
+          request_reason: One-time Overcenter command ingress IAM bootstrap ${{ github.sha }}
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+
+      - name: Perform bounded one-time ingress bootstrap
+        shell: bash
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_REGION: us-west1
+          OVERCENTER_TARGET_SERVICE: overcenter-shadow
+          OVERCENTER_INGRESS_SERVICE_ACCOUNT: overcenter-command-ingress
+          OVERCENTER_DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: bash ./scripts/gcp/bootstrap-command-ingress.sh
