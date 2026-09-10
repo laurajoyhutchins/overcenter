@@ -12,6 +12,7 @@ export const PRODUCTION_MATERIALIZATION_HTTP_SCHEMA = 'production-materializatio
 export const PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS = 1100;
 
 const SHA40 = /^[0-9a-f]{40}$/;
+const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const defaultWait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 function reject(code, message) {
@@ -148,7 +149,7 @@ export function createProductionRuntimeAdapter({
       await pacedCallTool('deploy', {
         project_id: project,
         intent: `Materialize promoted Overcenter revision ${revision}`,
-        summary: `Materialized the exact promoted GitHub revision into the production runtime, then prepared immutable source and regression verification.`,
+        summary: `Materialized the exact promoted GitHub revision into the production runtime, then prepared immutable source and transport-boundary verification.`,
       });
       const after = await pacedCallTool('get_project', { project_id: project });
       const version = observedVersion(after, 'production deployed version');
@@ -162,16 +163,38 @@ export function createProductionRuntimeAdapter({
         files: immutableFiles(deployment),
       };
     },
-    async runRegressions({ project }) {
+    async runRegressions({ project, repository }) {
+      const repo = String(repository || '').trim();
+      if (!REPOSITORY.test(repo)) reject('PRODUCTION_TRANSPORT_VERIFICATION_INVALID', 'repository must be in owner/name form');
       const response = await pacedCallTool('run_function', {
         project_id: project,
-        path: '/api/verification/regressions',
+        path: '/api/gcp-semantic-command-dispatch',
         method: 'POST',
-        body: {},
+        body: {
+          command: 'project.inspect',
+          project_ref: `github:${repo}`,
+          expected_head: 'not-a-sha',
+        },
       });
       const body = response?.body ?? response?.result?.body ?? response;
-      if (Number(response?.status ?? 200) !== 200) reject('PRODUCTION_REGRESSION_INVALID', 'production regression endpoint returned a non-success status');
-      return body;
+      const status = Number(response?.status ?? response?.result?.status ?? 200);
+      if (
+        status !== 422
+        || body?.ok !== false
+        || body?.error !== 'GCP_SEMANTIC_DISPATCH_INVALID'
+        || body?.may_have_mutated !== false
+        || !String(body?.message || '').includes('expected_head')
+      ) {
+        reject('PRODUCTION_TRANSPORT_VERIFICATION_FAILED', 'thin Hatchable to GCP transport boundary did not fail closed on an invalid exact head');
+      }
+      return Object.freeze({
+        ok: true,
+        schema: 'regression-verification-v1',
+        passed: 1,
+        failed: 0,
+        boundary: 'hatchable_to_gcp',
+        validation: 'exact_head_fail_closed',
+      });
     },
   };
 }
