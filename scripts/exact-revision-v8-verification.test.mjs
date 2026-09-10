@@ -80,6 +80,9 @@ test('Hatchable production reachability recognizes the irreversible source freez
   const runtime=createHatchableRuntimeAdapter({
     callTool:async(name,args)=>{
       calls.push({name,args});
+      if (name==='run_function' && args.path==='/api/gcp-semantic-command-dispatch') {
+        return {status:404,body:{ok:false,error:'NOT_FOUND'}};
+      }
       if (name==='run_function' && args.path==='/api/orchestration/start') {
         return {
           status:500,
@@ -95,7 +98,7 @@ test('Hatchable production reachability recognizes the irreversible source freez
   });
   const result=await runtime.runProductionReachability({project:production_project,repository,revision});
   assert.deepEqual(result,frozenReachability);
-  assert.equal(calls.length,1);
+  assert.deepEqual(calls.map(call=>call.args.path),['/api/gcp-semantic-command-dispatch','/api/orchestration/start']);
 });
 
 test('reuses an identical immutable verification deployment without requiring a version bump', async()=>{

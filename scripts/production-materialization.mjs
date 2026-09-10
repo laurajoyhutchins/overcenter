@@ -138,7 +138,12 @@ export async function materializeProductionRevision(input = {}, adapters = {}) {
       if (typeof receiptContent !== 'string' || !receiptMatches(immutableFiles, receiptContent)) {
         return { ok:false, verification_ref:'' };
       }
-      regression = await adapters.runtime.runRegressions({ project, deployment_version:request.version, revision:request.revision });
+      regression = await adapters.runtime.runRegressions({
+        project,
+        repository,
+        deployment_version:request.version,
+        revision:request.revision,
+      });
       const ok = regression?.schema === 'regression-verification-v1' && regression?.ok === true && Number(regression?.failed || 0) === 0;
       return {
         ok,

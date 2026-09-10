@@ -9,8 +9,11 @@ import { connectHatchableRemoteMcp } from './exact-revision-v8-verification-http
 import { materializeProductionRevision } from './production-materialization.mjs';
 
 export const PRODUCTION_MATERIALIZATION_HTTP_SCHEMA = 'production-materialization-http-v1';
+export const PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS = 1100;
 
 const SHA40 = /^[0-9a-f]{40}$/;
+const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const defaultWait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 function reject(code, message) {
   throw Object.assign(new Error(message), { code });
@@ -90,14 +93,30 @@ async function verifiedProjectionEvidence(callTool, project, version, context = 
   });
 }
 
-export function createProductionRuntimeAdapter({ callTool } = {}) {
+export function createProductionRuntimeAdapter({
+  callTool,
+  minimumCallIntervalMs = 0,
+  wait = defaultWait,
+} = {}) {
   if (typeof callTool !== 'function') reject('PRODUCTION_RUNTIME_ADAPTER_INVALID', 'callTool is required');
+  if (typeof wait !== 'function') reject('PRODUCTION_RUNTIME_ADAPTER_INVALID', 'wait must be a function');
+  const callIntervalMs = Number(minimumCallIntervalMs);
+  if (!Number.isFinite(callIntervalMs) || callIntervalMs < 0) {
+    reject('PRODUCTION_RUNTIME_ADAPTER_INVALID', 'minimumCallIntervalMs must be a non-negative finite number');
+  }
+  let hasCalled = false;
+  const pacedCallTool = async (name, args) => {
+    if (hasCalled && callIntervalMs > 0) await wait(callIntervalMs);
+    hasCalled = true;
+    return callTool(name, args);
+  };
+
   return {
     async inspect(project, context = {}) {
-      const info = await callTool('get_project', { project_id: project });
-      const listed = await callTool('list_files', { project_id: project });
+      const info = await pacedCallTool('get_project', { project_id: project });
+      const listed = await pacedCallTool('list_files', { project_id: project });
       const version = observedVersion(info, 'production runtime version');
-      const evidence = await verifiedProjectionEvidence(callTool, project, version, context);
+      const evidence = await verifiedProjectionEvidence(pacedCallTool, project, version, context);
       return {
         project,
         version,
@@ -106,54 +125,76 @@ export function createProductionRuntimeAdapter({ callTool } = {}) {
       };
     },
     async stage({ project, revision, expected_version, writes, deletes }) {
-      const before = await callTool('get_project', { project_id: project });
+      const before = await pacedCallTool('get_project', { project_id: project });
       if (observedVersion(before, 'production runtime version') !== Number(expected_version)) reject('PRODUCTION_RUNTIME_VERSION_MISMATCH', 'production runtime changed before staging');
       for (const path of deletes) {
-        await callTool('delete_file', { project_id: project, path, reason: `Remove stale source before production materialization ${revision}` });
+        await pacedCallTool('delete_file', { project_id: project, path, reason: `Remove stale source before production materialization ${revision}` });
       }
-      await callTool('write_files', {
+      await pacedCallTool('write_files', {
         project_id: project,
         files: writes,
         reason: `Materialize exact production revision ${revision}`,
       });
     },
     async inspectDraft(project) {
-      const info = await callTool('get_project', { project_id: project });
-      const listed = await callTool('list_files', { project_id: project });
+      const info = await pacedCallTool('get_project', { project_id: project });
+      const listed = await pacedCallTool('list_files', { project_id: project });
       return { project, version: observedVersion(info, 'production draft version'), files: listed?.files };
     },
     async deploy({ project, revision, expected_version }) {
-      const before = await callTool('get_project', { project_id: project });
+      const before = await pacedCallTool('get_project', { project_id: project });
       if (observedVersion(before, 'production runtime version') !== Number(expected_version)) reject('PRODUCTION_RUNTIME_VERSION_MISMATCH', 'production runtime changed before deploy');
-      const dryRun = await callTool('dry_run_deploy', { project_id: project });
+      const dryRun = await pacedCallTool('dry_run_deploy', { project_id: project });
       if (Array.isArray(dryRun?.errors) && dryRun.errors.length) reject('PRODUCTION_DRY_RUN_FAILED', 'production Hatchable dry-run reported deploy-blocking errors');
-      await callTool('deploy', {
+      await pacedCallTool('deploy', {
         project_id: project,
         intent: `Materialize promoted Overcenter revision ${revision}`,
-        summary: `Materialized the exact promoted GitHub revision into the production runtime, then prepared immutable source and regression verification.`,
+        summary: `Materialized the exact promoted GitHub revision into the production runtime, then prepared immutable source and transport-boundary verification.`,
       });
-      const after = await callTool('get_project', { project_id: project });
+      const after = await pacedCallTool('get_project', { project_id: project });
       const version = observedVersion(after, 'production deployed version');
       if (version !== Number(expected_version) + 1) reject('PRODUCTION_DEPLOYMENT_VERSION_MISMATCH', 'production deployment was not the immediate successor');
       return { version };
     },
     async inspectDeployment({ project, version }) {
-      const deployment = await callTool('get_deployment', { project_id: project, version });
+      const deployment = await pacedCallTool('get_deployment', { project_id: project, version });
       return {
         version: Number(deployment?.version),
         files: immutableFiles(deployment),
       };
     },
-    async runRegressions({ project }) {
-      const response = await callTool('run_function', {
+    async runRegressions({ project, repository }) {
+      const repo = String(repository || '').trim();
+      if (!REPOSITORY.test(repo)) reject('PRODUCTION_TRANSPORT_VERIFICATION_INVALID', 'repository must be in owner/name form');
+      const response = await pacedCallTool('run_function', {
         project_id: project,
-        path: '/api/verification/regressions',
+        path: '/api/gcp-semantic-command-dispatch',
         method: 'POST',
-        body: {},
+        body: {
+          command: 'project.inspect',
+          project_ref: `github:${repo}`,
+          expected_head: 'not-a-sha',
+        },
       });
       const body = response?.body ?? response?.result?.body ?? response;
-      if (Number(response?.status ?? 200) !== 200) reject('PRODUCTION_REGRESSION_INVALID', 'production regression endpoint returned a non-success status');
-      return body;
+      const status = Number(response?.status ?? response?.result?.status ?? 200);
+      if (
+        status !== 422
+        || body?.ok !== false
+        || body?.error !== 'GCP_SEMANTIC_DISPATCH_INVALID'
+        || body?.may_have_mutated !== false
+        || !String(body?.message || '').includes('expected_head')
+      ) {
+        reject('PRODUCTION_TRANSPORT_VERIFICATION_FAILED', 'thin Hatchable to GCP transport boundary did not fail closed on an invalid exact head');
+      }
+      return Object.freeze({
+        ok: true,
+        schema: 'regression-verification-v1',
+        passed: 1,
+        failed: 0,
+        boundary: 'hatchable_to_gcp',
+        validation: 'exact_head_fail_closed',
+      });
     },
   };
 }
@@ -178,7 +219,10 @@ export async function runProductionMaterializationHttpCli(env = process.env) {
   try {
     const result = await materializeProductionRevision(input, {
       source: createCheckoutSourceAdapter(),
-      runtime: createProductionRuntimeAdapter({ callTool: connection.callTool }),
+      runtime: createProductionRuntimeAdapter({
+        callTool: connection.callTool,
+        minimumCallIntervalMs: PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS,
+      }),
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return result;
