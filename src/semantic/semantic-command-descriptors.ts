@@ -308,6 +308,14 @@ const DESCRIPTORS = Object.freeze({
     'advanced',
     INTERNAL_EXPOSURE,
   ),
+  'github.coalesce_changeset':descriptor(
+    'github.coalesce_changeset',
+    'github_coalesce_changeset',
+    'Replace the immediately preceding mechanical workspace head with one combined mechanical repair under the same project-transition lease. Overcenter derives repository, managed branch, exact head, and credential authority; stale heads, unrelated leases, and non-mechanical parents fail closed before ref mutation.',
+    githubApplyChangesetSchema,
+    'advanced',
+    INTERNAL_EXPOSURE,
+  ),
   'github.apply_text_replacements':descriptor(
     'github.apply_text_replacements',
     'github_apply_text_replacements',
