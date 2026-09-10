@@ -15,6 +15,7 @@ const base = {
   graph_fingerprint: 'graph-v1',
   staged_graph_fingerprint: 'graph-v1',
   descendant_of_staged: true,
+  authorized_derivative: true,
 };
 
 test('authorized derivative candidate is adopted only with fresh exact-head verification', () => {
@@ -71,6 +72,7 @@ test('stale verification bound to the staged candidate is rejected', () => {
 test('unrecognized head movement and semantic drift fail closed', () => {
   for (const input of [
     { ...base, descendant_of_staged:false, verified_revision:derived },
+    { ...base, authorized_derivative:false, verified_revision:derived },
     { ...base, definition_fingerprint:'definition-v2', verified_revision:derived },
     { ...base, graph_fingerprint:'graph-v2', verified_revision:derived },
   ]) {

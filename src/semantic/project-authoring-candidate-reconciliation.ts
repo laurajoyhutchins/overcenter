@@ -7,6 +7,7 @@ type ProjectAuthoringCandidateReconciliationInput = Readonly<{
   staged_graph_fingerprint: string;
   graph_fingerprint: string;
   descendant_of_staged: boolean;
+  authorized_derivative: boolean;
 }>;
 
 type ProjectAuthoringCandidateReconciliation = Readonly<{
@@ -53,7 +54,10 @@ export function reconcileProjectAuthoringCandidate(input: ProjectAuthoringCandid
   const currentGraph = stableFingerprint(input?.graph_fingerprint, 'graph_fingerprint');
   const advanced = current !== staged;
   if (advanced && input?.descendant_of_staged !== true) {
-    fail('PROJECT_AUTHORING_CANDIDATE_RECONCILIATION_REQUIRED', 'candidate head movement is not an authorized descendant of the staged revision', { staged_revision:staged, current_revision:current });
+    fail('PROJECT_AUTHORING_CANDIDATE_RECONCILIATION_REQUIRED', 'candidate head movement is not a descendant of the staged revision', { staged_revision:staged, current_revision:current });
+  }
+  if (advanced && input?.authorized_derivative !== true) {
+    fail('PROJECT_AUTHORING_CANDIDATE_RECONCILIATION_REQUIRED', 'candidate head movement lacks authoritative Overcenter derivative provenance', { staged_revision:staged, current_revision:current });
   }
   if (currentDefinition !== stagedDefinition || currentGraph !== stagedGraph) {
     fail('PROJECT_AUTHORING_CANDIDATE_RECONCILIATION_REQUIRED', 'candidate semantic identity changed after staging', { staged_revision:staged, current_revision:current, definition_matches:currentDefinition === stagedDefinition, graph_matches:currentGraph === stagedGraph });
