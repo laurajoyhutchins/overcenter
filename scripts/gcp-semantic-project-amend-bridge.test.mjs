@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const broker = await readFile(new URL('../api/gcp-semantic-command-dispatch.js', import.meta.url), 'utf8');
 const workflow = await readFile(new URL('../.github/workflows/gcp-semantic-command.yml', import.meta.url), 'utf8');
+const mcpAmend = await readFile(new URL('../mcp/project.amend.js', import.meta.url), 'utf8');
 
 test('bounded GCP bridge admits project.amend without conflating control-plane head and target revision', () => {
   assert.match(broker, /PROJECT_AUTHORING_COMMANDS = new Set\(\['project\.amend'\]\)/);
@@ -52,4 +53,20 @@ test('PR integration is brokered through GCP instead of thawing Hatchable GitHub
   assert.match(workflow, /\.pull_request \| type == "number"/);
   assert.match(workflow, /\.expected_head \| type == "string" and test\("\^\[0-9a-f\]\{40\}\$"\)/);
   assert.match(workflow, /project\.amend\|github\.pull_request\.mark_ready\|github\.apply_changeset\|github\.apply_text_replacements\)/);
+});
+
+test('Hatchable project.amend composes only transport authority and delegates semantic execution', () => {
+  assert.match(mcpAmend, /composeHatchableRuntimeProviders/);
+  assert.doesNotMatch(mcpAmend, /executeSemanticWorkerCommand/);
+  assert.doesNotMatch(mcpAmend, /projectAuthoringFor/);
+  assert.doesNotMatch(mcpAmend, /createProjectAuthoringHostRuntime/);
+  assert.match(mcpAmend, /dispatchGcpProjectAmendViaWorkflow/);
+  assert.match(mcpAmend, /githubAppAuth\.withApiClient/);
+});
+
+test('project.amend response recording is bounded and preserves authoritative success identity', () => {
+  assert.match(workflow, /response_sha256/);
+  assert.match(workflow, /bounded_response/);
+  assert.match(workflow, /graph_revision/);
+  assert.match(workflow, /response_truncated/);
 });

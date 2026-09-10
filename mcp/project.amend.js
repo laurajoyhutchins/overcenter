@@ -1,6 +1,5 @@
 import { composeHatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
-import { executeSemanticWorkerCommand } from 'lib/worker-transport.js';
-import { projectAuthoringFor } from 'lib/project-authoring-overcenter-host.js';
+import { dispatchGcpProjectAmendViaWorkflow } from 'lib/gcp-semantic-project-amend-relay.js';
 import { PROJECT_AMEND_INPUT_SCHEMA } from 'lib/project-authoring-mcp-contract.js';
 
 export const access = 'admin';
@@ -10,12 +9,8 @@ export default {
   inputSchema:PROJECT_AMEND_INPUT_SCHEMA,
   async handler(args,ctx) {
     const providers = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
-    const { db } = providers;
-    const response = await executeSemanticWorkerCommand('project.amend', args || {}, {
-      db,
-      projectAuthoring:projectAuthoringFor({ db, withGitHubAppApiClient:providers.githubAppAuth.withApiClient }),
-      logger:console,
+    return dispatchGcpProjectAmendViaWorkflow(args || {}, {
+      withGitHubAppApiClient:providers.githubAppAuth.withApiClient,
     });
-    return response.body;
   },
 };
