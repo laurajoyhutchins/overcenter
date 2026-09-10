@@ -5,6 +5,8 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const api = await readFile(new URL('api/gcp-semantic-command-dispatch.js', root), 'utf8');
 const workflow = await readFile(new URL('.github/workflows/gcp-semantic-command.yml', root), 'utf8');
+const maintenanceWorkflow = await readFile(new URL('.github/workflows/gcp-orchestration-maintain.yml', root), 'utf8');
+const legacyMaintenance = await readFile(new URL('api/orchestration/maintain-scheduled.js', root), 'utf8');
 
 test('bounded GCP broker admits lease-scoped GitHub mutations without broadening source authority', () => {
   assert.match(api, /LEASE_MUTATION_COMMANDS = new Set\(\['github\.apply_changeset', 'github\.apply_text_replacements'\]\)/);
@@ -12,7 +14,10 @@ test('bounded GCP broker admits lease-scoped GitHub mutations without broadening
   assert.match(api, /MAX_COMMAND_INPUT_CHUNKS = 6/);
   assert.match(api, /MAX_COMMAND_INPUT_CHARS = COMMAND_INPUT_CHUNK_SIZE \* MAX_COMMAND_INPUT_CHUNKS/);
   assert.match(api, /workflowInputs\[`command_input_\$\{index\}`\] = chunk/);
+  assert.match(api, /CONTROL_COMMANDS = new Set\(\['orchestration\.maintain'\]\)/);
   assert.match(api, /PROJECT_COMMANDS\.has\(command\)/);
+  assert.match(api, /CONTROL_COMMANDS\.has\(command\)/);
+  assert.match(api, /control commands do not accept caller-selected semantic state/);
   assert.match(api, /project commands do not accept input/);
   assert.match(api, /lease-scoped GitHub mutations do not accept project\.advance continuation fields/);
   assert.doesNotMatch(api, /production\.promote|production\.reconcile|work\.settle/);
@@ -23,11 +28,24 @@ test('GCP workflow preserves exact-revision and fixed-project fences while reass
   assert.match(workflow, /command_input_5:/);
   assert.match(workflow, /command_input_json="\$\{COMMAND_INPUT_0\}\$\{COMMAND_INPUT_1\}\$\{COMMAND_INPUT_2\}\$\{COMMAND_INPUT_3\}\$\{COMMAND_INPUT_4\}\$\{COMMAND_INPUT_5\}"/);
   assert.match(workflow, /test "\$\(git ls-remote origin refs\/heads\/dev \| cut -f1\)" = "\$EXPECTED_HEAD"/);
-  assert.match(workflow, /test "\$\(git ls-remote origin refs\/heads\/main \| cut -f1\)" = "\$EXPECTED_HEAD"/);
-  assert.match(workflow, /test "\$PROJECT_REF" = 'github:laurajoyhutchins\/overcenter'/);
-  assert.match(workflow, /project\.inspect\|project\.advance\|github\.apply_changeset\|github\.apply_text_replacements/);
+  assert.doesNotMatch(workflow, /git ls-remote origin refs\/heads\/main/);
+  assert.doesNotMatch(workflow, /test "\$PROJECT_REF" = 'github:laurajoyhutchins\/overcenter'/);
+  assert.match(workflow, /project\.inspect\|project\.advance\|project\.define\|project\.amend\|orchestration\.maintain\|github\.pull_request\.mark_ready\|github\.apply_changeset\|github\.apply_text_replacements/);
+  assert.match(workflow, /orchestration\.maintain\)\n\s+input='\{\}'/);
   assert.match(workflow, /jq -e 'type == "object" and \(\.lease_ref \| type == "string" and length > 0\)'/);
   assert.match(workflow, /github\.apply_changeset\|github\.apply_text_replacements\)\n\s+input="\$command_input_json"/);
   assert.match(workflow, /x-overcenter-authority-mode: authoritative/);
   assert.match(workflow, /x-overcenter-request-id: \$REQUEST_ID/);
+});
+
+test('maintenance wakes independently through trusted GCP transport and Hatchable no longer owns the schedule', () => {
+  assert.match(maintenanceWorkflow, /workflow_run:/);
+  assert.match(maintenanceWorkflow, /Exact revision V8 verification/);
+  assert.match(maintenanceWorkflow, /cron: ['\"]17 \* \* \* \*['\"]/);
+  assert.match(maintenanceWorkflow, /group: overcenter-gcp-semantic-control-plane/);
+  assert.match(maintenanceWorkflow, /id-token: write/);
+  assert.match(maintenanceWorkflow, /\{command:\$command,input:\{\}\}/);
+  assert.match(maintenanceWorkflow, /x-overcenter-authority-mode: authoritative/);
+  assert.doesNotMatch(legacyMaintenance, /export const schedule/);
+  assert.doesNotMatch(legacyMaintenance, /createPostgresSubjectAwareOrchestrationMaintenanceService/);
 });

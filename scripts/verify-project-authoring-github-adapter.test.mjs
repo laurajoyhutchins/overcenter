@@ -219,3 +219,16 @@ test('exact GitHub reader treats only discovery 404 as definition-free bootstrap
     (error) => error?.code === 'PROJECT_DEFINITION_FACTS_READ_FAILED',
   );
 });
+
+test('GitHub-backed authoring preserves stable provider failure code and certainty', async () => {
+  const adapter = createProjectAuthoringGithubAdapter({
+    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' }),
+    readDefinitionFacts:async ({ revision }) => facts(revision),
+    applyChangeset:async () => ({ ok:false, error:'GITHUB_CHANGESET_UNEXPECTED_ERROR', message:'unexpected GitHub changeset provider failure', phase:'preflight.resolve_base', may_have_mutated:false }),
+    deriveProjectGraph:async () => { throw new Error('failed provider mutation must not derive'); },
+  });
+  await assert.rejects(
+    () => adapter.amend({ project_ref:projectRef, expected_revision:initialRevision, amendment:{ upsert_transitions:[{ id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] } }),
+    (error) => error?.code === 'GITHUB_CHANGESET_UNEXPECTED_ERROR' && error?.may_have_mutated === false && error?.details?.result?.phase === 'preflight.resolve_base',
+  );
+});

@@ -1251,6 +1251,27 @@ _None._
 - `postgres:public.orchestration_invocation_resolutions#resolution_kind` (`postgres`)
   - Source: `public.orchestration_invocation_resolutions#resolution_kind`
 
+## `orchestration.maintain.input`
+
+- Significance: `public`
+- Lifecycle: `current`
+- SemVer: `semantic-command-contract`
+- Authority: `semantic-command:orchestration.maintain#input` (`semantic-command`)
+- Authority source: `src/semantic/semantic-command-descriptors.ts#orchestration.maintain`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
 ## `orchestration.run.persistence`
 
 - Significance: `durable-internal`
