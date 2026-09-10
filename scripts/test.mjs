@@ -100,9 +100,9 @@ const maintainedTests = [
 ];
 
 const scriptNames = await readdir(new URL('scripts/', root));
-for (const prefix of ['exact-revision-v8-verification', 'production-materialization']) {
-  maintainedTests.push(...scriptNames.filter(name => name.startsWith(prefix) && name.endsWith('.test.mjs')));
-}
+// Native script tests are discovered from the repository rather than admitted by this list.
+// The legacy list is retained only until the lib/ regression-runner migration is complete.
+maintainedTests.push(...scriptNames.filter(name => name.endsWith('.test.mjs')));
 
 run(['scripts/verify-regression-suite-registry.mjs']);
 run(['scripts/verify-orchestration-drive.mjs']);
