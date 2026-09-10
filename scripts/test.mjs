@@ -27,12 +27,15 @@ async function nativeTestFiles(directory) {
   for (const entry of entries) {
     const relative = `${directory}/${entry.name}`;
     if (entry.isDirectory()) files.push(...await nativeTestFiles(relative));
-    else if (entry.isFile() && entry.name.endsWith('.test.mjs')) files.push(relative);
+    else if (entry.isFile() && /\.test\.(?:js|mjs)$/.test(entry.name)) files.push(relative);
   }
   return files;
 }
 
-const nativeTests = await nativeTestFiles('scripts');
+const nativeTests = [
+  ...await nativeTestFiles('scripts'),
+  ...await nativeTestFiles('lib'),
+];
 
 // Keep the legacy lib/ registry verified until those suites have all moved to node:test.
 run(['scripts/verify-regression-suite-registry.mjs']);
