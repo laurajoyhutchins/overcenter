@@ -10,7 +10,6 @@ import { materializeProductionRevision } from './production-materialization.mjs'
 
 export const PRODUCTION_MATERIALIZATION_HTTP_SCHEMA = 'production-materialization-http-v1';
 export const PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS = 1100;
-export const PRODUCTION_HATCHABLE_MAX_CALLS_PER_CONNECTION = 5;
 
 const SHA40 = /^[0-9a-f]{40}$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -91,52 +90,6 @@ async function verifiedProjectionEvidence(callTool, project, version, context = 
   return Object.freeze({
     verified_revision:receiptRevision,
     verification_ref:`immutable-runtime:${project}:${version}:${sourceManifest.sha256}`,
-  });
-}
-
-export function createRotatingHatchableCallTool({
-  connect,
-  maxCallsPerConnection = PRODUCTION_HATCHABLE_MAX_CALLS_PER_CONNECTION,
-} = {}) {
-  if (typeof connect !== 'function') reject('PRODUCTION_RUNTIME_ADAPTER_INVALID', 'connect is required');
-  const callBudget = Number(maxCallsPerConnection);
-  if (!Number.isSafeInteger(callBudget) || callBudget < 1) {
-    reject('PRODUCTION_RUNTIME_ADAPTER_INVALID', 'maxCallsPerConnection must be a positive integer');
-  }
-
-  let connection = null;
-  let callsOnConnection = 0;
-
-  async function openConnection() {
-    const next = await connect();
-    if (!next || typeof next.callTool !== 'function') {
-      if (next?.close) await next.close();
-      reject('PRODUCTION_RUNTIME_ADAPTER_INVALID', 'Hatchable connection must expose callTool');
-    }
-    return next;
-  }
-
-  async function rotateBeforeCallIfNeeded() {
-    if (connection && callsOnConnection < callBudget) return;
-    const previous = connection;
-    connection = null;
-    callsOnConnection = 0;
-    if (previous?.close) await previous.close();
-    connection = await openConnection();
-  }
-
-  return Object.freeze({
-    async callTool(name, args) {
-      await rotateBeforeCallIfNeeded();
-      callsOnConnection += 1;
-      return connection.callTool(name, args);
-    },
-    async close() {
-      const current = connection;
-      connection = null;
-      callsOnConnection = 0;
-      if (current?.close) await current.close();
-    },
   });
 }
 
@@ -262,22 +215,19 @@ export function productionMaterializationInputFromEnv(env = process.env) {
 
 export async function runProductionMaterializationHttpCli(env = process.env) {
   const { token, input } = productionMaterializationInputFromEnv(env);
-  const transport = createRotatingHatchableCallTool({
-    connect: () => connectHatchableRemoteMcp({ token }),
-    maxCallsPerConnection: PRODUCTION_HATCHABLE_MAX_CALLS_PER_CONNECTION,
-  });
+  const connection = await connectHatchableRemoteMcp({ token });
   try {
     const result = await materializeProductionRevision(input, {
       source: createCheckoutSourceAdapter(),
       runtime: createProductionRuntimeAdapter({
-        callTool: transport.callTool,
+        callTool: connection.callTool,
         minimumCallIntervalMs: PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS,
       }),
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return result;
   } finally {
-    await transport.close();
+    await connection.close();
   }
 }
 
