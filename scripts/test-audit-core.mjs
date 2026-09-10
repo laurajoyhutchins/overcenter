@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const AUDITED_TEST_PATHS = [
   /^lib\/[^/]+\.test\.mjs$/,
   /^lib\/regression-tests-[^/]+\.mjs$/,
@@ -9,6 +11,10 @@ const EXPLICIT_DYNAMIC_FORMS = new Map([
   ['lib/regression-suites.test.mjs', 'runtime-generated suite cases are audited through their static registry source'],
   ['lib/test-run-hooks.mjs', 'runtime hook module has no independently enumerable test cases'],
 ]);
+
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
 
 function frozenIdentity(path, kind, counts, detail = undefined) {
   return Object.freeze({
@@ -83,6 +89,12 @@ export function assertAuditIdentity(identity) {
   return identity;
 }
 
-export function createAuditIdentity(path, source) {
-  return assertAuditIdentity(auditTestFile(path, source));
+export function createAuditIdentity(path, source, revision) {
+  if (typeof revision !== 'string' || !/^[0-9a-f]{40}$/i.test(revision)) {
+    throw new TypeError('audit identity requires an exact 40-character Git revision');
+  }
+  const classification = assertAuditIdentity(auditTestFile(path, source));
+  const source_sha256 = sha256(source);
+  const audit_id = sha256(`overcenter-test-audit-v1\0${revision.toLowerCase()}\0${path}\0${source_sha256}`);
+  return Object.freeze({ ...classification, revision: revision.toLowerCase(), source_sha256, audit_id });
 }
