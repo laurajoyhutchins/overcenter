@@ -41,4 +41,20 @@ test('project.inspect reports blocked-settlement suspension as waiting, not avai
   ]);
   assert.equal(observations.length, 3);
   assert.ok(observations.every((entry) => entry.authority_revision === REVISION));
+  assert.deepEqual(result.authoring_operations, []);
+});
+
+test('project.inspect projects durable authoring state into a bounded next-action view', async () => {
+  const inspect = projectInspectFor({
+    readProjectGraph:async () => graph(),
+    evaluateProjectHorizon:() => ({ complete:false, frontier:[] }),
+    readAuthoringOperations:async () => [{
+      operation_id:'op-1',
+      idempotency_key:'request-1',
+      state:'prepared',
+      recovery_payload:{ command:'project.amend', project_ref:'github:example/project', idempotency_key:'request-1', expected_revision:REVISION, staged_revision:'b'.repeat(40), pull_request:721, phase:'WAITING_EXTERNAL_VERIFICATION', waiting_on:['checks'] },
+    }],
+  });
+  const result = await inspect.inspect({ project_ref:'github:example/project' });
+  assert.deepEqual(result.authoring_operations, [{ operation_id:'op-1', command:'project.amend', recovery_ref:'project-authoring:github:example/project:request-1', idempotency_key:'request-1', staged_revision:'b'.repeat(40), pull_request:721, waiting_on:['checks'], expected_authority_revision:REVISION, disposition:'waiting_external_verification', automatic_recovery:'reconcile_on_observable_change' }]);
 });
