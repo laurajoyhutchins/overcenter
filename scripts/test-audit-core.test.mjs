@@ -29,6 +29,17 @@ test('classifies native tests, skips, and todos exactly', () => {
   assert.match(identity.audit_id, /^[0-9a-f]{64}$/);
 });
 
+test('does not count test-looking strings or comments as executable cases', () => {
+  const source = `
+    // test('comment', () => {});
+    const example = "test('string', () => {})";
+    test('real', () => example);
+  `;
+  const identity = createAuditIdentity('scripts/example.test.mjs', source, REVISION);
+  assert.equal(identity.expected_tests, 1);
+  assert.equal(identity.expected_cases, 1);
+});
+
 test('binds stable audit identity to revision, path, and exact source', () => {
   const source = `test('a', () => {});`;
   const first = createAuditIdentity('scripts/example.test.mjs', source, REVISION);
@@ -40,17 +51,14 @@ test('binds stable audit identity to revision, path, and exact source', () => {
   assert.notEqual(first.audit_id, changedRevision.audit_id);
 });
 
-test('classifies a statically enumerable regression module', () => {
+test('classifies a statically enumerable regression module without regex layout assumptions', () => {
   const identity = createAuditIdentity('lib/regression-tests-example.mjs', `[
-  {
-    name: 'first',
-    test: () => true
-  },
-  {
-    name: 'second',
-    test: () => true
-  }
-]`, REVISION);
+    { name: 'first', test: () => true },
+    {
+      name: 'second',
+      test: () => true,
+    },
+  ]`, REVISION);
   assert.equal(identity.kind, 'regression-module');
   assert.equal(identity.expected_tests, 2);
   assert.equal(identity.expected_cases, 2);
@@ -61,6 +69,10 @@ test('fails closed when a test shape cannot be statically resolved', () => {
   assert.equal(identity.kind, 'unresolved');
   assert.equal(identity.code, 'TEST_SHAPE_UNRESOLVED');
   assert.throws(() => assertAuditIdentity(identity), /TEST_SHAPE_UNRESOLVED/);
+});
+
+test('fails closed on syntactically invalid test source', () => {
+  assert.throws(() => auditTestFile('scripts/broken.test.mjs', `test('broken', () => {`), /syntactically invalid test source/);
 });
 
 test('explicit dynamic-form exemptions remain structurally auditable', () => {

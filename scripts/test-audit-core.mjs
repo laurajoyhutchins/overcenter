@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import ts from 'typescript';
 
 const AUDITED_TEST_PATHS = [
   /^lib\/[^/]+\.test\.mjs$/,
@@ -16,6 +17,15 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
+function sourceFileFor(path, source) {
+  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  if (file.parseDiagnostics.length > 0) {
+    const detail = file.parseDiagnostics.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')).join('; ');
+    throw new SyntaxError(`cannot audit syntactically invalid test source ${path}: ${detail}`);
+  }
+  return file;
+}
+
 function frozenIdentity(path, kind, counts, detail = undefined) {
   return Object.freeze({
     path,
@@ -28,27 +38,65 @@ function frozenIdentity(path, kind, counts, detail = undefined) {
   });
 }
 
-function detectTestCalls(source) {
-  const tests = [...source.matchAll(/\b(?:test|it)\s*\(/g)].length;
-  const skips = [...source.matchAll(/\b(?:test|it)\.skip\s*\(/g)].length;
-  const todos = [...source.matchAll(/\b(?:test|it)\.todo\s*\(/g)].length;
-  return { tests, skips, todos, cases: tests + skips + todos };
+function detectTestCalls(path, source) {
+  const file = sourceFileFor(path, source);
+  const counts = { tests: 0, skips: 0, todos: 0, cases: 0 };
+  function visit(node) {
+    if (ts.isCallExpression(node)) {
+      const expression = node.expression;
+      if (ts.isIdentifier(expression) && (expression.text === 'test' || expression.text === 'it')) {
+        counts.tests += 1;
+        counts.cases += 1;
+      } else if (
+        ts.isPropertyAccessExpression(expression)
+        && ts.isIdentifier(expression.expression)
+        && (expression.expression.text === 'test' || expression.expression.text === 'it')
+      ) {
+        if (expression.name.text === 'skip') {
+          counts.skips += 1;
+          counts.cases += 1;
+        } else if (expression.name.text === 'todo') {
+          counts.todos += 1;
+          counts.cases += 1;
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(file);
+  return counts;
+}
+
+function propertyName(property) {
+  if (!property?.name) return null;
+  if (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) || ts.isNumericLiteral(property.name)) return property.name.text;
+  return null;
 }
 
 function classifyRegressionModule(path, source) {
-  const cases = source
-    .split(/\n\s{2}\},\n/)
-    .filter((entry) => /\bname\s*:/.test(entry));
-  const tests = [...source.matchAll(/\btest\s*:/g)].length;
-  if (cases.length === 0 || tests !== cases.length) {
+  const file = sourceFileFor(path, source);
+  let cases = 0;
+  let tests = 0;
+  function visit(node) {
+    if (ts.isObjectLiteralExpression(node)) {
+      const names = new Set(node.properties.map(propertyName).filter(Boolean));
+      if (names.has('name') && names.has('test')) {
+        cases += 1;
+        tests += 1;
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(file);
+  if (cases === 0) {
     return Object.freeze({
       path,
       kind: 'unresolved',
       code: 'TEST_SHAPE_UNRESOLVED',
-      reason: `regression case inventory is not statically exhaustive (cases=${cases.length}, tests=${tests})`,
+      reason: 'regression case inventory is not statically enumerable as object literals containing name and test properties',
     });
   }
-  return frozenIdentity(path, 'regression-module', { tests, skips: 0, todos: 0, cases: cases.length });
+  return frozenIdentity(path, 'regression-module', { tests, skips: 0, todos: 0, cases });
 }
 
 export function isAuditedTestPath(path) {
@@ -62,7 +110,7 @@ export function auditTestFile(path, source) {
 
   if (/^lib\/regression-tests-/.test(path)) return classifyRegressionModule(path, source);
 
-  const counts = detectTestCalls(source);
+  const counts = detectTestCalls(path, source);
   if (counts.cases > 0) return frozenIdentity(path, 'test-module', counts);
 
   const explicitReason = EXPLICIT_DYNAMIC_FORMS.get(path);
