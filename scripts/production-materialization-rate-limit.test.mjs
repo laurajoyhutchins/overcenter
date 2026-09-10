@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const revision = 'a'.repeat(40);
+const repository = 'laurajoyhutchins/overcenter';
 
 test('production runtime adapter paces remote calls so large stale projections do not burst the Hatchable MCP transport', async () => {
   const { createProductionRuntimeAdapter } = await import('./production-materialization-http.mjs');
@@ -63,7 +64,7 @@ test('production verification proves the thin GCP transport boundary after deplo
     },
   });
 
-  const evidence = await runtime.runRegressions({ project: 'prod', revision });
+  const evidence = await runtime.runRegressions({ project: 'prod', repository, revision });
 
   assert.deepEqual(calls, [[
     'run_function',
@@ -73,7 +74,7 @@ test('production verification proves the thin GCP transport boundary after deplo
       method: 'POST',
       body: {
         command: 'project.inspect',
-        project_ref: 'github:laurajoyhutchins/overcenter',
+        project_ref: `github:${repository}`,
         expected_head: 'not-a-sha',
       },
     },
