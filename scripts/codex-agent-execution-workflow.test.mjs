@@ -85,3 +85,41 @@ test('repository execution is routed through a provider-neutral exact-revision c
   assert.match(contract, /validateRepositoryExecutionResult/);
   assert.match(worker, /exact-revision-repository-executor\.js/);
 });
+
+test('repository executor requests preserve semantic authority across provider substitution and fence result identity', async () => {
+  const { bindRepositoryExecutionResult, createRepositoryExecutionRequest, validateRepositoryExecutionResult } = await import('../lib/exact-revision-repository-executor.js');
+  const packet = {
+    project_ref: 'github:example/repo',
+    repository: 'example/repo',
+    authority: { revision: '1111111111111111111111111111111111111111' },
+    transition_id: 'example-transition',
+    lease_ref: 'lease-1',
+    resume_ref: 'resume-1',
+    run_id: 'run-1',
+    transition_definition_fingerprint: '2222222222222222222222222222222222222222222222222222222222222222',
+    execution_intent: { acceptance_evidence: [{ kind: 'test', requirement: 'prove it' }] },
+    authorized_mutations: ['github.apply_changeset'],
+  };
+  const first = createRepositoryExecutionRequest(packet, {
+    executor_identity: 'github-actions-codex',
+    executor_fingerprint: '3333333333333333333333333333333333333333333333333333333333333333',
+    network_policy: 'restricted',
+  });
+  const second = createRepositoryExecutionRequest(packet, {
+    executor_identity: 'disposable-vm',
+    executor_fingerprint: '4444444444444444444444444444444444444444444444444444444444444444',
+    network_policy: 'disabled',
+  });
+
+  assert.equal(first.authority_revision, second.authority_revision);
+  assert.equal(first.transition_id, second.transition_id);
+  assert.equal(first.lease_ref, second.lease_ref);
+  assert.deepEqual(first.mutation_budget, ['github.apply_changeset']);
+  assert.equal(first.capabilities.repository_mutation, false);
+  assert.notEqual(first.executor_identity, second.executor_identity);
+
+  const bound = bindRepositoryExecutionResult(first, { status: 'completed', summary: 'done', evidence: [{ kind: 'test', detail: 'green' }] });
+  assert.equal(validateRepositoryExecutionResult(bound, first).status, 'completed');
+  assert.throws(() => validateRepositoryExecutionResult({ ...bound, authority_revision: '5555555555555555555555555555555555555555' }, first), /does not match request/);
+  assert.throws(() => validateRepositoryExecutionResult({ ...bound, executor_identity: 'other' }, first), /does not match request/);
+});
