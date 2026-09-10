@@ -80,11 +80,39 @@ test('Hatchable adapter observes package metadata only in mutable draft cleanup,
   ]);
 });
 
+test('production reachability accepts the thin Hatchable to GCP authority transport boundary without touching legacy orchestration entrypoints', async()=>{
+  const calls=[];
+  const repository='laurajoyhutchins/overcenter';
+  const runtime=createHatchableRuntimeAdapter({callTool:async(name,args)=>{
+    calls.push([name,args]);
+    return {
+      status:422,
+      body:{
+        ok:false,
+        error:'GCP_SEMANTIC_DISPATCH_INVALID',
+        message:'expected_head must be an exact 40-character Git SHA',
+        may_have_mutated:false,
+      },
+    };
+  }});
+  const evidence=await runtime.runProductionReachability({project:'verify',repository,revision});
+  assert.deepEqual(calls.map(([,args])=>args.path),['/api/gcp-semantic-command-dispatch']);
+  assert.deepEqual(evidence,{
+    schema:'production-reachability-evidence-v1',
+    entrypoint:'/api/gcp-semantic-command-dispatch',
+    runtime_project:'verify',
+    runtime_revision:revision,
+    boundary:{kind:'authority_transport',transport:'hatchable_to_gcp',state:'reachable',validation:'exact_head_fail_closed'},
+    target:{project_ref:`github:${repository}`,horizon:{kind:'transition',ref:'require-production-reachability'}},
+  });
+});
+
 test('production reachability evidence traverses real orchestration API entrypoints and terminalizes its probe', async()=>{
   const calls=[];
   const repository='laurajoyhutchins/overcenter';
   const graphRevision='c'.repeat(40);
   const responses=[
+    {status:404,body:{ok:false,error:'NOT_FOUND'}},
     {status:200,body:{ok:true,schema:'orchestration-run-v1'}},
     {status:200,body:{
       ok:true,
@@ -97,13 +125,14 @@ test('production reachability evidence traverses real orchestration API entrypoi
   const runtime=createHatchableRuntimeAdapter({callTool:async(name,args)=>{calls.push([name,args]);return responses.shift();}});
   const evidence=await runtime.runProductionReachability({project:'verify',repository,revision});
   assert.deepEqual(calls.map(([,args])=>args.path),[
+    '/api/gcp-semantic-command-dispatch',
     '/api/orchestration/start',
     '/api/orchestration/horizon-resolve',
     '/api/orchestration/finish',
   ]);
-  assert.equal(calls[0][1].body.target.project_ref,`github:${repository}`);
-  assert.equal(calls[0][1].body.target.horizon.ref,'require-production-reachability');
-  assert.equal(calls[2][1].body.disposition,'clean-stop');
+  assert.equal(calls[1][1].body.target.project_ref,`github:${repository}`);
+  assert.equal(calls[1][1].body.target.horizon.ref,'require-production-reachability');
+  assert.equal(calls[3][1].body.disposition,'clean-stop');
   assert.deepEqual(evidence,{
     schema:'production-reachability-evidence-v1',
     entrypoint:'/api/orchestration/horizon-resolve',
@@ -118,6 +147,7 @@ test('production reachability can stop at the isolated runtime external GitHub c
   const calls=[];
   const repository='laurajoyhutchins/overcenter';
   const responses=[
+    {status:404,body:{ok:false,error:'NOT_FOUND'}},
     {status:200,body:{ok:true,schema:'orchestration-run-v1'}},
     {status:500,body:{
       ok:false,
@@ -129,6 +159,7 @@ test('production reachability can stop at the isolated runtime external GitHub c
   const runtime=createHatchableRuntimeAdapter({callTool:async(name,args)=>{calls.push([name,args]);return responses.shift();}});
   const evidence=await runtime.runProductionReachability({project:'verify',repository,revision});
   assert.deepEqual(calls.map(([,args])=>args.path),[
+    '/api/gcp-semantic-command-dispatch',
     '/api/orchestration/start',
     '/api/orchestration/horizon-resolve',
     '/api/orchestration/finish',
