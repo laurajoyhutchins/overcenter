@@ -84,6 +84,8 @@ test('repository execution is routed through a provider-neutral exact-revision c
   assert.match(contract, /executor_fingerprint/);
   assert.match(contract, /validateRepositoryExecutionResult/);
   assert.match(worker, /exact-revision-repository-executor\.js/);
+  assert.match(worker, /validateRepositoryExecutionResult/);
+  assert.match(worker, /writeFile\(resultPath[\s\S]{0,200}executorResult/);
 });
 
 test('repository executor requests preserve semantic authority across provider substitution and fence result identity', async () => {

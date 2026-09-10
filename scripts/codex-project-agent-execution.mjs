@@ -3,7 +3,7 @@ import { appendFile, chmod, lstat, readFile, writeFile } from 'node:fs/promises'
 import { resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { connectHatchableRemoteMcp } from './exact-revision-v8-verification-http.mjs';
-import { bindRepositoryExecutionResult, createRepositoryExecutionRequest } from '../lib/exact-revision-repository-executor.js';
+import { bindRepositoryExecutionResult, createRepositoryExecutionRequest, validateRepositoryExecutionResult } from '../lib/exact-revision-repository-executor.js';
 
 const SHA40 = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -309,6 +309,8 @@ async function execute(env = process.env) {
   const result = validateCodexResult(safeJsonParse(await readFile(resultPath, 'utf8'), 'CODEX_RESULT_INVALID', 'Codex final result is not valid JSON'));
   if (result.status === 'blocked') reject('CODEX_EXECUTION_BLOCKED', result.summary, { evidence: result.evidence });
   const executorResult = bindRepositoryExecutionResult(executionRequest, result);
+  await writeFile(resultPath, `${JSON.stringify(executorResult, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  try { await chmod(resultPath, 0o600); } catch {}
   process.stdout.write(`${JSON.stringify({ ok: true, status: executorResult.status, executor_identity: executorResult.executor_identity, evidence_count: executorResult.evidence.length })}\n`);
 }
 
@@ -320,10 +322,14 @@ async function apply(env = process.env) {
   const receiptPath = required(env.CODEX_APPLY_RECEIPT_PATH, 'CODEX_APPLY_RECEIPT_PATH');
   const workspace = required(env.CODEX_WORKSPACE, 'CODEX_WORKSPACE');
   const packet = safeJsonParse(await readFile(packetPath, 'utf8'), 'CODEX_PACKET_INVALID', 'Codex packet is not valid JSON');
-  const result = validateCodexResult(safeJsonParse(await readFile(resultPath, 'utf8'), 'CODEX_RESULT_INVALID', 'Codex final result is not valid JSON'));
-  if (result.status !== 'completed') reject('CODEX_EXECUTION_NOT_COMPLETED', 'blocked Codex work cannot be applied');
+  const executionRequest = createRepositoryExecutionRequest(packet, CODEX_REPOSITORY_EXECUTOR);
+  const result = validateRepositoryExecutionResult(
+    safeJsonParse(await readFile(resultPath, 'utf8'), 'CODEX_RESULT_INVALID', 'repository executor result is not valid JSON'),
+    executionRequest,
+  );
+  if (result.status !== 'completed') reject('CODEX_EXECUTION_NOT_COMPLETED', 'blocked repository executor work cannot be applied');
   const head = String(await runGit(workspace, ['rev-parse', 'HEAD'])).trim().toLowerCase();
-  if (head !== packet?.authority?.revision) reject('CODEX_CHECKOUT_MISMATCH', 'workspace HEAD drifted after Codex execution', { expected: packet?.authority?.revision, actual: head });
+  if (head !== executionRequest.authority_revision) reject('CODEX_CHECKOUT_MISMATCH', 'workspace HEAD drifted after executor execution', { expected: executionRequest.authority_revision, actual: head });
   if (Date.parse(packet.expires_at) <= Date.now() + EXPIRY_RESERVE_MS) reject('CODEX_LEASE_WINDOW_EXPIRED', 'execution lease no longer has a safe mutation window');
   const changes = await collectChanges(workspace);
 
