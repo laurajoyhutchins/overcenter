@@ -81,10 +81,6 @@ permissions:
   issues: write
   id-token: write
 
-concurrency:
-  group: overcenter-gcp-semantic-control-plane
-  cancel-in-progress: false
-
 jobs:
   invoke:
     runs-on: ubuntu-latest
