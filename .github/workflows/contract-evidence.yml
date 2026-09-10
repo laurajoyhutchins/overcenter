@@ -42,7 +42,6 @@ jobs:
       - name: Install contract evidence tooling
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
       - name: Run contract evidence tests
-        continue-on-error: true
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
       - name: Generate candidate contract evidence once
         run: |
@@ -53,13 +52,6 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Harvest regenerated contract evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: contract-evidence-current-base
-          path: ${{ runner.temp }}/contract-evidence
-          if-no-files-found: error
-
       - name: Print exact generated catalog delta
         run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
       - name: Verify committed generated evidence
