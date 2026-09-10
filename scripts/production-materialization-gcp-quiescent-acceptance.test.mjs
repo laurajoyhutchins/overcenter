@@ -11,6 +11,7 @@ function quiescentDb(activeTransitionLeases = []) {
     async query(sql, params = []) {
       if (sql.startsWith('BEGIN') || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
       if (sql.includes("claim_receipt->>'subject'='project_transition'")) {
+        assert.match(sql, /gate='project_transition'/, 'quiescent proof must use the canonical project-transition lease gate');
         assert.deepEqual(params, ['github:laurajoyhutchins/overcenter']);
         return { rows: activeTransitionLeases };
       }
