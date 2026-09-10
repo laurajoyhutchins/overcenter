@@ -42,6 +42,8 @@ export function createCommandIngressHttpHandler(options) {
     const result = await handleCommand({
       method:request.method,
       authorization:request.headers.authorization,
+      expectedHead:request.headers['x-overcenter-expected-head'],
+      requestId:request.headers['x-overcenter-request-id'],
       bodyText,
     });
     response.writeHead(result.status, result.headers);
