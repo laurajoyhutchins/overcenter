@@ -38,6 +38,68 @@ test('production runtime adapter paces remote calls so large stale projections d
   assert.deepEqual(waits, [1000, 1000, 1000, 1000]);
 });
 
+test('production materialization rotates Hatchable MCP connections before the remote attempt budget is exhausted', async () => {
+  const { createRotatingHatchableCallTool } = await import('./production-materialization-http.mjs');
+  const connections = [];
+  const transport = createRotatingHatchableCallTool({
+    maxCallsPerConnection: 3,
+    connect: async () => {
+      const id = connections.length + 1;
+      const record = { id, calls: [], closed: 0 };
+      connections.push(record);
+      return {
+        callTool: async (name, args) => {
+          record.calls.push([name, args]);
+          return { connection: id, name };
+        },
+        close: async () => { record.closed += 1; },
+      };
+    },
+  });
+
+  const results = [];
+  for (let index = 0; index < 5; index += 1) {
+    results.push(await transport.callTool(`tool-${index + 1}`, { index }));
+  }
+  await transport.close();
+
+  assert.deepEqual(results.map(result => result.connection), [1, 1, 1, 2, 2]);
+  assert.deepEqual(connections.map(connection => connection.calls.map(([name]) => name)), [
+    ['tool-1', 'tool-2', 'tool-3'],
+    ['tool-4', 'tool-5'],
+  ]);
+  assert.deepEqual(connections.map(connection => connection.closed), [1, 1]);
+});
+
+test('connection rotation never replays a failed remote call', async () => {
+  const { createRotatingHatchableCallTool } = await import('./production-materialization-http.mjs');
+  const connections = [];
+  const transport = createRotatingHatchableCallTool({
+    maxCallsPerConnection: 3,
+    connect: async () => {
+      const id = connections.length + 1;
+      const record = { id, calls: [], closed: 0 };
+      connections.push(record);
+      return {
+        callTool: async (name, args) => {
+          record.calls.push([name, args]);
+          throw Object.assign(new Error('transport lost after dispatch'), { may_have_mutated: true });
+        },
+        close: async () => { record.closed += 1; },
+      };
+    },
+  });
+
+  await assert.rejects(
+    transport.callTool('delete_file', { project_id: 'prod', path: 'lib/stale.js' }),
+    error => error?.message === 'transport lost after dispatch' && error?.may_have_mutated === true,
+  );
+  assert.equal(connections.length, 1);
+  assert.deepEqual(connections[0].calls, [['delete_file', { project_id: 'prod', path: 'lib/stale.js' }]]);
+  await transport.close();
+  assert.equal(connections[0].closed, 1);
+});
+
 test('production materialization CLI enables pacing for the live Hatchable transport', async () => {
   const { PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS } = await import('./production-materialization-http.mjs');
   assert.equal(PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS, 1100);
