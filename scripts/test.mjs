@@ -98,6 +98,7 @@ const maintainedTests = [
   'production-reconcile-host.test.mjs',
   'production-runtime-observation-http.test.mjs',
   'test-audit.test.mjs',
+  'verify-node-test-standardization.test.mjs',
 ];
 
 const scriptNames = await readdir(new URL('scripts/', root));
