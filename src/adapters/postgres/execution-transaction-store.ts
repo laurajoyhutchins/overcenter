@@ -321,7 +321,6 @@ export function createPostgresExecutionTransactionStore(
 
         if (!current) {
           await client.query(
-            await client.query(
               `INSERT INTO execution_state (
                execution_id, subject_key, subject_kind, project_ref, operation_id,
                lifecycle, lease_ref, lease_epoch, run_id, authority_epoch,
@@ -334,7 +333,6 @@ export function createPostgresExecutionTransactionStore(
                        'definitely_not_mutated', false,
                        '1970-01-01T00:00:00.000Z', '1970-01-01T00:00:00.000Z')`,
             identityParameters(input.identity),
-          );
           );
         } else {
           await client.query(
