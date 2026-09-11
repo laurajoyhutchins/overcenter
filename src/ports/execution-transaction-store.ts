@@ -4,6 +4,7 @@ import type {
   ExecutionProof,
   ExecutionSnapshot,
   MutationCertainty,
+  ProviderConfirmationFacts,
   ProviderInvocationFacts,
   SettlementReceipt,
 } from '../semantic/execution-transaction.js';
@@ -48,7 +49,7 @@ export interface RecordAttemptInput {
 export interface RecordInvocationInput {
   readonly identity: ExecutionIdentity;
   readonly attempt_epoch: number;
-  readonly facts: ProviderInvocationFacts;
+  readonly facts: ProviderInvocationFacts | ProviderConfirmationFacts;
 }
 
 export interface AppendProofInput extends ExecutionProof {
