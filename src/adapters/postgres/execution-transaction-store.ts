@@ -203,7 +203,7 @@ function sameIdentity(row: DatabaseRow, identity: ExecutionIdentity): boolean {
     text(row.authority_repository) === identity.authority_repository &&
     text(row.authority_revision) === identity.authority_revision &&
     integer(row.authority_epoch, 'authority_epoch') === identity.authority_epoch &&
-    text(row.operation_kind ?? 'legacy.execution') === identity.operation_kind &&
+    text(row.operation_kind ?? row.effect_kind ?? 'legacy.execution') === identity.operation_kind &&
     text(row.idempotency_scope ?? 'legacy') === identity.idempotency_scope &&
     text(row.idempotency_key ?? identity.execution_id) === identity.idempotency_key &&
     text(row.intent_sha256 ?? '') === identity.intent_sha256;
@@ -321,17 +321,20 @@ export function createPostgresExecutionTransactionStore(
 
         if (!current) {
           await client.query(
-            `INSERT INTO execution_state (
+            await client.query(
+              `INSERT INTO execution_state (
                execution_id, subject_key, subject_kind, project_ref, operation_id,
                lifecycle, lease_ref, lease_epoch, run_id, authority_epoch,
                authority_repository, authority_revision, graph_fingerprint,
                transition_revision_fingerprint, operation_kind, idempotency_scope,
                idempotency_key, intent_sha256, current_attempt_epoch,
                mutation_certainty, settled, expires_at, hard_expires_at
-             ) VALUES (${identityParameters(input.identity).map((_, index) => `$${index + 1}`).join(', ')},
-                       'prepared', 0, 'definitely_not_mutated', false,
+             ) VALUES ($1, $2, $3, $4, $5, 'prepared', $7, $8, $6, $9, $10, $11,
+                       $12, $13, $14, $15, $16, $17, 0,
+                       'definitely_not_mutated', false,
                        '1970-01-01T00:00:00.000Z', '1970-01-01T00:00:00.000Z')`,
             identityParameters(input.identity),
+          );
           );
         } else {
           await client.query(
@@ -551,7 +554,7 @@ export function createPostgresExecutionTransactionStore(
           `UPDATE execution_state SET
              current_attempt_epoch = $2,
              operation_id = $3,
-             mutation_certainty = 'definitely_not_mutATED',
+             mutation_certainty = 'definitely_not_mutated',
              effect_ref = NULL,
              lifecycle = 'executing',
              updated_at = now()
@@ -723,7 +726,7 @@ export function createPostgresExecutionTransactionStore(
         if (input.disposition === 'completed' && operationCertainty !== 'confirmed_mutated') {
           return fail('SETTLEMENT_FACT_MISMATCH', 'completed settlement requires confirmed mutation');
         }
-        if (input.disposition === 'no_effect' && operationCertainty !== 'definitely_not_mutATED') {
+        if (input.disposition === 'no_effect' && operationCertainty !== 'definitely_not_mutated') {
           return fail('SETTLEMENT_FACT_MISMATCH', 'no-effect settlement requires definite absence');
         }
         const proof = await client.query<DatabaseRow>(
