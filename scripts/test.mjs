@@ -25,6 +25,7 @@ const maintainedTests = [
   'execution-correctness-baseline.test.mjs',
   'execution-transaction-kernel.test.mjs',
   'execution-transaction-runtime.test.mjs',
+  'production-promotion-transaction.test.mjs',
   'cloud-run-command-ingress-host.test.mjs',
   'cloud-run-host.test.mjs',
   'cloud-run-target-activation-exit.test.mjs',
