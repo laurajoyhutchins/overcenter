@@ -16,12 +16,13 @@ const RESUME = /^\S{1,512}$/;
 const PROJECT_COMMANDS = new Set(['project.inspect', 'project.advance']);
 const PROJECT_AUTHORING_COMMANDS = new Set(['project.amend']);
 const CONTROL_COMMANDS = new Set(['orchestration.maintain']);
-const GITHUB_INTEGRATION_COMMANDS = new Set(['github.pull_request.mark_ready']);
+const GITHUB_INTEGRATION_COMMANDS = new Set(['github.pull_request.mark_ready', 'github.actions_run.delete']);
 const LEASE_MUTATION_COMMANDS = new Set(['github.apply_changeset', 'github.apply_text_replacements']);
 const ALLOWED_COMMANDS = new Set([...PROJECT_COMMANDS, ...PROJECT_AUTHORING_COMMANDS, ...CONTROL_COMMANDS, ...GITHUB_INTEGRATION_COMMANDS, ...LEASE_MUTATION_COMMANDS]);
 const ALLOWED_FIELDS = new Set(['command', 'project_ref', 'expected_head', 'transition_id', 'resume_ref', 'execution_result', 'input']);
 const PROJECT_AMEND_INPUT_FIELDS = new Set(['project_ref', 'expected_revision', 'amendment']);
 const GITHUB_PR_READY_INPUT_FIELDS = new Set(['repo', 'pull_request', 'expected_head', 'run_id']);
+const GITHUB_ACTIONS_RUN_DELETE_INPUT_FIELDS = new Set(['repo', 'workflow_run_id', 'expected_head_sha']);
 const COMMAND_INPUT_CHUNK_SIZE = 4000;
 const MAX_COMMAND_INPUT_CHUNKS = 6;
 const MAX_COMMAND_INPUT_CHARS = COMMAND_INPUT_CHUNK_SIZE * MAX_COMMAND_INPUT_CHUNKS;
@@ -56,24 +57,35 @@ function normalizeProjectAmendInput(value, projectRef) {
 }
 
 function normalizeGitHubIntegrationInput(command, value) {
-  if (command !== 'github.pull_request.mark_ready') throw invalid('unsupported GitHub integration command');
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid('input must be an object for GitHub integration commands');
   const input = value;
-  const unknown = Object.keys(input).filter((key) => !GITHUB_PR_READY_INPUT_FIELDS.has(key));
-  if (unknown.length) throw invalid('github.pull_request.mark_ready input contains unknown fields', { fields: unknown.sort() });
-  const repo = String(input.repo || '').trim();
-  const pullRequest = Number(input.pull_request);
-  const expectedHead = String(input.expected_head || '').trim().toLowerCase();
-  const runId = input.run_id === undefined ? '' : String(input.run_id).trim();
-  if (!REPOSITORY.test(repo)) throw invalid('github.pull_request.mark_ready repo must be owner/repo');
-  if (!Number.isInteger(pullRequest) || pullRequest < 1) throw invalid('github.pull_request.mark_ready pull_request must be a positive integer');
-  if (!SHA40.test(expectedHead)) throw invalid('github.pull_request.mark_ready expected_head must be an exact 40-character Git SHA');
-  if (runId && runId.length > 512) throw invalid('github.pull_request.mark_ready run_id is too large');
-  const normalized = { repo, pull_request: pullRequest, expected_head: expectedHead };
-  if (runId) normalized.run_id = runId;
-  const encoded = JSON.stringify(normalized);
-  if (encoded.length > MAX_COMMAND_INPUT_CHARS) throw invalid('input is too large for the bounded GCP workflow bridge');
-  return encoded;
+  if (command === 'github.pull_request.mark_ready') {
+    const unknown = Object.keys(input).filter((key) => !GITHUB_PR_READY_INPUT_FIELDS.has(key));
+    if (unknown.length) throw invalid('github.pull_request.mark_ready input contains unknown fields', { fields: unknown.sort() });
+    const repo = String(input.repo || '').trim();
+    const pullRequest = Number(input.pull_request);
+    const expectedHead = String(input.expected_head || '').trim().toLowerCase();
+    const runId = input.run_id === undefined ? '' : String(input.run_id).trim();
+    if (!REPOSITORY.test(repo)) throw invalid('github.pull_request.mark_ready repo must be owner/repo');
+    if (!Number.isInteger(pullRequest) || pullRequest < 1) throw invalid('github.pull_request.mark_ready pull_request must be a positive integer');
+    if (!SHA40.test(expectedHead)) throw invalid('github.pull_request.mark_ready expected_head must be an exact 40-character Git SHA');
+    if (runId && runId.length > 512) throw invalid('github.pull_request.mark_ready run_id is too large');
+    const normalized = { repo, pull_request: pullRequest, expected_head: expectedHead };
+    if (runId) normalized.run_id = runId;
+    return JSON.stringify(normalized);
+  }
+  if (command === 'github.actions_run.delete') {
+    const unknown = Object.keys(input).filter((key) => !GITHUB_ACTIONS_RUN_DELETE_INPUT_FIELDS.has(key));
+    if (unknown.length) throw invalid('github.actions_run.delete input contains unknown fields', { fields: unknown.sort() });
+    const repo = String(input.repo || '').trim();
+    const workflowRunId = Number(input.workflow_run_id);
+    const expectedHeadSha = String(input.expected_head_sha || '').trim().toLowerCase();
+    if (!REPOSITORY.test(repo)) throw invalid('github.actions_run.delete repo must be owner/repo');
+    if (!Number.isSafeInteger(workflowRunId) || workflowRunId < 1) throw invalid('github.actions_run.delete workflow_run_id must be a positive integer');
+    if (!SHA40.test(expectedHeadSha)) throw invalid('github.actions_run.delete expected_head_sha must be an exact 40-character Git SHA');
+    return JSON.stringify({ repo, workflow_run_id:workflowRunId, expected_head_sha:expectedHeadSha });
+  }
+  throw invalid('unsupported GitHub integration command');
 }
 
 function normalizeLeaseMutationInput(value) {
