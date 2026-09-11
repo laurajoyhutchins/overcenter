@@ -8,7 +8,9 @@ ALTER TABLE execution_state
   ADD COLUMN IF NOT EXISTS operation_id uuid,
   ADD COLUMN IF NOT EXISTS settled boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS settlement_receipt jsonb,
-  ADD COLUMN IF NOT EXISTS settled_at timestamptz;
+  ADD COLUMN IF NOT EXISTS settled_at timestamptz,
+  ADD COLUMN IF NOT EXISTS mutation_certainty text NOT NULL DEFAULT 'definitely_not_mutated',
+  ADD COLUMN IF NOT EXISTS effect_ref text;
 
 ALTER TABLE operation_state
   ADD COLUMN IF NOT EXISTS execution_id text,
@@ -23,7 +25,8 @@ ALTER TABLE proof_state
   ADD COLUMN IF NOT EXISTS execution_id text,
   ADD COLUMN IF NOT EXISTS operation_id uuid,
   ADD COLUMN IF NOT EXISTS attempt_epoch bigint NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS authority_epoch bigint NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS authority_epoch bigint NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS evidence jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 INSERT INTO execution_state (
   subject_key,
@@ -111,6 +114,18 @@ FROM execution_state AS execution
 WHERE proof.subject_key = execution.subject_key
   AND proof.execution_id IS NULL;
 
+UPDATE execution_state AS execution
+SET
+  mutation_certainty = operation.mutation_certainty,
+  effect_ref = operation.effect_ref
+FROM operation_state AS operation
+WHERE operation.execution_id = execution.execution_id
+  AND operation.attempt_epoch = (
+    SELECT max(candidate.attempt_epoch)
+    FROM operation_state AS candidate
+    WHERE candidate.execution_id = execution.execution_id
+  );
+
 ALTER TABLE execution_state
   ALTER COLUMN execution_id SET NOT NULL;
 
@@ -162,6 +177,19 @@ BEGIN
   ) THEN
     ALTER TABLE execution_state
       ADD CONSTRAINT execution_state_attempt_epoch_check CHECK (current_attempt_epoch >= 0);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'execution_state_mutation_certainty_check'
+  ) THEN
+    ALTER TABLE execution_state
+      ADD CONSTRAINT execution_state_mutation_certainty_check
+      CHECK (mutation_certainty IN (
+        'definitely_not_mutated',
+        'may_have_mutated',
+        'confirmed_mutated'
+      ));
   END IF;
 
   IF NOT EXISTS (
