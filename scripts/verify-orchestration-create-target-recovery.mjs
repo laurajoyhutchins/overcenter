@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { classifyOrchestrationFailure } from 'lib/orchestration-failures.js';
+import { classifyOrchestrationFailure } from '../lib/orchestration-failures.js';
 
 const classification = classifyOrchestrationFailure({
   command: 'github.apply_changeset',
