@@ -31,7 +31,13 @@ function registeredSuites(source) {
     .map(([, group, name, suiteSource]) => ({ group, name, source:suiteSource }));
 }
 
-const maintained = (await collectTestFiles(LIB)).map(repoPath).sort();
+const maintainedFiles = await collectTestFiles(LIB);
+const maintained = [];
+for (const absolute of maintainedFiles) {
+  const source = await readFile(absolute, 'utf8');
+  if (!/from\s+['\"]node:test['\"]/.test(source)) maintained.push(repoPath(absolute));
+}
+maintained.sort();
 const registrySource = await readFile(REGISTRY, 'utf8');
 const registered = registeredTestSources(registrySource);
 const suites = registeredSuites(registrySource);
