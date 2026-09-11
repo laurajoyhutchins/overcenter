@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
@@ -105,8 +105,16 @@ for (const prefix of ['exact-revision-v8-verification', 'production-materializat
   maintainedTests.push(...scriptNames.filter(name => name.startsWith(prefix) && name.endsWith('.test.mjs')));
 }
 
+const nativeLibTests = [];
+for (const file of await javascriptFiles('lib')) {
+  if (!file.endsWith('.test.js')) continue;
+  const source = await readFile(new URL(file, root), 'utf8');
+  if (/from\s+['\"]node:test['\"]/.test(source)) nativeLibTests.push(file);
+}
+
 run(['scripts/verify-regression-suite-registry.mjs']);
 run(['scripts/verify-orchestration-drive.mjs']);
+if (nativeLibTests.length) run(['--test', ...nativeLibTests.sort()]);
 run(['--test', ...[...new Set(maintainedTests)].sort().map(name => `scripts/${name}`)]);
 
 for (const directory of ['api', 'lib', 'mcp', 'pages']) {
