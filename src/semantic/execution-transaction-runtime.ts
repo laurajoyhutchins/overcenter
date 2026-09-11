@@ -6,6 +6,7 @@ import {
   type ExecutionIntent,
   type ExecutionSnapshot,
   type JsonObject,
+  type JsonValue,
   type MutationCertainty,
   type ProviderConfirmationFacts,
   type ProviderEffect,
@@ -62,7 +63,7 @@ function uuidFromHash(hash: string): string {
   ].join('-');
 }
 
-async function identityFor<TPayload>(
+async function identityFor<TPayload extends JsonValue>(
   intent: ExecutionIntent<TPayload>,
   context: ExecutionTransactionContext,
 ): Promise<ExecutionIdentity> {
@@ -151,7 +152,7 @@ function unknownConfirmation(error: unknown): ProviderConfirmationFacts {
   };
 }
 
-async function requestHash<TPayload>(
+async function requestHash<TPayload extends JsonValue>(
   intent: ExecutionIntent<TPayload>,
   identity: ExecutionIdentity,
   attempt_epoch: number,
@@ -164,7 +165,7 @@ async function requestHash<TPayload>(
   }));
 }
 
-async function appendProofAndSettle<TPayload>(
+async function appendProofAndSettle<TPayload extends JsonValue>(
   store: ExecutionTransactionStore,
   intent: ExecutionIntent<TPayload>,
   identity: ExecutionIdentity,
@@ -210,7 +211,7 @@ async function appendProofAndSettle<TPayload>(
   };
 }
 
-async function confirmAndSettle<TPayload>(
+async function confirmAndSettle<TPayload extends JsonValue>(
   store: ExecutionTransactionStore,
   provider: ProviderEffect<TPayload>,
   intent: ExecutionIntent<TPayload>,
@@ -249,7 +250,7 @@ async function confirmAndSettle<TPayload>(
   );
 }
 
-async function executeClaimed<TPayload>(
+async function executeClaimed<TPayload extends JsonValue>(
   store: ExecutionTransactionStore,
   provider: ProviderEffect<TPayload>,
   intent: ExecutionIntent<TPayload>,
@@ -309,7 +310,7 @@ async function executeClaimed<TPayload>(
   );
 }
 
-export async function executeExecutionTransaction<TPayload>(
+export async function executeExecutionTransaction<TPayload extends JsonValue>(
   input: {
     readonly intent: ExecutionIntent<TPayload>;
     readonly context: ExecutionTransactionContext;
@@ -359,7 +360,7 @@ export async function executeExecutionTransaction<TPayload>(
   return executeClaimed(input.store, input.provider, input.intent, claimedIdentity, input.context);
 }
 
-export async function recoverExecutionTransaction<TPayload>(
+export async function recoverExecutionTransaction<TPayload extends JsonValue>(
   input: {
     readonly execution_id: string;
     readonly intent: ExecutionIntent<TPayload>;
