@@ -66,6 +66,13 @@ export interface ExecutionSnapshot {
   readonly settled: boolean;
 }
 
+export type ProviderEffectPayload<TPayload extends JsonObject = JsonObject> = TPayload & Readonly<{
+  readonly lease_ref?: never;
+  readonly lease_epoch?: never;
+  readonly authority_epoch?: never;
+  readonly settlement?: never;
+}>;
+
 export interface ProviderInvocationFacts {
   readonly transport: 'rejected' | 'accepted' | 'unknown';
   readonly committed: boolean | null;
