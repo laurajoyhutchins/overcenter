@@ -677,10 +677,10 @@ git commit -m "feat: execute effects through one transaction protocol"
 ### Task 5: Migrate project-transition execution to the kernel
 
 **Files:**
-- Modify: lib/project-transition-runtime.js
 - Modify: lib/project-transition-authoritative-effect.js
 - Modify: lib/project-transition-authoritative-effect-github-runtime.js
-- Modify: lib/project-transition-github-workspace.js
+- Modify: src/semantic/project-transition-github-workspace.ts
+- Generated: lib/project-transition-github-workspace.js
 - Modify: lib/project-transition-github-recovery.js
 - Modify: src/semantic/project-advance-operation.ts
 - Modify: src/adapters/project-advance/runtime-adapter.ts
@@ -814,10 +814,14 @@ git commit -m "refactor: make GitHub effects kernel capabilities"
 ### Task 7: Migrate authoring, portfolio reconciliation, and orchestration recovery
 
 **Files:**
-- Modify: lib/project-authoring-runtime.js
-- Modify: lib/project-authoring-github-runtime.js
-- Modify: lib/project-definition-mutation-authority.js
-- Modify: lib/project-definition-changeset-writer.js
+- Modify: src/semantic/project-authoring-runtime.ts
+- Modify: src/semantic/project-authoring-github-runtime.ts
+- Modify: src/semantic/project-definition-mutation-authority.ts
+- Modify: src/semantic/project-definition-changeset-writer.ts
+- Generated: lib/project-authoring-runtime.js
+- Generated: lib/project-authoring-github-runtime.js
+- Generated: lib/project-definition-mutation-authority.js
+- Generated: lib/project-definition-changeset-writer.js
 - Modify: lib/deterministic-work-settlement.js
 - Modify: lib/compact-portfolio-reconcile-receipt-store.js
 - Modify: lib/orchestration-journal.js
@@ -987,7 +991,8 @@ git commit -m "refactor: delete duplicated execution correctness paths"
 **Files:**
 - Modify: mcp/project.advance.js if its contract still exposes manual execution bookkeeping
 - Modify: mcp/project.amend.js if its contract still exposes separate mutation semantics
-- Modify: lib/semantic-command-descriptors.js or its TypeScript source
+- Modify: src/semantic/semantic-command-descriptors.ts
+- Generated: lib/semantic-command-descriptors.js
 - Modify: docs/command-reference.md
 - Modify: docs/agent-session-contract.md
 - Modify: docs/architecture/recovery-kernel-and-self-healing.md
