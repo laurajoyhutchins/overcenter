@@ -30,10 +30,10 @@ test('GCP workflow preserves exact-revision and fixed-project fences while reass
   assert.match(workflow, /test "\$\(git ls-remote origin refs\/heads\/dev \| cut -f1\)" = "\$EXPECTED_HEAD"/);
   assert.doesNotMatch(workflow, /git ls-remote origin refs\/heads\/main/);
   assert.doesNotMatch(workflow, /test "\$PROJECT_REF" = 'github:laurajoyhutchins\/overcenter'/);
-  assert.match(workflow, /project\.inspect\|project\.advance\|project\.define\|project\.amend\|orchestration\.maintain\|github\.pull_request\.mark_ready\|github\.apply_changeset\|github\.apply_text_replacements/);
+  assert.match(workflow, /project\.inspect\|project\.advance\|project\.define\|project\.amend\|orchestration\.maintain\|github\.pull_request\.mark_ready\|github\.actions_run\.delete\|github\.apply_changeset\|github\.apply_text_replacements/);
   assert.match(workflow, /orchestration\.maintain\)\n\s+input='\{\}'/);
   assert.match(workflow, /jq -e 'type == "object" and \(\.lease_ref \| type == "string" and length > 0\)'/);
-  assert.match(workflow, /github\.apply_changeset\|github\.apply_text_replacements\)\n\s+input="\$command_input_json"/);
+  assert.match(workflow, /github\.actions_run\.delete\|github\.apply_changeset\|github\.apply_text_replacements\)\n\s+input="\$command_input_json"/);
   assert.match(workflow, /x-overcenter-authority-mode: authoritative/);
   assert.match(workflow, /x-overcenter-request-id: \$REQUEST_ID/);
 });
