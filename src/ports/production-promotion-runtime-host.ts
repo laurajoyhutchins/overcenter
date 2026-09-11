@@ -1,28 +1,21 @@
+import type { ExecutionTransactionContext } from '../semantic/execution-transaction-runtime.js';
+import type { ExecutionTransactionStore } from '../semantic/execution-transaction-store.js';
 import type {
   ExactRevisionVerification,
   ProductionBranchRoles,
-  ProductionPromotionOutcome,
+  ProductionPromotionPayload,
   VerifiedProductionPromotionRequest,
 } from '../semantic/production-promotion-operation.js';
-
-export type StrictProductionPromotionRequest = Readonly<{
-  repo: string;
-  candidate_sha: string;
-  observed_development_head: string;
-  observed_production_head: string;
-  verification_run_id: number;
-  idempotency_key: string;
-}>;
-
-export type ProductionPromotionVerificationEvidence = Readonly<{
-  verification_run_id: number;
-}>;
+import type { ProviderEffect } from '../semantic/execution-transaction.js';
 
 export type ProductionPromotionRuntimeHost = Readonly<{
   resolveBranchRoles(repo: string): Promise<ProductionBranchRoles>;
   readBranchHead(repo: string, branch: string): Promise<string>;
   verifyExactRevision(repo: string, revision: string): Promise<ExactRevisionVerification>;
-  resolveVerificationEvidence(verificationRef: string): Promise<ProductionPromotionVerificationEvidence>;
-  deriveIdempotencyKey(request: VerifiedProductionPromotionRequest): Promise<string>;
-  invokeStrictPromotion(request: StrictProductionPromotionRequest): Promise<ProductionPromotionOutcome>;
+  readonly executionTransactionStore: ExecutionTransactionStore;
+  executionContext(input: VerifiedProductionPromotionRequest): ExecutionTransactionContext;
+  providerFor(
+    input: VerifiedProductionPromotionRequest,
+    roles: ProductionBranchRoles,
+  ): ProviderEffect<ProductionPromotionPayload>;
 }>;
