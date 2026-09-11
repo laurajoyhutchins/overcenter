@@ -52,6 +52,20 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+      - name: Print generated contract evidence for reconciliation
+        if: always()
+        run: |
+          for file in \
+            "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
+            "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
+            "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+          do
+            echo "BEGIN_GENERATED_CONTRACT_EVIDENCE:$file"
+            gzip -c "$file" | base64 -w0
+            echo
+            echo "END_GENERATED_CONTRACT_EVIDENCE:$file"
+          done
+
       - name: Print exact generated catalog delta
         run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
       - name: Verify committed generated evidence
