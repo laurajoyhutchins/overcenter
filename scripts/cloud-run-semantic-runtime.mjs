@@ -61,11 +61,12 @@ export function createCloudRunReadOnlyProjectInspector({ db, env = process.env }
   return (input = {}) => inspector.inspect(input);
 }
 
-export function createCloudRunSemanticWorker({ db, env = process.env, logger = console } = {}) {
+export function createCloudRunSemanticWorker({ db, executionTransactionStore = null, env = process.env, logger = console } = {}) {
   const database = createCloudRunDatabaseBinding(db);
   const providers = composeCloudRunRuntimeProviders({ db:database, env });
   const handler = createWorkerCommandHandler({
     providers,
+    executionTransactionStore,
     commandFailure,
     projectAuthoringFor,
     executeSemanticWorkerCommand,
