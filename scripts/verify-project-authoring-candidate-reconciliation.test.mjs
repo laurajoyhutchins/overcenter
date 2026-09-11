@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { reconcileProjectAuthoringCandidate } from '../lib/project-authoring-candidate-reconciliation.js';
+import { reconcileProjectAuthoringCandidate, reconcileProjectAuthoringCandidateWithChangesetProvenance } from '../lib/project-authoring-candidate-reconciliation.js';
 
 const staged = 'a'.repeat(40);
 const derived = 'b'.repeat(40);
@@ -62,7 +62,7 @@ test('conflicting or underivable base movement fails closed', () => {
   }
 });
 
-test('stale verification bound to the staged candidate is rejected', () => {
+test('durable changeset receipt supplies candidate derivative authority', async () => {\n  const lookups = [];\n  const { authorized_derivative: _ignored, ...candidate } = base;\n  const result = await reconcileProjectAuthoringCandidateWithChangesetProvenance({\n    ...candidate,\n    repository:'laurajoyhutchins/overcenter',\n    branch:'work/example',\n    verified_revision:derived,\n  }, async (input) => {\n    lookups.push(input);\n    return { operation_id:'op-1' };\n  });\n  assert.deepEqual(lookups, [{ repo:'laurajoyhutchins/overcenter', branch:'work/example', commit_sha:derived }]);\n  assert.equal(result.candidate_revision, derived);\n});\n\ntest('candidate movement without durable changeset provenance fails closed', async () => {\n  const { authorized_derivative: _ignored, ...candidate } = base;\n  await assert.rejects(\n    reconcileProjectAuthoringCandidateWithChangesetProvenance({\n      ...candidate,\n      repository:'laurajoyhutchins/overcenter',\n      branch:'work/example',\n      verified_revision:derived,\n    }, async () => null),\n    (error) => error?.code === 'PROJECT_AUTHORING_CANDIDATE_RECONCILIATION_REQUIRED' && error?.may_have_mutated === false,\n  );\n});\n\ntest('stale verification bound to the staged candidate is rejected', () => {
   assert.throws(
     () => reconcileProjectAuthoringCandidate({ ...base, verified_revision: staged }),
     (error) => error?.code === 'PROJECT_AUTHORING_CANDIDATE_VERIFICATION_STALE' && error?.may_have_mutated === false,
