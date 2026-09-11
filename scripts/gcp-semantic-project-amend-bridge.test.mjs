@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const broker = await readFile(new URL('../api/gcp-semantic-command-dispatch.js', import.meta.url), 'utf8');
 const relay = await readFile(new URL('../lib/gcp-semantic-project-amend-relay.js', import.meta.url), 'utf8');
+const adapter = await readFile(new URL('../lib/hatchable-gcp-ingress-adapter.js', import.meta.url), 'utf8');
 const mcpAmend = await readFile(new URL('../mcp/project.amend.js', import.meta.url), 'utf8');
 
 test('project.amend direct transport preserves target authority separately from control-plane fencing', () => {
@@ -28,10 +29,14 @@ test('project.amend relay authenticates directly to stateless GCP ingress with e
   assert.doesNotMatch(relay, /fallback/i);
 });
 
-test('Hatchable project.amend is transport-only and does not consult the frozen Hatchable database', () => {
-  assert.match(mcpAmend, /createGitHubAppAuth/);
+test('Hatchable project.amend binds only credentials at the explicit ingress adapter and never a database', () => {
+  assert.match(adapter, /from 'hatchable'/);
+  assert.match(adapter, /createGitHubAppAuth/);
+  assert.doesNotMatch(adapter, /\bdb\b|composeHatchableRuntimeProviders|source-authority-fence/);
+
+  assert.match(mcpAmend, /composeHatchableGcpIngressAdapter/);
   assert.match(mcpAmend, /dispatchGcpProjectAmendViaIngress/);
-  assert.match(mcpAmend, /withGitHubAppApiClient:githubAppAuth\.withApiClient/);
-  assert.match(mcpAmend, /secrets,/);
-  assert.doesNotMatch(mcpAmend, /composeHatchableRuntimeProviders|ctx\.db|executeSemanticWorkerCommand|projectAuthoringFor|createProjectAuthoringHostRuntime/);
+  assert.match(mcpAmend, /providers\.githubAppAuth\.withApiClient/);
+  assert.match(mcpAmend, /secrets:providers\.secrets/);
+  assert.doesNotMatch(mcpAmend, /from ['"]hatchable['"]|ctx\.db|executeSemanticWorkerCommand|projectAuthoringFor|createProjectAuthoringHostRuntime/);
 });
