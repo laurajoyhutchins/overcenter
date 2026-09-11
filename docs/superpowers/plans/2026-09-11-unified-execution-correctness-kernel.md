@@ -1060,6 +1060,31 @@ Open the review path from the implementation branch with the exact final SHA, in
 
 ---
 
+
+## Spec-to-task coverage
+
+| Design-spec obligation | Plan tasks that implement or verify it |
+|---|---|
+| Inventory duplication and planned survivor/deletion | Task 1 baseline measurement; Tasks 5 through 8 caller migration and deletion |
+| TypeScript semantic source and generated runtime boundary | Task 2 kernel source; Tasks 3 and 4 runtime/portable builds; Task 8 mirror deletion |
+| Execution identity and idempotency | Tasks 2, 3, and 4 |
+| Authority fencing and exact revision binding | Tasks 2, 4, 5, and 6 |
+| Single lease ownership and stale-worker fencing | Tasks 3, 4, and 5 |
+| Effect execution and provider capability boundary | Tasks 4 and 6 |
+| Mutation certainty and confirm-only recovery | Tasks 2, 4, 6, and 7 |
+| Exact evidence and proof binding | Tasks 2, 3, 4, and 7 |
+| Durable settlement and inspectable receipts | Tasks 3, 4, 5, and 7 |
+| Centralized recovery classification | Tasks 2, 4, 5, and 7 |
+| Project-transition, authoring, promotion, and reconciliation callers | Tasks 5, 6, and 7 |
+| Compatibility and migration-path deletion | Task 8 |
+| Database constraints and transaction boundaries | Task 3 |
+| Twelve required failure scenarios | Task 4 conformance suite and Task 10 PostgreSQL/CI verification |
+| Kernel/provider/end-to-end testing strategy | Tasks 1, 2, 4, 6, and 10 |
+| Before/after metrics | Tasks 1 and 10 |
+| Obligation-shaped graph representation | Task 9 contract/docs and Task 10 semantic graph amendment |
+| Hatchable transport-only and GCP authority boundary | Global Constraints; Tasks 7, 9, and 10 |
+
+
 ## Completion definition
 
 The plan is complete only when all of these are true:
