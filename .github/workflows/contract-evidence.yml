@@ -5,7 +5,7 @@ on:
     branches: [dev]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   contract-evidence:
@@ -35,11 +35,14 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Install contract evidence tooling
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
+      - name: Run contract evidence tests
+        run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
       - name: Generate candidate contract evidence once
         run: |
           mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
@@ -49,20 +52,8 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Commit exact generated evidence repair
-        run: |
-          cp "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" generated/contracts/catalog.json
-          cp "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" docs/generated/data-contracts.md
-          cp "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md" docs/generated/data-contract-authority-atlas.md
-          if ! git diff --quiet -- generated/contracts/catalog.json docs/generated/data-contracts.md docs/generated/data-contract-authority-atlas.md; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add generated/contracts/catalog.json docs/generated/data-contracts.md docs/generated/data-contract-authority-atlas.md
-            git commit -m "chore: refresh generated contract evidence"
-            git push origin "HEAD:${{ github.head_ref }}"
-          fi
-      - name: Run contract evidence tests
-        run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
+      - name: Print exact generated catalog delta
+        run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
