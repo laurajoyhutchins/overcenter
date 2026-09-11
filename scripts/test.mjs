@@ -32,6 +32,7 @@ const maintainedTests = [
   'gcp-command-ingress-deploy.test.mjs',
   'gcp-production-promote-dispatch.test.mjs',
   'gcp-semantic-direct-transport.test.mjs',
+  'gcp-semantic-orchestration-diagnose-bridge.test.mjs',
   'gcp-semantic-project-amend-bridge.test.mjs',
   'gcp-surface-consolidation.test.mjs',
   'postgres-state-manifest.test.mjs',
