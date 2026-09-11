@@ -2,10 +2,17 @@ import {
   promoteProduction,
   type ProductionPromotionFailure,
   type ProductionPromotionPorts,
+  type ProductionPromotionPayload,
+  type ProductionBranchRoles,
+  type VerifiedProductionPromotionRequest,
 } from '../src/semantic/production-promotion-operation';
+import type { ExecutionTransactionContext } from '../src/semantic/execution-transaction-runtime';
+import type { ExecutionTransactionStore } from '../src/semantic/execution-transaction-store';
+import type { ProviderEffect } from '../src/semantic/execution-transaction';
 
 const calls: string[] = [];
 
+const executionTransactionStore = {} as ExecutionTransactionStore;
 const ports: ProductionPromotionPorts = {
   resolveBranchRoles: async (repo) => {
     calls.push(`roles:${repo}`);
@@ -19,11 +26,23 @@ const ports: ProductionPromotionPorts = {
     calls.push(`verify:${repo}:${revision}`);
     return { revision, verified: true, verification_ref: 'verification:opaque:123' };
   },
-  promoteVerifiedRevision: async (request) => {
-    const verificationRef: string = request.verification_ref;
-    calls.push(`promote:${request.repo}:${request.source_revision}:${request.production_revision}:${verificationRef}`);
-    return { production_revision: request.source_revision };
-  },
+  executionTransactionStore,
+  executionContext: (_request: VerifiedProductionPromotionRequest): ExecutionTransactionContext => ({
+    run_id: 'production-promotion-type-test',
+    subject_kind: 'provider_operation',
+    lease_expires_at: '2999-01-01T00:00:00.000Z',
+  }),
+  providerFor: (_request: VerifiedProductionPromotionRequest, _roles: ProductionBranchRoles): ProviderEffect<ProductionPromotionPayload> => ({
+    async preflight() {
+      return { provider: 'type-test', observed_revision: 'a'.repeat(40), provider_identity: {} };
+    },
+    async invoke() {
+      return { transport: 'accepted', committed: true, effect_ref: 'effect', response_sha256: 'response', evidence: {} };
+    },
+    async confirm() {
+      return { status: 'confirmed', effect_ref: 'effect', predicate: 'type-test', evidence: {} };
+    },
+  }),
 };
 
 const result = await promoteProduction({ repo: 'laurajoyhutchins/overcenter' }, ports);
