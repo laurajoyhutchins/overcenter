@@ -450,6 +450,162 @@
       "logical_contract": "project.transition.states",
       "significance": "authority",
       "semver_kind": "lifecycle-semantics"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionAuthority": {
+      "logical_contract": "execution.transaction.authority",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionIdentity": {
+      "logical_contract": "execution.transaction.identity",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionIntent": {
+      "logical_contract": "execution.transaction.intent",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionLifecycle": {
+      "logical_contract": "execution.transaction.lifecycle",
+      "significance": "authority",
+      "semver_kind": "lifecycle-semantics",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionProof": {
+      "logical_contract": "execution.transaction.proof",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionSnapshot": {
+      "logical_contract": "execution.transaction.snapshot",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#MutationCertainty": {
+      "logical_contract": "execution.transaction.mutation-certainty",
+      "significance": "authority",
+      "semver_kind": "lifecycle-semantics",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderConfirmationFacts": {
+      "logical_contract": "execution.transaction.provider-capability",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderEffect": {
+      "logical_contract": "execution.transaction.provider-capability",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderEffectPayload": {
+      "logical_contract": "execution.transaction.provider-capability",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderInvocationFacts": {
+      "logical_contract": "execution.transaction.provider-capability",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderPreflight": {
+      "logical_contract": "execution.transaction.provider-capability",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#RecoveryDecision": {
+      "logical_contract": "execution.transaction.recovery",
+      "significance": "authority",
+      "semver_kind": "lifecycle-semantics",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#SettlementReceipt": {
+      "logical_contract": "execution.transaction.settlement",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#JsonObject": {
+      "significance": "implementation-only"
+    },
+    "typescript:src/semantic/execution-transaction.ts#executionTransactionInternals": {
+      "significance": "implementation-only"
+    },
+    "typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionContext": {
+      "logical_contract": "execution.transaction.runtime",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionResult": {
+      "logical_contract": "execution.transaction.runtime",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#AppendProofInput": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#ClaimExecutionInput": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#ClaimResult": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#ExecutionTransactionStore": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#HeartbeatExecutionInput": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#OperationAttempt": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#PrepareExecutionInput": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#RecordAttemptInput": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#RecordInvocationInput": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#SettleExecutionInput": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
     }
   }
 }
