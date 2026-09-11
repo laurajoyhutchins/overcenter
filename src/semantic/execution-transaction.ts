@@ -43,6 +43,7 @@ export interface ExecutionIdentity {
   readonly operation_id: string;
   readonly project_ref: string;
   readonly subject_key: string;
+  readonly subject_kind: 'project_transition' | 'legacy_work';
   readonly run_id: string;
   readonly lease_ref: string;
   readonly lease_epoch: number;
@@ -233,6 +234,7 @@ export function assertExecutionIdentity(value: unknown): asserts value is Execut
     'operation_id',
     'project_ref',
     'subject_key',
+    'subject_kind',
     'run_id',
     'lease_ref',
     'authority_repository',
