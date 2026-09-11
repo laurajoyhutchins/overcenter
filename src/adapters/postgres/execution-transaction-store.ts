@@ -8,6 +8,7 @@ import {
   type ExecutionProof,
   type ExecutionSnapshot,
   type MutationCertainty,
+  type ProviderConfirmationFacts,
   type ProviderInvocationFacts,
   type SettlementReceipt,
 } from '../../semantic/execution-transaction.js';
@@ -244,6 +245,10 @@ function receiptFromRow(row: DatabaseRow): SettlementReceipt {
   const receipt = value as unknown as SettlementReceipt;
   assertSettlementReceipt(receipt);
   return receipt;
+}
+
+function responseSha(facts: ProviderInvocationFacts | ProviderConfirmationFacts): string | null {
+  return 'transport' in facts ? facts.response_sha256 : null;
 }
 
 function effectStateFor(certaintyValue: MutationCertainty): {
@@ -607,7 +612,7 @@ export function createPostgresExecutionTransactionStore(
             effect.may_have_mutated,
             certaintyValue,
             input.facts.effect_ref,
-            input.facts.response_sha256,
+            responseSha(input.facts),
             JSON.stringify(input.facts),
           ],
         );
