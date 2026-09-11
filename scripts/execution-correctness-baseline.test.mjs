@@ -19,4 +19,7 @@ test('measurement reports every execution-correctness dimension', async () => {
   ]) {
     assert.equal(typeof result[field], 'number', field);
   }
+  assert.ok(result.production_lines > 0);
+  assert.ok(result.test_lines > 0);
+
 });
