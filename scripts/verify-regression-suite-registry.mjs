@@ -31,7 +31,17 @@ function registeredSuites(source) {
     .map(([, group, name, suiteSource]) => ({ group, name, source:suiteSource }));
 }
 
-const maintained = (await collectTestFiles(LIB)).map(repoPath).sort();
+const maintainedFiles = await collectTestFiles(LIB);
+const maintained = [];
+const nativeNodeTests = [];
+for (const absolute of maintainedFiles) {
+  const source = await readFile(absolute, 'utf8');
+  const file = repoPath(absolute);
+  if (/from\s+['\"]node:test['\"]/.test(source) || /require\(['\"]node:test['\"]\)/.test(source)) nativeNodeTests.push(file);
+  else maintained.push(file);
+}
+maintained.sort();
+nativeNodeTests.sort();
 const registrySource = await readFile(REGISTRY, 'utf8');
 const registered = registeredTestSources(registrySource);
 const suites = registeredSuites(registrySource);
@@ -60,7 +70,8 @@ const obsoleteArchitectureSources = [
 if (missing.length || stale.length || duplicates.length || architectureClassificationMissing.length || obsoleteArchitectureSources.length) {
   console.error(JSON.stringify({
     ok:false,
-    maintained_count:maintained.length,
+    maintained_count:maintained.length + nativeNodeTests.length,
+    native_node_test_count:nativeNodeTests.length,
     registered_count:registered.length,
     missing,
     stale,
@@ -73,7 +84,8 @@ if (missing.length || stale.length || duplicates.length || architectureClassific
 
 console.log(JSON.stringify({
   ok:true,
-  maintained_count:maintained.length,
+  maintained_count:maintained.length + nativeNodeTests.length,
+  native_node_test_count:nativeNodeTests.length,
   registered_count:registered.length,
   architecture_classifications:requiredArchitectureClassifications,
 }));
