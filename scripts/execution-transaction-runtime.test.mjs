@@ -73,8 +73,13 @@ class MemoryStore {
     const execution = this.executions.get(input.execution_id);
     if (!execution) throw Object.assign(new Error('missing'), { code: 'EXECUTION_NOT_FOUND' });
     if (execution.settled) return { kind: 'replayed', snapshot: this.snapshot(execution) };
-    if (execution.identity.lease_ref !== input.lease_ref ||
-        execution.identity.lease_epoch !== input.lease_epoch) {
+    if (execution.identity.authority_epoch !== input.authority_epoch) {
+      throw Object.assign(new Error('STALE_EXECUTION'), { code: 'STALE_EXECUTION' });
+    }
+    const sameLease = execution.identity.lease_ref === input.lease_ref &&
+      execution.identity.lease_epoch === input.lease_epoch;
+    const expired = execution.lease_expires_at <= new Date().toISOString();
+    if (!sameLease && !expired) {
       return { kind: 'busy', snapshot: this.snapshot(execution) };
     }
     execution.identity.lease_ref = input.lease_ref;
@@ -223,6 +228,14 @@ function providerFor({ observedRevision = 'a'.repeat(40), mode = 'success' } = {
           evidence: { status: 'still-unknown' },
         };
       }
+      if (mode === 'absent') {
+        return {
+          status: 'absent',
+          effect_ref: null,
+          predicate: 'exact-effect',
+          evidence: { status: 'absent' },
+        };
+      }
       return {
         status: 'confirmed',
         effect_ref: 'provider-effect-1',
@@ -293,4 +306,140 @@ test('source revision drift is rejected before provider mutation', async () => {
   });
   assert.equal(result.receipt.disposition, 'rejected');
   assert.equal(provider.calls.invoke, 0);
+});
+
+
+test('worker death before the effect is retryable after a fresh claim', async () => {
+  const store = new MemoryStore();
+  const deadWorker = providerFor();
+  deadWorker.preflight = async () => {
+    throw new Error('worker died before effect');
+  };
+  await assert.rejects(
+    executeExecutionTransaction({ intent: intent(), context: context(), provider: deadWorker, store }),
+  );
+  const execution_id = [...store.executions.keys()][0];
+  const replacement = await recoverExecutionTransaction({
+    execution_id,
+    intent: intent(),
+    context: context({ lease_epoch: 2, lease_ref: 'replacement-lease' }),
+    provider: providerFor(),
+    store,
+  });
+  assert.equal(replacement.receipt.disposition, 'completed');
+});
+
+test('two workers racing for one live lease produce one busy result', async () => {
+  const store = new MemoryStore();
+  const worker = providerFor();
+  worker.preflight = async () => {
+    throw new Error('pause after claim');
+  };
+  await assert.rejects(
+    executeExecutionTransaction({ intent: intent(), context: context(), provider: worker, store }),
+  );
+  const execution_id = [...store.executions.keys()][0];
+  const raced = await store.claimExecution({
+    execution_id,
+    lease_ref: 'replacement-lease',
+    lease_epoch: 2,
+    authority_epoch: 3,
+    lease_expires_at: '2999-01-01T00:00:00.000Z',
+  });
+  assert.equal(raced.kind, 'busy');
+});
+
+test('a stale worker cannot settle after its lease is replaced', async () => {
+  const store = new MemoryStore();
+  const worker = providerFor();
+  worker.preflight = async () => {
+    throw new Error('pause after claim');
+  };
+  await assert.rejects(
+    executeExecutionTransaction({ intent: intent(), context: context(), provider: worker, store }),
+  );
+  const execution_id = [...store.executions.keys()][0];
+  const oldIdentity = clone(store.executions.get(execution_id).identity);
+  store.executions.get(execution_id).lease_expires_at = '1970-01-01T00:00:00.000Z';
+  await store.claimExecution({
+    execution_id,
+    lease_ref: 'replacement-lease',
+    lease_epoch: 2,
+    authority_epoch: 3,
+    lease_expires_at: '2999-01-01T00:00:00.000Z',
+  });
+  await assert.rejects(
+    store.settleExecution({
+      identity: oldIdentity,
+      attempt_epoch: 1,
+      disposition: 'completed',
+      effect_ref: 'provider-effect-1',
+      evidence_sha256: 'evidence-hash',
+    }),
+    error => error?.code === 'STALE_EXECUTION',
+  );
+});
+
+test('evidence bound to another revision is rejected', async () => {
+  const store = new MemoryStore();
+  const worker = providerFor();
+  worker.preflight = async () => {
+    throw new Error('pause after claim');
+  };
+  await assert.rejects(
+    executeExecutionTransaction({ intent: intent(), context: context(), provider: worker, store }),
+  );
+  const execution_id = [...store.executions.keys()][0];
+  const execution = store.executions.get(execution_id);
+  await assert.rejects(
+    store.appendProof({
+      proof_id: 'wrong-revision-proof',
+      execution_id,
+      operation_id: execution.identity.operation_id,
+      attempt_epoch: 1,
+      authority_repository: execution.identity.authority_repository,
+      authority_revision: 'b'.repeat(40),
+      authority_epoch: execution.identity.authority_epoch,
+      predicate: 'exact-effect',
+      evidence_sha256: 'evidence-hash',
+      evidence: {},
+    }),
+    error => error?.code === 'PROOF_IDENTITY_MISMATCH',
+  );
+});
+
+test('provider readback confirms an already-applied effect without reinvocation', async () => {
+  const store = new MemoryStore();
+  const provider = providerFor({ mode: 'unknown-confirmed' });
+  const result = await executeExecutionTransaction({
+    intent: intent(),
+    context: context(),
+    provider,
+    store,
+  });
+  assert.equal(result.receipt.disposition, 'completed');
+  assert.equal(provider.calls.invoke, 1);
+  assert.equal(provider.calls.confirm, 1);
+});
+
+test('authority epoch changes fail closed for the old worker', async () => {
+  const store = new MemoryStore();
+  const worker = providerFor();
+  worker.preflight = async () => {
+    throw new Error('pause after claim');
+  };
+  await assert.rejects(
+    executeExecutionTransaction({ intent: intent(), context: context(), provider: worker, store }),
+  );
+  const execution_id = [...store.executions.keys()][0];
+  await assert.rejects(
+    store.claimExecution({
+      execution_id,
+      lease_ref: 'replacement-lease',
+      lease_epoch: 2,
+      authority_epoch: 4,
+      lease_expires_at: '2999-01-01T00:00:00.000Z',
+    }),
+    error => error?.code === 'STALE_EXECUTION',
+  );
 });
