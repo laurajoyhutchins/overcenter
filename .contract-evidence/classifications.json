@@ -580,6 +580,10 @@
     "typescript:src/semantic/execution-transaction-store.ts#SettleExecutionInput": {
       "significance": "projection",
       "projection_of": "execution.transaction.store"
+    },
+    "typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionPayload": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.intent"
     }
   }
 }
