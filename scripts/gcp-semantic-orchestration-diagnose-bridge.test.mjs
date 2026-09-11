@@ -5,6 +5,7 @@ import test from 'node:test';
 const broker = await readFile(new URL('../api/gcp-semantic-command-dispatch.js', import.meta.url), 'utf8');
 const workflow = await readFile(new URL('../.github/workflows/gcp-semantic-command.yml', import.meta.url), 'utf8');
 const descriptors = await readFile(new URL('../lib/semantic-command-descriptors.js', import.meta.url), 'utf8');
+const workerTransport = await readFile(new URL('../lib/worker-transport.js', import.meta.url), 'utf8');
 
 test('bounded GCP bridge admits orchestration.diagnose as typed diagnosis, not generic control', () => {
   assert.match(broker, /DIAGNOSIS_COMMANDS = new Set\(\['orchestration\.diagnose'\]\)/);
@@ -34,6 +35,14 @@ test('GCP workflow validates and forwards only typed orchestration.diagnose inpu
   assert.match(workflow, /\.run_id \| type == "string" and length > 0 and length <= 512/);
   assert.match(workflow, /\.work_ref \| type == "string" and length > 0 and length <= 128/);
   assert.match(workflow, /orchestration\.diagnose\|project\.define\|project\.amend\|github\.pull_request\.mark_ready\|github\.apply_changeset\|github\.apply_text_replacements\) input="\$command_input_json"/);
+});
+
+test('diagnosis transport delegates to the existing authoritative worker implementation', () => {
+  assert.match(workerTransport, /'orchestration\.diagnose': \{/);
+  assert.match(workerTransport, /createPostgresOrchestrationDiagnosisService\(\{ db:requireRuntimeDb\(runtime\), api:runtime\.api \}\)\.diagnose\(request\)/);
+  assert.doesNotMatch(broker, /createPostgresOrchestrationDiagnosisService/);
+  assert.doesNotMatch(workflow, /createPostgresOrchestrationDiagnosisService/);
+  assert.match(workflow, /\/api\/worker-command/);
 });
 
 test('diagnosis transport remains bounded away from semantic work selection and continuation authority', () => {
