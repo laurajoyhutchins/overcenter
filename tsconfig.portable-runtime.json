@@ -11,6 +11,7 @@
     "src/semantic/semantic-identities.ts",
     "src/semantic/compact-execution-state.ts",
     "src/semantic/execution-transaction.ts",
+    "src/semantic/execution-transaction-runtime.ts",
     "src/ports/portable-runtime.ts",
     "src/ports/compact-execution-state-store.ts",
     "src/ports/execution-transaction-store.ts",
