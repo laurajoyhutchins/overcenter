@@ -66,6 +66,7 @@ export interface ExecutionSnapshot {
   readonly effect_ref: string | null;
   readonly proof_ids: readonly string[];
   readonly settled: boolean;
+  readonly settlement_receipt: SettlementReceipt | null;
 }
 
 export type ProviderEffectPayload<TPayload extends JsonObject = JsonObject> = TPayload & Readonly<{
@@ -74,6 +75,27 @@ export type ProviderEffectPayload<TPayload extends JsonObject = JsonObject> = TP
   readonly authority_epoch?: never;
   readonly settlement?: never;
 }>;
+
+export interface ProviderPreflight {
+  readonly provider: string;
+  readonly observed_revision: string;
+  readonly provider_identity: JsonObject;
+}
+
+export interface ProviderEffect<TPayload extends JsonValue = JsonValue> {
+  preflight(input: { readonly intent: ExecutionIntent<TPayload>; readonly identity: ExecutionIdentity }): Promise<ProviderPreflight>;
+  invoke(input: {
+    readonly intent: ExecutionIntent<TPayload>;
+    readonly identity: ExecutionIdentity;
+    readonly attempt_epoch: number;
+  }): Promise<ProviderInvocationFacts>;
+  confirm(input: {
+    readonly intent: ExecutionIntent<TPayload>;
+    readonly identity: ExecutionIdentity;
+    readonly attempt_epoch: number;
+    readonly effect_ref: string | null;
+  }): Promise<ProviderConfirmationFacts>;
+}
 
 export interface ProviderInvocationFacts {
   readonly transport: 'rejected' | 'accepted' | 'unknown';
