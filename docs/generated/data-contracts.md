@@ -26,6 +26,15 @@
 - `execution.lifecycle.operating-conditions` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#OPERATING_CONDITIONS`; SemVer `lifecycle-semantics`; 1 projection
 - `execution.lifecycle.productive-stages` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#PRODUCTIVE_STAGES`; SemVer `lifecycle-semantics`; 1 projection
 - `execution.lifecycle.work-settlement-dispositions` — authority `typescript:src/semantic/execution-lifecycle-contracts.ts#WORK_SETTLEMENT_DISPOSITIONS`; SemVer `lifecycle-semantics`; 1 projection
+- `execution.transaction.authority` — authority `typescript:src/semantic/execution-transaction.ts#ExecutionAuthority`
+- `execution.transaction.identity` — authority `typescript:src/semantic/execution-transaction.ts#ExecutionIdentity`
+- `execution.transaction.intent` — authority `typescript:src/semantic/execution-transaction.ts#ExecutionIntent`
+- `execution.transaction.lifecycle` — authority `typescript:src/semantic/execution-transaction.ts#ExecutionLifecycle`; SemVer `lifecycle-semantics`
+- `execution.transaction.mutation-certainty` — authority `typescript:src/semantic/execution-transaction.ts#MutationCertainty`; SemVer `lifecycle-semantics`
+- `execution.transaction.proof` — authority `typescript:src/semantic/execution-transaction.ts#ExecutionProof`
+- `execution.transaction.recovery` — authority `typescript:src/semantic/execution-transaction.ts#RecoveryDecision`; SemVer `lifecycle-semantics`
+- `execution.transaction.settlement` — authority `typescript:src/semantic/execution-transaction.ts#SettlementReceipt`
+- `execution.transaction.snapshot` — authority `typescript:src/semantic/execution-transaction.ts#ExecutionSnapshot`
 - `overcenter.metrics.contract` — authority `javascript:lib/overcenter-metrics-contract.js#OVERCENTER_METRICS_CONTRACT`
 - `project.execution-intent` — authority `typescript:src/semantic/project-graph-types.ts#ProjectExecutionIntent`; SemVer `project-definition-schema`; 1 projection
 - `project.graph.authority-coordinate` — authority `typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphAuthorityCoordinate`
@@ -34,9 +43,9 @@
 
 ## Durable internal contracts
 
-- `compact.execution-state` — authority `typescript:src/semantic/compact-execution-state.ts#ExecutionState`; SemVer `internal-module-layout`; 39 projections
-- `compact.operation-state` — authority `typescript:src/semantic/compact-execution-state.ts#OperationState`; SemVer `internal-module-layout`; 33 projections
-- `compact.proof-state` — authority `typescript:src/semantic/compact-execution-state.ts#ProofState`; SemVer `internal-module-layout`; 13 projections
+- `compact.execution-state` — authority `typescript:src/semantic/compact-execution-state.ts#ExecutionState`; SemVer `internal-module-layout`; 59 projections
+- `compact.operation-state` — authority `typescript:src/semantic/compact-execution-state.ts#OperationState`; SemVer `internal-module-layout`; 44 projections
+- `compact.proof-state` — authority `typescript:src/semantic/compact-execution-state.ts#ProofState`; SemVer `internal-module-layout`; 19 projections
 - `compatibility.work-lease-checkpoint.persistence` — authority `postgres:public.work_lease_checkpoints#table`; SemVer `database-layout`; 10 projections
 - `compatibility.work-lease-heartbeat.persistence` — authority `postgres:public.work_lease_heartbeats#table`; SemVer `database-layout`; 11 projections
 - `compatibility.work-lease-slot.persistence` — authority `postgres:public.work_lease_slots#table`; SemVer `database-layout`; 6 projections
@@ -66,6 +75,9 @@
 - `authoritative-state.recovery-seed.http-boundary` — authority `http:api/authoritative-state/recovery-seed.js#request-response`; SemVer `adapter-layout`
 - `compact.execution-state.store` — authority `typescript:src/ports/compact-execution-state-store.ts#CompactExecutionStateStore`; SemVer `adapter-layout`; 9 projections
 - `execution.authority.store-port` — authority `typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityStore`
+- `execution.transaction.provider-capability` — authority `typescript:src/semantic/execution-transaction.ts#ProviderEffect`; SemVer `adapter-layout`; 4 projections
+- `execution.transaction.runtime` — authority `typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionContext`; SemVer `adapter-layout`; 1 projection
+- `execution.transaction.store` — authority `typescript:src/semantic/execution-transaction-store.ts#ExecutionTransactionStore`; SemVer `adapter-layout`; 9 projections
 - `gcp.semantic-command-dispatch.http-boundary` — authority `http:api/gcp-semantic-command-dispatch.js#request-response`; SemVer `adapter-layout`
 - `github.repository.rename.http-boundary` — authority `http:api/github-repository-rename.js#request-response`; SemVer `adapter-layout`
 - `project.advance.runtime-host` — authority `typescript:src/ports/project-advance-runtime-host.ts#ProjectAdvanceRuntimeHost`
@@ -74,6 +86,8 @@
 ## Implementation-only shapes
 
 - `execution.evidence.internals` — authority `typescript:src/semantic/execution-evidence.ts#executionEvidenceInternals`; 1 projection
+- `execution.transaction.internals` — authority `typescript:src/semantic/execution-transaction.ts#executionTransactionInternals`; 1 projection
+- `execution.transaction.json-object` — authority `typescript:src/semantic/execution-transaction.ts#JsonObject`
 - `orchestration.current-failure-internals` — authority `javascript:lib/orchestration-current-failure.js#orchestrationCurrentFailureInternals`; SemVer `internal-module-layout`
 - `postgres.transaction-executor` — authority `typescript:src/adapters/postgres/node-postgres-runtime.ts#NodePostgresTransactionExecutor`; SemVer `runtime-host-detail`
 
@@ -204,8 +218,6 @@
 - `typescript:src/adapters/postgres/node-postgres-runtime.ts#NodePostgresQueryResult`
 - `typescript:src/ports/portable-runtime.ts#PortableRuntimePorts`
 - `typescript:src/ports/production-promotion-runtime-host.ts#ProductionPromotionRuntimeHost`
-- `typescript:src/ports/production-promotion-runtime-host.ts#ProductionPromotionVerificationEvidence`
-- `typescript:src/ports/production-promotion-runtime-host.ts#StrictProductionPromotionRequest`
 - `typescript:src/runtime/portable-runtime.ts#PortableRuntime`
 - `typescript:src/runtime/production-promotion-overcenter-host.ts#ProductionPromotionRuntime`
 - `typescript:src/semantic/canonical-commands.ts#CANONICAL_COMMANDS`
@@ -259,6 +271,7 @@
 - `typescript:src/semantic/production-promotion-operation.ts#ProductionBranchRoles`
 - `typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionFailureCode`
 - `typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionOutcome`
+- `typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionPayload`
 - `typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionPorts`
 - `typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionResult`
 - `typescript:src/semantic/production-promotion-operation.ts#VerifiedProductionPromotionRequest`

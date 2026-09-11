@@ -43,11 +43,22 @@ await pool.query(`
   )
 `);
 
-const { createNodePostgresRuntime } = await import(
+const { createNodePostgresRuntime, createNodePostgresTransactionExecutor } = await import(
   '../dist/portable/adapters/postgres/node-postgres-runtime.js'
 );
+const { createPostgresExecutionTransactionStore } = await import(
+  '../dist/portable/adapters/postgres/execution-transaction-store.js'
+);
 const runtime = createNodePostgresRuntime(pool);
-const workerCommand = createCloudRunSemanticWorker({ db:pool, env:process.env, logger:console });
+const executionTransactionStore = createPostgresExecutionTransactionStore(
+  createNodePostgresTransactionExecutor(pool),
+);
+const workerCommand = createCloudRunSemanticWorker({
+  db:pool,
+  executionTransactionStore,
+  env:process.env,
+  logger:console,
+});
 const projectInspect = createCloudRunReadOnlyProjectInspector({ db:pool, env:process.env });
 const authorityProofInspect = createCloudRunAuthorityProofInspector({ db:pool });
 const handler = createCloudRunHandler({ db: pool, runtime, workerCommand, projectInspect, authorityProofInspect, authorityMode:config.authorityMode });

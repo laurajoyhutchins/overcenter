@@ -450,6 +450,140 @@
       "logical_contract": "project.transition.states",
       "significance": "authority",
       "semver_kind": "lifecycle-semantics"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionAuthority": {
+      "logical_contract": "execution.transaction.authority",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionIdentity": {
+      "logical_contract": "execution.transaction.identity",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionIntent": {
+      "logical_contract": "execution.transaction.intent",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionLifecycle": {
+      "logical_contract": "execution.transaction.lifecycle",
+      "significance": "authority",
+      "semver_kind": "lifecycle-semantics",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionProof": {
+      "logical_contract": "execution.transaction.proof",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionSnapshot": {
+      "logical_contract": "execution.transaction.snapshot",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#MutationCertainty": {
+      "logical_contract": "execution.transaction.mutation-certainty",
+      "significance": "authority",
+      "semver_kind": "lifecycle-semantics",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderConfirmationFacts": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderEffect": {
+      "logical_contract": "execution.transaction.provider-capability",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderEffectPayload": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderInvocationFacts": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderPreflight": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
+    },
+    "typescript:src/semantic/execution-transaction.ts#RecoveryDecision": {
+      "logical_contract": "execution.transaction.recovery",
+      "significance": "authority",
+      "semver_kind": "lifecycle-semantics",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#SettlementReceipt": {
+      "logical_contract": "execution.transaction.settlement",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#JsonObject": {
+      "logical_contract": "execution.transaction.json-object",
+      "significance": "implementation-only"
+    },
+    "typescript:src/semantic/execution-transaction.ts#executionTransactionInternals": {
+      "logical_contract": "execution.transaction.internals",
+      "significance": "implementation-only"
+    },
+    "typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionContext": {
+      "logical_contract": "execution.transaction.runtime",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionResult": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.runtime"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#AppendProofInput": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#ClaimExecutionInput": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#ClaimResult": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#ExecutionTransactionStore": {
+      "logical_contract": "execution.transaction.store",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#HeartbeatExecutionInput": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#OperationAttempt": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#PrepareExecutionInput": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#RecordAttemptInput": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#RecordInvocationInput": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
+    },
+    "typescript:src/semantic/execution-transaction-store.ts#SettleExecutionInput": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
+    },
+    "typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionPayload": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.intent"
     }
   }
 }
