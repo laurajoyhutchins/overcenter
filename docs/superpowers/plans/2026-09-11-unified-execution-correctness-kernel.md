@@ -170,6 +170,18 @@ git commit -m "test: record execution correctness baseline"
 
 **Interfaces:**
 - Consumes: canonical JSON/hash utilities and existing project authority/revision values.
+- JsonValue and JsonObject are imported from src/semantic/project-graph-types.ts; no second JSON model is introduced.
+- ProviderPreflight is defined beside ProviderEffect as:
+
+~~~ts
+export interface ProviderPreflight {
+  provider: string;
+  observed_revision: string;
+  provider_identity: JsonObject;
+}
+~~~
+
+
 - Produces the following exact types and functions for Tasks 3 through 8:
 
 ~~~ts
@@ -397,6 +409,74 @@ export type ClaimResult =
 
 Every mutating method accepts execution_id, lease_ref, lease_epoch, and authority_epoch. A stale compare-and-set returns a typed stale-execution result and changes zero rows.
 
+The port owns these input/output values; define them in the same file before implementing methods:
+
+~~~ts
+export interface PrepareExecutionInput {
+  identity: ExecutionIdentity;
+  lifecycle: 'prepared';
+}
+
+export interface ClaimExecutionInput {
+  execution_id: string;
+  lease_ref: string;
+  lease_epoch: number;
+  authority_epoch: number;
+  lease_expires_at: string;
+}
+
+export interface HeartbeatExecutionInput {
+  execution_id: string;
+  lease_ref: string;
+  lease_epoch: number;
+  authority_epoch: number;
+  lease_expires_at: string;
+}
+
+export interface OperationAttempt {
+  operation_id: string;
+  execution_id: string;
+  attempt_epoch: number;
+  request_sha256: string;
+  mutation_certainty: MutationCertainty;
+  effect_ref: string | null;
+}
+
+export interface RecordAttemptInput {
+  identity: ExecutionIdentity;
+  attempt_epoch: number;
+  request_sha256: string;
+}
+
+export interface RecordInvocationInput {
+  identity: ExecutionIdentity;
+  attempt_epoch: number;
+  facts: ProviderInvocationFacts;
+}
+
+export interface ExecutionProof {
+  proof_id: string;
+  execution_id: string;
+  operation_id: string;
+  attempt_epoch: number;
+  authority_repository: string;
+  authority_revision: string;
+  authority_epoch: number;
+  predicate: string;
+  evidence_sha256: string;
+}
+
+export interface AppendProofInput extends ExecutionProof {}
+
+export interface SettleExecutionInput {
+  identity: ExecutionIdentity;
+  attempt_epoch: number;
+  disposition: SettlementReceipt['disposition'];
+  effect_ref: string | null;
+  evidence_sha256: string;
+}
+~~~
+
 - [ ] **Step 1: Write failing PostgreSQL constraint tests**
 
 Add tests that create the compact schema and assert:
@@ -602,7 +682,13 @@ git commit -m "feat: execute effects through one transaction protocol"
 - Modify: lib/project-transition-authoritative-effect-github-runtime.js
 - Modify: lib/project-transition-github-workspace.js
 - Modify: lib/project-transition-github-recovery.js
-- Modify: api/project-advance.js or its current authoritative worker entrypoint
+- Modify: src/semantic/project-advance-operation.ts
+- Modify: src/adapters/project-advance/runtime-adapter.ts
+- Modify: src/ports/project-advance-runtime-host.ts
+- Modify: lib/project-advance-overcenter-host.js
+- Modify: lib/project-transition-runtime.js
+- Modify: lib/worker-command-handler.js
+- Modify: mcp/project.advance.js
 - Modify: scripts/verify-project-transition-authoritative-effect-settlement.test.mjs
 - Modify: scripts/verify-project-transition-authoritative-effect-runtime.test.mjs
 - Modify: scripts/verify-project-transition-settlement-atomicity.test.mjs
@@ -617,6 +703,8 @@ git commit -m "feat: execute effects through one transaction protocol"
 - [ ] **Step 1: Write the failing adapter test**
 
 Construct a project-transition intent with exact project_ref, repository, authority_revision, authority_epoch, graph_fingerprint, and transition_fingerprint. Assert that the adapter passes only payload and kernel identity to the provider effect and never accepts caller-selected branch, base SHA, lease token, or idempotency key.
+
+Before changing the JavaScript host, change project-advance-operation.ts, runtime-adapter.ts, and project-advance-runtime-host.ts so the semantic operation hands one validated ProjectAdvanceIntent to the host and the host returns the kernel result. Remove startOrResumeProjectRun and advanceRun from the TypeScript port; the kernel creates and resumes the durable execution identity. Keep project_ref validation and run/result identity validation in TypeScript.
 
 - [ ] **Step 2: Implement the project-transition effect adapter**
 
@@ -838,6 +926,8 @@ git commit -m "refactor: centralize authoring and recovery semantics"
 - [ ] **Step 1: Write the deletion-boundary test**
 
 Create a source audit that fails when any production file imports a deleted module or declares generic lease, settlement, recovery, or mutation-certainty policy outside the canonical kernel.
+
+Implement productionImporters(reference) by recursively reading api, lib, mcp, pages, and src/adapters, then counting import/export specifiers that resolve to reference. Implement providerFilesContainingGenericRecovery() and providerFilesContainingGenericSettlement() by scanning provider path prefixes (github, gcp, production, release, portfolio) for the canonical policy function names and returning matching file counts.
 
 ~~~js
 const forbidden = [
