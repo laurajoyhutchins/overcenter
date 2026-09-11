@@ -21,6 +21,7 @@ ALTER TABLE operation_state
   ADD COLUMN IF NOT EXISTS attempt_epoch bigint NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS mutation_certainty text NOT NULL DEFAULT 'definitely_not_mutated',
   ADD COLUMN IF NOT EXISTS authority_epoch bigint,
+  ADD COLUMN IF NOT EXISTS authority_repository text,
   ADD COLUMN IF NOT EXISTS response_facts jsonb,
   ADD COLUMN IF NOT EXISTS confirmation_predicate text,
   ADD COLUMN IF NOT EXISTS confirmed_at timestamptz;
@@ -118,7 +119,8 @@ WHERE operation_kind IS NULL
 UPDATE operation_state AS operation
 SET
   execution_id = execution.execution_id,
-  authority_epoch = execution.authority_epoch
+  authority_epoch = execution.authority_epoch,
+  authority_repository = execution.authority_repository
 FROM execution_state AS execution
 WHERE operation.subject_key = execution.subject_key
   AND operation.execution_id IS NULL;
