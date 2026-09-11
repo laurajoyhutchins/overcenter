@@ -26,6 +26,10 @@ jobs:
           cache: npm
       - name: Install canonical dependencies
         run: npm ci
+      - name: Run exhaustive discovered test suite
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm test
       - name: Verify repository through the developer front door
         env:
           GITHUB_TOKEN: ${{ github.token }}
