@@ -24,7 +24,7 @@ test('bounded GCP bridge admits project.amend without conflating control-plane h
   assert.match(workflow, /\.project_ref == \$project_ref/);
   assert.match(workflow, /\.expected_revision \| type == "string" and test\("\^\[0-9a-f\]\{40\}\$"\)/);
   assert.doesNotMatch(workflow, /\.expected_revision == \$expected_revision/);
-  assert.match(workflow, /project\.amend\|github\.pull_request\.mark_ready\|github\.apply_changeset\|github\.apply_text_replacements\)/);
+  assert.match(workflow, /project\.amend\|github\.pull_request\.mark_ready\|github\.apply_changeset\|github\.coalesce_changeset\|github\.apply_text_replacements\)/);
 });
 
 test('project target is caller-selected and remains bounded away from bridge-source authority', () => {
@@ -52,7 +52,7 @@ test('PR integration is brokered through GCP instead of thawing Hatchable GitHub
   assert.ok(workflow.includes('test("^[A-Za-z0-9_.-]+\\\\/[A-Za-z0-9_.-]+$")'));
   assert.match(workflow, /\.pull_request \| type == "number"/);
   assert.match(workflow, /\.expected_head \| type == "string" and test\("\^\[0-9a-f\]\{40\}\$"\)/);
-  assert.match(workflow, /project\.amend\|github\.pull_request\.mark_ready\|github\.apply_changeset\|github\.apply_text_replacements\)/);
+  assert.match(workflow, /project\.amend\|github\.pull_request\.mark_ready\|github\.apply_changeset\|github\.coalesce_changeset\|github\.apply_text_replacements\)/);
 });
 
 test('Hatchable project.amend composes only transport authority and delegates semantic execution', () => {

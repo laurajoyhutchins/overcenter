@@ -14,6 +14,7 @@ export const CANONICAL_COMMANDS = Object.freeze([
   'skill.activate',
   'skill.complete',
   'github.apply_changeset',
+  'github.coalesce_changeset',
   'github.apply_text_replacements',
   'github.workflow.dispatch',
   'github.delete_branch',
