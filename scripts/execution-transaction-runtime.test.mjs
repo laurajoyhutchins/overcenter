@@ -201,7 +201,7 @@ function providerFor({ observedRevision = 'a'.repeat(40), mode = 'success' } = {
     },
     async invoke() {
       calls.invoke += 1;
-      if (mode === 'unknown') {
+      if (mode === 'unknown' || mode === 'unknown-confirmed') {
         return {
           transport: 'unknown',
           committed: null,
@@ -316,7 +316,7 @@ test('worker death before the effect is retryable after a fresh claim', async ()
     throw new Error('worker died before effect');
   };
   await assert.rejects(
-    executeExecutionTransaction({ intent: intent(), context: context(), provider: deadWorker, store }),
+    executeExecutionTransaction({ intent: intent(), context: context({ lease_expires_at: '1970-01-01T00:00:00.000Z' }), provider: deadWorker, store }),
   );
   const execution_id = [...store.executions.keys()][0];
   const replacement = await recoverExecutionTransaction({
