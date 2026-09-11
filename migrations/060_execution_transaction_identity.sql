@@ -10,6 +10,21 @@ ALTER TABLE execution_state
   ADD COLUMN IF NOT EXISTS settlement_receipt jsonb,
   ADD COLUMN IF NOT EXISTS settled_at timestamptz;
 
+ALTER TABLE operation_state
+  ADD COLUMN IF NOT EXISTS execution_id text,
+  ADD COLUMN IF NOT EXISTS attempt_epoch bigint NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS mutation_certainty text NOT NULL DEFAULT 'definitely_not_mutated',
+  ADD COLUMN IF NOT EXISTS authority_epoch bigint,
+  ADD COLUMN IF NOT EXISTS response_facts jsonb,
+  ADD COLUMN IF NOT EXISTS confirmation_predicate text,
+  ADD COLUMN IF NOT EXISTS confirmed_at timestamptz;
+
+ALTER TABLE proof_state
+  ADD COLUMN IF NOT EXISTS execution_id text,
+  ADD COLUMN IF NOT EXISTS operation_id uuid,
+  ADD COLUMN IF NOT EXISTS attempt_epoch bigint NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS authority_epoch bigint NOT NULL DEFAULT 0;
+
 INSERT INTO execution_state (
   subject_key,
   subject_kind,
