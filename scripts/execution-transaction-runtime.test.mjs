@@ -295,6 +295,28 @@ test('unknown provider outcome is escalated without a blind retry', async () => 
   assert.equal(provider.calls.confirm, 1);
 });
 
+test('recovery with may-have-mutated facts permits confirmation only', async () => {
+  const store = new MemoryStore();
+  const provider = providerFor({ mode: 'unknown' });
+  await assert.rejects(
+    executeExecutionTransaction({ intent: intent(), context: context(), provider, store }),
+    error => error?.code === 'EXECUTION_ESCALATED',
+  );
+  const execution_id = [...store.executions.keys()][0];
+  await assert.rejects(
+    recoverExecutionTransaction({
+      execution_id,
+      intent: intent(),
+      context: context(),
+      provider,
+      store,
+    }),
+    error => error?.code === 'EXECUTION_ESCALATED',
+  );
+  assert.equal(provider.calls.invoke, 1);
+  assert.equal(provider.calls.confirm, 2);
+});
+
 test('source revision drift is rejected before provider mutation', async () => {
   const store = new MemoryStore();
   const provider = providerFor({ observedRevision: 'b'.repeat(40) });
