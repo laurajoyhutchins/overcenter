@@ -838,6 +838,318 @@ _None._
 
 _None._
 
+## `execution.transaction.authority`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- Authority: `typescript:src/semantic/execution-transaction.ts#ExecutionAuthority` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#ExecutionAuthority`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `execution.transaction.identity`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- Authority: `typescript:src/semantic/execution-transaction.ts#ExecutionIdentity` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#ExecutionIdentity`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `execution.transaction.intent`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- Authority: `typescript:src/semantic/execution-transaction.ts#ExecutionIntent` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#ExecutionIntent`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `execution.transaction.internals`
+
+- Significance: `implementation-only`
+- Lifecycle: `unclassified`
+- Authority: `typescript:src/semantic/execution-transaction.ts#executionTransactionInternals` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#executionTransactionInternals`
+- Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `javascript:lib/execution-transaction.js#executionTransactionInternals` (`javascript`)
+  - Source: `lib/execution-transaction.js#executionTransactionInternals`
+
+## `execution.transaction.json-object`
+
+- Significance: `implementation-only`
+- Lifecycle: `unclassified`
+- Authority: `typescript:src/semantic/execution-transaction.ts#JsonObject` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#JsonObject`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `execution.transaction.lifecycle`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- SemVer: `lifecycle-semantics`
+- Authority: `typescript:src/semantic/execution-transaction.ts#ExecutionLifecycle` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#ExecutionLifecycle`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `execution.transaction.mutation-certainty`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- SemVer: `lifecycle-semantics`
+- Authority: `typescript:src/semantic/execution-transaction.ts#MutationCertainty` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#MutationCertainty`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `execution.transaction.proof`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- Authority: `typescript:src/semantic/execution-transaction.ts#ExecutionProof` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#ExecutionProof`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `execution.transaction.provider-capability`
+
+- Significance: `boundary-internal`
+- Lifecycle: `current`
+- SemVer: `adapter-layout`
+- Authority: `typescript:src/semantic/execution-transaction.ts#ProviderEffect` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#ProviderEffect`
+- Manifestations: 5
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `typescript:src/semantic/execution-transaction.ts#ProviderConfirmationFacts` (`typescript`)
+  - Source: `src/semantic/execution-transaction.ts#ProviderConfirmationFacts`
+- `typescript:src/semantic/execution-transaction.ts#ProviderEffectPayload` (`typescript`)
+  - Source: `src/semantic/execution-transaction.ts#ProviderEffectPayload`
+- `typescript:src/semantic/execution-transaction.ts#ProviderInvocationFacts` (`typescript`)
+  - Source: `src/semantic/execution-transaction.ts#ProviderInvocationFacts`
+- `typescript:src/semantic/execution-transaction.ts#ProviderPreflight` (`typescript`)
+  - Source: `src/semantic/execution-transaction.ts#ProviderPreflight`
+
+## `execution.transaction.recovery`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- SemVer: `lifecycle-semantics`
+- Authority: `typescript:src/semantic/execution-transaction.ts#RecoveryDecision` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#RecoveryDecision`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `execution.transaction.runtime`
+
+- Significance: `boundary-internal`
+- Lifecycle: `current`
+- SemVer: `adapter-layout`
+- Authority: `typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionContext` (`typescript`)
+- Authority source: `src/semantic/execution-transaction-runtime.ts#ExecutionTransactionContext`
+- Manifestations: 2
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionResult` (`typescript`)
+  - Source: `src/semantic/execution-transaction-runtime.ts#ExecutionTransactionResult`
+
+## `execution.transaction.settlement`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- Authority: `typescript:src/semantic/execution-transaction.ts#SettlementReceipt` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#SettlementReceipt`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `execution.transaction.snapshot`
+
+- Significance: `authority`
+- Lifecycle: `current`
+- Authority: `typescript:src/semantic/execution-transaction.ts#ExecutionSnapshot` (`typescript`)
+- Authority source: `src/semantic/execution-transaction.ts#ExecutionSnapshot`
+- Manifestations: 1
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+_None._
+
+## `execution.transaction.store`
+
+- Significance: `boundary-internal`
+- Lifecycle: `current`
+- SemVer: `adapter-layout`
+- Authority: `typescript:src/semantic/execution-transaction-store.ts#ExecutionTransactionStore` (`typescript`)
+- Authority source: `src/semantic/execution-transaction-store.ts#ExecutionTransactionStore`
+- Manifestations: 10
+
+### Outgoing relationships
+
+_None._
+
+### Incoming relationships
+
+_None._
+
+### Projections
+
+- `typescript:src/semantic/execution-transaction-store.ts#AppendProofInput` (`typescript`)
+  - Source: `src/semantic/execution-transaction-store.ts#AppendProofInput`
+- `typescript:src/semantic/execution-transaction-store.ts#ClaimExecutionInput` (`typescript`)
+  - Source: `src/semantic/execution-transaction-store.ts#ClaimExecutionInput`
+- `typescript:src/semantic/execution-transaction-store.ts#ClaimResult` (`typescript`)
+  - Source: `src/semantic/execution-transaction-store.ts#ClaimResult`
+- `typescript:src/semantic/execution-transaction-store.ts#HeartbeatExecutionInput` (`typescript`)
+  - Source: `src/semantic/execution-transaction-store.ts#HeartbeatExecutionInput`
+- `typescript:src/semantic/execution-transaction-store.ts#OperationAttempt` (`typescript`)
+  - Source: `src/semantic/execution-transaction-store.ts#OperationAttempt`
+- `typescript:src/semantic/execution-transaction-store.ts#PrepareExecutionInput` (`typescript`)
+  - Source: `src/semantic/execution-transaction-store.ts#PrepareExecutionInput`
+- `typescript:src/semantic/execution-transaction-store.ts#RecordAttemptInput` (`typescript`)
+  - Source: `src/semantic/execution-transaction-store.ts#RecordAttemptInput`
+- `typescript:src/semantic/execution-transaction-store.ts#RecordInvocationInput` (`typescript`)
+  - Source: `src/semantic/execution-transaction-store.ts#RecordInvocationInput`
+- `typescript:src/semantic/execution-transaction-store.ts#SettleExecutionInput` (`typescript`)
+  - Source: `src/semantic/execution-transaction-store.ts#SettleExecutionInput`
+
 ## `gcp.semantic-command-dispatch.http-boundary`
 
 - Significance: `boundary-internal`
