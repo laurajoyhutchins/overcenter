@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const workflowUrl = new URL('../.github/workflows/exact-revision-v8.yml', import.meta.url);
+const workflowUrl = new URL('../.github/workflows/exact-revision.yml', import.meta.url);
 
 test('exact-revision workflow verifies the exact candidate through the canonical repository path', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');

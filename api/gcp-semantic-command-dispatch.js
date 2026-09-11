@@ -1,13 +1,10 @@
 import { config } from 'hatchable';
-import { createGitHubAppAuth } from 'lib/github-app-auth.js';
-import { dispatchGitHubWorkflowWithGitHubApp } from 'lib/github-workflow-dispatch.js';
+import { createGitHubAppJwtFromSecrets } from 'lib/github-app-auth.js';
 
 export const access = 'admin';
 export const methods = ['POST'];
 
-const REPO = 'laurajoyhutchins/overcenter';
-const WORKFLOW = 'gcp-semantic-command.yml';
-const REF = 'dev';
+const INGRESS_URL = 'https://overcenter-command-ingress-bwcce2cokq-uw.a.run.app';
 const SHA40 = /^[0-9a-f]{40}$/;
 const PROJECT_REF = /^github:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -22,9 +19,7 @@ const ALLOWED_COMMANDS = new Set([...PROJECT_COMMANDS, ...PROJECT_AUTHORING_COMM
 const ALLOWED_FIELDS = new Set(['command', 'project_ref', 'expected_head', 'transition_id', 'resume_ref', 'execution_result', 'input']);
 const PROJECT_AMEND_INPUT_FIELDS = new Set(['project_ref', 'expected_revision', 'amendment']);
 const GITHUB_PR_READY_INPUT_FIELDS = new Set(['repo', 'pull_request', 'expected_head', 'run_id']);
-const COMMAND_INPUT_CHUNK_SIZE = 4000;
-const MAX_COMMAND_INPUT_CHUNKS = 6;
-const MAX_COMMAND_INPUT_CHARS = COMMAND_INPUT_CHUNK_SIZE * MAX_COMMAND_INPUT_CHUNKS;
+const MAX_COMMAND_INPUT_CHARS = 24000;
 
 const secrets = Object.freeze({ get(name) { return config.get(name); } });
 
@@ -51,7 +46,7 @@ function normalizeProjectAmendInput(value, projectRef) {
   if (!SHA40.test(expectedRevision)) throw invalid('project.amend expected_revision must be an exact 40-character Git SHA');
   if (!input.amendment || typeof input.amendment !== 'object' || Array.isArray(input.amendment)) throw invalid('project.amend amendment must be an object');
   const encoded = JSON.stringify({ project_ref: projectRef, expected_revision: expectedRevision, amendment: input.amendment });
-  if (encoded.length > MAX_COMMAND_INPUT_CHARS) throw invalid('input is too large for the bounded GCP workflow bridge');
+  if (encoded.length > MAX_COMMAND_INPUT_CHARS) throw invalid('input is too large for the bounded GCP semantic bridge');
   return encoded;
 }
 
@@ -72,29 +67,15 @@ function normalizeGitHubIntegrationInput(command, value) {
   const normalized = { repo, pull_request: pullRequest, expected_head: expectedHead };
   if (runId) normalized.run_id = runId;
   const encoded = JSON.stringify(normalized);
-  if (encoded.length > MAX_COMMAND_INPUT_CHARS) throw invalid('input is too large for the bounded GCP workflow bridge');
+  if (encoded.length > MAX_COMMAND_INPUT_CHARS) throw invalid('input is too large for the bounded GCP semantic bridge');
   return encoded;
 }
 
 function normalizeLeaseMutationInput(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid('input must be an object for lease-scoped GitHub mutations');
   const encoded = JSON.stringify(value);
-  if (encoded.length > MAX_COMMAND_INPUT_CHARS) throw invalid('input is too large for the bounded GCP workflow bridge');
+  if (encoded.length > MAX_COMMAND_INPUT_CHARS) throw invalid('input is too large for the bounded GCP semantic bridge');
   return encoded;
-}
-
-function chunkCommandInput(encoded) {
-  const chunks = [];
-  for (let offset = 0; offset < encoded.length;) {
-    let end = Math.min(offset + COMMAND_INPUT_CHUNK_SIZE, encoded.length);
-    if (end < encoded.length) {
-      const last = encoded.charCodeAt(end - 1);
-      if (last >= 0xd800 && last <= 0xdbff) end -= 1;
-    }
-    chunks.push(encoded.slice(offset, end));
-    offset = end;
-  }
-  return chunks;
 }
 
 function normalize(bodyInput) {
@@ -143,39 +124,76 @@ function normalize(bodyInput) {
   return { command, project_ref: '', expected_head: expectedHead, transition_id: '', resume_ref: '', execution_result_json: '', command_input_json: normalizeLeaseMutationInput(body.input) };
 }
 
+function directCommandBody(request) {
+  if (CONTROL_COMMANDS.has(request.command)) return { command: request.command, input: {} };
+
+  if (PROJECT_COMMANDS.has(request.command)) {
+    const input = { project_ref: request.project_ref };
+    if (request.command === 'project.advance') {
+      if (request.transition_id) input.transition_id = request.transition_id;
+      if (request.resume_ref) input.resume_ref = request.resume_ref;
+      if (request.execution_result_json) input.execution_result = JSON.parse(request.execution_result_json);
+    }
+    return { command: request.command, input };
+  }
+
+  return { command: request.command, input: JSON.parse(request.command_input_json) };
+}
+
+function directTransportFailure(error, requestId, expectedHead) {
+  return Object.assign(new Error(`Direct GCP semantic transport became indeterminate: ${String(error?.message || error)}`), {
+    code: 'GCP_SEMANTIC_DIRECT_TRANSPORT_INDETERMINATE',
+    httpStatus: 503,
+    retryable: false,
+    automatic_recovery_allowed: false,
+    may_have_mutated: true,
+    details: { request_id: requestId, expected_head: expectedHead },
+  });
+}
+
 export default async function (req, res) {
   try {
     const request = normalize(req.body);
     const requestId = crypto.randomUUID();
-    const githubAppAuth = createGitHubAppAuth({ secrets });
-    const workflowInputs = {
-      request_id: requestId,
-      command: request.command,
-      project_ref: request.project_ref,
-      expected_head: request.expected_head,
-    };
-    if (PROJECT_COMMANDS.has(request.command)) {
-      Object.assign(workflowInputs, {
-        transition_id: request.transition_id,
-        resume_ref: request.resume_ref,
-        execution_result_json: request.execution_result_json,
-      });
-    } else {
-      chunkCommandInput(request.command_input_json).forEach((chunk, index) => {
-        workflowInputs[`command_input_${index}`] = chunk;
-      });
-    }
-    const dispatch = await dispatchGitHubWorkflowWithGitHubApp({
-      repo: REPO,
-      workflow: WORKFLOW,
-      ref: REF,
-      expected_head: request.expected_head,
-      inputs: workflowInputs,
-    }, { withGitHubAppApiClient: githubAppAuth.withApiClient });
+    const appJwt = await createGitHubAppJwtFromSecrets({ secrets });
+    const commandBody = directCommandBody(request);
 
-    return res.status(202).json({ ok: true, request_id: requestId, command: request.command, project_ref: request.project_ref, expected_head: request.expected_head, workflow_run_id: dispatch.workflow_run_id, workflow_run_head_sha: dispatch.workflow_run_head_sha, mutation_certainty: dispatch.mutation_certainty, may_have_mutated: dispatch.may_have_mutated });
+    let response;
+    let responseText;
+    try {
+      response = await fetch(INGRESS_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${appJwt}`,
+          'content-type': 'application/json',
+          'x-overcenter-request-id': requestId,
+          'x-overcenter-expected-head': request.expected_head,
+        },
+        body: JSON.stringify(commandBody),
+      });
+      responseText = await response.text();
+    } catch (error) {
+      throw directTransportFailure(error, requestId, request.expected_head);
+    }
+
+    let responseBody;
+    try {
+      responseBody = JSON.parse(responseText);
+    } catch {
+      throw directTransportFailure(new Error(`ingress returned non-JSON HTTP ${response.status}`), requestId, request.expected_head);
+    }
+
+    return res.status(response.status).json(responseBody);
   } catch (error) {
     const status = Number(error?.httpStatus || 500);
-    return res.status(status >= 400 && status <= 599 ? status : 500).json({ ok: false, error: error?.code || 'GCP_SEMANTIC_DISPATCH_ERROR', message: String(error?.message || error), may_have_mutated: error?.may_have_mutated === true, details: error?.details || null });
+    return res.status(status >= 400 && status <= 599 ? status : 500).json({
+      ok: false,
+      error: error?.code || 'GCP_SEMANTIC_DISPATCH_ERROR',
+      message: String(error?.message || error),
+      retryable: error?.retryable === true,
+      automatic_recovery_allowed: error?.automatic_recovery_allowed === true,
+      may_have_mutated: error?.may_have_mutated === true,
+      details: error?.details || null,
+    });
   }
 }

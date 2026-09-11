@@ -10,6 +10,12 @@ test('GCP deployment surfaces have no one-shot or semantic-command workflow brid
   assert.equal(workflows.includes('gcp-semantic-command.yml'), false);
 });
 
+test('provider-neutral exact-revision workflow replaces the V8-named survivor', async () => {
+  const workflows = (await readdir(workflowsUrl)).sort();
+  assert.equal(workflows.includes('exact-revision.yml'), true);
+  assert.equal(workflows.includes('exact-revision-v8.yml'), false);
+});
+
 test('orchestration maintenance follows the replacement exact-revision gate', async () => {
   const workflow = await readFile(new URL('../.github/workflows/gcp-orchestration-maintain.yml', import.meta.url), 'utf8');
   assert.match(workflow, /Exact revision verification/);
