@@ -1,0 +1,65 @@
+name: Exact revision verification
+
+on:
+  pull_request:
+    branches: [dev]
+  push:
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Exact 40-character Git commit SHA to verify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: overcenter-exact-revision-${{ github.event.pull_request.number || github.ref || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: overcenter
+          POSTGRES_USER: overcenter
+          POSTGRES_PASSWORD: overcenter
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U overcenter -d overcenter"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      TARGET_REVISION: ${{ github.event.pull_request.head.sha || github.event.inputs.revision || github.sha }}
+      PUBLIC_RELEASE_HISTORY_REF: origin/main
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: overcenter
+      PGUSER: overcenter
+      PGPASSWORD: overcenter
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_REVISION }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Prove exact candidate checkout
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$TARGET_REVISION"
+      - name: Install canonical dependencies
+        run: npm ci
+      - name: Verify repository
+        run: npm run verify
+      - name: Verify portable Node and Postgres runtime
+        run: npm run test:integration

@@ -59,7 +59,7 @@ test('README presents the mundane quick start before architecture', async () => 
 
 test('CI consumes the root package contract instead of ad hoc dependency recipes', async () => {
   const semantic = await text('.github/workflows/semantic-kernel-types.yml');
-  const exact = await text('.github/workflows/exact-revision-v8.yml');
+  const exact = await text('.github/workflows/exact-revision.yml');
   const production = await text('.github/workflows/production-materialization.yml');
   for (const [name, workflow] of [['semantic', semantic], ['exact', exact], ['production', production]]) {
     assert.ok(workflow.includes('npm ci'), `${name} workflow must install the canonical lockfile`);
@@ -69,7 +69,9 @@ test('CI consumes the root package contract instead of ad hoc dependency recipes
   assert.ok(semantic.includes('npm run typecheck'));
   assert.ok(semantic.includes('npm run build'));
   assert.ok(semantic.includes('npm run test:integration'));
-  assert.ok(exact.includes('npm run build:runtime'));
+  assert.ok(exact.includes('npm run verify'));
+  assert.ok(exact.includes('npm run test:integration'));
+  assert.doesNotMatch(exact, /npm run build:runtime/);
   assert.ok(production.includes('npm run build:runtime'));
 });
 
