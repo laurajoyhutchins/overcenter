@@ -21,6 +21,14 @@ test('direct broker preserves exact-head fencing and caller correlation', () => 
   assert.match(broker, /crypto\.randomUUID\(\)/);
 });
 
+test('direct broker preserves typed production reconciliation', () => {
+  assert.match(broker, /PRODUCTION_COMMANDS = new Set\(\['production\.reconcile'\]\)/);
+  assert.match(broker, /PRODUCTION_RECONCILE_INPUT_FIELDS = new Set\(\['repo'\]\)/);
+  assert.match(broker, /normalizeProductionReconcileInput\(value\)/);
+  assert.match(broker, /production\.reconcile repo must be owner\/repo/);
+  assert.doesNotMatch(broker, /productionReconciliationFor/);
+});
+
 test('direct broker returns the authoritative semantic response instead of a workflow receipt', () => {
   assert.match(broker, /await response\.text\(\)/);
   assert.match(broker, /res\.status\(response\.status\)/);
