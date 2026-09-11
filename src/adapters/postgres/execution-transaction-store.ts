@@ -378,10 +378,10 @@ export function createPostgresExecutionTransactionStore(
           `INSERT INTO operation_state (
              operation_id, command, idempotency_scope, idempotency_key,
              request_sha256, state, execution_id, subject_key, run_id,
-             lease_epoch, authority_epoch, authority_revision, attempt_epoch,
-             may_have_mutated, mutation_certainty, effect_kind
+             lease_epoch, authority_epoch, authority_repository, authority_revision,
+             attempt_epoch, may_have_mutated, mutation_certainty, effect_kind
            ) VALUES ($1, $2, $3, $4, $5, 'prepared', $6, $7, $8, $9, $10, $11,
-                     0, false, 'definitely_not_mutated', $12)
+                     0, false, 'definitely_not_mutated', $13)
            ON CONFLICT (command, idempotency_scope, idempotency_key) DO NOTHING`,
           [
             input.identity.operation_id,
@@ -394,6 +394,7 @@ export function createPostgresExecutionTransactionStore(
             input.identity.run_id,
             input.identity.lease_epoch,
             input.identity.authority_epoch,
+            input.identity.authority_repository,
             input.identity.authority_revision,
             input.identity.operation_kind,
           ],
