@@ -218,8 +218,6 @@
 - `typescript:src/adapters/postgres/node-postgres-runtime.ts#NodePostgresQueryResult`
 - `typescript:src/ports/portable-runtime.ts#PortableRuntimePorts`
 - `typescript:src/ports/production-promotion-runtime-host.ts#ProductionPromotionRuntimeHost`
-- `typescript:src/ports/production-promotion-runtime-host.ts#ProductionPromotionVerificationEvidence`
-- `typescript:src/ports/production-promotion-runtime-host.ts#StrictProductionPromotionRequest`
 - `typescript:src/runtime/portable-runtime.ts#PortableRuntime`
 - `typescript:src/runtime/production-promotion-overcenter-host.ts#ProductionPromotionRuntime`
 - `typescript:src/semantic/canonical-commands.ts#CANONICAL_COMMANDS`
@@ -273,6 +271,7 @@
 - `typescript:src/semantic/production-promotion-operation.ts#ProductionBranchRoles`
 - `typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionFailureCode`
 - `typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionOutcome`
+- `typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionPayload`
 - `typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionPorts`
 - `typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionResult`
 - `typescript:src/semantic/production-promotion-operation.ts#VerifiedProductionPromotionRequest`
