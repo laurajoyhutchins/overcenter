@@ -8,6 +8,7 @@ const mirrorFiles = [
   'canonical-commands.js',
   'command-contracts.js',
   'compact-execution-state.js',
+  'execution-transaction.js',
   'compatibility-transition-bindings.js',
   'execution-authority-contracts.js',
   'execution-authority-core.js',
