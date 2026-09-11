@@ -88,6 +88,18 @@ export interface ProviderConfirmationFacts {
   readonly evidence: JsonObject;
 }
 
+export interface ExecutionProof {
+  readonly proof_id: string;
+  readonly execution_id: string;
+  readonly operation_id: string;
+  readonly attempt_epoch: number;
+  readonly authority_repository: string;
+  readonly authority_revision: string;
+  readonly authority_epoch: number;
+  readonly predicate: string;
+  readonly evidence_sha256: string;
+}
+
 export interface SettlementReceipt {
   readonly schema: 'settlement-receipt-v1';
   readonly execution_id: string;
