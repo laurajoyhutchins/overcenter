@@ -1,0 +1,41 @@
+name: Repair contract classification
+
+on:
+  pull_request:
+    branches: [dev]
+
+permissions:
+  contents: write
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Add coalescing semantic contract classification
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+          const path = '.contract-evidence/classifications.json';
+          const doc = JSON.parse(await readFile(path, 'utf8'));
+          doc.candidates['semantic-command:github.coalesce_changeset#input'] = {
+            logical_contract: 'github.coalesce_changeset.input',
+            significance: 'public',
+            semver_kind: 'semantic-command-contract',
+            lifecycle: 'current',
+          };
+          doc.candidates = Object.fromEntries(Object.entries(doc.candidates).sort(([a],[b]) => a.localeCompare(b)));
+          await writeFile(path, `${JSON.stringify(doc, null, 2)}\n`);
+          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .contract-evidence/classifications.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: classify coalescing semantic contract"
+          git push origin "HEAD:${{ github.head_ref }}"
