@@ -16,7 +16,7 @@ test('Hatchable semantic broker invokes the stateless GCP ingress directly', () 
 });
 
 test('direct broker preserves exact-head fencing and caller correlation', () => {
-  assert.match(broker, /expected_head:\s*request\.expected_head/);
+  assert.match(broker, /['"]x-overcenter-expected-head['"]:\s*request\.expected_head/);
   assert.match(broker, /request_id:\s*requestId/);
   assert.match(broker, /crypto\.randomUUID\(\)/);
 });
