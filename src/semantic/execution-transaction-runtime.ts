@@ -6,13 +6,13 @@ import {
   type ExecutionIntent,
   type ExecutionSnapshot,
   type JsonObject,
-  type JsonValue,
   type MutationCertainty,
   type ProviderConfirmationFacts,
   type ProviderEffect,
   type ProviderInvocationFacts,
   type SettlementReceipt,
 } from './execution-transaction.js';
+import type { JsonValue } from './project-graph-types.js';
 import type {
   ExecutionTransactionStore,
   RecordInvocationInput,
