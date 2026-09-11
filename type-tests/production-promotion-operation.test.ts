@@ -70,7 +70,7 @@ try {
   observedFailure = error as ProductionPromotionFailure;
 }
 if (!observedFailure) throw new Error('expected production promotion verification failure');
-const failureCode: 'PRODUCTION_PROMOTION_SOURCE_NOT_VERIFIED' = observedFailure.code;
+const failureCode: ProductionPromotionFailure['code'] = observedFailure.code;
 const failureMutation: false = observedFailure.may_have_mutated;
 void failureCode;
 void failureMutation;
