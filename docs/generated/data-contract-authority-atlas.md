@@ -63,7 +63,7 @@ _None._
 - SemVer: `internal-module-layout`
 - Authority: `typescript:src/semantic/compact-execution-state.ts#ExecutionState` (`typescript`)
 - Authority source: `src/semantic/compact-execution-state.ts#ExecutionState`
-- Manifestations: 40
+- Manifestations: 60
 
 ### Outgoing relationships
 
@@ -87,14 +87,24 @@ _None._
   - Source: `public.execution_state#checkpoint`
 - `postgres:public.execution_state#checkpoint_sha256` (`postgres`)
   - Source: `public.execution_state#checkpoint_sha256`
+- `postgres:public.execution_state#constraint:execution_state_attempt_epoch_check` (`postgres`)
+  - Source: `public.execution_state#constraint:execution_state_attempt_epoch_check`
 - `postgres:public.execution_state#constraint:execution_state_authority_epoch_check` (`postgres`)
   - Source: `public.execution_state#constraint:execution_state_authority_epoch_check`
 - `postgres:public.execution_state#constraint:execution_state_check` (`postgres`)
   - Source: `public.execution_state#constraint:execution_state_check`
+- `postgres:public.execution_state#constraint:execution_state_execution_id_key` (`postgres`)
+  - Source: `public.execution_state#constraint:execution_state_execution_id_key`
 - `postgres:public.execution_state#constraint:execution_state_heartbeat_count_check` (`postgres`)
   - Source: `public.execution_state#constraint:execution_state_heartbeat_count_check`
+- `postgres:public.execution_state#constraint:execution_state_lease_epoch_check` (`postgres`)
+  - Source: `public.execution_state#constraint:execution_state_lease_epoch_check`
 - `postgres:public.execution_state#constraint:execution_state_lease_ref_key` (`postgres`)
   - Source: `public.execution_state#constraint:execution_state_lease_ref_key`
+- `postgres:public.execution_state#constraint:execution_state_lifecycle_check` (`postgres`)
+  - Source: `public.execution_state#constraint:execution_state_lifecycle_check`
+- `postgres:public.execution_state#constraint:execution_state_mutation_certainty_check` (`postgres`)
+  - Source: `public.execution_state#constraint:execution_state_mutation_certainty_check`
 - `postgres:public.execution_state#constraint:execution_state_no_progress_streak_check` (`postgres`)
   - Source: `public.execution_state#constraint:execution_state_no_progress_streak_check`
 - `postgres:public.execution_state#constraint:execution_state_pkey` (`postgres`)
@@ -105,6 +115,8 @@ _None._
   - Source: `public.execution_state#constraint:execution_state_recent_progress_sha256_check1`
 - `postgres:public.execution_state#constraint:execution_state_run_id_fkey` (`postgres`)
   - Source: `public.execution_state#constraint:execution_state_run_id_fkey`
+- `postgres:public.execution_state#constraint:execution_state_settled_lifecycle_check` (`postgres`)
+  - Source: `public.execution_state#constraint:execution_state_settled_lifecycle_check`
 - `postgres:public.execution_state#constraint:execution_state_subject_kind_check` (`postgres`)
   - Source: `public.execution_state#constraint:execution_state_subject_kind_check`
 - `postgres:public.execution_state#continuation` (`postgres`)
@@ -113,6 +125,12 @@ _None._
   - Source: `public.execution_state#continuation_execution_fingerprint`
 - `postgres:public.execution_state#continuation_sha256` (`postgres`)
   - Source: `public.execution_state#continuation_sha256`
+- `postgres:public.execution_state#current_attempt_epoch` (`postgres`)
+  - Source: `public.execution_state#current_attempt_epoch`
+- `postgres:public.execution_state#effect_ref` (`postgres`)
+  - Source: `public.execution_state#effect_ref`
+- `postgres:public.execution_state#execution_id` (`postgres`)
+  - Source: `public.execution_state#execution_id`
 - `postgres:public.execution_state#expires_at` (`postgres`)
   - Source: `public.execution_state#expires_at`
 - `postgres:public.execution_state#graph_fingerprint` (`postgres`)
@@ -121,18 +139,40 @@ _None._
   - Source: `public.execution_state#hard_expires_at`
 - `postgres:public.execution_state#heartbeat_count` (`postgres`)
   - Source: `public.execution_state#heartbeat_count`
+- `postgres:public.execution_state#idempotency_key` (`postgres`)
+  - Source: `public.execution_state#idempotency_key`
+- `postgres:public.execution_state#idempotency_scope` (`postgres`)
+  - Source: `public.execution_state#idempotency_scope`
+- `postgres:public.execution_state#intent_sha256` (`postgres`)
+  - Source: `public.execution_state#intent_sha256`
 - `postgres:public.execution_state#last_heartbeat_at` (`postgres`)
   - Source: `public.execution_state#last_heartbeat_at`
+- `postgres:public.execution_state#lease_epoch` (`postgres`)
+  - Source: `public.execution_state#lease_epoch`
 - `postgres:public.execution_state#lease_ref` (`postgres`)
   - Source: `public.execution_state#lease_ref`
+- `postgres:public.execution_state#lifecycle` (`postgres`)
+  - Source: `public.execution_state#lifecycle`
+- `postgres:public.execution_state#mutation_certainty` (`postgres`)
+  - Source: `public.execution_state#mutation_certainty`
 - `postgres:public.execution_state#no_progress_streak` (`postgres`)
   - Source: `public.execution_state#no_progress_streak`
+- `postgres:public.execution_state#operation_id` (`postgres`)
+  - Source: `public.execution_state#operation_id`
+- `postgres:public.execution_state#operation_kind` (`postgres`)
+  - Source: `public.execution_state#operation_kind`
 - `postgres:public.execution_state#project_ref` (`postgres`)
   - Source: `public.execution_state#project_ref`
 - `postgres:public.execution_state#recent_progress_sha256` (`postgres`)
   - Source: `public.execution_state#recent_progress_sha256`
 - `postgres:public.execution_state#run_id` (`postgres`)
   - Source: `public.execution_state#run_id`
+- `postgres:public.execution_state#settled` (`postgres`)
+  - Source: `public.execution_state#settled`
+- `postgres:public.execution_state#settled_at` (`postgres`)
+  - Source: `public.execution_state#settled_at`
+- `postgres:public.execution_state#settlement_receipt` (`postgres`)
+  - Source: `public.execution_state#settlement_receipt`
 - `postgres:public.execution_state#subject_key` (`postgres`)
   - Source: `public.execution_state#subject_key`
 - `postgres:public.execution_state#subject_kind` (`postgres`)
@@ -201,7 +241,7 @@ _None._
 - SemVer: `internal-module-layout`
 - Authority: `typescript:src/semantic/compact-execution-state.ts#OperationState` (`typescript`)
 - Authority source: `src/semantic/compact-execution-state.ts#OperationState`
-- Manifestations: 34
+- Manifestations: 45
 
 ### Outgoing relationships
 
@@ -213,10 +253,22 @@ _None._
 
 ### Projections
 
+- `postgres:public.operation_state#attempt_epoch` (`postgres`)
+  - Source: `public.operation_state#attempt_epoch`
+- `postgres:public.operation_state#authority_epoch` (`postgres`)
+  - Source: `public.operation_state#authority_epoch`
+- `postgres:public.operation_state#authority_repository` (`postgres`)
+  - Source: `public.operation_state#authority_repository`
 - `postgres:public.operation_state#authority_revision` (`postgres`)
   - Source: `public.operation_state#authority_revision`
 - `postgres:public.operation_state#command` (`postgres`)
   - Source: `public.operation_state#command`
+- `postgres:public.operation_state#confirmation_predicate` (`postgres`)
+  - Source: `public.operation_state#confirmation_predicate`
+- `postgres:public.operation_state#confirmed_at` (`postgres`)
+  - Source: `public.operation_state#confirmed_at`
+- `postgres:public.operation_state#constraint:operation_state_attempt_epoch_check` (`postgres`)
+  - Source: `public.operation_state#constraint:operation_state_attempt_epoch_check`
 - `postgres:public.operation_state#constraint:operation_state_check` (`postgres`)
   - Source: `public.operation_state#constraint:operation_state_check`
 - `postgres:public.operation_state#constraint:operation_state_check1` (`postgres`)
@@ -229,8 +281,12 @@ _None._
   - Source: `public.operation_state#constraint:operation_state_check4`
 - `postgres:public.operation_state#constraint:operation_state_command_idempotency_scope_idempotency_key_key` (`postgres`)
   - Source: `public.operation_state#constraint:operation_state_command_idempotency_scope_idempotency_key_key`
+- `postgres:public.operation_state#constraint:operation_state_execution_id_fkey` (`postgres`)
+  - Source: `public.operation_state#constraint:operation_state_execution_id_fkey`
 - `postgres:public.operation_state#constraint:operation_state_lease_epoch_check` (`postgres`)
   - Source: `public.operation_state#constraint:operation_state_lease_epoch_check`
+- `postgres:public.operation_state#constraint:operation_state_mutation_certainty_check` (`postgres`)
+  - Source: `public.operation_state#constraint:operation_state_mutation_certainty_check`
 - `postgres:public.operation_state#constraint:operation_state_pkey` (`postgres`)
   - Source: `public.operation_state#constraint:operation_state_pkey`
 - `postgres:public.operation_state#constraint:operation_state_run_id_fkey` (`postgres`)
@@ -247,6 +303,8 @@ _None._
   - Source: `public.operation_state#effect_ref`
 - `postgres:public.operation_state#effect_sha256` (`postgres`)
   - Source: `public.operation_state#effect_sha256`
+- `postgres:public.operation_state#execution_id` (`postgres`)
+  - Source: `public.operation_state#execution_id`
 - `postgres:public.operation_state#idempotency_key` (`postgres`)
   - Source: `public.operation_state#idempotency_key`
 - `postgres:public.operation_state#idempotency_scope` (`postgres`)
@@ -255,6 +313,8 @@ _None._
   - Source: `public.operation_state#lease_epoch`
 - `postgres:public.operation_state#may_have_mutated` (`postgres`)
   - Source: `public.operation_state#may_have_mutated`
+- `postgres:public.operation_state#mutation_certainty` (`postgres`)
+  - Source: `public.operation_state#mutation_certainty`
 - `postgres:public.operation_state#operation_id` (`postgres`)
   - Source: `public.operation_state#operation_id`
 - `postgres:public.operation_state#recovery_payload` (`postgres`)
@@ -265,6 +325,8 @@ _None._
   - Source: `public.operation_state#resolution`
 - `postgres:public.operation_state#resolved_at` (`postgres`)
   - Source: `public.operation_state#resolved_at`
+- `postgres:public.operation_state#response_facts` (`postgres`)
+  - Source: `public.operation_state#response_facts`
 - `postgres:public.operation_state#result_sha256` (`postgres`)
   - Source: `public.operation_state#result_sha256`
 - `postgres:public.operation_state#run_id` (`postgres`)
@@ -287,7 +349,7 @@ _None._
 - SemVer: `internal-module-layout`
 - Authority: `typescript:src/semantic/compact-execution-state.ts#ProofState` (`typescript`)
 - Authority source: `src/semantic/compact-execution-state.ts#ProofState`
-- Manifestations: 14
+- Manifestations: 20
 
 ### Outgoing relationships
 
@@ -299,20 +361,32 @@ _None._
 
 ### Projections
 
+- `postgres:public.proof_state#attempt_epoch` (`postgres`)
+  - Source: `public.proof_state#attempt_epoch`
+- `postgres:public.proof_state#authority_epoch` (`postgres`)
+  - Source: `public.proof_state#authority_epoch`
 - `postgres:public.proof_state#authority_repository` (`postgres`)
   - Source: `public.proof_state#authority_repository`
 - `postgres:public.proof_state#authority_revision` (`postgres`)
   - Source: `public.proof_state#authority_revision`
 - `postgres:public.proof_state#constraint:proof_state_evidence_refs_check` (`postgres`)
   - Source: `public.proof_state#constraint:proof_state_evidence_refs_check`
+- `postgres:public.proof_state#constraint:proof_state_execution_id_fkey` (`postgres`)
+  - Source: `public.proof_state#constraint:proof_state_execution_id_fkey`
 - `postgres:public.proof_state#constraint:proof_state_pkey` (`postgres`)
   - Source: `public.proof_state#constraint:proof_state_pkey`
 - `postgres:public.proof_state#consumed_at` (`postgres`)
   - Source: `public.proof_state#consumed_at`
+- `postgres:public.proof_state#evidence` (`postgres`)
+  - Source: `public.proof_state#evidence`
 - `postgres:public.proof_state#evidence_refs` (`postgres`)
   - Source: `public.proof_state#evidence_refs`
 - `postgres:public.proof_state#evidence_sha256` (`postgres`)
   - Source: `public.proof_state#evidence_sha256`
+- `postgres:public.proof_state#execution_id` (`postgres`)
+  - Source: `public.proof_state#execution_id`
+- `postgres:public.proof_state#operation_id` (`postgres`)
+  - Source: `public.proof_state#operation_id`
 - `postgres:public.proof_state#predicate_kind` (`postgres`)
   - Source: `public.proof_state#predicate_kind`
 - `postgres:public.proof_state#proof_key` (`postgres`)
