@@ -60,17 +60,18 @@ test('runtime artifact source projection fails closed when dist has no establish
   );
 });
 
-test('verification and production workflows build dist through the canonical package boundary', async () => {
-  const expectations = [
-    ['.github/workflows/exact-revision-v8.yml', 'node scripts/exact-revision-v8-dist-verification-http.mjs'],
-    ['.github/workflows/production-materialization.yml', 'node scripts/production-materialization-dist-http.mjs'],
-  ];
-  for (const [workflow, command] of expectations) {
-    const source = await readFile(new URL(`../${workflow}`, import.meta.url), 'utf8');
-    const build = source.indexOf('npm run build:runtime');
-    const projection = source.indexOf(command);
-    assert.ok(build >= 0, `${workflow} must build the runtime artifact through npm`);
-    assert.ok(projection >= 0, `${workflow} must project the runtime artifact`);
-    assert.ok(build < projection, `${workflow} must build before projection`);
-  }
+test('provider-neutral exact revision verification uses the canonical repository boundary without runtime projection', async () => {
+  const source = await readFile(new URL('../.github/workflows/exact-revision.yml', import.meta.url), 'utf8');
+  assert.match(source, /npm run verify/);
+  assert.doesNotMatch(source, /exact-revision-v8-dist-verification-http|HATCHABLE_TOKEN|OVERCENTER_HATCHABLE_VERIFICATION_PROJECT/);
+});
+
+test('production materialization builds dist before runtime artifact projection', async () => {
+  const workflow = '.github/workflows/production-materialization.yml';
+  const source = await readFile(new URL(`../${workflow}`, import.meta.url), 'utf8');
+  const build = source.indexOf('npm run build:runtime');
+  const projection = source.indexOf('node scripts/production-materialization-dist-http.mjs');
+  assert.ok(build >= 0, `${workflow} must build the runtime artifact through npm`);
+  assert.ok(projection >= 0, `${workflow} must project the runtime artifact`);
+  assert.ok(build < projection, `${workflow} must build before projection`);
 });
