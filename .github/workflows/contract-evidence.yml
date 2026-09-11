@@ -41,8 +41,6 @@ jobs:
           node-version: 22
       - name: Install contract evidence tooling
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
-      - name: Run contract evidence tests
-        run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
       - name: Generate candidate contract evidence once
         run: |
           mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
@@ -57,6 +55,8 @@ jobs:
         with:
           name: exact-generated-contract-evidence
           path: ${{ runner.temp }}/contract-evidence
+      - name: Run contract evidence tests
+        run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
       - name: Print exact generated catalog delta
         run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
       - name: Verify committed generated evidence
