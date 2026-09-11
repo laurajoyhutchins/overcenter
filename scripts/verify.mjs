@@ -8,5 +8,6 @@ function run(command, args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 run(npm, ['test']);
+run(process.execPath, ['--test', 'lib/orchestration-failures.recovery.test.js']);
 run(npm, ['run', 'build']);
 run(process.execPath, ['scripts/verify-public-release.mjs']);
