@@ -9,8 +9,12 @@ ALTER TABLE execution_state
   ADD COLUMN IF NOT EXISTS settled boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS settlement_receipt jsonb,
   ADD COLUMN IF NOT EXISTS settled_at timestamptz,
-  ADD COLUMN IF NOT EXISTS mutation_certainty text NOT NULL DEFAULT 'definitely_not_mutated',
-  ADD COLUMN IF NOT EXISTS effect_ref text;
+  ADD COLUMN IF NOT EXISTS mutation_certainty text NOT NULL DEFAULT 'definitely_not_mutATED',
+  ADD COLUMN IF NOT EXISTS effect_ref text,
+  ADD COLUMN IF NOT EXISTS operation_kind text,
+  ADD COLUMN IF NOT EXISTS idempotency_scope text,
+  ADD COLUMN IF NOT EXISTS idempotency_key text,
+  ADD COLUMN IF NOT EXISTS intent_sha256 text;
 
 ALTER TABLE operation_state
   ADD COLUMN IF NOT EXISTS execution_id text,
@@ -89,6 +93,16 @@ SET lease_epoch = authority_epoch
 WHERE lease_ref IS NOT NULL
   AND lease_epoch = 0
   AND authority_epoch > 0;
+
+UPDATE execution_state AS execution
+SET
+  operation_kind = operation.effect_kind,
+  idempotency_scope = operation.idempotency_scope,
+  idempotency_key = operation.idempotency_key,
+  intent_sha256 = operation.request_sha256
+FROM operation_state AS operation
+WHERE operation.execution_id = execution.execution_id
+  AND execution.operation_kind IS NULL;
 
 UPDATE operation_state AS operation
 SET
