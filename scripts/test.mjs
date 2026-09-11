@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
@@ -102,9 +102,16 @@ const maintainedTests = [
 const scriptNames = await readdir(new URL('scripts/', root));
 maintainedTests.push(...scriptNames.filter(name => name.endsWith('.test.mjs')));
 
+const nativeLibTests = [];
+for (const file of await javascriptFiles('lib')) {
+  if (!file.endsWith('.test.js')) continue;
+  const source = await readFile(new URL(file, root), 'utf8');
+  if (/from ['"]node:test['"]/.test(source)) nativeLibTests.push(file);
+}
+
 run(['scripts/verify-regression-suite-registry.mjs']);
 run(['scripts/verify-orchestration-drive.mjs']);
-run(['--test', ...[...new Set(maintainedTests)].sort().map(name => `scripts/${name}`)]);
+run(['--test', ...[...new Set(maintainedTests)].sort().map(name => `scripts/${name}`), ...nativeLibTests.sort()]);
 
 for (const directory of ['api', 'lib', 'mcp', 'pages']) {
   for (const file of await javascriptFiles(directory)) run(['--check', file]);
