@@ -4,11 +4,19 @@ import test from 'node:test';
 
 const workflowUrl = new URL('../.github/workflows/exact-revision-v8.yml', import.meta.url);
 
-test('exact-revision workflow verifies pull-request candidates at the exact PR head', async () => {
+test('exact-revision workflow verifies the exact candidate through the canonical repository path', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
+  assert.match(workflow, /^name: Exact revision verification$/m);
   assert.match(workflow, /\n  pull_request:\s*\n/);
   assert.match(
     workflow,
     /TARGET_REVISION:\s*\$\{\{\s*github\.event\.pull_request\.head\.sha\s*\|\|\s*github\.event\.inputs\.revision\s*\|\|\s*github\.sha\s*\}\}/,
+  );
+  assert.match(workflow, /test "\$\(git rev-parse HEAD\)" = "\$TARGET_REVISION"/);
+  assert.match(workflow, /run: npm run verify/);
+  assert.match(workflow, /run: npm run test:integration/);
+  assert.doesNotMatch(
+    workflow,
+    /HATCHABLE_TOKEN|OVERCENTER_HATCHABLE_VERIFICATION_PROJECT|exact-revision-v8-dist-verification-http/,
   );
 });
