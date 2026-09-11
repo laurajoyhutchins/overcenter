@@ -23,7 +23,18 @@ type ProjectAuthoringCandidateReconciliation = Readonly<{
   base_advanced?: boolean;
 }>;
 
-type ProjectAuthoringCandidateProvenanceInput = Omit<ProjectAuthoringCandidateReconciliationInput, 'authorized_derivative'> & Readonly<{\n  repository: string;\n  branch: string;\n}>;\n\ntype FindSucceededChangesetReceipt = (input: Readonly<{\n  repo: string;\n  branch: string;\n  commit_sha: string;\n}>) => Promise<unknown>;\n\ntype CandidateReconciliationError = Error & {
+type ProjectAuthoringCandidateProvenanceInput = Omit<ProjectAuthoringCandidateReconciliationInput, 'authorized_derivative'> & Readonly<{
+  repository: string;
+  branch: string;
+}>;
+
+type FindSucceededChangesetReceipt = (input: Readonly<{
+  repo: string;
+  branch: string;
+  commit_sha: string;
+}>) => Promise<unknown>;
+
+type CandidateReconciliationError = Error & {
   code: string;
   may_have_mutated: false;
   details: Readonly<Record<string, unknown>>;
@@ -76,7 +87,24 @@ function reconcileBaseMovement(input: ProjectAuthoringCandidateReconciliationInp
   return Object.freeze({ base_revision:currentBase, staged_base_revision:stagedBase, base_advanced:true });
 }
 
-export async function reconcileProjectAuthoringCandidateWithChangesetProvenance(\n  input: ProjectAuthoringCandidateProvenanceInput,\n  findSucceededReceipt: FindSucceededChangesetReceipt,\n): Promise<ProjectAuthoringCandidateReconciliation> {\n  const staged = exactRevision(input?.staged_revision, 'staged_revision');\n  const current = exactRevision(input?.current_revision, 'current_revision');\n  const repository = typeof input?.repository === 'string' ? input.repository.trim() : '';\n  const branch = typeof input?.branch === 'string' ? input.branch.trim() : '';\n  if (!repository || !branch || typeof findSucceededReceipt !== 'function') {\n    fail('PROJECT_AUTHORING_CANDIDATE_RECONCILIATION_REQUIRED', 'candidate provenance lookup requires exact repository and branch identity', { repository, branch });\n  }\n  const authorizedDerivative = current === staged\n    ? true\n    : Boolean(await findSucceededReceipt({ repo:repository, branch, commit_sha:current }));\n  return reconcileProjectAuthoringCandidate({ ...input, authorized_derivative:authorizedDerivative });\n}\n\nexport function reconcileProjectAuthoringCandidate(input: ProjectAuthoringCandidateReconciliationInput): ProjectAuthoringCandidateReconciliation {
+export async function reconcileProjectAuthoringCandidateWithChangesetProvenance(
+  input: ProjectAuthoringCandidateProvenanceInput,
+  findSucceededReceipt: FindSucceededChangesetReceipt,
+): Promise<ProjectAuthoringCandidateReconciliation> {
+  const staged = exactRevision(input?.staged_revision, 'staged_revision');
+  const current = exactRevision(input?.current_revision, 'current_revision');
+  const repository = typeof input?.repository === 'string' ? input.repository.trim() : '';
+  const branch = typeof input?.branch === 'string' ? input.branch.trim() : '';
+  if (!repository || !branch || typeof findSucceededReceipt !== 'function') {
+    fail('PROJECT_AUTHORING_CANDIDATE_RECONCILIATION_REQUIRED', 'candidate provenance lookup requires exact repository and branch identity', { repository, branch });
+  }
+  const authorizedDerivative = current === staged
+    ? true
+    : Boolean(await findSucceededReceipt({ repo:repository, branch, commit_sha:current }));
+  return reconcileProjectAuthoringCandidate({ ...input, authorized_derivative:authorizedDerivative });
+}
+
+export function reconcileProjectAuthoringCandidate(input: ProjectAuthoringCandidateReconciliationInput): ProjectAuthoringCandidateReconciliation {
   const staged = exactRevision(input?.staged_revision, 'staged_revision');
   const current = exactRevision(input?.current_revision, 'current_revision');
   const verified = exactRevision(input?.verified_revision, 'verified_revision');
