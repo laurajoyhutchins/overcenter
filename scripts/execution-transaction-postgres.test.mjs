@@ -148,7 +148,7 @@ test('postgres transaction store fences claims and binds proof to exact executio
         effect_ref: null,
         evidence_sha256: 'd'.repeat(64),
       }),
-      /UNCERTAIN|MUTATION/,
+      (error) => error?.code === 'EFFECT_UNCERTAIN',
     );
   } finally {
     await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
