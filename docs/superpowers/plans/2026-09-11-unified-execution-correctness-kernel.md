@@ -735,7 +735,7 @@ Expected: PASS with all settlement and stale-work protections now exercised thro
 - [ ] **Step 6: Commit the project-transition migration**
 
 ~~~bash
-git add lib/project-transition-runtime.js lib/project-transition-authoritative-effect.js lib/project-transition-authoritative-effect-github-runtime.js lib/project-transition-github-workspace.js lib/project-transition-github-recovery.js api/project-advance.js scripts/verify-project-transition-kernel-adapter.test.mjs scripts/verify-project-transition-authoritative-effect-settlement.test.mjs scripts/verify-project-transition-authoritative-effect-runtime.test.mjs scripts/verify-project-transition-settlement-atomicity.test.mjs scripts/verify-project-transition-mutation-workspace-authority.test.mjs
+git add src/semantic/project-advance-operation.ts src/adapters/project-advance/runtime-adapter.ts src/ports/project-advance-runtime-host.ts src/semantic/project-transition-github-workspace.ts lib/project-advance-overcenter-host.js lib/project-transition-authoritative-effect.js lib/project-transition-authoritative-effect-github-runtime.js lib/project-transition-github-workspace.js lib/project-transition-github-recovery.js lib/worker-command-handler.js mcp/project.advance.js scripts/verify-project-transition-kernel-adapter.test.mjs scripts/verify-project-transition-authoritative-effect-settlement.test.mjs scripts/verify-project-transition-authoritative-effect-runtime.test.mjs scripts/verify-project-transition-settlement-atomicity.test.mjs scripts/verify-project-transition-mutation-workspace-authority.test.mjs
 git commit -m "refactor: route project transitions through execution kernel"
 ~~~
 
@@ -878,7 +878,7 @@ Expected: authoring, reconciliation, and maintenance all produce or inspect kern
 - [ ] **Step 6: Commit the semantic caller migration**
 
 ~~~bash
-git add lib/project-authoring-runtime.js lib/project-authoring-github-runtime.js lib/project-definition-mutation-authority.js lib/project-definition-changeset-writer.js lib/deterministic-work-settlement.js lib/compact-portfolio-reconcile-receipt-store.js lib/orchestration-journal.js lib/orchestration-recovery.js lib/orchestration-finish-runtime.js lib/orchestration-runs.js scripts/gcp-semantic-project-amend-bridge.test.mjs scripts/verify-project-authoring-mutation-authority.test.mjs scripts/verify-project-authoring-readback-contract.test.mjs scripts/verify-execution-evidence-projector.test.mjs scripts/verify-orchestration-kernel-recovery.test.mjs
+git add src/semantic/project-authoring-runtime.ts src/semantic/project-authoring-github-runtime.ts src/semantic/project-definition-mutation-authority.ts src/semantic/project-definition-changeset-writer.ts lib/project-authoring-runtime.js lib/project-authoring-github-runtime.js lib/project-definition-mutation-authority.js lib/project-definition-changeset-writer.js lib/deterministic-work-settlement.js lib/compact-portfolio-reconcile-receipt-store.js lib/orchestration-journal.js lib/orchestration-recovery.js lib/orchestration-finish-runtime.js lib/orchestration-runs.js scripts/gcp-semantic-project-amend-bridge.test.mjs scripts/verify-project-authoring-mutation-authority.test.mjs scripts/verify-project-authoring-readback-contract.test.mjs scripts/verify-execution-evidence-projector.test.mjs scripts/verify-orchestration-kernel-recovery.test.mjs
 git commit -m "refactor: centralize authoring and recovery semantics"
 ~~~
 
@@ -1050,7 +1050,7 @@ Expected: ordinary agents see semantic intent; generic execution bookkeeping is 
 - [ ] **Step 6: Commit the contract/docs update**
 
 ~~~bash
-git add mcp/project.advance.js mcp/project.amend.js lib/semantic-command-descriptors.js docs/command-reference.md docs/agent-session-contract.md docs/architecture/recovery-kernel-and-self-healing.md docs/architecture/ontology-and-authority.md docs/architecture/execution-transaction-kernel.md scripts/verify-mcp-admission-contract.test.mjs scripts/verify-semantic-command-descriptors.test.mjs scripts/verify-unified-execution-boundary.test.mjs
+git add mcp/project.advance.js mcp/project.amend.js src/semantic/semantic-command-descriptors.ts lib/semantic-command-descriptors.js docs/command-reference.md docs/agent-session-contract.md docs/architecture/recovery-kernel-and-self-healing.md docs/architecture/ontology-and-authority.md docs/architecture/execution-transaction-kernel.md scripts/verify-mcp-admission-contract.test.mjs scripts/verify-semantic-command-descriptors.test.mjs scripts/verify-unified-execution-boundary.test.mjs
 git commit -m "docs: make execution transaction boundary authoritative"
 ~~~
 
