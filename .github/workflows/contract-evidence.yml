@@ -52,15 +52,19 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Upload candidate contract evidence for reconciliation
+      - name: Print generated contract evidence for reconciliation
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: execution-kernel-contract-evidence
-          path: |
-            ${{ runner.temp }}/contract-evidence/generated/contracts/catalog.json
-            ${{ runner.temp }}/contract-evidence/docs/generated/data-contracts.md
-            ${{ runner.temp }}/contract-evidence/docs/generated/data-contract-authority-atlas.md
+        run: |
+          for file in \
+            "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
+            "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
+            "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
+          do
+            echo "BEGIN_GENERATED_CONTRACT_EVIDENCE:$file"
+            gzip -c "$file" | base64 -w0
+            echo
+            echo "END_GENERATED_CONTRACT_EVIDENCE:$file"
+          done
 
       - name: Print exact generated catalog delta
         run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
