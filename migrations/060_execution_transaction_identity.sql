@@ -9,7 +9,7 @@ ALTER TABLE execution_state
   ADD COLUMN IF NOT EXISTS settled boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS settlement_receipt jsonb,
   ADD COLUMN IF NOT EXISTS settled_at timestamptz,
-  ADD COLUMN IF NOT EXISTS mutation_certainty text NOT NULL DEFAULT 'definitely_not_mutATED',
+  ADD COLUMN IF NOT EXISTS mutation_certainty text NOT NULL DEFAULT 'definitely_not_mutated',
   ADD COLUMN IF NOT EXISTS effect_ref text,
   ADD COLUMN IF NOT EXISTS operation_kind text,
   ADD COLUMN IF NOT EXISTS idempotency_scope text,
