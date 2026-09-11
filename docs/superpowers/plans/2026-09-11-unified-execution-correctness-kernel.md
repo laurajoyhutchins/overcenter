@@ -686,7 +686,6 @@ git commit -m "feat: execute effects through one transaction protocol"
 - Modify: src/adapters/project-advance/runtime-adapter.ts
 - Modify: src/ports/project-advance-runtime-host.ts
 - Modify: lib/project-advance-overcenter-host.js
-- Modify: lib/project-transition-runtime.js
 - Modify: lib/worker-command-handler.js
 - Modify: mcp/project.advance.js
 - Modify: scripts/verify-project-transition-authoritative-effect-settlement.test.mjs
