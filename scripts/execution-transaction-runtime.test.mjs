@@ -183,7 +183,7 @@ class MemoryStore {
   }
 }
 
-function providerFor({ observedRevision = null, mode = 'success' } = {}) {
+function providerFor({ observedRevision = 'a'.repeat(40), mode = 'success' } = {}) {
   const calls = { invoke: 0, confirm: 0 };
   return {
     calls,
