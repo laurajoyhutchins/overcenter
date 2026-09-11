@@ -104,6 +104,17 @@ FROM operation_state AS operation
 WHERE operation.execution_id = execution.execution_id
   AND execution.operation_kind IS NULL;
 
+UPDATE execution_state
+SET
+  operation_kind = COALESCE(operation_kind, 'legacy.execution'),
+  idempotency_scope = COALESCE(idempotency_scope, 'legacy'),
+  idempotency_key = COALESCE(idempotency_key, execution_id),
+  intent_sha256 = COALESCE(intent_sha256, md5('intent:' || execution_id))
+WHERE operation_kind IS NULL
+   OR idempotency_scope IS NULL
+   OR idempotency_key IS NULL
+   OR intent_sha256 IS NULL;
+
 UPDATE operation_state AS operation
 SET
   execution_id = execution.execution_id,
