@@ -16,7 +16,7 @@ import type { JsonValue } from './project-graph-types.js';
 import type {
   ExecutionTransactionStore,
   RecordInvocationInput,
-} from '../ports/execution-transaction-store.js';
+} from './execution-transaction-store.js';
 
 export interface ExecutionTransactionContext {
   readonly run_id: string;
