@@ -239,6 +239,7 @@ export function assertExecutionIdentity(value: unknown): asserts value is Execut
     'authority_revision',
     'graph_fingerprint',
     'transition_fingerprint',
+    'operation_kind',
     'idempotency_scope',
     'idempotency_key',
     'intent_sha256',
