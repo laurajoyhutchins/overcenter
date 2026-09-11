@@ -94,6 +94,11 @@ function lifecycle(value: unknown): ExecutionLifecycle {
   return fail('EXECUTION_TRANSACTION_ROW_INVALID', 'execution lifecycle is invalid', { value });
 }
 
+function subjectKind(value: unknown): ExecutionIdentity['subject_kind'] {
+  if (value === 'project_transition' || value === 'legacy_work' || value === 'provider_operation') return value;
+  return fail('EXECUTION_TRANSACTION_ROW_INVALID', 'subject_kind is invalid', { value });
+}
+
 function identityFromRow(row: DatabaseRow): ExecutionIdentity {
   const executionId = required(row.execution_id, 'execution_id');
   const identity: ExecutionIdentity = {
@@ -101,7 +106,7 @@ function identityFromRow(row: DatabaseRow): ExecutionIdentity {
     operation_id: required(row.operation_id ?? `legacy-operation:${executionId}`, 'operation_id'),
     project_ref: required(row.project_ref, 'project_ref'),
     subject_key: required(row.subject_key, 'subject_key'),
-    subject_kind: row.subject_kind === 'legacy_work' ? 'legacy_work' : 'project_transition',
+    subject_kind: subjectKind(row.subject_kind),
     run_id: required(row.run_id, 'run_id'),
     lease_ref: required(row.lease_ref, 'lease_ref'),
     lease_epoch: integer(row.lease_epoch, 'lease_epoch'),
