@@ -33,6 +33,7 @@ function identity() {
     operation_id: '00000000-0000-0000-0000-000000000001',
     project_ref: 'github:laurajoyhutchins/overcenter',
     subject_key: 'project:overcenter#transition:ship',
+    subject_kind: 'project_transition',
     run_id: 'run-1',
     lease_ref: '00000000-0000-4000-8000-000000000001',
     lease_epoch: 1,
