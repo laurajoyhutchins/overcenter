@@ -1,0 +1,42 @@
+name: Repair verify probe
+
+on:
+  pull_request:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    env:
+      PUBLIC_RELEASE_HISTORY_REF: origin/main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install canonical dependencies
+        run: npm ci
+      - name: Capture npm test output
+        run: |
+          set +e
+          npm test > "$RUNNER_TEMP/npm-test.log" 2>&1
+          echo "$?" > "$RUNNER_TEMP/npm-test.status"
+          node scripts/verify-orchestration-create-target-recovery.mjs > "$RUNNER_TEMP/recovery.log" 2>&1
+          echo "$?" > "$RUNNER_TEMP/recovery.status"
+          exit 0
+      - name: Upload verification probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: repository-verification-probe
+          path: |
+            ${{ runner.temp }}/npm-test.log
+            ${{ runner.temp }}/npm-test.status
+            ${{ runner.temp }}/recovery.log
+            ${{ runner.temp }}/recovery.status
