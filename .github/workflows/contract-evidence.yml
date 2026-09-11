@@ -54,6 +54,18 @@ jobs:
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
       - name: Print exact generated catalog delta
         run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
+      - name: Print generated artifacts for repair (temporary)
+        run: |
+          for file in catalog.json data-contracts.md data-contract-authority-atlas.md; do
+            case "$file" in
+              catalog.json) path="$RUNNER_TEMP/contract-evidence/generated/contracts/$file" ;;
+              *) path="$RUNNER_TEMP/contract-evidence/docs/generated/$file" ;;
+            esac
+            echo "BEGIN_GENERATED_$file"
+            gzip -c "$path" | base64 -w0
+            echo
+            echo "END_GENERATED_$file"
+          done
       - name: Verify committed generated evidence
         run: |
           node scripts/contract-evidence/cli.mjs check \
