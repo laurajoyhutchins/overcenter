@@ -522,9 +522,11 @@
       "lifecycle": "current"
     },
     "typescript:src/semantic/execution-transaction.ts#JsonObject": {
+      "logical_contract": "execution.transaction.json-object",
       "significance": "implementation-only"
     },
     "typescript:src/semantic/execution-transaction.ts#executionTransactionInternals": {
+      "logical_contract": "execution.transaction.internals",
       "significance": "implementation-only"
     },
     "typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionContext": {
