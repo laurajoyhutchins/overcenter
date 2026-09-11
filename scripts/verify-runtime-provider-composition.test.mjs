@@ -12,6 +12,7 @@ const providerSpecifiers = [
   /^@aws-sdk\//,
 ];
 const allowedProviderImporters = new Set([
+  'lib/hatchable-gcp-ingress-adapter.js',
   'lib/hatchable-runtime-providers.js',
   'scripts/cloud-run.mjs',
 ]);
