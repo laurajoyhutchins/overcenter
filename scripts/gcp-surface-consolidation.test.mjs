@@ -16,8 +16,9 @@ test('provider-neutral exact-revision workflow replaces the V8-named survivor', 
   assert.equal(workflows.includes('exact-revision-v8.yml'), false);
 });
 
-test('orchestration maintenance follows the replacement exact-revision gate', async () => {
+test('orchestration maintenance follows only successful replacement exact-revision checks', async () => {
   const workflow = await readFile(new URL('../.github/workflows/gcp-orchestration-maintain.yml', import.meta.url), 'utf8');
   assert.match(workflow, /Exact revision verification/);
   assert.doesNotMatch(workflow, /Exact revision V8 verification/);
+  assert.match(workflow, /github\.event\.workflow_run\.conclusion == 'success'/);
 });
