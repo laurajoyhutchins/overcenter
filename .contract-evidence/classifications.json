@@ -489,10 +489,8 @@
       "lifecycle": "current"
     },
     "typescript:src/semantic/execution-transaction.ts#ProviderConfirmationFacts": {
-      "logical_contract": "execution.transaction.provider-capability",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
     },
     "typescript:src/semantic/execution-transaction.ts#ProviderEffect": {
       "logical_contract": "execution.transaction.provider-capability",
@@ -501,22 +499,16 @@
       "lifecycle": "current"
     },
     "typescript:src/semantic/execution-transaction.ts#ProviderEffectPayload": {
-      "logical_contract": "execution.transaction.provider-capability",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
     },
     "typescript:src/semantic/execution-transaction.ts#ProviderInvocationFacts": {
-      "logical_contract": "execution.transaction.provider-capability",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
     },
     "typescript:src/semantic/execution-transaction.ts#ProviderPreflight": {
-      "logical_contract": "execution.transaction.provider-capability",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
     },
     "typescript:src/semantic/execution-transaction.ts#RecoveryDecision": {
       "logical_contract": "execution.transaction.recovery",
@@ -542,28 +534,20 @@
       "lifecycle": "current"
     },
     "typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionResult": {
-      "logical_contract": "execution.transaction.runtime",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.runtime"
     },
     "typescript:src/semantic/execution-transaction-store.ts#AppendProofInput": {
-      "logical_contract": "execution.transaction.store",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
     },
     "typescript:src/semantic/execution-transaction-store.ts#ClaimExecutionInput": {
-      "logical_contract": "execution.transaction.store",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
     },
     "typescript:src/semantic/execution-transaction-store.ts#ClaimResult": {
-      "logical_contract": "execution.transaction.store",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
     },
     "typescript:src/semantic/execution-transaction-store.ts#ExecutionTransactionStore": {
       "logical_contract": "execution.transaction.store",
@@ -572,40 +556,28 @@
       "lifecycle": "current"
     },
     "typescript:src/semantic/execution-transaction-store.ts#HeartbeatExecutionInput": {
-      "logical_contract": "execution.transaction.store",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
     },
     "typescript:src/semantic/execution-transaction-store.ts#OperationAttempt": {
-      "logical_contract": "execution.transaction.store",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
     },
     "typescript:src/semantic/execution-transaction-store.ts#PrepareExecutionInput": {
-      "logical_contract": "execution.transaction.store",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
     },
     "typescript:src/semantic/execution-transaction-store.ts#RecordAttemptInput": {
-      "logical_contract": "execution.transaction.store",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
     },
     "typescript:src/semantic/execution-transaction-store.ts#RecordInvocationInput": {
-      "logical_contract": "execution.transaction.store",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
     },
     "typescript:src/semantic/execution-transaction-store.ts#SettleExecutionInput": {
-      "logical_contract": "execution.transaction.store",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
+      "significance": "projection",
+      "projection_of": "execution.transaction.store"
     }
   }
 }
