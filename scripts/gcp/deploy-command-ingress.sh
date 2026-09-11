@@ -122,6 +122,7 @@ fi
 
 printf '%s\n' \
   "Overcenter stateless command ingress deployed" \
+  "Source revision:  ${GITHUB_SHA:-unknown}" \
   "Ingress URL:      ${INGRESS_URL}" \
   "Ingress identity: ${INGRESS_SA}" \
   "Target URL:       ${TARGET_URL}" \

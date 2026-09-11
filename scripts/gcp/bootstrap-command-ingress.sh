@@ -38,11 +38,14 @@ gcloud iam service-accounts add-iam-policy-binding "$INGRESS_SA" \
 
 # The ingress runtime may invoke only the authoritative Cloud Run service.
 # Do not grant project-wide run.invoker or any database/secret role.
+# Explicitly mark this binding unconditional because the service policy may
+# already contain unrelated conditional bindings.
 gcloud run services add-iam-policy-binding "$TARGET_SERVICE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
   --member="serviceAccount:${INGRESS_SA}" \
-  --role="roles/run.invoker" >/dev/null
+  --role="roles/run.invoker" \
+  --condition=None >/dev/null
 
 PROJECT_POLICY="${TMPDIR:-/tmp}/overcenter-command-ingress-project-policy.json"
 gcloud projects get-iam-policy "$PROJECT_ID" --format=json > "$PROJECT_POLICY"

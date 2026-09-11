@@ -98,9 +98,34 @@ fi
 project_inspect "$RUNNER_TEMP/inspect-recovered.json"
 acceptance_transition="$(jq -r --arg preferred "$PREFERRED_ACCEPTANCE_TRANSITION" --arg excluded "$FAILED_TRANSITION" '(.inspection.frontier_details // []) as $d | (($d | map(select(.id == $preferred and .availability == "available")) | first | .id) // ($d | map(select(.id != $excluded and .availability == "available")) | first | .id) // empty)' "$RUNNER_TEMP/inspect-recovered.json")"
 if [[ -z "$acceptance_transition" ]]; then
-  echo 'No reversible available non-migration transition exists for the GCP acceptance probe' >&2
-  jq '.inspection.frontier_details' "$RUNNER_TEMP/inspect-recovered.json" >&2
-  exit 1
+  quiescent_payload="$(jq -nc --arg project "$PROJECT_REF" '{phase:"quiescent",project_ref:$project}')"
+  proof_inspect "$RUNNER_TEMP/quiescent-proof-response.json" "$quiescent_payload" > "$RUNNER_TEMP/quiescent-proof.json"
+  jq -e --arg project "$PROJECT_REF" '
+    .phase == "quiescent" and
+    .project_ref == $project and
+    .transition_id == null and
+    .observed_at == null and
+    .run == null and
+    .counts.runs == 0 and
+    .counts.leases == 0 and
+    .counts.execution_state == 0 and
+    .counts.slots == 0 and
+    .counts.active_transition_leases == 0 and
+    .target_epoch.freeze_table == null and
+    .target_epoch.freeze_function == null and
+    .target_epoch.freeze_triggers == 0 and
+    .target_epoch.source_only_migrations == 0
+  ' "$RUNNER_TEMP/quiescent-proof.json" >/dev/null
+
+  printf '%s\n' \
+    'GCP migration proof complete' \
+    "Cloud Run revision: $ready" \
+    "Source revision: $revision" \
+    "Source freeze digest: $digest" \
+    "Recovered failed run: $failed_run" \
+    'Acceptance mode: quiescent' \
+    'Stranded active leases: 0'
+  exit 0
 fi
 
 advance_payload="$(jq -nc --arg project "$PROJECT_REF" --arg transition "$acceptance_transition" '{command:"project.advance",input:{project_ref:$project,transition_id:$transition}}')"

@@ -34,7 +34,7 @@ test('project target is caller-selected and remains bounded away from bridge-sou
   assert.match(workflow, /test "\$GITHUB_SHA" = "\$EXPECTED_HEAD"/);
   assert.match(workflow, /git ls-remote origin refs\/heads\/dev/);
   assert.doesNotMatch(workflow, /git ls-remote origin refs\/heads\/main/);
-  assert.match(workflow, /group: overcenter-gcp-semantic-control-plane/);
+  assert.doesNotMatch(workflow, /group: overcenter-gcp-semantic-control-plane/);
 });
 
 test('project.amend remains bounded away from advance and lease authority', () => {

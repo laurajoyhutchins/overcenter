@@ -16,11 +16,15 @@ const RESUME = /^\S{1,512}$/;
 const PROJECT_COMMANDS = new Set(['project.inspect', 'project.advance']);
 const PROJECT_AUTHORING_COMMANDS = new Set(['project.amend']);
 const CONTROL_COMMANDS = new Set(['orchestration.maintain']);
+const DIAGNOSIS_COMMANDS = new Set(['orchestration.diagnose']);
+const PRODUCTION_COMMANDS = new Set(['production.reconcile']);
 const GITHUB_INTEGRATION_COMMANDS = new Set(['github.pull_request.mark_ready']);
 const LEASE_MUTATION_COMMANDS = new Set(['github.apply_changeset', 'github.coalesce_changeset', 'github.apply_text_replacements']);
-const ALLOWED_COMMANDS = new Set([...PROJECT_COMMANDS, ...PROJECT_AUTHORING_COMMANDS, ...CONTROL_COMMANDS, ...GITHUB_INTEGRATION_COMMANDS, ...LEASE_MUTATION_COMMANDS]);
+const ALLOWED_COMMANDS = new Set([...PROJECT_COMMANDS, ...PROJECT_AUTHORING_COMMANDS, ...CONTROL_COMMANDS, ...DIAGNOSIS_COMMANDS, ...PRODUCTION_COMMANDS, ...GITHUB_INTEGRATION_COMMANDS, ...LEASE_MUTATION_COMMANDS]);
 const ALLOWED_FIELDS = new Set(['command', 'project_ref', 'expected_head', 'transition_id', 'resume_ref', 'execution_result', 'input']);
 const PROJECT_AMEND_INPUT_FIELDS = new Set(['project_ref', 'expected_revision', 'amendment']);
+const ORCHESTRATION_DIAGNOSE_INPUT_FIELDS = new Set(['run_id', 'work_ref']);
+const PRODUCTION_RECONCILE_INPUT_FIELDS = new Set(['repo']);
 const GITHUB_PR_READY_INPUT_FIELDS = new Set(['repo', 'pull_request', 'expected_head', 'run_id']);
 const COMMAND_INPUT_CHUNK_SIZE = 4000;
 const MAX_COMMAND_INPUT_CHUNKS = 6;
@@ -53,6 +57,34 @@ function normalizeProjectAmendInput(value, projectRef) {
   const encoded = JSON.stringify({ project_ref: projectRef, expected_revision: expectedRevision, amendment: input.amendment });
   if (encoded.length > MAX_COMMAND_INPUT_CHARS) throw invalid('input is too large for the bounded GCP workflow bridge');
   return encoded;
+}
+
+function normalizeOrchestrationDiagnoseInput(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid('input must be an object for orchestration.diagnose');
+  const input = value;
+  const unknown = Object.keys(input).filter((key) => !ORCHESTRATION_DIAGNOSE_INPUT_FIELDS.has(key));
+  if (unknown.length) throw invalid('orchestration.diagnose input contains unknown fields', { fields: unknown.sort() });
+  if (typeof input.run_id !== 'string' || input.run_id.length === 0) throw invalid('orchestration.diagnose run_id is required');
+  const runId = input.run_id;
+  if (runId.length > 512) throw invalid('orchestration.diagnose run_id is too large');
+  const hasWorkRef = Object.prototype.hasOwnProperty.call(input, 'work_ref');
+  if (hasWorkRef && (typeof input.work_ref !== 'string' || input.work_ref.length === 0)) throw invalid('orchestration.diagnose work_ref must be a non-empty string when supplied');
+  const workRef = hasWorkRef ? input.work_ref : '';
+  if (workRef.length > 128) throw invalid('orchestration.diagnose work_ref is too large');
+  const normalized = { run_id: runId };
+  if (hasWorkRef) normalized.work_ref = workRef;
+  const encoded = JSON.stringify(normalized);
+  if (encoded.length > MAX_COMMAND_INPUT_CHARS) throw invalid('input is too large for the bounded GCP workflow bridge');
+  return encoded;
+}
+
+function normalizeProductionReconcileInput(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid('input must be an object for production.reconcile');
+  const unknown = Object.keys(value).filter((key) => !PRODUCTION_RECONCILE_INPUT_FIELDS.has(key));
+  if (unknown.length) throw invalid('production.reconcile input contains unknown fields', { fields: unknown.sort() });
+  const repo = String(value.repo || '').trim();
+  if (!REPOSITORY.test(repo)) throw invalid('production.reconcile repo must be owner/repo');
+  return JSON.stringify({ repo });
 }
 
 function normalizeGitHubIntegrationInput(command, value) {
@@ -114,6 +146,16 @@ function normalize(bodyInput) {
   if (CONTROL_COMMANDS.has(command)) {
     if (projectRef || transitionId || resumeRef || executionResult || body.input !== undefined) throw invalid('control commands do not accept caller-selected semantic state');
     return { command, project_ref: '', expected_head: expectedHead, transition_id: '', resume_ref: '', execution_result_json: '', command_input_json: '' };
+  }
+
+  if (DIAGNOSIS_COMMANDS.has(command)) {
+    if (projectRef || transitionId || resumeRef || executionResult) throw invalid('diagnosis commands do not accept caller-selected project or continuation state');
+    return { command, project_ref: '', expected_head: expectedHead, transition_id: '', resume_ref: '', execution_result_json: '', command_input_json: normalizeOrchestrationDiagnoseInput(body.input) };
+  }
+
+  if (PRODUCTION_COMMANDS.has(command)) {
+    if (projectRef || transitionId || resumeRef || executionResult) throw invalid('production commands derive their target from typed input');
+    return { command, project_ref: '', expected_head: expectedHead, transition_id: '', resume_ref: '', execution_result_json: '', command_input_json: normalizeProductionReconcileInput(body.input) };
   }
 
   if (PROJECT_COMMANDS.has(command)) {
