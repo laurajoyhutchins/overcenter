@@ -1,0 +1,49 @@
+name: Repair verify probe
+
+on:
+  pull_request:
+    branches: [dev]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  isolate:
+    runs-on: ubuntu-latest
+    env:
+      PUBLIC_RELEASE_HISTORY_REF: origin/main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install canonical dependencies
+        run: npm ci
+      - name: Phase 1 npm test
+        id: test
+        continue-on-error: true
+        run: npm test
+      - name: Phase 2 create-target recovery
+        id: recovery
+        continue-on-error: true
+        run: node scripts/verify-orchestration-create-target-recovery.mjs
+      - name: Phase 3 build
+        id: build
+        continue-on-error: true
+        run: npm run build
+      - name: Phase 4 public release
+        id: release
+        continue-on-error: true
+        run: node scripts/verify-public-release.mjs
+      - name: Fail if any phase failed
+        run: |
+          test "${{ steps.test.outcome }}" = success
+          test "${{ steps.recovery.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          test "${{ steps.release.outcome }}" = success
