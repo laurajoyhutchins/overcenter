@@ -100,9 +100,7 @@ const maintainedTests = [
 ];
 
 const scriptNames = await readdir(new URL('scripts/', root));
-for (const prefix of ['exact-revision-v8-verification', 'production-materialization']) {
-  maintainedTests.push(...scriptNames.filter(name => name.startsWith(prefix) && name.endsWith('.test.mjs')));
-}
+maintainedTests.push(...scriptNames.filter(name => name.endsWith('.test.mjs')));
 
 run(['scripts/verify-regression-suite-registry.mjs']);
 run(['scripts/verify-orchestration-drive.mjs']);
