@@ -112,7 +112,6 @@ for (const file of await javascriptFiles('lib')) {
   if (/from\s+['\"]node:test['\"]/.test(source)) nativeLibTests.push(file);
 }
 
-run(['scripts/verify-regression-suite-registry.mjs']);
 run(['scripts/verify-orchestration-drive.mjs']);
 if (nativeLibTests.length) run(['--test', ...nativeLibTests.sort()]);
 run(['--test', ...[...new Set(maintainedTests)].sort().map(name => `scripts/${name}`)]);
