@@ -9,12 +9,14 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'orchestration.maintain', 'production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
+const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.pull_request.mark_ready', 'github.release.create', 'invocation.attach', 'invocation.peek', 'orchestration.diagnose', 'orchestration.maintain', 'production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
 const expectedSurface = new Map([
   ['github.apply_changeset', 'advanced'],
   ['github.apply_text_replacements', 'advanced'],
   ['github.pull_request.mark_ready', 'advanced'],
   ['github.release.create', 'advanced'],
+  ['invocation.attach', 'primary'],
+  ['invocation.peek', 'primary'],
   ['orchestration.diagnose', 'operator'],
   ['orchestration.maintain', 'operator'],
   ['production.reconcile', 'primary'],
@@ -35,7 +37,7 @@ const expectedExposure = new Map([
   ['orchestration.maintain', { worker:true, mcp:false }],
   ['work.settle', { worker:true, mcp:false }],
 ]);
-const primaryMcpFiles = ['production.reconcile.js', 'production.promote.js', 'project.advance.js', 'project.amend.js', 'project.define.js', 'project.inspect.js', 'release.publish.js'];
+const primaryMcpFiles = ['invocation.attach.js', 'invocation.peek.js', 'production.reconcile.js', 'production.promote.js', 'project.advance.js', 'project.amend.js', 'project.define.js', 'project.inspect.js', 'release.publish.js'];
 
 async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -65,7 +67,7 @@ test('representative commands have one authoritative semantic descriptor', () =>
 
 test('primary semantic surface is mechanically identifiable from descriptors', () => {
   const primary = expected.filter((command) => semanticCommandDescriptor(command).surface === 'primary');
-  assert.deepEqual(primary, ['production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish']);
+  assert.deepEqual(primary, ['invocation.attach', 'invocation.peek', 'production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish']);
 });
 
 test('top-level MCP discovery exposes only the primary semantic product surface', async () => {

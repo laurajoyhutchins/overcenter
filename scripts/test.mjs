@@ -66,6 +66,7 @@ const maintainedTests = [
   'verify-compatibility-transition-runtime.test.mjs',
   'verify-mcp-admission-contract.test.mjs',
   'verify-semantic-command-descriptors.test.mjs',
+  'verify-invocation-attach-peek.test.mjs',
   'verify-github-pull-request-mark-ready-semantic-worker.test.mjs',
   'verify-project-authoring.test.mjs',
   'verify-project-authoring-github-adapter.test.mjs',

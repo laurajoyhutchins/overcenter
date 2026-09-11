@@ -4,6 +4,24 @@
 
 ## Primary surface
 
+### invocation.attach
+
+Reconnect to one exact durable command invocation and return its stable invocation reference plus current bounded authoritative observation without creating parallel session state.
+
+- MCP name: `invocation.attach`
+- Required fields: `invocation_id`
+- Semantic fields: `invocation_id`
+- Exposure: worker=yes, MCP=yes
+
+### invocation.peek
+
+Read the bounded authoritative state of one exact durable command invocation without reconstructing prior session context or creating new execution state.
+
+- MCP name: `invocation.peek`
+- Required fields: `invocation_id`
+- Semantic fields: `invocation_id`
+- Exposure: worker=yes, MCP=yes
+
 ### production.promote
 
 Promote the current verified development revision by repository identity only. The runtime host derives provider-specific branch heads, exact-revision evidence, retry identity, and production readback behind this primary semantic boundary.
