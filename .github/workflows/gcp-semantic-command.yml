@@ -18,6 +18,7 @@ on:
           - project.define
           - project.amend
           - orchestration.maintain
+          - orchestration.diagnose
           - github.pull_request.mark_ready
           - github.apply_changeset
           - github.apply_text_replacements
@@ -118,7 +119,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXPECTED_HEAD"
           case "$COMMAND" in
-            project.inspect|project.advance|project.define|project.amend|orchestration.maintain|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) ;;
+            project.inspect|project.advance|project.define|project.amend|orchestration.maintain|orchestration.diagnose|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) ;;
             *) echo "unsupported semantic command: $COMMAND" >&2; exit 2 ;;
           esac
           case "$COMMAND" in
@@ -160,6 +161,14 @@ jobs:
               test -z "$EXECUTION_RESULT_JSON"
               test -z "$command_input_json"
               ;;
+            orchestration.diagnose)
+              test -z "$PROJECT_REF"
+              test -z "$TRANSITION_ID"
+              test -z "$RESUME_REF"
+              test -z "$EXECUTION_RESULT_JSON"
+              test -n "$command_input_json"
+              jq -e 'type == "object" and ((keys == ["run_id"]) or (keys == ["run_id","work_ref"])) and (.run_id | type == "string" and length > 0 and length <= 512) and ((has("work_ref") | not) or (.work_ref | type == "string" and length > 0 and length <= 128))' <<<"$command_input_json" >/dev/null
+              ;;
             github.pull_request.mark_ready)
               test -z "$PROJECT_REF"
               test -z "$TRANSITION_ID"
@@ -198,7 +207,7 @@ jobs:
           set -euo pipefail
           command_input_json="${COMMAND_INPUT_0}${COMMAND_INPUT_1}${COMMAND_INPUT_2}${COMMAND_INPUT_3}${COMMAND_INPUT_4}${COMMAND_INPUT_5}"
           case "$COMMAND" in
-            project.define|project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) input="$command_input_json" ;;
+            orchestration.diagnose|project.define|project.amend|github.pull_request.mark_ready|github.apply_changeset|github.apply_text_replacements) input="$command_input_json" ;;
             orchestration.maintain) input='{}' ;;
             *)
               input="$(jq -n --arg project_ref "$PROJECT_REF" '{project_ref:$project_ref}')"
