@@ -34,9 +34,9 @@
 
 ## Durable internal contracts
 
-- `compact.execution-state` — authority `typescript:src/semantic/compact-execution-state.ts#ExecutionState`; SemVer `internal-module-layout`; 39 projections
-- `compact.operation-state` — authority `typescript:src/semantic/compact-execution-state.ts#OperationState`; SemVer `internal-module-layout`; 33 projections
-- `compact.proof-state` — authority `typescript:src/semantic/compact-execution-state.ts#ProofState`; SemVer `internal-module-layout`; 13 projections
+- `compact.execution-state` — authority `typescript:src/semantic/compact-execution-state.ts#ExecutionState`; SemVer `internal-module-layout`; 59 projections
+- `compact.operation-state` — authority `typescript:src/semantic/compact-execution-state.ts#OperationState`; SemVer `internal-module-layout`; 44 projections
+- `compact.proof-state` — authority `typescript:src/semantic/compact-execution-state.ts#ProofState`; SemVer `internal-module-layout`; 19 projections
 - `compatibility.work-lease-checkpoint.persistence` — authority `postgres:public.work_lease_checkpoints#table`; SemVer `database-layout`; 10 projections
 - `compatibility.work-lease-heartbeat.persistence` — authority `postgres:public.work_lease_heartbeats#table`; SemVer `database-layout`; 11 projections
 - `compatibility.work-lease-slot.persistence` — authority `postgres:public.work_lease_slots#table`; SemVer `database-layout`; 6 projections
@@ -235,6 +235,34 @@
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#WORK_REQUEUE_CLASSES`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#WorkRequeueClass`
 - `typescript:src/semantic/execution-lifecycle-contracts.ts#WorkSettlementDisposition`
+- `typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionContext`
+- `typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionResult`
+- `typescript:src/semantic/execution-transaction-store.ts#AppendProofInput`
+- `typescript:src/semantic/execution-transaction-store.ts#ClaimExecutionInput`
+- `typescript:src/semantic/execution-transaction-store.ts#ClaimResult`
+- `typescript:src/semantic/execution-transaction-store.ts#ExecutionTransactionStore`
+- `typescript:src/semantic/execution-transaction-store.ts#HeartbeatExecutionInput`
+- `typescript:src/semantic/execution-transaction-store.ts#OperationAttempt`
+- `typescript:src/semantic/execution-transaction-store.ts#PrepareExecutionInput`
+- `typescript:src/semantic/execution-transaction-store.ts#RecordAttemptInput`
+- `typescript:src/semantic/execution-transaction-store.ts#RecordInvocationInput`
+- `typescript:src/semantic/execution-transaction-store.ts#SettleExecutionInput`
+- `typescript:src/semantic/execution-transaction.ts#ExecutionAuthority`
+- `typescript:src/semantic/execution-transaction.ts#ExecutionIdentity`
+- `typescript:src/semantic/execution-transaction.ts#ExecutionIntent`
+- `typescript:src/semantic/execution-transaction.ts#ExecutionLifecycle`
+- `typescript:src/semantic/execution-transaction.ts#ExecutionProof`
+- `typescript:src/semantic/execution-transaction.ts#ExecutionSnapshot`
+- `typescript:src/semantic/execution-transaction.ts#JsonObject`
+- `typescript:src/semantic/execution-transaction.ts#MutationCertainty`
+- `typescript:src/semantic/execution-transaction.ts#ProviderConfirmationFacts`
+- `typescript:src/semantic/execution-transaction.ts#ProviderEffect`
+- `typescript:src/semantic/execution-transaction.ts#ProviderEffectPayload`
+- `typescript:src/semantic/execution-transaction.ts#ProviderInvocationFacts`
+- `typescript:src/semantic/execution-transaction.ts#ProviderPreflight`
+- `typescript:src/semantic/execution-transaction.ts#RecoveryDecision`
+- `typescript:src/semantic/execution-transaction.ts#SettlementReceipt`
+- `typescript:src/semantic/execution-transaction.ts#executionTransactionInternals`
 - `typescript:src/semantic/legacy-work-execution-authority-contracts.ts#LEGACY_WORK_EXECUTION_GATES`
 - `typescript:src/semantic/legacy-work-execution-authority-contracts.ts#LegacyWorkExecutionAuthority`
 - `typescript:src/semantic/legacy-work-execution-authority-contracts.ts#LegacyWorkExecutionGate`
