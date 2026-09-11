@@ -51,6 +51,7 @@ export interface ExecutionIdentity {
   readonly authority_revision: string;
   readonly graph_fingerprint: string;
   readonly transition_fingerprint: string;
+  readonly operation_kind: string;
   readonly idempotency_scope: string;
   readonly idempotency_key: string;
   readonly intent_sha256: string;
