@@ -44,6 +44,34 @@ test('project.inspect reports blocked-settlement suspension as waiting, not avai
   assert.deepEqual(result.authoring_operations, []);
 });
 
+test('project.inspect resolves occupancy for every frontier item beyond the former eight-item projection cap', async () => {
+  const frontier = Array.from({ length:9 }, (_, index) => `ready-${index + 1}`);
+  const observations = [];
+  const inspect = projectInspectFor({
+    readProjectGraph:async () => graph(),
+    evaluateProjectHorizon:() => ({ complete:false, frontier }),
+    now:() => '2026-09-11T12:55:00.000Z',
+    readTransitionOccupancy:async (input) => {
+      observations.push(input.transition_id);
+      if (input.transition_id === 'ready-9') {
+        return { occupied:true, expires_at:'2026-09-11T13:05:00.000Z', suspended:false };
+      }
+      return { occupied:false, suspended:false };
+    },
+  });
+
+  const result = await inspect.inspect({ project_ref:'github:example/project' });
+  assert.deepEqual(observations, frontier);
+  assert.deepEqual(result.frontier_details[8], {
+    id:'ready-9',
+    availability:'occupied',
+    occupied:true,
+    expires_at:'2026-09-11T13:05:00.000Z',
+    suspended:false,
+    wait_reason:null,
+  });
+});
+
 test('project.inspect projects durable authoring state into a bounded next-action view', async () => {
   const inspect = projectInspectFor({
     readProjectGraph:async () => graph(),
