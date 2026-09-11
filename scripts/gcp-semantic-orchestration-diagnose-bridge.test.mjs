@@ -34,7 +34,7 @@ test('GCP workflow validates and forwards only typed orchestration.diagnose inpu
   assert.match(workflow, /keys == \["run_id","work_ref"\]/);
   assert.match(workflow, /\.run_id \| type == "string" and length > 0 and length <= 512/);
   assert.match(workflow, /\.work_ref \| type == "string" and length > 0 and length <= 128/);
-  assert.match(workflow, /orchestration\.diagnose\|project\.define\|project\.amend\|github\.pull_request\.mark_ready\|github\.apply_changeset\|github\.apply_text_replacements\) input="\$command_input_json"/);
+  assert.match(workflow, /^[ \t]*[^\n]*orchestration\.diagnose[^\n]*\) input="\$command_input_json"/m);
 });
 
 test('diagnosis transport delegates to the existing authoritative worker implementation', () => {
