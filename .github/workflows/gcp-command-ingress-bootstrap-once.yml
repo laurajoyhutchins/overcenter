@@ -5,6 +5,7 @@ on:
     branches: [dev]
     paths:
       - .github/workflows/gcp-command-ingress-bootstrap-once.yml
+      - scripts/gcp/bootstrap-command-ingress.sh
 
 permissions:
   contents: read
