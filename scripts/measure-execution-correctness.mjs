@@ -121,13 +121,13 @@ function isGeneratedMirror(relative, allFiles) {
   return allFiles.some((candidate) =>
     candidate.startsWith('src/') &&
     path.basename(candidate, path.extname(candidate)) === basename &&
-    /\\.(?:ts|tsx)$/.test(candidate),
+    /\.(?:ts|tsx)$/.test(candidate),
   );
 }
 
 function countText(text) {
   return {
-    lines: text.length === 0 ? 0 : text.split(/\\r?\\n/).length,
+    lines: text.length === 0 ? 0 : text.split(/\r?\n/).length,
     bytes: Buffer.byteLength(text, 'utf8'),
   };
 }
@@ -150,7 +150,7 @@ function countLifecycleModels(records) {
 
 function countActiveTables(records) {
   const tables = new Set();
-  const tablePattern = /(?:from|into|update|table)\\s+["']?([a-z][a-z0-9_]*)/gi;
+  const tablePattern = /(?:from|into|update|table)\s+["']?([a-z][a-z0-9_]*)/gi;
   for (const { text } of records) {
     for (const match of text.matchAll(tablePattern)) {
       const table = match[1];
