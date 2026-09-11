@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const workflowUrl = new URL('../.github/workflows/exact-revision-v8.yml', import.meta.url);
+const maintenanceWorkflowUrl = new URL('../.github/workflows/gcp-orchestration-maintain.yml', import.meta.url);
 
 test('exact-revision workflow verifies the exact candidate through the canonical repository path', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
@@ -18,4 +19,10 @@ test('exact-revision workflow verifies the exact candidate through the canonical
     workflow,
     /HATCHABLE_TOKEN|OVERCENTER_HATCHABLE_VERIFICATION_PROJECT|exact-revision-v8-dist-verification-http/,
   );
+});
+
+test('orchestration maintenance follows the provider-neutral exact-revision gate', async () => {
+  const workflow = await readFile(maintenanceWorkflowUrl, 'utf8');
+  assert.match(workflow, /workflows:\s*\["Exact revision verification"\]/);
+  assert.doesNotMatch(workflow, /Exact revision V8 verification/);
 });
