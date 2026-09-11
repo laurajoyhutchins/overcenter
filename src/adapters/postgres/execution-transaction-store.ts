@@ -141,6 +141,7 @@ async function snapshotFromRow(
     effect_ref: text(row.effect_ref),
     proof_ids: await proofIds(client, required(row.execution_id, 'execution_id')),
     settled: Boolean(row.settled),
+    settlement_receipt: jsonObject(row.settlement_receipt) as SettlementReceipt | null,
   };
   assertExecutionSnapshot(snapshot);
   return snapshot;
