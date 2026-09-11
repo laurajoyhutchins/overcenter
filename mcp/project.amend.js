@@ -1,9 +1,6 @@
-import { config } from 'hatchable';
-import { createGitHubAppAuth } from 'lib/github-app-auth.js';
+import { composeHatchableGcpIngressAdapter } from 'lib/hatchable-gcp-ingress-adapter.js';
 import { dispatchGcpProjectAmendViaIngress } from 'lib/gcp-semantic-project-amend-relay.js';
 import { PROJECT_AMEND_INPUT_SCHEMA } from 'lib/project-authoring-mcp-contract.js';
-
-const secrets = Object.freeze({ get(name) { return config.get(name); } });
 
 export const access = 'admin';
 export default {
@@ -11,10 +8,10 @@ export default {
   description:'Amend canonical repository-owned project graph facts at an exact observed Git revision using semantic transition intent. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.',
   inputSchema:PROJECT_AMEND_INPUT_SCHEMA,
   async handler(args) {
-    const githubAppAuth = createGitHubAppAuth({ secrets });
+    const providers = composeHatchableGcpIngressAdapter();
     return dispatchGcpProjectAmendViaIngress(args || {}, {
-      withGitHubAppApiClient:githubAppAuth.withApiClient,
-      secrets,
+      withGitHubAppApiClient:providers.githubAppAuth.withApiClient,
+      secrets:providers.secrets,
     });
   },
 };
