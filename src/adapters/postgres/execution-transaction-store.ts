@@ -206,7 +206,7 @@ function sameIdentity(row: DatabaseRow, identity: ExecutionIdentity): boolean {
     text(row.operation_kind ?? row.effect_kind ?? 'legacy.execution') === identity.operation_kind &&
     text(row.idempotency_scope ?? 'legacy') === identity.idempotency_scope &&
     text(row.idempotency_key ?? identity.execution_id) === identity.idempotency_key &&
-    text(row.intent_sha256 ?? '') === identity.intent_sha256;
+    text(row.intent_sha256 ?? row.request_sha256 ?? '') === identity.intent_sha256;
 }
 
 function requireLease(
