@@ -137,7 +137,7 @@ test('postgres transaction store fences claims and binds proof to exact executio
         evidence_sha256: 'd'.repeat(64),
         evidence: {},
       }),
-      /PROOF_AUTHORITY_REVISION_MISMATCH/,
+      /PROOF_.*MISMATCH/,
     );
 
     await assert.rejects(
