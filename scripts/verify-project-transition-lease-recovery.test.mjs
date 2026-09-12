@@ -25,6 +25,9 @@ test('postgres graph expiry classifies canonical certainty before releasing the 
   const db = {
     async query(sql, params) {
       calls.push({ kind:'query', sql, params });
+      if (String(sql).includes('SELECT * FROM execution_state')) {
+        return { rows:[{ subject_key:'project_transition:project:revision:node', lease_ref:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', transition_revision_fingerprint:'e'.repeat(64), transition_dependency_fingerprint:'f'.repeat(64) }] };
+      }
       return { rows:[] };
     },
     async transaction(statements) {
