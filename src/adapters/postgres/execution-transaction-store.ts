@@ -659,18 +659,6 @@ export function createPostgresExecutionTransactionStore(
     },
 
     async appendProof(input: AppendProofInput): Promise<ExecutionProof> {
-      let expectedEvidenceSha256: string;
-      try {
-        expectedEvidenceSha256 = await sha256Text(canonicalJson(input.evidence));
-      } catch (error) {
-        return fail('PROOF_EVIDENCE_INVALID', 'proof evidence is not canonical JSON', { cause: error });
-      }
-      if (expectedEvidenceSha256 !== input.evidence_sha256) {
-        return fail('PROOF_EVIDENCE_HASH_MISMATCH', 'proof evidence hash does not match canonical evidence', {
-          expected: expectedEvidenceSha256,
-          observed: input.evidence_sha256,
-        });
-      }
       return db.transaction(async (client) => {
         const current = await executionById(client, input.execution_id, true);
         if (!current) return fail('EXECUTION_NOT_FOUND', 'execution does not exist');
@@ -680,6 +668,18 @@ export function createPostgresExecutionTransactionStore(
             text(current.authority_repository) !== input.authority_repository ||
             text(current.authority_revision) !== input.authority_revision) {
           return fail('PROOF_IDENTITY_MISMATCH', 'proof does not match the exact execution identity');
+        }
+        let expectedEvidenceSha256: string;
+        try {
+          expectedEvidenceSha256 = await sha256Text(canonicalJson(input.evidence));
+        } catch (error) {
+          return fail('PROOF_EVIDENCE_INVALID', 'proof evidence is not canonical JSON', { cause: error });
+        }
+        if (expectedEvidenceSha256 !== input.evidence_sha256) {
+          return fail('PROOF_EVIDENCE_HASH_MISMATCH', 'proof evidence hash does not match canonical evidence', {
+            expected: expectedEvidenceSha256,
+            observed: input.evidence_sha256,
+          });
         }
         await client.query(
           `INSERT INTO proof_state (

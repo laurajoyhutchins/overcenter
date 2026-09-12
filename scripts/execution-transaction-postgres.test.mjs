@@ -60,6 +60,7 @@ async function prepareSchema(client) {
     '055_proof_state.sql',
     '056_orchestration_run_compaction.sql',
     '060_execution_transaction_identity.sql',
+    '061_execution_transaction_kernel.sql',
   ]) {
     await client.query(await migration(name));
   }
@@ -91,6 +92,7 @@ test('postgres transaction store fences claims and binds proof to exact executio
 
     const claimed = await store.claimExecution({
       execution_id: exactIdentity.execution_id,
+      run_id: exactIdentity.run_id,
       lease_ref: exactIdentity.lease_ref,
       lease_epoch: exactIdentity.lease_epoch,
       authority_epoch: exactIdentity.authority_epoch,
@@ -100,6 +102,7 @@ test('postgres transaction store fences claims and binds proof to exact executio
 
     const busy = await store.claimExecution({
       execution_id: exactIdentity.execution_id,
+      run_id: exactIdentity.run_id,
       lease_ref: '00000000-0000-4000-8000-000000000002',
       lease_epoch: 2,
       authority_epoch: exactIdentity.authority_epoch,
