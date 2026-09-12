@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   canTransition,
   classifyRecovery,
@@ -87,4 +88,16 @@ test('confirmed and absent provider facts settle without repeating the effect', 
 test('prepared execution is retryable only before an effect attempt', () => {
   assert.equal(classifyRecovery(snapshot('prepared', 'definitely_not_mutated')), 'retry_before_effect');
   assert.equal(classifyRecovery(snapshot('executing', 'definitely_not_mutated')), 'retry_before_effect');
+});
+
+
+test('postgres store binds proof and settlement replay to every exact fact', async () => {
+  const source = await readFile(new URL('../src/adapters/postgres/execution-transaction-store.ts', import.meta.url), 'utf8');
+  assert.match(source, /text\(row\.authority_repository\) !== input\.authority_repository/);
+  assert.match(source, /text\(row\.predicate_kind\) !== input\.predicate/);
+  assert.match(source, /integer\(row\.attempt_epoch, 'attempt_epoch'\) !== input\.attempt_epoch/);
+  assert.match(source, /integer\(row\.authority_epoch, 'authority_epoch'\) !== input\.authority_epoch/);
+  assert.match(source, /receipt\.disposition !== input\.disposition/);
+  assert.match(source, /receipt\.effect_ref !== input\.effect_ref/);
+  assert.match(source, /integer\(current\.current_attempt_epoch, 'current_attempt_epoch'\) !== input\.attempt_epoch/);
 });
