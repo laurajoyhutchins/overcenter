@@ -7,10 +7,11 @@ const correctnessModules = [
   'lib/orchestration-recovery.js',
   'lib/orchestration-finish-runtime.js',
   'lib/project-transition-leases.js',
-  'lib/github-production-promotion-runtime.js',
-  'lib/compact-github-changeset-receipt-store.js',
-  'lib/compact-github-release-receipt-store.js',
-  'lib/compact-github-production-promotion-receipt-store.js',
+  'lib/github-worker-mutations.js',
+  'lib/github-branch-role-runtime.js',
+  'lib/github-apply-changeset.js',
+  'lib/production-promotion-overcenter-host.js',
+  'lib/project-authoring-overcenter-host.js',
 ];
 
 const forbiddenHistory = [
@@ -33,6 +34,16 @@ test('execution correctness never reads historical telemetry or retired receipt 
       assert.ok(!source.includes(table), `${file} still depends on historical correctness state: ${table}`);
     }
   }
+});
+
+test('canonical provider entrypoints own effect correctness', async () => {
+  const worker = await readFile(new URL('lib/github-worker-mutations.js', root), 'utf8');
+  const promotion = await readFile(new URL('lib/production-promotion-overcenter-host.js', root), 'utf8');
+  const authoring = await readFile(new URL('lib/project-authoring-overcenter-host.js', root), 'utf8');
+
+  assert.match(worker, /executeBoundProviderEffect/);
+  assert.match(promotion, /executeBoundProviderEffect/);
+  assert.match(authoring, /executeBoundProviderEffect/);
 });
 
 test('successful journaled commands avoid a second current-failure database write', async () => {
