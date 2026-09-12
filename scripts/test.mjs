@@ -49,6 +49,7 @@ const maintainedTests = [
   'verify-project-inspect-snapshot-correct.test.mjs',
   'verify-project-obligation-contract.test.mjs',
   'verify-project-transition-certificate.test.mjs',
+  'verify-project-transition-certificate-settlement.test.mjs',
   'verify-project-advance-worker-binding.test.mjs',
   'verify-project-transition-authoritative-effect-settlement.test.mjs',
   'verify-project-transition-authoritative-effect-runtime.test.mjs',
