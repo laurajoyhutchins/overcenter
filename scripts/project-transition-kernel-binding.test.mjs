@@ -84,3 +84,15 @@ test('settled canonical transition executions are not reclassified as expired le
   assert.match(source, /execution\?\.lifecycle !== 'settled'/);
   assert.match(source, /execution\?\.settled !== true/);
 });
+
+test('authoritative project-transition GitHub effect is kernel-bound and confirm-only after uncertainty', async () => {
+  const runtime = await readFile(new URL('lib/project-transition-authoritative-effect-github-runtime.js', root), 'utf8');
+  const wrapper = await readFile(new URL('lib/execution-provider-wrapper.js', root), 'utf8');
+  const mcp = await readFile(new URL('mcp/project.advance.js', root), 'utf8');
+  assert.match(runtime, /executeBoundProviderEffect/);
+  assert.match(runtime, /executionTransactionStore/);
+  assert.match(runtime, /allowIntegration: true/);
+  assert.match(runtime, /allowIntegration: false/);
+  assert.match(wrapper, /input\.subject_kind/);
+  assert.match(mcp, /executionTransactionStore/);
+});
