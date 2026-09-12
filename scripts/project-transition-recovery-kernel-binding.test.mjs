@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { createPostgresOrchestrationRecoveryStore } from '../lib/orchestration-recovery.js';
@@ -140,4 +141,15 @@ test('production subject-aware finish requires a canonical project-transition re
     }),
     error => error?.code === 'CANONICAL_SETTLEMENT_RECEIPT_REQUIRED',
   );
+});
+
+
+test('subject-aware orchestration candidates are fenced by canonical execution lifecycle', async () => {
+  const source = await readFile(new URL('../lib/orchestration-finish-runtime.js', import.meta.url), 'utf8');
+  const start = source.indexOf('function readActiveLeaseCandidates');
+  const end = source.indexOf('export function createPostgresSubjectAwareOrchestrationRunService', start);
+  const candidates = source.slice(start, end);
+  assert.match(candidates, /JOIN execution_state/);
+  assert.match(candidates, /e\.lifecycle IN/);
+  assert.match(candidates, /e\.settled\s*=\s*false/);
 });
