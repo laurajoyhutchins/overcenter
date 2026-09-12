@@ -190,6 +190,15 @@ test('subject-aware orchestration candidates are fenced by canonical execution l
 });
 
 
+test('subject-aware finish enumerates canonical active executions before legacy projections', async () => {
+  const source = await readFile(new URL('../lib/orchestration-finish-runtime.js', import.meta.url), 'utf8');
+  const start = source.indexOf('function readActiveLeaseCandidates');
+  const end = source.indexOf('export function createPostgresSubjectAwareOrchestrationRunService', start);
+  const lookup = source.slice(start, end);
+  assert.match(lookup, /FROM execution_state/);
+  assert.ok(lookup.indexOf('FROM execution_state') < lookup.indexOf('FROM work_leases'));
+});
+
 test('subject routing rejects canonical and projection subject disagreement', () => {
   assert.throws(
     () => durableLeaseSubject({
