@@ -45,7 +45,7 @@ function identity() {
     operation_kind: 'github.apply_changeset',
     idempotency_scope: 'repository:laurajoyhutchins/overcenter',
     idempotency_key: 'intent-1',
-    intent_sha256: 'intent-hash',
+    intent_sha256: 'a'.repeat(64),
   };
 }
 
