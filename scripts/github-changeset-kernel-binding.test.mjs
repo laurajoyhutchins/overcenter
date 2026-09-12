@@ -18,12 +18,11 @@ test('GitHub changesets are executed through the canonical transaction kernel', 
   assert.match(transport, /executionTransactionStore:runtime\.executionTransactionStore/);
 });
 
-test('the old changeset receipt ledger is not selected for kernel-managed effects', async () => {
+test('GitHub changeset effects have no provider-specific receipt ledger', async () => {
   const branchRoles = await readFile(new URL('lib/github-branch-role-runtime.js', repoRoot), 'utf8');
   const changeset = await readFile(new URL('lib/github-apply-changeset.js', repoRoot), 'utf8');
 
-  assert.match(branchRoles, /createCompactGithubChangesetReceiptStore/);
-  assert.match(branchRoles, /kernelManaged/);
-  assert.match(changeset, /createGithubChangesetReceiptStore/);
-  assert.match(changeset, /kernelManaged/);
+  assert.doesNotMatch(branchRoles, /createCompactGithubChangesetReceiptStore/);
+  assert.doesNotMatch(changeset, /createGithubChangesetReceiptStore/);
+  assert.doesNotMatch(changeset, /github_changeset_receipts/);
 });
