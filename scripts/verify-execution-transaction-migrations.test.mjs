@@ -75,3 +75,10 @@ test('the execution kernel owns provider settlement without orchestration-run or
   assert.match(sql, /provider_operation/);
   assert.match(sql, /proof_state.*evidence|evidence.*proof_state/is);
 });
+
+
+test('project-transition canonical state preserves authority derivation and acquisition replay identity', async () => {
+  const sql = await migration('062_project_transition_canonical_authority.sql');
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS authority_derivation\s+text/i);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS acquire_request_hash\s+text/i);
+});
