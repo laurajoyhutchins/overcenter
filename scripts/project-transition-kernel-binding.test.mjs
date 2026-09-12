@@ -204,6 +204,21 @@ test('Postgres execution authority projects current project-transition identity 
 });
 
 
+test('project-transition slot reads use canonical execution identity', async () => {
+  const calls = [];
+  const db = {
+    async query(sql, params) {
+      calls.push({ sql, params });
+      return { rows:[{ slot_key:'project_transition:canonical-slot', lease_id:'99999999-9999-4999-8999-999999999999', expires_at:'2026-09-12T20:30:00.000Z' }] };
+    },
+  };
+  const store = (await import('../lib/project-transition-lease-store.js')).createProjectTransitionLeasePostgresStore(db);
+  const slot = await store.getSlot('project_transition:canonical-slot');
+  assert.equal(slot?.lease_id, '99999999-9999-4999-8999-999999999999');
+  assert.match(calls[0].sql, /FROM execution_state/);
+  assert.doesNotMatch(calls[0].sql, /FROM work_lease_slots/);
+});
+
 test('project-transition Postgres lease reads use canonical execution identity', async () => {
   const leaseRef = '99999999-9999-4999-8999-999999999999';
   const canonical = {
