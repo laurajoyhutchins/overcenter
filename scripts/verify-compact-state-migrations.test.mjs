@@ -62,3 +62,15 @@ test('orchestration_runs stores one bounded current failure register instead of 
   assert.match(sql, /current_failure_streak\s*>=\s*0/i);
   assert.doesNotMatch(sql, /orchestration_command_invocations|recent_failures|failure_history/i);
 });
+
+test('the execution kernel owns provider settlement without orchestration-run or provider receipt ledgers', async () => {
+  const sql = await migration('061_execution_transaction_kernel.sql');
+  assert.match(sql, /drop\s+constraint\s+if\s+exists\s+execution_state_run_id_fkey/i);
+  assert.match(sql, /drop\s+constraint\s+if\s+exists\s+operation_state_run_id_fkey/i);
+  assert.match(sql, /drop\s+table\s+if\s+exists\s+github_changeset_receipts/i);
+  assert.match(sql, /drop\s+table\s+if\s+exists\s+github_release_receipts/i);
+  assert.match(sql, /drop\s+table\s+if\s+exists\s+github_production_promotion_receipts/i);
+  assert.match(sql, /drop\s+table\s+if\s+exists\s+portfolio_reconcile_receipts/i);
+  assert.match(sql, /provider_operation/);
+  assert.match(sql, /proof_state.*evidence|evidence.*proof_state/is);
+});
