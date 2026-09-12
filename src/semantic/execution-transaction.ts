@@ -196,6 +196,12 @@ function validCertainty(value: unknown): value is MutationCertainty {
     value === 'confirmed_mutated';
 }
 
+function validSubjectKind(value: unknown): value is ExecutionIdentity['subject_kind'] {
+  return value === 'project_transition' ||
+    value === 'legacy_work' ||
+    value === 'provider_operation';
+}
+
 export function canTransition(from: ExecutionLifecycle, to: ExecutionLifecycle): boolean {
   return TRANSITIONS[from].includes(to);
 }
@@ -250,6 +256,10 @@ export function classifyRecovery(snapshot: ExecutionSnapshot): RecoveryDecision 
 export function assertExecutionIdentity(value: unknown): asserts value is ExecutionIdentity {
   const identity = recordOf(value);
   if (!identity) throw new Error('execution identity must be an object');
+
+  if (!validSubjectKind(identity.subject_kind)) {
+    throw new Error('subject_kind is invalid');
+  }
 
   for (const field of [
     'execution_id',
