@@ -22,6 +22,20 @@ test('orchestration recovery selects only nonterminal canonical executions', asy
 });
 
 
+test('legacy recovery lookup excludes project-transition projection rows', async () => {
+  const calls = [];
+  const store = createPostgresOrchestrationRecoveryStore({
+    async query(sql, params) {
+      calls.push({ sql, params });
+      return { rows:[] };
+    },
+  });
+  await store.currentLegacyLease('run-project-transition');
+  assert.match(calls[0].sql, /claim_receipt->>'subject'/);
+  assert.match(calls[0].sql, /project_transition/);
+  assert.match(calls[0].sql, /<>/);
+});
+
 test('resume evidence reads the canonical transition settlement receipt', async () => {
   const source = await readFile(new URL('../lib/orchestration-run-target-runtime.js', import.meta.url), 'utf8');
   const start = source.indexOf('async function projectGraphRevisionEvidenceForRun');
