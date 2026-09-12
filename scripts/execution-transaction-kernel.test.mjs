@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
+  assertExecutionIdentity,
   canTransition,
   classifyRecovery,
   mutationCertaintyFromFacts,
@@ -100,4 +101,16 @@ test('postgres store binds proof and settlement replay to every exact fact', asy
   assert.match(source, /receipt\.disposition !== input\.disposition/);
   assert.match(source, /receipt\.effect_ref !== input\.effect_ref/);
   assert.match(source, /integer\(current\.current_attempt_epoch, 'current_attempt_epoch'\) !== input\.attempt_epoch/);
+});
+
+
+test('identity validation rejects an unknown subject kind at the kernel boundary', () => {
+  const identity = {
+    ...snapshot('prepared', 'definitely_not_mutated').identity,
+    subject_kind: 'unknown_subject_kind',
+  };
+  assert.throws(
+    () => assertExecutionIdentity(identity),
+    /subject_kind is invalid/,
+  );
 });
