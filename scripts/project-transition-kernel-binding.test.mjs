@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { prepareProjectTransitionLeasePersistence } from '../lib/project-transition-lease-store.js';
+import { prepareProjectTransitionLeasePersistence, restoreProjectTransitionLease } from '../lib/project-transition-lease-store.js';
 
 const root = new URL('../', import.meta.url);
 
@@ -108,4 +108,43 @@ test('authoritative project-transition GitHub effect is kernel-bound and confirm
   assert.match(facts, /reason === 'authoritative_effect_not_observed'/);
   assert.match(facts, /status:'unknown'/);
   assert.doesNotMatch(facts, /reason === 'authoritative_effect_not_observed'[\\s\\S]*status:'absent'/);
+});
+
+test('restored project-transition settlement exposes the canonical receipt to orchestration', () => {
+  const receipt = {
+    schema:'settlement-receipt-v1',
+    execution_id:'execution:transition-receipt',
+    operation_id:'11111111-1111-4111-8111-111111111111',
+    authority_revision:'a'.repeat(40),
+    authority_epoch:2,
+    lifecycle:'settled',
+    disposition:'completed',
+    effect_ref:null,
+    evidence_sha256:'b'.repeat(64),
+  };
+  const restored = restoreProjectTransitionLease({
+    lease_id:'22222222-2222-4222-8222-222222222222',
+    run_id:'run-transition-receipt',
+    work_ref:'project_transition:receipt',
+    status:'settled',
+    claim_idempotency_key:'project-transition:acquire',
+    claim_request_hash:'c'.repeat(64),
+    claim_receipt:{
+      subject:'project_transition',
+      project_transition:{
+        project_ref:'github:laurajoyhutchins/overcenter',
+        transition_id:'receipt',
+        repository:'laurajoyhutchins/overcenter',
+        authority_revision:'a'.repeat(40),
+        authority_derivation:'overcenter-project-graph-v1',
+        graph_fingerprint:'d'.repeat(64),
+        transition_definition_fingerprint:'e'.repeat(64),
+        transition_revision_fingerprint:'f'.repeat(64),
+        transition_dependency_fingerprint:'0'.repeat(64),
+        slot_key:'project_transition:receipt',
+      },
+    },
+    settle_receipt:{ canonical_receipt:receipt },
+  });
+  assert.deepEqual(restored?.settlement_receipt, receipt);
 });
