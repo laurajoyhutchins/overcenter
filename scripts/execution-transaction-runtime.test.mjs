@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { executeExecutionTransaction, recoverExecutionTransaction } from '../lib/execution-transaction-runtime.js';
 import { mutationCertaintyFromFacts } from '../lib/execution-transaction.js';
+import { canonicalJson, sha256Text } from '../lib/canonical-json.js';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -265,6 +266,33 @@ test('duplicate delivery settles one execution and invokes the provider once', a
   assert.equal(provider.calls.invoke, 1);
 });
 
+
+test('proof evidence is bound to the exact execution, attempt, and authority', async () => {
+  const store = new MemoryStore();
+  const result = await executeExecutionTransaction({
+    intent: intent(),
+    context: context(),
+    provider: providerFor(),
+    store,
+  });
+  const proof = store.executions.get(result.identity.execution_id).proof;
+  const envelope = {
+    schema: 'execution-proof-evidence-v1',
+    execution_id: result.identity.execution_id,
+    operation_id: result.identity.operation_id,
+    attempt_epoch: 1,
+    authority: {
+      repository: result.identity.authority_repository,
+      revision: result.identity.authority_revision,
+      epoch: result.identity.authority_epoch,
+    },
+    predicate: 'provider-invocation',
+    evidence: { status: 'accepted' },
+  };
+  assert.deepEqual(proof.evidence, envelope);
+  assert.equal(proof.evidence_sha256, await sha256Text(canonicalJson(envelope)));
+});
+
 test('database failure after provider mutation is recovered by exact readback', async () => {
   const store = new MemoryStore({ failSettlementOnce: true });
   const provider = providerFor();
@@ -492,4 +520,68 @@ test('replacement workers replay the same execution identity after a pre-effect 
   assert.equal(replacement.receipt.disposition, 'completed');
   assert.equal(replacement.receipt.execution_id, [...store.executions.keys()][0]);
   assert.equal(replacement.identity.execution_id, [...store.executions.keys()][0]);
+});
+
+
+test('a replacement run is fenced even when it reuses a lease token and epoch', async () => {
+  const store = new MemoryStore();
+  const worker = providerFor();
+  worker.preflight = async () => {
+    throw new Error('worker died before effect');
+  };
+  await assert.rejects(
+    executeExecutionTransaction({
+      intent: intent(),
+      context: context({
+        run_id: 'run-1',
+        lease_ref: 'reused-lease',
+        lease_epoch: 1,
+        lease_expires_at: '1970-01-01T00:00:00.000Z',
+      }),
+      provider: worker,
+      store,
+    }),
+  );
+  const execution_id = [...store.executions.keys()][0];
+  const staleIdentity = clone(store.executions.get(execution_id).identity);
+  store.executions.get(execution_id).lease_expires_at = '1970-01-01T00:00:00.000Z';
+  await store.claimExecution({
+    execution_id,
+    run_id: 'run-2',
+    lease_ref: 'reused-lease',
+    lease_epoch: 1,
+    authority_epoch: 3,
+    lease_expires_at: '2999-01-01T00:00:00.000Z',
+  });
+  await assert.rejects(
+    store.settleExecution({
+      identity: staleIdentity,
+      attempt_epoch: 1,
+      disposition: 'completed',
+      effect_ref: 'provider-effect-1',
+      evidence_sha256: 'evidence-hash',
+    }),
+    error => error?.code === 'STALE_EXECUTION',
+  );
+});
+
+
+test('confirmed mutation without an effect reference fails closed', async () => {
+  const store = new MemoryStore();
+  const provider = providerFor({ mode: 'unknown-confirmed' });
+  provider.confirm = async () => ({
+    status: 'confirmed',
+    effect_ref: null,
+    predicate: 'exact-effect',
+    evidence: { status: 'present-without-reference' },
+  });
+  await assert.rejects(
+    executeExecutionTransaction({
+      intent: intent(),
+      context: context(),
+      provider,
+      store,
+    }),
+    error => error?.code === 'EFFECT_REFERENCE_REQUIRED',
+  );
 });
