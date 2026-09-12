@@ -465,3 +465,31 @@ test('authority epoch changes fail closed for the old worker', async () => {
     error => error?.code === 'STALE_EXECUTION',
   );
 });
+
+test('replacement workers replay the same execution identity after a pre-effect worker death', async () => {
+  const store = new MemoryStore();
+  const deadWorker = providerFor();
+  deadWorker.preflight = async () => {
+    throw new Error('worker died before effect');
+  };
+
+  await assert.rejects(
+    executeExecutionTransaction({
+      intent: intent(),
+      context: context({ run_id: 'run-1', lease_ref: 'lease-1', lease_epoch: 1 }),
+      provider: deadWorker,
+      store,
+    }),
+  );
+
+  const replacement = await executeExecutionTransaction({
+    intent: intent(),
+    context: context({ run_id: 'run-2', lease_ref: 'lease-2', lease_epoch: 2 }),
+    provider: providerFor(),
+    store,
+  });
+
+  assert.equal(replacement.receipt.disposition, 'completed');
+  assert.equal(replacement.receipt.execution_id, [...store.executions.keys()][0]);
+  assert.equal(replacement.identity.execution_id, [...store.executions.keys()][0]);
+});
