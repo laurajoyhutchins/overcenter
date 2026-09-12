@@ -30,5 +30,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: npm run verify
-      - name: Test project inspect runtime host
-        run: node --input-type=module -e "import { runProjectInspectOvercenterHostTests } from './lib/project-inspect-overcenter-host.test.js'; await runProjectInspectOvercenterHostTests();"
+      # Native lib tests are discovered by npm run verify through scripts/test.mjs.
