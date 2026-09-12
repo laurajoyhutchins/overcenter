@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import { createPostgresOrchestrationRecoveryStore } from '../lib/orchestration-recovery.js';
 import { createOrchestrationRunService } from '../lib/orchestration-runs.js';
+import { durableLeaseSubject } from '../lib/orchestration-lease-authority.js';
 
 test('orchestration recovery selects only nonterminal canonical executions', async () => {
   const calls = [];
@@ -152,4 +153,17 @@ test('subject-aware orchestration candidates are fenced by canonical execution l
   assert.match(candidates, /JOIN execution_state/);
   assert.match(candidates, /e\.lifecycle IN/);
   assert.match(candidates, /e\.settled\s*=\s*false/);
+});
+
+
+test('subject routing rejects canonical and projection subject disagreement', () => {
+  assert.throws(
+    () => durableLeaseSubject({
+      lease_id:'88888888-8888-4888-8888-888888888888',
+      subject_kind:'legacy_work',
+      gate:'project_transition',
+      claim_receipt:{ subject:'project_transition' },
+    }),
+    error => error?.code === 'ORCHESTRATION_LEASE_SUBJECT_INVALID',
+  );
 });
