@@ -90,6 +90,8 @@ async function prepareSchema(client) {
   `);
   await client.query(await migration('053_execution_state.sql'));
   await client.query(await migration('054_operation_state.sql'));
+  await client.query(await migration('060_execution_transaction_identity.sql'));
+  await client.query(await migration('061_execution_transaction_cleanup.sql'));
 }
 
 async function seedRun(client, runId) {
