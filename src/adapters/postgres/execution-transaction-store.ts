@@ -465,7 +465,7 @@ export function createPostgresExecutionTransactionStore(
              AND lifecycle NOT IN ('settled', 'rejected', 'escalated')
              AND (
                (run_id = $2 AND lease_ref = $3 AND lease_epoch = $4)
-               OR expires_at <= now()
+               OR (expires_at <= now() AND $4 > lease_epoch)
              )
            RETURNING *`,
           [
