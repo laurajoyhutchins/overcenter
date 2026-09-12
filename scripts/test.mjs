@@ -26,6 +26,7 @@ const maintainedTests = [
   'execution-transaction-kernel.test.mjs',
   'execution-transaction-runtime.test.mjs',
   'github-changeset-kernel-binding.test.mjs',
+  'github-api-kernel-binding.test.mjs',
   'execution-provider-wrappers.test.mjs',
   'portfolio-reconcile-kernel-binding.test.mjs',
   'deterministic-work-settlement-kernel-binding.test.mjs',
