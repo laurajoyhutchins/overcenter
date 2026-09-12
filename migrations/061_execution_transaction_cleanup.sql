@@ -26,6 +26,7 @@ DROP TABLE IF EXISTS github_changeset_receipts CASCADE;
 DROP TABLE IF EXISTS github_release_receipts CASCADE;
 DROP TABLE IF EXISTS github_production_promotion_receipts CASCADE;
 DROP TABLE IF EXISTS portfolio_reconcile_receipts CASCADE;
+DROP TABLE IF EXISTS portfolio_verification_receipts CASCADE;
 
 ALTER TABLE operation_state
   ADD CONSTRAINT operation_state_request_sha256_kernel_check
