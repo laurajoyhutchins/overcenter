@@ -251,3 +251,14 @@ test('orchestration run receipts include canonical transition settlement state',
   assert.match(lookup, /settlement_receipt/);
   assert.ok(lookup.indexOf('FROM execution_state') < lookup.indexOf('FROM work_leases'));
 });
+
+test('project graph observations read canonical transition settlements before historical projections', async () => {
+  const source = await readFile(new URL('../lib/project-graph-github-runtime.js', import.meta.url), 'utf8');
+  const start = source.indexOf('async readProjectObservations');
+  const end = source.indexOf('    },', start);
+  const lookup = source.slice(start, end);
+  assert.match(lookup, /FROM execution_state/);
+  assert.match(lookup, /settlement_receipt/);
+  assert.match(lookup, /subject_kind='project_transition'/);
+  assert.ok(lookup.indexOf('FROM execution_state') < lookup.indexOf('FROM work_leases'));
+});
