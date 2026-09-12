@@ -64,7 +64,7 @@ test('orchestration_runs stores one bounded current failure register instead of 
 });
 
 test('the execution kernel owns provider settlement without orchestration-run or provider receipt ledgers', async () => {
-  const sql = await migration('061_execution_transaction_kernel.sql');
+  const sql = await migration('061_execution_transaction_cleanup.sql');
   assert.match(sql, /drop\s+constraint\s+if\s+exists\s+execution_state_run_id_fkey/i);
   assert.match(sql, /drop\s+constraint\s+if\s+exists\s+operation_state_run_id_fkey/i);
   assert.match(sql, /drop\s+table\s+if\s+exists\s+github_changeset_receipts/i);

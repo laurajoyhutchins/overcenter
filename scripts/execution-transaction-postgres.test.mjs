@@ -60,7 +60,7 @@ async function prepareSchema(client) {
     '055_proof_state.sql',
     '056_orchestration_run_compaction.sql',
     '060_execution_transaction_identity.sql',
-    '061_execution_transaction_kernel.sql',
+    '061_execution_transaction_cleanup.sql',
   ]) {
     await client.query(await migration(name));
   }
