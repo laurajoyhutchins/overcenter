@@ -108,7 +108,7 @@ for (const prefix of ['exact-revision-v8-verification', 'production-materializat
   maintainedTests.push(...scriptNames.filter(name => name.startsWith(prefix) && name.endsWith('.test.mjs')));
 }
 
-run(['scripts/verify-regression-suite-registry.mjs']);
+// Legacy regression registry retired; lib/**/*.test.js is discovered below.
 run(['scripts/verify-orchestration-drive.mjs']);
 const nativeLibraryTests = (await javascriptFiles('lib')).filter(file => file.endsWith('.test.js')).sort();
 run(['--test', ...[...new Set(maintainedTests)].sort().map(name => `scripts/${name}`), ...nativeLibraryTests]);
