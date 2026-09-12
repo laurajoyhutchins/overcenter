@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createProjectTransitionLeasePostgresStore, reconcileExpiredLeaseItem } from '../lib/project-transition-lease-store.js';
+import { createSubjectAwareLeaseRecovery } from '../lib/orchestration-maintenance-subjects.js';
 
 test('expired project-transition ownership is recovered without Linear reconciliation', async () => {
   let linearCalls = 0;
@@ -100,4 +101,37 @@ test('postgres graph expiry refuses to requeue when canonical mutation remains u
   assert.equal(result.released_without_linear_mutation, false);
   assert.equal(result.recovery_required, true);
   assert.equal(result.mutation_certainty, 'may_have_mutated');
+});
+
+
+test('subject-aware expiry dispatch reads canonical project-transition execution before projection slots', async () => {
+  const queries = [];
+  const subjectKey = 'project_transition:project:revision:canonical-expiry';
+  const leaseId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  let graphCalls = 0;
+  const db = {
+    async query(sql, params) {
+      queries.push({ sql:String(sql), params });
+      if (String(sql).includes('FROM execution_state') && String(sql).includes('project_transition')) {
+        return { rows:[{ work_ref:subjectKey, gate:'project_transition', lease_id:leaseId, expires_at:'2026-08-27T14:59:00Z', subject:'project_transition' }] };
+      }
+      return { rows:[] };
+    },
+  };
+  const recovery = createSubjectAwareLeaseRecovery({
+    dbBinding:db,
+    workLeases:{ claim(){}, settle(){} },
+    projectTransitions:{
+      async reconcileExpired(workRef, observedLeaseId, observedAt) {
+        graphCalls += 1;
+        return { work_ref:workRef, lease_ref:observedLeaseId, observed_at:observedAt, recovery_required:true };
+      },
+    },
+    now:() => '2026-08-27T15:00:00Z',
+  });
+  const result = await recovery.reconcileExpired(subjectKey, 'project_transition');
+  assert.equal(graphCalls, 1);
+  assert.equal(result.recovery_required, true);
+  assert.match(queries[0].sql, /FROM execution_state/);
+  assert.doesNotMatch(queries[0].sql, /FROM work_lease_slots/);
 });
