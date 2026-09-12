@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { boundedEvidenceProjection } from '../lib/bounded-evidence.js';
 import { deriveMutationCertainty, projectExecutionEvidence } from '../lib/execution-evidence.js';
 import { createPostgresExecutionEvidenceStore } from '../lib/execution-evidence-store.js';
+import { readFile } from 'node:fs/promises';
 
 test('bounded evidence uses stable object-key ordering', () => {
   const left = boundedEvidenceProjection({ z: 1, a: 2, nested: { y: 3, b: 4 } });
@@ -88,4 +89,17 @@ test('mutation confirmation is command-aware rather than generic verified-field 
     invocation_id: 'start-1', command: 'orchestration.start', outcome: 'succeeded',
     may_have_mutated: false, result_projection: { status: 'active' },
   }, []), 'not_applicable');
+});
+
+
+test('execution evidence reads canonical executions before legacy lease projections', async () => {
+  const source = await readFile(new URL('../lib/execution-evidence-store.js', import.meta.url), 'utf8');
+  assert.match(
+    source,
+    /const canonicalLeases = await rows\([\s\S]*FROM execution_state[\s\S]*WHERE e\.run_id = \$1/i,
+  );
+  assert.match(
+    source,
+    /const legacyLeases = await rows\([\s\S]*FROM work_leases[\s\S]*NOT EXISTS[\s\S]*execution_state/i,
+  );
 });
