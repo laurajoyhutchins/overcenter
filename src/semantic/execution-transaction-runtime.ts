@@ -242,6 +242,7 @@ async function confirmAndSettle<TPayload extends JsonValue>(
   intent: ExecutionIntent<TPayload>,
   identity: ExecutionIdentity,
   attempt_epoch: number,
+  effect_ref: string | null,
 ): Promise<ExecutionTransactionResult> {
   let confirmation: ProviderConfirmationFacts;
   try {
@@ -249,7 +250,7 @@ async function confirmAndSettle<TPayload extends JsonValue>(
       intent,
       identity,
       attempt_epoch,
-      effect_ref: null,
+      effect_ref,
     });
   } catch (error) {
     confirmation = unknownConfirmation(error);
@@ -323,7 +324,7 @@ async function executeClaimed<TPayload extends JsonValue>(
   await store.recordInvocation({ identity, attempt_epoch, facts: invocation });
   const invocationCertainty = mutationCertaintyFromFacts(invocation);
   if (invocationCertainty === 'may_have_mutated') {
-    return confirmAndSettle(store, provider, intent, identity, attempt_epoch);
+    return confirmAndSettle(store, provider, intent, identity, attempt_epoch, invocation.effect_ref);
   }
   return appendProofAndSettle(
     store,
@@ -452,6 +453,7 @@ export async function recoverExecutionTransaction<TPayload extends JsonValue>(
       input.intent,
       claimedIdentity,
       Math.max(1, claim.snapshot.attempt_epoch),
+      claim.snapshot.effect_ref,
     );
   }
   return fail('EXECUTION_ESCALATED', 'durable execution facts require escalation', {
