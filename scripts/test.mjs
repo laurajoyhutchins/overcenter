@@ -24,7 +24,7 @@ async function javascriptFiles(directory) {
 const maintainedTests = [
   'execution-correctness-baseline.test.mjs',
   'execution-transaction-kernel.test.mjs',
-  'execution-transaction-runtime.test.mjs',
+  'execution-transaction-runtime.test.mjs',\n  'execution-provider-wrappers.test.mjs',\n  'release-publish-kernel-binding.test.mjs',
   'production-promotion-transaction.test.mjs',
   'cloud-run-command-ingress-host.test.mjs',
   'cloud-run-host.test.mjs',
