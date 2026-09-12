@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 
 import { executeDeterministicWorkSettlement } from '../lib/deterministic-work-settlement-execution.js';
 import { executeGithubChangeset } from '../lib/github-changeset-execution.js';
@@ -254,4 +255,12 @@ test('all uncertain provider effects use the same execution transaction wrapper 
     assert.equal(typeof identity.intent_sha256, 'string');
     assert.equal(identity.operation_kind.startsWith('execution.'), false);
   }
+});
+
+test('provider wrapper source and runtime mirror preserve explicit execution subject binding', async () => {
+  const source = await readFile(new URL('../src/semantic/execution-provider-wrapper.ts', import.meta.url), 'utf8');
+  const runtime = await readFile(new URL('../lib/execution-provider-wrapper.js', import.meta.url), 'utf8');
+  assert.match(source, /subject_kind\?:\s*ExecutionTransactionContext\['subject_kind'\]/);
+  assert.match(source, /context\.subject_kind\s*!==\s*subjectKind/);
+  assert.match(runtime, /context\.subject_kind\s*!==\s*subjectKind/);
 });
