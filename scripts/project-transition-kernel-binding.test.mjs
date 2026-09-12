@@ -67,3 +67,14 @@ test('project-transition checkpoints and heartbeats persist exact canonical oper
   assert.match(heartbeat, /mutation_certainty/);
   assert.match(heartbeat, /may_have_mutated=false/);
 });
+
+test('project-transition settlement writes the canonical durable receipt and lifecycle', async () => {
+  const settlementStart = c.indexOf('async settleLeaseAtomically');
+  const heartbeatStart = c.indexOf('async extendLeaseWithHeartbeat');
+  const settlement = c.slice(settlementStart, heartbeatStart);
+  assert.match(settlement, /UPDATE operation_state/);
+  assert.match(settlement, /lifecycle='settled'/);
+  assert.match(settlement, /settled=true/);
+  assert.match(settlement, /settlement_receipt/);
+  assert.match(settlement, /authority_epoch/);
+});
