@@ -36,6 +36,7 @@ const maintainedTests = [
   'gcp-semantic-project-amend-bridge.test.mjs',
   'postgres-state-manifest.test.mjs',
   'source-authority-fence.test.mjs',
+  'test-audit.test.mjs',
   'verify-github-workflow-dispatch.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
