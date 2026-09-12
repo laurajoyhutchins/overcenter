@@ -195,6 +195,12 @@ test('generated command reference exactly matches descriptor source', async () =
   assert.equal(await source('public/docs/semantic-command-descriptors.md'), renderSemanticCommandReference());
 });
 
+test('orchestration maintenance descriptor names canonical execution state', () => {
+  const description = semanticCommandDescriptor('orchestration.maintain').description;
+  assert.match(description, /canonical execution/i);
+  assert.doesNotMatch(description, /compact/i);
+});
+
 test('unknown command descriptors fail closed', () => {
   assert.throws(() => semanticCommandDescriptor('work.not-real'), /not migrated/);
 });
