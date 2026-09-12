@@ -701,3 +701,36 @@ test('attempt request facts bind the owning run in both source and runtime kerne
     );
   }
 });
+
+
+test('confirmation receives a durable provider effect reference after an uncertain invocation', async () => {
+  const store = new MemoryStore();
+  const provider = providerFor({ mode: 'unknown' });
+  let confirmedEffectRef = 'unset';
+  provider.invoke = async () => ({
+    transport: 'unknown',
+    committed: null,
+    effect_ref: 'provider-effect-known',
+    response_sha256: null,
+    evidence: { status: 'timeout-with-effect-reference' },
+  });
+  provider.confirm = async ({ effect_ref }) => {
+    confirmedEffectRef = effect_ref;
+    return {
+      status: 'confirmed',
+      effect_ref: 'provider-effect-known',
+      predicate: 'exact-effect',
+      evidence: { status: 'present' },
+    };
+  };
+
+  const result = await executeExecutionTransaction({
+    intent: intent(),
+    context: context(),
+    provider,
+    store,
+  });
+
+  assert.equal(result.receipt.disposition, 'completed');
+  assert.equal(confirmedEffectRef, 'provider-effect-known');
+});
