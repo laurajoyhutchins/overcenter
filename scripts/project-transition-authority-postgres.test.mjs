@@ -92,6 +92,7 @@ async function prepareSchema(client) {
   await client.query(await migration('054_operation_state.sql'));
   await client.query(await migration('060_execution_transaction_identity.sql'));
   await client.query(await migration('061_execution_transaction_cleanup.sql'));
+  await client.query(await migration('062_project_transition_canonical_authority.sql'));
 }
 
 async function seedRun(client, runId) {
@@ -172,6 +173,7 @@ test('project transition bridge advances and enforces canonical authority epochs
     assert.equal(execution.authority_epoch, 1);
     assert.equal(execution.lease_ref, firstInput.lease_id);
     assert.equal(execution.run_id, runId);
+    assert.equal(execution.authority_derivation, 'overcenter-project-graph-v1');
     const slot1 = await store.getSlot(firstInput.slot_key);
     assert.equal(slot1.lease_id, firstInput.lease_id);
 
