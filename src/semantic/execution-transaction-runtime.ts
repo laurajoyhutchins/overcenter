@@ -162,6 +162,7 @@ async function requestHash<TPayload extends JsonValue>(
     intent,
     execution_id: identity.execution_id,
     operation_id: identity.operation_id,
+    run_id: identity.run_id,
     attempt_epoch,
   }));
 }
