@@ -59,8 +59,13 @@ const liveSourceFiles = [
   'lib/project-authoring-overcenter-host.js',
   'lib/project-inspect-github-runtime.js',
   'lib/portfolio-reconcile-execution-runtime.js',
+  'lib/orchestration-maintenance-subjects.js',
+  'lib/orchestration-runs.js',
+  'lib/orchestration-recovery.js',
+  'lib/project-transition-lease-store.js',
+  'lib/project-transition-leases.js',
 ];
-const forbiddenLiveSource = /github_(?:changeset|release|production_promotion)_receipts|portfolio_(?:reconcile|verification)_receipts|createCompact(?:ExecutionState|ProviderOperation|ProofState|GithubChangesetReceipt)Store|compact(?:ExecutionState|ProviderOperation|ProofState)|createProjectAuthoringRecoveryForRuntime|compactRecoveries/;
+const forbiddenLiveSource = /github_(?:changeset|release|production_promotion)_receipts|portfolio_(?:reconcile|verification)_receipts|createCompact(?:ExecutionState|ProviderOperation|ProofState|GithubChangesetReceipt)Store|compact(?:ExecutionState|ProviderOperation|ProofState)|createProjectAuthoringRecoveryForRuntime|compactRecoveries|compact_operation|publicCompactExecution|compact_execution_state|compact_authority|compact execution authority|compactTransitionExecutionFingerprint|loadCompactContinuation/;
 for (const relative of liveSourceFiles) {
   const source = fs.readFileSync(path.join(root, relative), 'utf8');
   assert.equal(
