@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
@@ -19,6 +19,16 @@ async function javascriptFiles(directory) {
     else if (entry.isFile() && entry.name.endsWith('.js')) files.push(relative);
   }
   return files;
+}
+
+async function nativeLibraryTests() {
+  const files = (await javascriptFiles('lib')).filter((file) => file.endsWith('.test.js'));
+  const native = [];
+  for (const file of files) {
+    const source = await readFile(new URL(file, root), 'utf8');
+    if (/(?:from\s*['\"]node:test['\"]|require\(\s*['\"]node:test['\"]\s*\))/.test(source)) native.push(file);
+  }
+  return native.sort();
 }
 
 const maintainedTests = [
@@ -109,6 +119,9 @@ for (const prefix of ['exact-revision-v8-verification', 'production-materializat
 run(['scripts/verify-regression-suite-registry.mjs']);
 run(['scripts/verify-orchestration-drive.mjs']);
 run(['--test', ...[...new Set(maintainedTests)].sort().map(name => `scripts/${name}`)]);
+
+const nativeLibTests = await nativeLibraryTests();
+if (nativeLibTests.length) run(['--test', ...nativeLibTests]);
 
 for (const directory of ['api', 'lib', 'mcp', 'pages']) {
   for (const file of await javascriptFiles(directory)) run(['--check', file]);

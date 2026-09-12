@@ -31,7 +31,22 @@ function registeredSuites(source) {
     .map(([, group, name, suiteSource]) => ({ group, name, source:suiteSource }));
 }
 
-const maintained = (await collectTestFiles(LIB)).map(repoPath).sort();
+function usesNativeNodeTest(source) {
+  return /(?:from\s*['\"]node:test['\"]|require\(\s*['\"]node:test['\"]\s*\))/.test(source);
+}
+
+const maintainedFiles = await collectTestFiles(LIB);
+const maintained = maintainedFiles.map(repoPath).sort();
+const native = [];
+const legacy = [];
+for (const absolute of maintainedFiles) {
+  const path = repoPath(absolute);
+  const source = await readFile(absolute, 'utf8');
+  (usesNativeNodeTest(source) ? native : legacy).push(path);
+}
+native.sort();
+legacy.sort();
+
 const registrySource = await readFile(REGISTRY, 'utf8');
 const registered = registeredTestSources(registrySource);
 const suites = registeredSuites(registrySource);
@@ -41,8 +56,11 @@ for (const source of registered) counts.set(source, (counts.get(source) || 0) + 
 const duplicates = [...counts.entries()].filter(([, count]) => count !== 1).map(([source]) => source);
 const maintainedSet = new Set(maintained);
 const registeredSet = new Set(registered);
-const missing = maintained.filter(source => !registeredSet.has(source));
+const legacySet = new Set(legacy);
+const nativeSet = new Set(native);
+const missingLegacy = legacy.filter(source => !registeredSet.has(source));
 const stale = [...registeredSet].filter(source => !maintainedSet.has(source)).sort();
+const nativeStillRegistered = [...registeredSet].filter(source => nativeSet.has(source)).sort();
 
 const requiredArchitectureClassifications = [
   { source:'lib/orchestration-advance-boundary.test.js', name:'orchestration_advance_production_path' },
@@ -51,20 +69,23 @@ const requiredArchitectureClassifications = [
   { source:'lib/project-lifecycle-resume.test.js', name:'project_lifecycle_resume_isolated_contract' },
 ];
 const architectureClassificationMissing = requiredArchitectureClassifications
-  .filter((expected) => !suites.some((entry) => entry.source === expected.source && entry.name === expected.name));
+  .filter((expected) => legacySet.has(expected.source) && !suites.some((entry) => entry.source === expected.source && entry.name === expected.name));
 const obsoleteArchitectureSources = [
   'lib/project-controller.test.js',
   'lib/project-controller-runtime.test.js',
 ].filter((source) => maintainedSet.has(source) || registeredSet.has(source));
 
-if (missing.length || stale.length || duplicates.length || architectureClassificationMissing.length || obsoleteArchitectureSources.length) {
+if (missingLegacy.length || stale.length || duplicates.length || nativeStillRegistered.length || architectureClassificationMissing.length || obsoleteArchitectureSources.length) {
   console.error(JSON.stringify({
     ok:false,
     maintained_count:maintained.length,
+    native_count:native.length,
+    legacy_count:legacy.length,
     registered_count:registered.length,
-    missing,
+    missing_legacy:missingLegacy,
     stale,
     duplicates,
+    native_still_registered:nativeStillRegistered,
     architecture_classification_missing:architectureClassificationMissing,
     obsolete_architecture_sources:obsoleteArchitectureSources,
   }, null, 2));
@@ -74,6 +95,8 @@ if (missing.length || stale.length || duplicates.length || architectureClassific
 console.log(JSON.stringify({
   ok:true,
   maintained_count:maintained.length,
+  native_count:native.length,
+  legacy_count:legacy.length,
   registered_count:registered.length,
-  architecture_classifications:requiredArchitectureClassifications,
+  architecture_classifications:requiredArchitectureClassifications.filter((expected) => legacySet.has(expected.source)),
 }));
