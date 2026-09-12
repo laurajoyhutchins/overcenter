@@ -74,3 +74,46 @@ test('orchestration finish returns the canonical transition settlement receipt',
   });
   assert.deepEqual(result.settlement_receipt, receipt);
 });
+
+
+test('orchestration run receipts project the canonical transition settlement receipt', async () => {
+  const receipt = {
+    schema:'settlement-receipt-v1',
+    execution_id:'execution:run-receipt',
+    operation_id:'55555555-5555-4555-8555-555555555555',
+    authority_revision:'a'.repeat(40),
+    authority_epoch:5,
+    lifecycle:'settled',
+    disposition:'completed',
+    effect_ref:null,
+    evidence_sha256:'b'.repeat(64),
+  };
+  const service = createOrchestrationRunService({
+    store:{
+      async getRun() {
+        return {
+          run_id:'run-canonical-receipt',
+          status:'finished',
+          disposition:'clean-stop',
+          started_at:'2026-09-12T20:00:00.000Z',
+          finished_at:'2026-09-12T20:30:00.000Z',
+        };
+      },
+      async leasesForRun() {
+        return [{
+          lease_id:'66666666-6666-4666-8666-666666666666',
+          work_ref:'project_transition:receipt',
+          gate:'project_transition',
+          status:'settled',
+          created_at:'2026-09-12T20:10:00.000Z',
+          settled_at:'2026-09-12T20:30:00.000Z',
+          settle_plan:{ evidence:[] },
+          settle_receipt:{ canonical_receipt:receipt },
+        }];
+      },
+      async invocationsForRun() { return []; },
+    },
+  });
+  const result = await service.receipt({ run_id:'run-canonical-receipt' });
+  assert.deepEqual(result.settlements[0]?.canonical_receipt, receipt);
+});
