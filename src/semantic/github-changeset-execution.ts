@@ -30,7 +30,7 @@ export async function executeGithubChangeset(request: GithubChangesetRequest, po
       expected_head: request.expected_head,
       changes: request.changes,
       commit_message: request.commit_message,
-    } as JsonValue,
+    } as GithubChangesetPayload,
     ports,
   });
 }

@@ -22,7 +22,7 @@ export async function executePortfolioReconciliation(request: PortfolioReconcili
     payload: {
       observation: request.observation,
       plan: request.plan,
-    } as JsonValue,
+    } as PortfolioReconciliationPayload,
     ports,
   });
 }

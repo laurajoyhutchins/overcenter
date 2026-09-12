@@ -26,7 +26,7 @@ export async function executeGithubRelease(request: GithubReleaseRequest, ports:
       target_revision: request.target_revision,
       tag_name: request.tag_name,
       body: request.body,
-    } as JsonValue,
+    } as GithubReleasePayload,
     ports,
   });
 }

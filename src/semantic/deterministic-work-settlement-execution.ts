@@ -26,7 +26,7 @@ export async function executeDeterministicWorkSettlement(request: DeterministicW
       predicate_key: request.predicate_key,
       target_state: request.target_state,
       evaluation: request.evaluation,
-    } as JsonValue,
+    } as DeterministicWorkSettlementPayload,
     ports,
   });
 }

@@ -30,7 +30,7 @@ export async function executeProductionMaterialization(request: ProductionMateri
       runtime_ref: request.runtime_ref,
       expected_version: request.expected_version,
       source_manifest_sha256: request.source_manifest_sha256,
-    } as JsonValue,
+    } as ProductionMaterializationPayload,
     ports,
   });
 }

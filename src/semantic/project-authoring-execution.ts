@@ -24,7 +24,7 @@ export async function executeProjectAuthoring(request: ProjectAuthoringRequest, 
       expected_revision: request.expected_revision,
       definition: request.definition,
       amendment: request.amendment,
-    } as JsonValue,
+    } as ProjectAuthoringPayload,
     ports,
   });
 }
