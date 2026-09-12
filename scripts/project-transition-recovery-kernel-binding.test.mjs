@@ -47,6 +47,15 @@ test('resume evidence reads the canonical transition settlement receipt', async 
   assert.doesNotMatch(query, /FROM work_leases/);
 });
 
+test('subject-aware finish reads canonical project-transition authority before projection routing', async () => {
+  const source = await readFile(new URL('../lib/orchestration-finish-runtime.js', import.meta.url), 'utf8');
+  const start = source.indexOf('function readLeaseByRef');
+  const end = source.indexOf('export function createPostgresSubjectAwareLeaseCheckpointService', start);
+  const lookup = source.slice(start, end);
+  assert.match(lookup, /FROM execution_state/);
+  assert.ok(lookup.indexOf('FROM execution_state') < lookup.indexOf('FROM work_leases'));
+});
+
 test('orchestration finish returns the canonical transition settlement receipt', async () => {
   const receipt = {
     schema:'settlement-receipt-v1',
