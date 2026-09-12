@@ -625,6 +625,38 @@ test('a replacement run is fenced even when it reuses a lease token and epoch', 
 });
 
 
+
+test('replacement claim with an existing attempt uses confirmation only', async () => {
+  const store = new MemoryStore();
+  const firstProvider = providerFor({ mode:'unknown' });
+  await assert.rejects(
+    executeExecutionTransaction({
+      intent:intent(),
+      context:context({ run_id:'run-1', lease_ref:'lease-1', lease_epoch:1, lease_expires_at:'1970-01-01T00:00:00.000Z' }),
+      provider:firstProvider,
+      store,
+    }),
+    error => error?.code === 'EXECUTION_ESCALATED',
+  );
+
+  const replacementProvider = providerFor();
+  const originalInvoke = replacementProvider.invoke;
+  replacementProvider.invoke = async () => {
+    throw new Error('replacement must not invoke after a prior attempt');
+  };
+  const replacement = await executeExecutionTransaction({
+    intent:intent(),
+    context:context({ run_id:'run-2', lease_ref:'lease-2', lease_epoch:2 }),
+    provider:replacementProvider,
+    store,
+  });
+
+  assert.equal(replacement.receipt.disposition, 'completed');
+  assert.equal(replacementProvider.calls.confirm, 1);
+  assert.equal(replacementProvider.calls.invoke, 0);
+  void originalInvoke;
+});
+
 test('confirmed mutation without an effect reference fails closed', async () => {
   const store = new MemoryStore();
   const provider = providerFor({ mode: 'unknown-confirmed' });
