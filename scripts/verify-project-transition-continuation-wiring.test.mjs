@@ -46,7 +46,7 @@ async function executionFingerprintFor(transition) {
   }));
 }
 
-function compactStoreFixture({ graph, continuationFingerprint }) {
+function canonicalExecutionStoreFixture({ graph, continuationFingerprint }) {
   const leases = new Map();
   const slots = new Map();
   const subjectKey = `project_transition:${graph.project_ref}:transition-a`;
@@ -99,15 +99,15 @@ test('project-transition lease runtime derives continuation evidence from the se
 
   assert.match(source, /deriveProjectTransitionContinuationEvidence/, 'lease runtime does not consume canonical continuation-evidence derivation');
   assert.doesNotMatch(source, /mutation_scope_unchanged\s*:\s*true/, 'lease runtime still asserts mutation-scope validity outside the semantic kernel');
-  assert.match(source, /loadCompactContinuation/, 'lease acquisition does not read the current compact continuation head');
-  assert.match(storeSource, /continuation_execution_fingerprint/, 'settlement does not persist the compact continuation execution fingerprint');
+  assert.match(source, /loadCanonicalContinuation/, 'lease acquisition does not read the current canonical continuation head');
+  assert.match(storeSource, /continuation_execution_fingerprint/, 'settlement does not persist the canonical continuation execution fingerprint');
   assert.doesNotMatch(storeSource, /work_lease_checkpoints|work_lease_heartbeats/, 'project-transition progress still queries legacy checkpoint or heartbeat history');
 });
 
-test('matching compact continuation head is returned directly on acquisition', async () => {
+test('matching canonical continuation head is returned directly on acquisition', async () => {
   const graph = graphFixture();
   const fingerprint = await executionFingerprintFor(graph.nodes[0]);
-  const store = compactStoreFixture({ graph, continuationFingerprint:fingerprint });
+  const store = canonicalExecutionStoreFixture({ graph, continuationFingerprint:fingerprint });
   const service = createProjectTransitionLeaseService({
     store,
     readProjectGraph:async () => graph,
@@ -130,9 +130,9 @@ test('matching compact continuation head is returned directly on acquisition', a
   assert.equal(acquired.continuation?.stalled_continuation, true);
 });
 
-test('compact continuation head is ignored when transition execution semantics changed', async () => {
+test('canonical continuation head is ignored when transition execution semantics changed', async () => {
   const graph = graphFixture();
-  const store = compactStoreFixture({ graph, continuationFingerprint:'f'.repeat(64) });
+  const store = canonicalExecutionStoreFixture({ graph, continuationFingerprint:'f'.repeat(64) });
   const service = createProjectTransitionLeaseService({
     store,
     readProjectGraph:async () => graph,
