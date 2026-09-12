@@ -11,12 +11,19 @@ export default {
   description:descriptor.description,
   inputSchema:descriptor.input_schema,
   async handler(args,ctx) {
-    const providers = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const providers = composeHatchableRuntimeProviders({
+      ...(ctx?.db ? { db:ctx.db } : {}),
+      ...(ctx?.executionTransactionStore ? { executionTransactionStore:ctx.executionTransactionStore } : {}),
+    });
     const { db } = providers;
     const response = await executeCorrelatedCommand(
       'production.promote',
       args || {},
-      (input) => productionPromotionFor({ db, withGitHubAppApiClient:providers.githubAppAuth.withApiClient }).promote(input),
+      (input) => productionPromotionFor({
+        db,
+        executionTransactionStore:providers.executionTransactionStore,
+        withGitHubAppApiClient:providers.githubAppAuth.withApiClient,
+      }).promote(input),
       {
         statusForFailure:() => null,
         defaultError:'PRODUCTION_PROMOTION_ERROR',
