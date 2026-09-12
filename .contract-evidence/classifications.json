@@ -65,23 +65,10 @@
       "projection_of": "release.publish.input"
     },
     "postgres:public.execution_state#table": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state"
-    },
-    "postgres:public.github_changeset_receipts#table": {
-      "logical_contract": "github.changeset-receipt.persistence",
+      "logical_contract": "execution.transaction.execution-state.persistence",
       "significance": "durable-internal",
-      "semver_kind": "database-layout"
-    },
-    "postgres:public.github_production_promotion_receipts#table": {
-      "logical_contract": "github.production-promotion-receipt.persistence",
-      "significance": "durable-internal",
-      "semver_kind": "database-layout"
-    },
-    "postgres:public.github_release_receipts#table": {
-      "logical_contract": "github.release-receipt.persistence",
-      "significance": "durable-internal",
-      "semver_kind": "database-layout"
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
     },
     "postgres:public.github_required_check_observations#table": {
       "logical_contract": "github.required-check-observation.persistence",
@@ -90,8 +77,10 @@
       "lifecycle": "current"
     },
     "postgres:public.operation_state#table": {
-      "significance": "projection",
-      "projection_of": "compact.operation-state"
+      "logical_contract": "execution.transaction.operation-state.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
     },
     "postgres:public.orchestration_command_invocations#table": {
       "logical_contract": "orchestration.command-invocation.persistence",
@@ -121,12 +110,6 @@
       "semver_kind": "database-layout",
       "lifecycle": "current"
     },
-    "postgres:public.portfolio_reconcile_receipts#table": {
-      "logical_contract": "portfolio.reconcile-receipt.persistence",
-      "significance": "durable-internal",
-      "semver_kind": "database-layout",
-      "lifecycle": "current"
-    },
     "postgres:public.portfolio_repository_branch_roles#table": {
       "logical_contract": "repository.branch-role.persistence",
       "significance": "durable-internal",
@@ -139,12 +122,6 @@
       "semver_kind": "database-layout",
       "lifecycle": "current"
     },
-    "postgres:public.portfolio_verification_receipts#table": {
-      "logical_contract": "portfolio.verification-receipt.persistence",
-      "significance": "durable-internal",
-      "semver_kind": "database-layout",
-      "lifecycle": "current"
-    },
     "postgres:public.portfolio_work_identity#table": {
       "logical_contract": "repository.work-identity.persistence",
       "significance": "durable-internal",
@@ -152,8 +129,10 @@
       "lifecycle": "current"
     },
     "postgres:public.proof_state#table": {
-      "significance": "projection",
-      "projection_of": "compact.proof-state"
+      "logical_contract": "execution.transaction.proof-state.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
     },
     "postgres:public.scheduled_cycle_events#table": {
       "logical_contract": "scheduler.cycle-event.persistence",
@@ -202,16 +181,16 @@
       "significance": "public",
       "semver_kind": "semantic-command-contract"
     },
+    "semantic-command:orchestration.diagnose#input": {
+      "logical_contract": "orchestration.diagnose.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract"
+    },
     "semantic-command:orchestration.maintain#input": {
       "logical_contract": "orchestration.maintain.input",
       "significance": "public",
       "semver_kind": "semantic-command-contract",
       "lifecycle": "current"
-    },
-    "semantic-command:orchestration.diagnose#input": {
-      "logical_contract": "orchestration.diagnose.input",
-      "significance": "public",
-      "semver_kind": "semantic-command-contract"
     },
     "semantic-command:production.promote#input": {
       "logical_contract": "production.promote.input",
@@ -259,62 +238,6 @@
       "significance": "implementation-only",
       "semver_kind": "runtime-host-detail"
     },
-    "typescript:src/ports/compact-execution-state-store.ts#AcquireExecutionInput": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state.store"
-    },
-    "typescript:src/ports/compact-execution-state-store.ts#CompactExecutionStateStore": {
-      "logical_contract": "compact.execution-state.store",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current",
-      "relationships": [
-        {
-          "kind": "persists-as",
-          "target": "compact.execution-state"
-        },
-        {
-          "kind": "persists-as",
-          "target": "compact.operation-state"
-        },
-        {
-          "kind": "persists-as",
-          "target": "compact.proof-state"
-        }
-      ]
-    },
-    "typescript:src/ports/compact-execution-state-store.ts#CompactRunInput": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state.store"
-    },
-    "typescript:src/ports/compact-execution-state-store.ts#HeartbeatExecutionInput": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state.store"
-    },
-    "typescript:src/ports/compact-execution-state-store.ts#MarkOperationIndeterminateInput": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state.store"
-    },
-    "typescript:src/ports/compact-execution-state-store.ts#PrepareOperationInput": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state.store"
-    },
-    "typescript:src/ports/compact-execution-state-store.ts#PutProofInput": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state.store"
-    },
-    "typescript:src/ports/compact-execution-state-store.ts#ResolveOperationInput": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state.store"
-    },
-    "typescript:src/ports/compact-execution-state-store.ts#SettleExecutionInput": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state.store"
-    },
-    "typescript:src/ports/compact-execution-state-store.ts#WriteCheckpointInput": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state.store"
-    },
     "typescript:src/ports/project-advance-runtime-host.ts#ProjectAdvanceRuntimeHost": {
       "logical_contract": "project.advance.runtime-host",
       "significance": "boundary-internal",
@@ -337,44 +260,6 @@
           "target": "execution.evidence"
         }
       ]
-    },
-    "typescript:src/semantic/compact-execution-state.ts#ExecutionFence": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state"
-    },
-    "typescript:src/semantic/compact-execution-state.ts#ExecutionState": {
-      "logical_contract": "compact.execution-state",
-      "significance": "durable-internal",
-      "semver_kind": "internal-module-layout",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/compact-execution-state.ts#ExecutionSubjectKind": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state"
-    },
-    "typescript:src/semantic/compact-execution-state.ts#OperationLifecycleState": {
-      "significance": "projection",
-      "projection_of": "compact.operation-state"
-    },
-    "typescript:src/semantic/compact-execution-state.ts#OperationState": {
-      "logical_contract": "compact.operation-state",
-      "significance": "durable-internal",
-      "semver_kind": "internal-module-layout",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/compact-execution-state.ts#ProgressHashWindow": {
-      "significance": "projection",
-      "projection_of": "compact.execution-state"
-    },
-    "typescript:src/semantic/compact-execution-state.ts#ProofEvidenceRef": {
-      "significance": "projection",
-      "projection_of": "compact.proof-state"
-    },
-    "typescript:src/semantic/compact-execution-state.ts#ProofState": {
-      "logical_contract": "compact.proof-state",
-      "significance": "durable-internal",
-      "semver_kind": "internal-module-layout",
-      "lifecycle": "current"
     },
     "typescript:src/semantic/execution-authority-contracts.ts#ExecutionAuthorityLocator": {
       "logical_contract": "execution.authority.locator",
@@ -425,109 +310,6 @@
       "logical_contract": "execution.lifecycle.work-settlement-dispositions",
       "significance": "authority",
       "semver_kind": "lifecycle-semantics"
-    },
-    "typescript:src/semantic/project-authoring-runtime.ts#ProjectAuthoringAmendmentValidation": {
-      "logical_contract": "project.amend.validation-boundary",
-      "significance": "boundary-internal",
-      "semver_kind": "internal-module-layout",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphAuthorityCoordinate": {
-      "logical_contract": "project.graph.authority-coordinate",
-      "significance": "authority"
-    },
-    "typescript:src/semantic/project-graph-types.ts#ProjectExecutionEvidenceRequirement": {
-      "significance": "projection",
-      "projection_of": "project.execution-intent"
-    },
-    "typescript:src/semantic/project-graph-types.ts#ProjectExecutionIntent": {
-      "logical_contract": "project.execution-intent",
-      "significance": "authority",
-      "semver_kind": "project-definition-schema",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/project-transition-status-contracts.ts#PROJECT_TRANSITION_STATES": {
-      "logical_contract": "project.transition.states",
-      "significance": "authority",
-      "semver_kind": "lifecycle-semantics"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ExecutionAuthority": {
-      "logical_contract": "execution.transaction.authority",
-      "significance": "authority",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ExecutionIdentity": {
-      "logical_contract": "execution.transaction.identity",
-      "significance": "authority",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ExecutionIntent": {
-      "logical_contract": "execution.transaction.intent",
-      "significance": "authority",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ExecutionLifecycle": {
-      "logical_contract": "execution.transaction.lifecycle",
-      "significance": "authority",
-      "semver_kind": "lifecycle-semantics",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ExecutionProof": {
-      "logical_contract": "execution.transaction.proof",
-      "significance": "authority",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ExecutionSnapshot": {
-      "logical_contract": "execution.transaction.snapshot",
-      "significance": "authority",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/execution-transaction.ts#MutationCertainty": {
-      "logical_contract": "execution.transaction.mutation-certainty",
-      "significance": "authority",
-      "semver_kind": "lifecycle-semantics",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ProviderConfirmationFacts": {
-      "significance": "projection",
-      "projection_of": "execution.transaction.provider-capability"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ProviderEffect": {
-      "logical_contract": "execution.transaction.provider-capability",
-      "significance": "boundary-internal",
-      "semver_kind": "adapter-layout",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ProviderEffectPayload": {
-      "significance": "projection",
-      "projection_of": "execution.transaction.provider-capability"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ProviderInvocationFacts": {
-      "significance": "projection",
-      "projection_of": "execution.transaction.provider-capability"
-    },
-    "typescript:src/semantic/execution-transaction.ts#ProviderPreflight": {
-      "significance": "projection",
-      "projection_of": "execution.transaction.provider-capability"
-    },
-    "typescript:src/semantic/execution-transaction.ts#RecoveryDecision": {
-      "logical_contract": "execution.transaction.recovery",
-      "significance": "authority",
-      "semver_kind": "lifecycle-semantics",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/execution-transaction.ts#SettlementReceipt": {
-      "logical_contract": "execution.transaction.settlement",
-      "significance": "authority",
-      "lifecycle": "current"
-    },
-    "typescript:src/semantic/execution-transaction.ts#JsonObject": {
-      "logical_contract": "execution.transaction.json-object",
-      "significance": "implementation-only"
-    },
-    "typescript:src/semantic/execution-transaction.ts#executionTransactionInternals": {
-      "logical_contract": "execution.transaction.internals",
-      "significance": "implementation-only"
     },
     "typescript:src/semantic/execution-transaction-runtime.ts#ExecutionTransactionContext": {
       "logical_contract": "execution.transaction.runtime",
@@ -581,9 +363,112 @@
       "significance": "projection",
       "projection_of": "execution.transaction.store"
     },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionAuthority": {
+      "logical_contract": "execution.transaction.authority",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionIdentity": {
+      "logical_contract": "execution.transaction.identity",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionIntent": {
+      "logical_contract": "execution.transaction.intent",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionLifecycle": {
+      "logical_contract": "execution.transaction.lifecycle",
+      "significance": "authority",
+      "semver_kind": "lifecycle-semantics",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionProof": {
+      "logical_contract": "execution.transaction.proof",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ExecutionSnapshot": {
+      "logical_contract": "execution.transaction.snapshot",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#executionTransactionInternals": {
+      "logical_contract": "execution.transaction.internals",
+      "significance": "implementation-only"
+    },
+    "typescript:src/semantic/execution-transaction.ts#JsonObject": {
+      "logical_contract": "execution.transaction.json-object",
+      "significance": "implementation-only"
+    },
+    "typescript:src/semantic/execution-transaction.ts#MutationCertainty": {
+      "logical_contract": "execution.transaction.mutation-certainty",
+      "significance": "authority",
+      "semver_kind": "lifecycle-semantics",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderConfirmationFacts": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderEffect": {
+      "logical_contract": "execution.transaction.provider-capability",
+      "significance": "boundary-internal",
+      "semver_kind": "adapter-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderEffectPayload": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderInvocationFacts": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
+    },
+    "typescript:src/semantic/execution-transaction.ts#ProviderPreflight": {
+      "significance": "projection",
+      "projection_of": "execution.transaction.provider-capability"
+    },
+    "typescript:src/semantic/execution-transaction.ts#RecoveryDecision": {
+      "logical_contract": "execution.transaction.recovery",
+      "significance": "authority",
+      "semver_kind": "lifecycle-semantics",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/execution-transaction.ts#SettlementReceipt": {
+      "logical_contract": "execution.transaction.settlement",
+      "significance": "authority",
+      "lifecycle": "current"
+    },
     "typescript:src/semantic/production-promotion-operation.ts#ProductionPromotionPayload": {
       "significance": "projection",
       "projection_of": "execution.transaction.intent"
+    },
+    "typescript:src/semantic/project-authoring-runtime.ts#ProjectAuthoringAmendmentValidation": {
+      "logical_contract": "project.amend.validation-boundary",
+      "significance": "boundary-internal",
+      "semver_kind": "internal-module-layout",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/project-graph-reconciliation.ts#ProjectGraphAuthorityCoordinate": {
+      "logical_contract": "project.graph.authority-coordinate",
+      "significance": "authority"
+    },
+    "typescript:src/semantic/project-graph-types.ts#ProjectExecutionEvidenceRequirement": {
+      "significance": "projection",
+      "projection_of": "project.execution-intent"
+    },
+    "typescript:src/semantic/project-graph-types.ts#ProjectExecutionIntent": {
+      "logical_contract": "project.execution-intent",
+      "significance": "authority",
+      "semver_kind": "project-definition-schema",
+      "lifecycle": "current"
+    },
+    "typescript:src/semantic/project-transition-status-contracts.ts#PROJECT_TRANSITION_STATES": {
+      "logical_contract": "project.transition.states",
+      "significance": "authority",
+      "semver_kind": "lifecycle-semantics"
     }
   }
 }
