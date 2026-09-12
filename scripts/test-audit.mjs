@@ -81,6 +81,8 @@ function inspectSource({ source, path, revision }) {
       kind: legacyRunCallCount > 0 ? 'legacy-runner-only' : 'no-native-test-cases',
       legacy_literal_cases: legacyRunCallCount,
     });
+  } else if (legacyRunCallCount > 0) {
+    unresolved.push({ path, kind: 'legacy-runner-present', legacy_literal_cases: legacyRunCallCount });
   }
   return { cases, unresolved };
 }
