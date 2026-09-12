@@ -9,11 +9,19 @@ export default {
   description:'Define canonical repository-owned project graph facts at an exact observed Git revision. Overcenter owns repository layout, mutation fencing, retry identity, durable GitHub mutation, and authoritative graph readback.',
   inputSchema:PROJECT_DEFINE_INPUT_SCHEMA,
   async handler(args,ctx) {
-    const providers = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const providers = composeHatchableRuntimeProviders({
+      ...(ctx?.db ? { db:ctx.db } : {}),
+      ...(ctx?.executionTransactionStore ? { executionTransactionStore:ctx.executionTransactionStore } : {}),
+    });
     const { db } = providers;
     const response = await executeSemanticWorkerCommand('project.define', args || {}, {
       db,
-      projectAuthoring:projectAuthoringFor({ db, withGitHubAppApiClient:providers.githubAppAuth.withApiClient }),
+      executionTransactionStore:providers.executionTransactionStore,
+      projectAuthoring:projectAuthoringFor({
+        db,
+        executionTransactionStore:providers.executionTransactionStore,
+        withGitHubAppApiClient:providers.githubAppAuth.withApiClient,
+      }),
       logger:console,
     });
     return response.body;
