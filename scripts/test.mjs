@@ -73,8 +73,6 @@ const maintainedTests = [
   'verify-project-transition-continuation-wiring.test.mjs',
   'verify-project-transition-revision-continuation.test.mjs',
   'verify-project-transition-settlement-atomicity.test.mjs',
-  'verify-compatibility-transition-confirmation.test.mjs',
-  'verify-compatibility-transition-runtime.test.mjs',
   'verify-mcp-admission-contract.test.mjs',
   'verify-semantic-command-descriptors.test.mjs',
   'verify-github-pull-request-mark-ready-semantic-worker.test.mjs',

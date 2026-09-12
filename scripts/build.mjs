@@ -18,7 +18,6 @@ const mirrorFiles = [
   'portfolio-reconcile-execution.js',
   'production-materialization-execution.js',
   'project-authoring-execution.js',
-  'compatibility-transition-bindings.js',
   'execution-authority-contracts.js',
   'execution-authority-core.js',
   'legacy-work-execution-authority-contracts.js',
