@@ -676,3 +676,15 @@ test('confirmed mutation without an effect reference fails closed', async () => 
     error => error?.code === 'EFFECT_REFERENCE_REQUIRED',
   );
 });
+
+
+test('successful execution binds proof persistence to the owning run', async () => {
+  const result = await executeExecutionTransaction({
+    intent:intent(),
+    context:context(),
+    provider:providerFor(),
+    store:new MemoryStore(),
+  });
+  assert.equal(result.receipt.disposition, 'completed');
+  assert.equal(result.receipt.execution_id, result.identity.execution_id);
+});
