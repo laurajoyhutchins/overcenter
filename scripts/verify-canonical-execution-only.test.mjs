@@ -60,7 +60,7 @@ const liveSourceFiles = [
   'lib/project-inspect-github-runtime.js',
   'lib/portfolio-reconcile-execution-runtime.js',
 ];
-const forbiddenLiveSource = /github_(?:changeset|release|production_promotion)_receipts|portfolio_(?:reconcile|verification)_receipts|createCompact(?:ExecutionState|ProviderOperation|ProofState|GithubChangesetReceipt)Store|compact(?:ExecutionState|ProviderOperation|ProofState)/;
+const forbiddenLiveSource = /github_(?:changeset|release|production_promotion)_receipts|portfolio_(?:reconcile|verification)_receipts|createCompact(?:ExecutionState|ProviderOperation|ProofState|GithubChangesetReceipt)Store|compact(?:ExecutionState|ProviderOperation|ProofState)|createProjectAuthoringRecoveryForRuntime|compactRecoveries/;
 for (const relative of liveSourceFiles) {
   const source = fs.readFileSync(path.join(root, relative), 'utf8');
   assert.equal(
