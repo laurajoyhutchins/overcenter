@@ -7,7 +7,7 @@ import { createProjectTransitionLeasePostgresStore } from '../lib/project-transi
 
 const { Client } = pg;
 const root = new URL('../', import.meta.url);
-const schema = 'project_transition_compact_authority_test';
+const schema = 'project_transition_canonical_authority_test';
 
 async function migration(name) {
   return readFile(new URL(`migrations/${name}`, root), 'utf8');
@@ -148,7 +148,7 @@ function settlement(row, authorityEpoch, key) {
   };
 }
 
-test('project transition bridge advances and enforces compact authority epochs atomically', async () => {
+test('project transition bridge advances and enforces canonical authority epochs atomically', async () => {
   const client = postgresClient();
   await client.connect();
   try {
@@ -221,7 +221,7 @@ test('project transition bridge advances and enforces compact authority epochs a
   }
 });
 
-test('project transition progress and continuation use compact state with legacy history tables absent', async () => {
+test('project transition progress and continuation use canonical state with legacy history tables absent', async () => {
   const client = postgresClient();
   await client.connect();
   try {

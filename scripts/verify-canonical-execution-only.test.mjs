@@ -56,7 +56,6 @@ const liveSourceFiles = [
   'lib/orchestration-semantic-journal-resolution.js',
   'lib/orchestration-status.js',
   'lib/preview-snapshot.js',
-  'lib/project-authoring-recovery.js',
   'lib/project-authoring-overcenter-host.js',
   'lib/project-inspect-github-runtime.js',
   'lib/portfolio-reconcile-execution-runtime.js',

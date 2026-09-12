@@ -42,8 +42,8 @@ test('proof_state is semantic-subject-scoped and exact-revision keyed', async ()
   assert.match(sql, /proof_state_exact_authority_idx[\s\S]*predicate_kind\s*,\s*authority_repository\s*,\s*authority_revision/i);
 });
 
-test('orchestration_runs receives only compact current and terminal pointers', async () => {
-  const sql = await migration('056_orchestration_run_compaction.sql');
+test('orchestration_runs receives only canonical current and terminal pointers', async () => {
+  const sql = await migration('056_orchestration_run_canonicalion.sql');
   assert.match(sql, /active_subject_key\s+text/i);
   assert.match(sql, /unresolved_operation_id\s+uuid/i);
   assert.match(sql, /final_effect_refs\s+jsonb/i);

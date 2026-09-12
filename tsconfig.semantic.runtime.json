@@ -10,7 +10,6 @@
     "src/semantic/canonical-json.ts",
     "src/semantic/canonical-commands.ts",
     "src/semantic/command-contracts.ts",
-    "src/semantic/compact-execution-state.ts",
     "src/semantic/execution-transaction.ts",
     "src/semantic/execution-transaction-runtime.ts",
     "src/semantic/execution-provider-wrapper.ts",
