@@ -31,3 +31,16 @@ test('provider-neutral GitHub auth does not resolve Hatchable config', async () 
   assert.equal(HATCHABLE_IMPORT.test(text), false, 'GitHub auth imports Hatchable directly');
   assert.equal(text.includes('config.get('), false, 'GitHub auth reads ambient Hatchable config');
 });
+
+test('canonical external-effect MCP entrypoints forward the durable execution store', async () => {
+  const entries = [
+    'mcp/production.promote.js',
+    'mcp/production.reconcile.js',
+    'mcp/project.define.js',
+    'mcp/project.amend.js',
+  ];
+  for (const path of entries) {
+    const text = await source(path);
+    assert.match(text, /executionTransactionStore/ , `${path} does not receive the canonical execution store`);
+  }
+});
