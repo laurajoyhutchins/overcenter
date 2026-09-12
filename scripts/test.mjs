@@ -28,6 +28,7 @@ const maintainedTests = [
   'github-changeset-kernel-binding.test.mjs',
   'execution-provider-wrappers.test.mjs',
   'portfolio-reconcile-kernel-binding.test.mjs',
+  'deterministic-work-settlement-kernel-binding.test.mjs',
   'release-publish-kernel-binding.test.mjs',
   'production-promotion-transaction.test.mjs',
   'cloud-run-command-ingress-host.test.mjs',
