@@ -1,10 +1,6 @@
 import { hatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
-import { applyGithubChangesetRoleAware } from 'lib/github-branch-role-runtime.js';
-import { createPostgresExecutionAuthorityService } from 'lib/execution-authority.js';
-import { createGithubApiAdapter } from 'lib/github-apply-changeset.js';
-import { githubAppChangesetPermissionProfile } from 'lib/github-app-auth.js';
-import { applyGithubLeaseScopedChangeset } from 'lib/github-lease-scoped-changeset.js';
+import { createGithubWorkerMutationRuntime } from 'lib/github-worker-mutations.js';
 import { GitHubContentTransportError, expandGithubContentReferences, githubContentTransportErrorResult } from 'lib/github-content-transport.js';
 
 export const access = 'admin';
@@ -67,38 +63,15 @@ async function expandStagedContent(input) {
   return { ...input, changes };
 }
 
-function permissionProfileForChanges(changes = []) {
-  return githubAppChangesetPermissionProfile(
-    (Array.isArray(changes) ? changes : []).map((change) => change?.path),
-  );
-}
-
-async function withManagedWorkspaceGithub({ repo, changes = [] }, callback) {
-  return withGitHubAppApiClient(repo, async (apiClient) => callback(createGithubApiAdapter(apiClient)), {
-    permissionProfile:permissionProfileForChanges(changes),
-  });
-}
-
-async function readManagedWorkspaceBranch({ repo, branch, changes = [] }) {
-  return withManagedWorkspaceGithub({ repo, changes }, (github) => {
-    return github.getBranch(repo, branch, { phase:'lease_scope.workspace_head' });
-  });
-}
-
 async function applyAuthorityAwareChangeset(commandInput, runId = null) {
-  if (commandInput?.lease_ref === undefined || commandInput?.lease_ref === null) {
-    return applyGithubChangesetRoleAware(commandInput, { db, run_id:runId, withGitHubAppApiClient });
-  }
-
-  const authority = createPostgresExecutionAuthorityService({ db });
-  return applyGithubLeaseScopedChangeset(commandInput, {
-    executionAuthority:authority,
-    readBranch:readManagedWorkspaceBranch,
-    withGithub:withManagedWorkspaceGithub,
-    applyChangeset:applyGithubChangesetRoleAware,
+  const mutations = createGithubWorkerMutationRuntime({
     db,
+    api:hatchableRuntimeProviders.api,
+    withGitHubAppApiClient,
+    executionTransactionStore:hatchableRuntimeProviders.executionTransactionStore || null,
     run_id:runId,
   });
+  return mutations.applyChangeset(commandInput);
 }
 
 export default async function (req, res) {
