@@ -357,3 +357,14 @@ test('authoritative-effect historical authority reads canonical settlements befo
   assert.match(lookup, /settlement_receipt/);
   assert.ok(lookup.indexOf('FROM execution_state') < lookup.indexOf('FROM work_leases'));
 });
+
+
+test('authoritative effect allocates a separate provider execution lease from the transition lease', async () => {
+  const source = await readFile(new URL('../lib/project-transition-authoritative-effect-github-runtime.js', import.meta.url), 'utf8');
+  assert.match(source, /subject_kind:'provider_operation'/);
+  assert.match(source, /lease_epoch:Number\(activeLease\.lease_epoch\)/);
+  const contextStart = source.indexOf('executionContext()');
+  const contextEnd = source.indexOf('providerFor()', contextStart);
+  const context = source.slice(contextStart, contextEnd);
+  assert.doesNotMatch(context, /lease_ref:String\(activeLease\.lease_ref\)/);
+});
