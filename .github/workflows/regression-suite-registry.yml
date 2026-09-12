@@ -31,4 +31,4 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: npm run verify
       - name: Test project inspect runtime host
-        run: node --input-type=module -e "import { runProjectInspectOvercenterHostTests } from './lib/project-inspect-overcenter-host.test.js'; await runProjectInspectOvercenterHostTests();"
+        run: node --test lib/project-inspect-overcenter-host.test.js
