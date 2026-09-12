@@ -45,11 +45,17 @@ test('project-transition persistence derives one stable execution identity and p
 
 test('project-transition acquisition and lifecycle writes bind canonical execution and operation records', async () => {
   const source = await readFile(new URL('lib/project-transition-lease-store.js', root), 'utf8');
+  const c = source;
   assert.match(source, /execution_id,subject_key,subject_kind,project_ref,transition_id,operation_id/);
   assert.match(source, /INSERT INTO operation_state/);
   assert.match(source, /lifecycle='executing'/);
   assert.match(source, /mutation_certainty='definitely_not_mutated'/);
   assert.match(source, /settlement_receipt/);
+
+  const acquireStart = source.indexOf('async acquireLeaseAtomically');
+  const acquire = source.slice(acquireStart);
+  assert.match(acquire, /SELECT \\$21,'execution\\.transaction',\\$23,\\$24,\\$22,'prepared'/);
+  assert.match(acquire, /'definitely_not_mutated',\\$25/);
 });
 
 test('project-transition checkpoints and heartbeats persist exact canonical operation identity', async () => {
