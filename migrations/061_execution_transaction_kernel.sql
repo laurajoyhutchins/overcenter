@@ -103,7 +103,7 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
   IF NEW.state IN ('no_effect', 'rejected')
-     AND NEW.mutation_certainty <> 'definitely_not_mutATED' THEN
+     AND NEW.mutation_certainty <> 'definitely_not_mutated' THEN
     RAISE EXCEPTION 'OPERATION_UNCERTAIN_TERMINAL_STATE'
       USING ERRCODE = '55000';
   END IF;
