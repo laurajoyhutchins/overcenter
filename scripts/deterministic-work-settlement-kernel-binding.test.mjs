@@ -13,4 +13,6 @@ test('deterministic work settlement is bounded by the execution transaction kern
   assert.match(runtime, /confirm/);
   assert.doesNotMatch(runtime, /createPostgresVerificationReceiptStore/);
   assert.match(primitive, /export async function evaluateDeterministicWorkPredicate/);
+  assert.doesNotMatch(primitive, /createPostgresVerificationReceiptStore/);
+  assert.doesNotMatch(primitive, /portfolio_verification_receipts/);
 });
