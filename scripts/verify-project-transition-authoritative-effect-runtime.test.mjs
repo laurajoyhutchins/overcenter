@@ -367,4 +367,9 @@ test('authoritative effect allocates a separate provider execution lease from th
   const contextEnd = source.indexOf('providerFor()', contextStart);
   const context = source.slice(contextStart, contextEnd);
   assert.doesNotMatch(context, /lease_ref:String\(activeLease\.lease_ref\)/);
+ 
+  const bindingStart = source.indexOf('const transaction = await executeBoundProviderEffect');
+  const binding = source.slice(bindingStart, contextEnd);
+  assert.match(binding, /subject_kind:'provider_operation'/);
+  assert.doesNotMatch(binding, /subject_kind:'project_transition'/);
 });
