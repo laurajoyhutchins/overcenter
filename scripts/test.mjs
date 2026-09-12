@@ -112,6 +112,7 @@ for (const prefix of ['exact-revision-v8-verification', 'production-materializat
 run(['scripts/verify-orchestration-drive.mjs']);
 const nativeLibraryTests = (await javascriptFiles('lib')).filter(file => file.endsWith('.test.js')).sort();
 run(['--test', ...[...new Set(maintainedTests)].sort().map(name => `scripts/${name}`), ...nativeLibraryTests]);
+run(['scripts/test-audit.mjs', '--check']);
 
 for (const directory of ['api', 'lib', 'mcp', 'pages']) {
   for (const file of await javascriptFiles(directory)) run(['--check', file]);
