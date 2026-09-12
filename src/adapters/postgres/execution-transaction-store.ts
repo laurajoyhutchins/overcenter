@@ -669,6 +669,12 @@ export function createPostgresExecutionTransactionStore(
             text(current.authority_revision) !== input.authority_revision) {
           return fail('PROOF_IDENTITY_MISMATCH', 'proof does not match the exact execution identity');
         }
+        requireLease(current, {
+          ...identityFromRow(current),
+          run_id: input.run_id,
+          lease_ref: input.lease_ref,
+          lease_epoch: input.lease_epoch,
+        }, input.attempt_epoch);
         let expectedEvidenceSha256: string;
         try {
           expectedEvidenceSha256 = await sha256Text(canonicalJson(input.evidence));

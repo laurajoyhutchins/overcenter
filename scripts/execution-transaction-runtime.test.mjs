@@ -151,6 +151,12 @@ class MemoryStore {
         execution.identity.authority_epoch !== input.authority_epoch) {
       throw Object.assign(new Error('PROOF_IDENTITY_MISMATCH'), { code: 'PROOF_IDENTITY_MISMATCH' });
     }
+    if (execution.identity.run_id !== input.run_id ||
+        execution.identity.lease_ref !== input.lease_ref ||
+        execution.identity.lease_epoch !== input.lease_epoch ||
+        execution.attempt_epoch !== input.attempt_epoch) {
+      throw Object.assign(new Error('STALE_EXECUTION'), { code:'STALE_EXECUTION' });
+    }
     if (!execution.proof_ids.includes(input.proof_id)) execution.proof_ids.push(input.proof_id);
     execution.proof = clone(input);
     return clone(input);
@@ -465,6 +471,9 @@ test('a stale worker cannot append proof after lease replacement', async () => {
       proof_id:'stale-proof',
       execution_id,
       operation_id:staleIdentity.operation_id,
+      run_id:staleIdentity.run_id,
+      lease_ref:staleIdentity.lease_ref,
+      lease_epoch:staleIdentity.lease_epoch,
       attempt_epoch:1,
       authority_repository:staleIdentity.authority_repository,
       authority_revision:staleIdentity.authority_revision,
@@ -493,6 +502,9 @@ test('evidence bound to another revision is rejected', async () => {
       proof_id: 'wrong-revision-proof',
       execution_id,
       operation_id: execution.identity.operation_id,
+      run_id: execution.identity.run_id,
+      lease_ref: execution.identity.lease_ref,
+      lease_epoch: execution.identity.lease_epoch,
       attempt_epoch: 1,
       authority_repository: execution.identity.authority_repository,
       authority_revision: 'b'.repeat(40),

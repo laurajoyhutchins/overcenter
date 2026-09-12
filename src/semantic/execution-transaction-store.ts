@@ -55,6 +55,9 @@ export interface RecordInvocationInput {
 }
 
 export interface AppendProofInput extends ExecutionProof {
+  readonly run_id: string;
+  readonly lease_ref: string;
+  readonly lease_epoch: number;
   readonly predicate: string;
   readonly evidence_sha256: string;
   readonly evidence: Readonly<Record<string, unknown>>;
