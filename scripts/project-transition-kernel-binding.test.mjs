@@ -59,7 +59,7 @@ test('project-transition acquisition and lifecycle writes bind canonical executi
   const acquireStart = source.indexOf('async acquireLeaseAtomically');
   const acquire = source.slice(acquireStart);
   assert.match(acquire, /SELECT \$21,'execution\.transaction',\$23,\$24,\$22,'prepared'/);
-  assert.match(acquire, /'definitely_not_mutated',\\$25/);
+  assert.match(acquire, /'definitely_not_mutated',\$25/);
 });
 
 test('project-transition checkpoints and heartbeats persist exact canonical operation identity', async () => {
