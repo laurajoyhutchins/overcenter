@@ -45,7 +45,7 @@ test('project-transition persistence derives one stable execution identity and p
 
 test('project-transition acquisition and lifecycle writes bind canonical execution and operation records', async () => {
   const source = await readFile(new URL('lib/project-transition-lease-store.js', root), 'utf8');
-  assert.match(source, /execution_id,subject_key,subject_kind,project_ref,operation_id/);
+  assert.match(source, /execution_id,subject_key,subject_kind,project_ref,transition_id,operation_id/);
   assert.match(source, /INSERT INTO operation_state/);
   assert.match(source, /lifecycle='executing'/);
   assert.match(source, /mutation_certainty='definitely_not_mutated'/);
@@ -56,14 +56,14 @@ test('project-transition checkpoints and heartbeats persist exact canonical oper
   const checkpointStart = c.indexOf('async insertCheckpoint');
   const acquireStart = c.indexOf('async acquireLeaseAtomically');
   const checkpoint = c.slice(checkpointStart, acquireStart);
-  assert.match(checkpoint, /execution_id,run_id,lease_epoch,authority_epoch/);
+  assert.match(checkpoint, /execution_id,subject_key,run_id,lease_epoch,authority_epoch/);
   assert.match(checkpoint, /mutation_certainty/);
   assert.match(checkpoint, /may_have_mutated=false/);
 
   const heartbeatStart = c.indexOf('async extendLeaseWithHeartbeat');
   const deleteStart = c.indexOf('async deleteSlot');
   const heartbeat = c.slice(heartbeatStart, deleteStart);
-  assert.match(heartbeat, /execution_id,run_id,lease_epoch,authority_epoch/);
+  assert.match(heartbeat, /execution_id,subject_key,run_id,lease_epoch,authority_epoch/);
   assert.match(heartbeat, /mutation_certainty/);
   assert.match(heartbeat, /may_have_mutated=false/);
 });
