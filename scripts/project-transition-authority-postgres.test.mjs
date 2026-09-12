@@ -127,9 +127,17 @@ function leaseRow({ leaseId, runId, idempotencyKey }) {
   };
 }
 
+function bindExecution(row, execution) {
+  row.execution_id = execution.execution_id;
+  row.operation_id = execution.operation_id;
+  return row;
+}
+
 function settlement(row, authorityEpoch, key) {
   return {
     lease_id:row.lease_id,
+    execution_id:row.execution_id,
+    operation_id:row.operation_id,
     slot_key:row.slot_key,
     run_id:row.run_id,
     authority_epoch:authorityEpoch,
@@ -166,6 +174,7 @@ test('project transition bridge advances and enforces canonical authority epochs
       idempotencyKey:'acquire-1',
     });
     const first = await store.acquireLeaseAtomically(firstInput);
+    bindExecution(firstInput, first);
     assert.equal(first.authority_epoch, 1);
     assert.equal(first.lease_id, firstInput.lease_id);
 
@@ -196,6 +205,7 @@ test('project transition bridge advances and enforces canonical authority epochs
       idempotencyKey:'acquire-2',
     });
     const second = await store.acquireLeaseAtomically(secondInput);
+    bindExecution(secondInput, second);
     assert.equal(second.authority_epoch, 2);
     execution = await store.getExecutionState(secondInput.slot_key);
     assert.equal(execution.authority_epoch, 2);
@@ -333,6 +343,7 @@ test('project transition progress and continuation use canonical state with lega
       idempotencyKey:'acquire-progress-3',
     });
     const third = await store.acquireLeaseAtomically(thirdInput);
+    bindExecution(thirdInput, third);
     assert.equal(third.authority_epoch, 3);
     await store.insertCheckpoint(
       thirdInput.lease_id,
