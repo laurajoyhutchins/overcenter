@@ -11,12 +11,19 @@ export default {
   description:descriptor.description,
   inputSchema:descriptor.input_schema,
   async handler(args,ctx) {
-    const providers = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const providers = composeHatchableRuntimeProviders({
+      ...(ctx?.db ? { db:ctx.db } : {}),
+      ...(ctx?.executionTransactionStore ? { executionTransactionStore:ctx.executionTransactionStore } : {}),
+    });
     const { db } = providers;
     const response = await executeCorrelatedCommand(
       'production.reconcile',
       args || {},
-      (input) => productionReconciliationFor({ db, withGitHubAppApiClient:providers.githubAppAuth.withApiClient }).reconcile(input),
+      (input) => productionReconciliationFor({
+        db,
+        executionTransactionStore:providers.executionTransactionStore,
+        withGitHubAppApiClient:providers.githubAppAuth.withApiClient,
+      }).reconcile(input),
       {
         statusForFailure:() => null,
         defaultError:'PRODUCTION_RECONCILIATION_ERROR',
