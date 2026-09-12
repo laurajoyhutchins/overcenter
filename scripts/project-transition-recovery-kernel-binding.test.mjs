@@ -231,3 +231,23 @@ test('orchestration status enumerates canonical project-transition expiry before
   assert.match(query, /subject_kind='project_transition'/);
   assert.ok(query.indexOf('FROM execution_state') < query.indexOf('FROM work_lease_slots'));
 });
+
+test('orchestration run store reads canonical transition leases before legacy projections', async () => {
+  const source = await readFile(new URL('../lib/orchestration-runs.js', import.meta.url), 'utf8');
+  const start = source.indexOf('async activeLeaseForRun');
+  const end = source.indexOf('async invocationsForRun', start);
+  const lookup = source.slice(start, end);
+  assert.match(lookup, /FROM execution_state/);
+  assert.match(lookup, /subject_kind='project_transition'/);
+  assert.ok(lookup.indexOf('FROM execution_state') < lookup.indexOf('FROM work_leases'));
+});
+
+test('orchestration run receipts include canonical transition settlement state', async () => {
+  const source = await readFile(new URL('../lib/orchestration-runs.js', import.meta.url), 'utf8');
+  const start = source.indexOf('async leasesForRun');
+  const end = source.indexOf('async invocationsForRun', start);
+  const lookup = source.slice(start, end);
+  assert.match(lookup, /FROM execution_state/);
+  assert.match(lookup, /settlement_receipt/);
+  assert.ok(lookup.indexOf('FROM execution_state') < lookup.indexOf('FROM work_leases'));
+});
