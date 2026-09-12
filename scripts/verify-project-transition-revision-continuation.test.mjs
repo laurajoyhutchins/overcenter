@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createProjectTransitionLeaseService } from '../lib/project-transition-leases.js';
+import { projectTransitionDefinitionFingerprint } from '../lib/project-transition-observations.js';
 import { reconcileProjectTransitionChange } from '../lib/project-graph-reconciliation.js';
 import { PRODUCTIVE_STAGES } from '../lib/work-lifecycle.js';
 
@@ -107,6 +108,29 @@ test('unchanged transition authority survives an unrelated authoritative graph r
     authority_changed:true,
     changes:[],
   });
+});
+
+test('durable transition confirmation identity changes with execution intent', async () => {
+  const before = {
+    ...graph('1'.repeat(40)).nodes[0],
+    execution_intent:{
+      schema:'project-execution-intent-v1',
+      desired_outcome:'Ship transition A.',
+      acceptance_evidence:[],
+    },
+  };
+  const after = {
+    ...before,
+    execution_intent:{
+      ...before.execution_intent,
+      desired_outcome:'Ship transition A with stronger acceptance semantics.',
+    },
+  };
+
+  assert.notEqual(
+    await projectTransitionDefinitionFingerprint(before),
+    await projectTransitionDefinitionFingerprint(after),
+  );
 });
 
 test('idempotent lease acquisition replay preserves graph revision evidence for targeted resume', async () => {
