@@ -202,3 +202,49 @@ test('Postgres execution authority projects current project-transition identity 
   assert.equal(lease.claim_receipt.project_transition.slot_key, 'project_transition:canonical');
   assert.equal(Object.hasOwn(lease, 'active_capability_material'), false);
 });
+
+
+test('project-transition Postgres lease reads use canonical execution identity', async () => {
+  const leaseRef = '99999999-9999-4999-8999-999999999999';
+  const canonical = {
+    lease_id:leaseRef,
+    subject_key:'project_transition:canonical-read',
+    subject_kind:'project_transition',
+    execution_id:'execution:canonical-read',
+    operation_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    project_ref:'github:laurajoyhutchins/overcenter',
+    transition_id:'ship',
+    run_id:'run-canonical-read',
+    lifecycle:'executing',
+    settled:false,
+    authority_epoch:4,
+    authority_repository:'laurajoyhutchins/overcenter',
+    authority_revision:'a'.repeat(40),
+    authority_derivation:'overcenter-project-graph-v1',
+    graph_fingerprint:'b'.repeat(64),
+    transition_definition_fingerprint:'c'.repeat(64),
+    transition_revision_fingerprint:'d'.repeat(64),
+    transition_dependency_fingerprint:'e'.repeat(64),
+    expires_at:'2026-09-12T20:30:00.000Z',
+    hard_expires_at:'2026-09-12T23:00:00.000Z',
+    idempotency_key:'canonical-acquire',
+    intent_sha256:'f'.repeat(64),
+    settlement_receipt:null,
+  };
+  const calls = [];
+  const db = {
+    async query(sql, params) {
+      calls.push({ sql, params });
+      return { rows:[canonical] };
+    },
+  };
+  const store = (await import('../lib/project-transition-lease-store.js')).createProjectTransitionLeasePostgresStore(db);
+  const lease = await store.getLease(leaseRef);
+  assert.equal(lease?.lease_id, leaseRef);
+  assert.equal(lease?.status, 'active');
+  assert.equal(lease?.subject, 'project_transition');
+  assert.equal(lease?.authority_epoch, 4);
+  assert.equal(lease?.transition_id, 'ship');
+  assert.match(calls[0].sql, /FROM execution_state/);
+  assert.doesNotMatch(calls[0].sql, /FROM work_leases/);
+});
