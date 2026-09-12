@@ -187,6 +187,7 @@ test('project transition bridge advances and enforces canonical authority epochs
     assert.equal(execution.lease_ref, firstInput.lease_id);
     assert.equal(execution.settlement_receipt?.schema, 'settlement-receipt-v1');
     assert.equal(execution.settlement_receipt?.authority_epoch, 1);
+    assert.equal((await store.getLease(firstInput.lease_id)).settle_idempotency_key, 'settle-1');
     assert.equal(await store.getSlot(firstInput.slot_key), null);
 
     const secondInput = leaseRow({
