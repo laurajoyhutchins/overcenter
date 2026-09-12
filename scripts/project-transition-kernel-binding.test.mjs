@@ -278,6 +278,12 @@ test('project-transition historical receipt replay uses projection history only 
   assert.equal(replay?.settle_idempotency_key, 'historical-settle');
   assert.match(calls[0].sql, /FROM execution_state/);
   assert.match(calls[1].sql, /FROM work_leases/);
+  calls.length = 0;
+  const latest = await store.getLatestSettledLeaseForTransition('github:laurajoyhutchins/overcenter', 'historical');
+  assert.equal(latest?.lease_id, leaseRef);
+  assert.equal(latest?.status, 'settled');
+  assert.match(calls[0].sql, /FROM execution_state/);
+  assert.match(calls[1].sql, /FROM work_leases/);
 });
 
 test('project-transition Postgres lease reads use canonical execution identity', async () => {
