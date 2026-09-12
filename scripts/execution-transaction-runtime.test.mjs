@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { executeExecutionTransaction, recoverExecutionTransaction } from '../lib/execution-transaction-runtime.js';
 import { mutationCertaintyFromFacts } from '../lib/execution-transaction.js';
+import { readFile } from 'node:fs/promises';
 import { canonicalJson, sha256Text } from '../lib/canonical-json.js';
 
 function clone(value) {
@@ -687,4 +688,16 @@ test('successful execution binds proof persistence to the owning run', async () 
   });
   assert.equal(result.receipt.disposition, 'completed');
   assert.equal(result.receipt.execution_id, result.identity.execution_id);
+});
+
+
+test('attempt request facts bind the owning run in both source and runtime kernels', async () => {
+  const source = await readFile(new URL('../src/semantic/execution-transaction-runtime.ts', import.meta.url), 'utf8');
+  const runtime = await readFile(new URL('../lib/execution-transaction-runtime.js', import.meta.url), 'utf8');
+  for (const implementation of [source, runtime]) {
+    assert.match(
+      implementation,
+      /canonicalJson\(\{[\s\S]*execution_id:\s*identity\.execution_id[\s\S]*operation_id:\s*identity\.operation_id[\s\S]*run_id:\s*identity\.run_id[\s\S]*attempt_epoch/s,
+    );
+  }
 });
