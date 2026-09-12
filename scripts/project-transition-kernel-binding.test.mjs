@@ -78,3 +78,9 @@ test('project-transition settlement writes the canonical durable receipt and lif
   assert.match(settlement, /settlement_receipt/);
   assert.match(settlement, /authority_epoch/);
 });
+
+test('settled canonical transition executions are not reclassified as expired leases', async () => {
+  const source = await readFile(new URL('lib/project-transition-leases.js', root), 'utf8');
+  assert.match(source, /execution\?\.lifecycle !== 'settled'/);
+  assert.match(source, /execution\?\.settled !== true/);
+});
