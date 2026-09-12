@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createProjectTransitionLeasePostgresStore, reconcileExpiredLeaseItem } from '../lib/project-transition-lease-store.js';
 import { createSubjectAwareLeaseRecovery } from '../lib/orchestration-maintenance-subjects.js';
+import { createPostgresOrchestrationMaintenanceStore } from '../lib/orchestration-runs.js';
 
 test('expired project-transition ownership is recovered without Linear reconciliation', async () => {
   let linearCalls = 0;
@@ -135,4 +136,19 @@ test('subject-aware expiry dispatch reads canonical project-transition execution
   assert.equal(result.recovery_required, true);
   assert.match(queries[0].sql, /FROM execution_state/);
   assert.doesNotMatch(queries[0].sql, /FROM work_lease_slots/);
+});
+
+
+test('maintenance enumerates expired canonical project-transition executions before projection slots', async () => {
+  const calls = [];
+  const store = createPostgresOrchestrationMaintenanceStore({
+    async query(sql, params) {
+      calls.push({ sql:String(sql), params });
+      return { rows:[] };
+    },
+  });
+  await store.expiredSlots(5);
+  assert.match(calls[0].sql, /FROM execution_state/);
+  assert.match(calls[0].sql, /UNION ALL/);
+  assert.ok(calls[0].sql.indexOf('FROM execution_state') < calls[0].sql.indexOf('FROM work_lease_slots'));
 });
