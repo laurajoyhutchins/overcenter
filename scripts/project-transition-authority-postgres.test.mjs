@@ -174,6 +174,7 @@ test('project transition bridge advances and enforces canonical authority epochs
     assert.equal(execution.lease_ref, firstInput.lease_id);
     assert.equal(execution.run_id, runId);
     assert.equal(execution.authority_derivation, 'overcenter-project-graph-v1');
+    assert.equal(execution.acquire_request_hash, firstInput.acquire_request_hash);
     const slot1 = await store.getSlot(firstInput.slot_key);
     assert.equal(slot1.lease_id, firstInput.lease_id);
 
