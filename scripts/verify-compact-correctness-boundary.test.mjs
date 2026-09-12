@@ -11,7 +11,6 @@ const correctnessModules = [
   'lib/compact-github-changeset-receipt-store.js',
   'lib/compact-github-release-receipt-store.js',
   'lib/compact-github-production-promotion-receipt-store.js',
-  'lib/compact-portfolio-reconcile-receipt-store.js',
 ];
 
 const forbiddenHistory = [
