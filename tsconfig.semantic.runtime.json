@@ -20,7 +20,6 @@
     "src/semantic/portfolio-reconcile-execution.ts",
     "src/semantic/production-materialization-execution.ts",
     "src/semantic/project-authoring-execution.ts",
-    "src/semantic/compatibility-transition-bindings.ts",
     "src/semantic/execution-authority-contracts.ts",
     "src/semantic/execution-authority-core.ts",
     "src/semantic/legacy-work-execution-authority-contracts.ts",
