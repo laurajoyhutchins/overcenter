@@ -22,6 +22,17 @@ test('orchestration recovery selects only nonterminal canonical executions', asy
 });
 
 
+test('resume evidence reads the canonical transition settlement receipt', async () => {
+  const source = await readFile(new URL('../lib/orchestration-run-target-runtime.js', import.meta.url), 'utf8');
+  const start = source.indexOf('async function projectGraphRevisionEvidenceForRun');
+  const end = source.indexOf('async function executeRegisteredProjectOperator', start);
+  const query = source.slice(start, end);
+  assert.match(query, /FROM execution_state/);
+  assert.match(query, /settlement_receipt/);
+  assert.match(query, /lifecycle='settled'/);
+  assert.doesNotMatch(query, /FROM work_leases/);
+});
+
 test('orchestration finish returns the canonical transition settlement receipt', async () => {
   const receipt = {
     schema:'settlement-receipt-v1',
