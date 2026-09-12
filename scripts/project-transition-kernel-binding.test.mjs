@@ -101,4 +101,11 @@ test('authoritative project-transition GitHub effect is kernel-bound and confirm
   assert.match(runtime, /allowIntegration: false/);
   assert.match(wrapper, /input\.subject_kind/);
   assert.match(mcp, /executionTransactionStore/);
+
+  const confirmationStart = runtime.indexOf('function confirmationFacts');
+  const confirmationEnd = runtime.indexOf('function kernelAuthority', confirmationStart);
+  const facts = runtime.slice(confirmationStart, confirmationEnd);
+  assert.match(facts, /reason === 'authoritative_effect_not_observed'/);
+  assert.match(facts, /status:'unknown'/);
+  assert.doesNotMatch(facts, /reason === 'authoritative_effect_not_observed'[\\s\\S]*status:'absent'/);
 });
