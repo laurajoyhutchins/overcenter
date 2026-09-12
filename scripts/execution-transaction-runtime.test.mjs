@@ -476,7 +476,7 @@ test('replacement workers replay the same execution identity after a pre-effect 
   await assert.rejects(
     executeExecutionTransaction({
       intent: intent(),
-      context: context({ run_id: 'run-1', lease_ref: 'lease-1', lease_epoch: 1 }),
+      context: context({ run_id: 'run-1', lease_ref: 'lease-1', lease_epoch: 1, lease_expires_at: '1970-01-01T00:00:00.000Z' }),
       provider: deadWorker,
       store,
     }),
