@@ -36,14 +36,15 @@ async function runtimeReferences(needle) {
 }
 
 const CURRENT = Object.freeze({
+  'postgres:public.execution_state#table': 'execution.transaction.execution-state.persistence',
+  'postgres:public.operation_state#table': 'execution.transaction.operation-state.persistence',
+  'postgres:public.proof_state#table': 'execution.transaction.proof-state.persistence',
   'postgres:public.github_required_check_observations#table': 'github.required-check-observation.persistence',
   'postgres:public.orchestration_horizons#table': 'orchestration.horizon.persistence',
   'postgres:public.orchestration_invocation_resolutions#table': 'orchestration.invocation-resolution.persistence',
   'postgres:public.orchestration_skill_activations#table': 'orchestration.skill-activation.persistence',
   'postgres:public.portfolio_repository_branch_roles#table': 'repository.branch-role.persistence',
   'postgres:public.portfolio_repository_disposition#table': 'repository.disposition.persistence',
-  'postgres:public.portfolio_reconcile_receipts#table': 'portfolio.reconcile-receipt.persistence',
-  'postgres:public.portfolio_verification_receipts#table': 'portfolio.verification-receipt.persistence',
   'postgres:public.portfolio_work_identity#table': 'repository.work-identity.persistence',
 });
 
@@ -75,7 +76,20 @@ test('remaining live PostgreSQL tables declare current or compatibility lifecycl
   }
 });
 
-test('receipt tables classified as current remain backed by live runtime readers or writers', async () => {
-  assert.ok((await runtimeReferences('portfolio_reconcile_receipts')).length > 0, 'portfolio_reconcile_receipts lost every runtime owner');
-  assert.ok((await runtimeReferences('portfolio_verification_receipts')).length > 0, 'portfolio_verification_receipts lost every runtime owner');
+test('canonical execution records have live runtime owners', async () => {
+  for (const table of ['execution_state', 'operation_state', 'proof_state']) {
+    assert.ok((await runtimeReferences(table)).length > 0, `${table} lost every runtime owner`);
+  }
+});
+
+test('retired provider receipt tables have no live runtime owners', async () => {
+  for (const table of [
+    'github_changeset_receipts',
+    'github_production_promotion_receipts',
+    'github_release_receipts',
+    'portfolio_reconcile_receipts',
+    'portfolio_verification_receipts',
+  ]) {
+    assert.deepEqual(await runtimeReferences(table), [], `${table} still has a live runtime owner`);
+  }
 });
