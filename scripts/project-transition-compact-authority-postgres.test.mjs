@@ -179,7 +179,11 @@ test('project transition bridge advances and enforces compact authority epochs a
     assert.equal(settled1.status, 'settled');
     execution = await store.getExecutionState(firstInput.slot_key);
     assert.equal(execution.authority_epoch, 1);
-    assert.equal(execution.lease_ref, null);
+    assert.equal(execution.lifecycle, 'settled');
+    assert.equal(execution.settled, true);
+    assert.equal(execution.lease_ref, firstInput.lease_id);
+    assert.equal(execution.settlement_receipt?.schema, 'settlement-receipt-v1');
+    assert.equal(execution.settlement_receipt?.authority_epoch, 1);
     assert.equal(await store.getSlot(firstInput.slot_key), null);
 
     const secondInput = leaseRow({
@@ -207,7 +211,10 @@ test('project transition bridge advances and enforces compact authority epochs a
     assert.equal(settled2.status, 'settled');
     execution = await store.getExecutionState(secondInput.slot_key);
     assert.equal(execution.authority_epoch, 2);
-    assert.equal(execution.lease_ref, null);
+    assert.equal(execution.lifecycle, 'settled');
+    assert.equal(execution.settled, true);
+    assert.equal(execution.lease_ref, secondInput.lease_id);
+    assert.equal(execution.settlement_receipt?.authority_epoch, 2);
   } finally {
     await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
     await client.end();
@@ -279,7 +286,10 @@ test('project transition progress and continuation use compact state with legacy
 
     await store.settleLeaseAtomically(settlement(firstInput, 1, 'settle-progress-1'));
     execution = await store.getExecutionState(firstInput.slot_key);
-    assert.equal(execution.lease_ref, null);
+    assert.equal(execution.lifecycle, 'settled');
+    assert.equal(execution.settled, true);
+    assert.equal(execution.lease_ref, firstInput.lease_id);
+    assert.equal(execution.settlement_receipt?.schema, 'settlement-receipt-v1');
     assert.deepEqual(execution.continuation, checkpoint);
     assert.equal(execution.continuation_sha256, '3'.repeat(64));
     assert.match(execution.continuation_execution_fingerprint, /^[0-9a-f]{64}$/);
