@@ -63,3 +63,18 @@ test('test audit exposes legacy-only files instead of silently omitting them', a
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('test audit fails closed when native tests coexist with a legacy runner', async () => {
+  const root = await fixture({
+    'lib/mixed.test.js': "import test from 'node:test';\nasync function run(name, fn) { return fn(); }\ntest('native case', () => {});\nexport async function runMixedTests() { await run('legacy case', async () => {}); }\n",
+  });
+  try {
+    const result = await auditRepository({ root, revision: REVISION });
+    assert.equal(result.case_count, 1);
+    assert.equal(result.unresolved_count, 1);
+    assert.equal(result.unresolved[0].kind, 'legacy-runner-present');
+    assert.equal(result.unresolved[0].legacy_literal_cases, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
