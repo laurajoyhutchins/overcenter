@@ -6,6 +6,10 @@ import { prepareProjectTransitionLeasePersistence, restoreProjectTransitionLease
 
 const root = new URL('../', import.meta.url);
 
+async function projectTransitionStoreSource() {
+  return readFile(new URL('lib/project-transition-lease-store.js', root), 'utf8');
+}
+
 function row(acquireIdempotencyKey) {
   return {
     lease_id:'11111111-1111-4111-8111-111111111111',
@@ -44,7 +48,7 @@ test('project-transition persistence derives one stable execution identity and p
 });
 
 test('project-transition acquisition and lifecycle writes bind canonical execution and operation records', async () => {
-  const source = await readFile(new URL('lib/project-transition-lease-store.js', root), 'utf8');
+  const source = await projectTransitionStoreSource();
   const c = source;
   assert.match(source, /execution_id,subject_key,subject_kind,project_ref,transition_id,operation_id/);
   assert.match(source, /INSERT INTO operation_state/);
@@ -54,11 +58,12 @@ test('project-transition acquisition and lifecycle writes bind canonical executi
 
   const acquireStart = source.indexOf('async acquireLeaseAtomically');
   const acquire = source.slice(acquireStart);
-  assert.match(acquire, /SELECT \\$21,'execution\\.transaction',\\$23,\\$24,\\$22,'prepared'/);
+  assert.match(acquire, /SELECT \$21,'execution\.transaction',\$23,\$24,\$22,'prepared'/);
   assert.match(acquire, /'definitely_not_mutated',\\$25/);
 });
 
 test('project-transition checkpoints and heartbeats persist exact canonical operation identity', async () => {
+  const c = await projectTransitionStoreSource();
   const checkpointStart = c.indexOf('async insertCheckpoint');
   const acquireStart = c.indexOf('async acquireLeaseAtomically');
   const checkpoint = c.slice(checkpointStart, acquireStart);
@@ -75,6 +80,7 @@ test('project-transition checkpoints and heartbeats persist exact canonical oper
 });
 
 test('project-transition settlement writes the canonical durable receipt and lifecycle', async () => {
+  const c = await projectTransitionStoreSource();
   const settlementStart = c.indexOf('async settleLeaseAtomically');
   const heartbeatStart = c.indexOf('async extendLeaseWithHeartbeat');
   const settlement = c.slice(settlementStart, heartbeatStart);
@@ -107,7 +113,7 @@ test('authoritative project-transition GitHub effect is kernel-bound and confirm
   const facts = runtime.slice(confirmationStart, confirmationEnd);
   assert.match(facts, /reason === 'authoritative_effect_not_observed'/);
   assert.match(facts, /status:'unknown'/);
-  assert.doesNotMatch(facts, /reason === 'authoritative_effect_not_observed'[\\s\\S]*status:'absent'/);
+  assert.doesNotMatch(facts, /reason === 'authoritative_effect_not_observed'[\s\S]*status:'absent'/);
 });
 
 test('restored project-transition settlement exposes the canonical receipt to orchestration', () => {
