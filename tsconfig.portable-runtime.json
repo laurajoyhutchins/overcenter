@@ -7,6 +7,7 @@
     "rootDir": "src"
   },
   "include": [
+    "src/semantic/canonical-json.ts",
     "src/semantic/runtime-provenance.ts",
     "src/semantic/semantic-identities.ts",
     "src/semantic/compact-execution-state.ts",

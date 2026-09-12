@@ -447,23 +447,25 @@ export function createPostgresExecutionTransactionStore(
         const result = await client.query<DatabaseRow>(
           `UPDATE execution_state SET
              lifecycle = 'executing',
-             lease_ref = $2,
-             lease_epoch = $3,
-             expires_at = $5,
-             hard_expires_at = GREATEST(COALESCE(hard_expires_at, $5), $5),
+             run_id = $2,
+             lease_ref = $3,
+             lease_epoch = $4,
+             expires_at = $6,
+             hard_expires_at = GREATEST(COALESCE(hard_expires_at, $6), $6),
              settled = false,
              settled_at = NULL,
              updated_at = now()
            WHERE execution_id = $1
-             AND authority_epoch = $4
+             AND authority_epoch = $5
              AND lifecycle NOT IN ('settled', 'rejected', 'escalated')
              AND (
-               (lease_ref = $2 AND lease_epoch = $3)
+               (lease_ref = $3 AND lease_epoch = $4)
                OR expires_at <= now()
              )
            RETURNING *`,
           [
             input.execution_id,
+            input.run_id,
             input.lease_ref,
             input.lease_epoch,
             input.authority_epoch,

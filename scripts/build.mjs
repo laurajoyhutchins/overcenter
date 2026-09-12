@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = new URL('../', import.meta.url);
 const tsc = fileURLToPath(new URL('node_modules/typescript/bin/tsc', root));
 const mirrorFiles = [
+  'canonical-json.js',
   'canonical-commands.js',
   'command-contracts.js',
   'compact-execution-state.js',

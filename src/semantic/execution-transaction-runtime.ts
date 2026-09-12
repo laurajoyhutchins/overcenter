@@ -24,6 +24,7 @@ export interface ExecutionTransactionContext {
   readonly lease_expires_at: string;
   readonly lease_ref?: string;
   readonly lease_epoch?: number;
+  readonly authority_epoch?: number;
 }
 
 export interface ExecutionTransactionResult {
@@ -69,7 +70,7 @@ async function identityFor<TPayload extends JsonValue>(
 ): Promise<ExecutionIdentity> {
   const intent_sha256 = await sha256Text(canonicalJson(intent));
   const operationHash = await sha256Text(`operation:${intent_sha256}`);
-  const executionHash = await sha256Text(`execution:${intent_sha256}:${context.run_id}`);
+  const executionHash = await sha256Text(`execution:${intent_sha256}`);
   const leaseHash = await sha256Text(`lease:${intent_sha256}:${context.run_id}`);
   const lease_epoch = context.lease_epoch ?? 1;
   const lease_ref = context.lease_ref ?? uuidFromHash(leaseHash);
@@ -326,9 +327,10 @@ export async function executeExecutionTransaction<TPayload extends JsonValue>(
 
   const claim = await input.store.claimExecution({
     execution_id: identity.execution_id,
+    run_id: input.context.run_id,
     lease_ref: identity.lease_ref,
     lease_epoch: identity.lease_epoch,
-    authority_epoch: identity.authority_epoch,
+    authority_epoch: input.context.authority_epoch ?? identity.authority_epoch,
     lease_expires_at: input.context.lease_expires_at,
   });
   if (claim.kind === 'busy') {
@@ -388,9 +390,10 @@ export async function recoverExecutionTransaction<TPayload extends JsonValue>(
   const identity: ExecutionIdentity = { ...snapshot.identity, lease_ref, lease_epoch };
   const claim = await input.store.claimExecution({
     execution_id: input.execution_id,
+    run_id: input.context.run_id,
     lease_ref,
     lease_epoch,
-    authority_epoch: identity.authority_epoch,
+    authority_epoch: input.context.authority_epoch ?? identity.authority_epoch,
     lease_expires_at: input.context.lease_expires_at,
   });
   if (claim.kind === 'busy') {
