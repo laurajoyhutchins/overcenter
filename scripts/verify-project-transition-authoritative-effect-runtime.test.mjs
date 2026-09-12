@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 import { projectTransitionAuthoritativeEffectConfirmationFor } from '../lib/project-transition-authoritative-effect.js';
 import { resolveActiveProjectTransitionLeaseRef } from '../lib/project-transition-authoritative-effect-github-runtime.js';
@@ -345,4 +346,14 @@ test('authoritative-effect confirmation accepts the exact merged candidate from 
 
   assert.equal(result.confirmed, true);
   assert.equal(result.evidence[0].ref, `github:laurajoyhutchins/overcenter#615@${SHA.merge}`);
+});
+
+test('authoritative-effect historical authority reads canonical settlements before projections', async () => {
+  const source = await readFile(new URL('../lib/project-transition-authoritative-effect-github-runtime.js', import.meta.url), 'utf8');
+  const start = source.indexOf('readHistoricalAuthorities');
+  const end = source.indexOf('return projectTransitionAuthoritativeEffectConfirmationFor', start);
+  const lookup = source.slice(start, end);
+  assert.match(lookup, /FROM execution_state/);
+  assert.match(lookup, /settlement_receipt/);
+  assert.ok(lookup.indexOf('FROM execution_state') < lookup.indexOf('FROM work_leases'));
 });
