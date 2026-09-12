@@ -54,6 +54,7 @@ test('postgres graph expiry classifies canonical certainty before releasing the 
   assert.match(sql, /UPDATE operation_state/);
   assert.match(sql, /no_effect/);
   assert.match(sql, /DELETE FROM work_lease_slots/);
+  assert.ok(tx.statements.some(statement => /atomicity_guard/.test(statement.sql)), 'expiry recovery lacks an atomicity guard');
   assert.ok(tx.statements.some(statement => statement.params?.includes('project_transition')), 'project-transition storage scope was not exact');
   assert.equal(result.released_without_linear_mutation, true);
   assert.equal(result.mutation_certainty, 'definitely_not_mutated');
