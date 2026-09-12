@@ -17,9 +17,9 @@ test('authoritative-effect runtime resolves active project transition lease from
   assert.equal(leaseRef, '11111111-1111-4111-8111-111111111111');
   assert.equal(queries.length, 1);
   assert.match(queries[0].sql, /FROM execution_state/);
-  assert.match(queries[0].sql, /subject_kind\\s*=\\s*'project_transition'/);
-  assert.match(queries[0].sql, /lifecycle\\s*=\\s*'executing'/);
-  assert.match(queries[0].sql, /settled\\s*=\\s*false/);
+  assert.match(queries[0].sql, /subject_kind\s*=\s*'project_transition'/);
+  assert.match(queries[0].sql, /lifecycle\s*=\s*'executing'/);
+  assert.match(queries[0].sql, /settled\s*=\s*false/);
   assert.doesNotMatch(queries[0].sql, /FROM work_leases/);
   assert.deepEqual(queries[0].params, ['run-1', '2026-09-09T17:00:00.000Z']);
 });
