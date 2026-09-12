@@ -145,7 +145,7 @@ test('execution evidence store fences every durable source to the exact run', as
       if (/work_lease_heartbeats/i.test(sql)) return { rows: [{ heartbeat_id: 'hb-1', lease_id: 'lease-1' }] };
       if (/FROM orchestration_command_invocations WHERE run_id/i.test(sql)) return { rows: [{ invocation_id: 'inv-1', run_id: 'run-1', sequence: 1 }] };
       if (/orchestration_invocation_resolutions/i.test(sql)) return { rows: [{ resolution_id: 'res-1', invocation_id: 'inv-1' }] };
-      if (/portfolio_verification_receipts/i.test(sql)) return { rows: [{ predicate_key: 'verify-1', evidence: { run_id: 'run-1' } }] };
+      if (/proof_state/i.test(sql)) return { rows: [{ predicate_key: 'verify-1', evidence: { run_id: 'run-1' } }] };
       throw new Error(`unexpected query: ${sql}`);
     },
   };
@@ -180,16 +180,16 @@ test('verification receipts require exact execution attribution, never work-ref 
       if (/FROM work_leases WHERE run_id/i.test(sql)) return { rows: [{ lease_id: 'lease-v', run_id: 'run-verify', work_ref: 'WORK-SHARED' }] };
       if (/work_lease_checkpoints|work_lease_heartbeats|orchestration_invocation_resolutions/i.test(sql)) return { rows: [] };
       if (/FROM orchestration_command_invocations WHERE run_id/i.test(sql)) return { rows: [{ invocation_id: 'inv-v', run_id: 'run-verify', sequence: 1 }] };
-      if (/portfolio_verification_receipts/i.test(sql)) return { rows: [] };
+      if (/proof_state/i.test(sql)) return { rows: [] };
       throw new Error(`unexpected query: ${sql}`);
     },
   };
   await createPostgresExecutionEvidenceStore(db).loadRunEvidence('run-verify');
-  const verificationCall = calls.find((call) => /portfolio_verification_receipts/i.test(call.sql));
+  const verificationCall = calls.find((call) => /proof_state/i.test(call.sql));
   assert.ok(verificationCall);
-  assert.match(verificationCall.sql, /evidence->>'run_id'/i);
-  assert.match(verificationCall.sql, /evidence->>'lease_id'/i);
-  assert.match(verificationCall.sql, /evidence->>'invocation_id'/i);
+  assert.match(verificationCall.sql, /JOIN execution_state/i);
+  assert.match(verificationCall.sql, /e\.run_id = \$1/i);
+  assert.doesNotMatch(verificationCall.sql, /evidence->>/i);
   assert.doesNotMatch(verificationCall.sql, /work_ref\s*=/i);
   assert.deepEqual(verificationCall.params, ['run-verify', ['lease-v'], ['inv-v']]);
 });

@@ -59,7 +59,7 @@ test('store loads exact-run horizon evidence', async () => {
       if (/FROM orchestration_runs/i.test(sql)) return { rows: [{ run_id: 'run-horizon' }] };
       if (/FROM orchestration_horizons/i.test(sql)) return { rows: [{ horizon_id: 'h-1', run_id: 'run-horizon', generation: 1, candidates: [] }] };
       if (/FROM work_leases/i.test(sql)) return { rows: [] };
-      if (/work_lease_checkpoints|work_lease_heartbeats|orchestration_invocation_resolutions|portfolio_verification_receipts/i.test(sql)) return { rows: [] };
+      if (/work_lease_checkpoints|work_lease_heartbeats|orchestration_invocation_resolutions|proof_state/i.test(sql)) return { rows: [] };
       if (/FROM orchestration_command_invocations/i.test(sql)) return { rows: [] };
       throw new Error(`unexpected query: ${sql}`);
     },
