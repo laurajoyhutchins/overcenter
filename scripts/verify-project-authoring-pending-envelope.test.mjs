@@ -52,17 +52,16 @@ test('pending project authoring preserves staged coordinates and retry semantics
   assert.equal(response.body.retryable, true);
   assert.equal(response.body.rejection, true);
   assert.equal(response.body.may_have_mutated, true);
-  assert.equal(response.body.recommended_action, 'retry_same_request');
-  assert.equal(response.body.failure_state, 'WAITING_EXTERNAL_VERIFICATION');
+  assert.equal(response.body.recommended_action, 'reconcile_external_effect');
+  assert.equal(response.body.failure_state, 'INDETERMINATE_EXTERNAL_EFFECT');
   assert.equal(response.body.automatic_recovery_allowed, false);
-  assert.equal(response.body.escalation_required, false);
+  assert.equal(response.body.escalation_required, true);
   assert.equal(response.body.details.staged_revision, STAGED_SHA);
   assert.equal(response.body.staged_revision, STAGED_SHA);
   assert.equal(response.body.integration.pull_request, 999);
   assert.equal(response.body.integration.expected_head, STAGED_SHA);
-  assert.equal(response.body.recovery_operation.command, 'project.amend');
-  assert.equal(response.body.recovery_operation.mode, 'retry_same_request_after_external_verification');
-  assert.equal(response.body.recovery_operation.use_original_request, true);
+  assert.equal(response.body.recovery_operation.command, 'orchestration.diagnose');
+  assert.equal(response.body.recovery_operation.mode, 'reconcile_authoritative_effect');
 });
 
 test('untyped pre-mutation GitHub changeset failures become bounded no-effect diagnostics', async () => {
