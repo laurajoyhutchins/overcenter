@@ -435,6 +435,48 @@ test('a stale worker cannot settle after its lease is replaced', async () => {
   );
 });
 
+test('a stale worker cannot append proof after lease replacement', async () => {
+  const store = new MemoryStore();
+  const deadWorker = providerFor();
+  deadWorker.preflight = async () => { throw new Error('worker died before effect'); };
+
+  await assert.rejects(
+    executeExecutionTransaction({
+      intent:intent(),
+      context:context({ lease_ref:'lease-1', lease_epoch:1, lease_expires_at:'1970-01-01T00:00:00.000Z' }),
+      provider:deadWorker,
+      store,
+    }),
+  );
+
+  const execution_id = [...store.executions.keys()][0];
+  const staleIdentity = clone(store.executions.get(execution_id).identity);
+  await store.claimExecution({
+    execution_id,
+    run_id:'run-2',
+    lease_ref:'lease-2',
+    lease_epoch:2,
+    authority_epoch:3,
+    lease_expires_at:'2999-01-01T00:00:00.000Z',
+  });
+
+  await assert.rejects(
+    store.appendProof({
+      proof_id:'stale-proof',
+      execution_id,
+      operation_id:staleIdentity.operation_id,
+      attempt_epoch:1,
+      authority_repository:staleIdentity.authority_repository,
+      authority_revision:staleIdentity.authority_revision,
+      authority_epoch:staleIdentity.authority_epoch,
+      predicate:'provider-invocation',
+      evidence_sha256:'e'.repeat(64),
+      evidence:{},
+    }),
+    error => error?.code === 'STALE_EXECUTION',
+  );
+});
+
 test('evidence bound to another revision is rejected', async () => {
   const store = new MemoryStore();
   const worker = providerFor();
