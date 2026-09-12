@@ -31,6 +31,7 @@ const maintainedTests = [
   'portfolio-reconcile-kernel-binding.test.mjs',
   'deterministic-work-settlement-kernel-binding.test.mjs',
   'project-authoring-kernel-binding.test.mjs',
+  'project-transition-kernel-binding.test.mjs',
   'release-publish-kernel-binding.test.mjs',
   'production-promotion-transaction.test.mjs',
   'cloud-run-command-ingress-host.test.mjs',
