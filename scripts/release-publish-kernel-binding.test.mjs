@@ -14,4 +14,6 @@ test('release publication is bound to the canonical execution transaction kernel
   assert.match(host, /authority_epoch/);
   assert.doesNotMatch(runtime, /createCompactGithubReleaseReceiptStore/);
   assert.match(worker, /executionTransactionStore:runtime\.executionTransactionStore/);
-  assert.match(runtime, /createGithubReleaseWithExecutionKernel/);\n  assert.match(worker, /createGithubReleaseWithExecutionKernel/);\n});
+  assert.match(runtime, /createGithubReleaseWithExecutionKernel/);
+  assert.match(worker, /createGithubReleaseWithExecutionKernel/);
+});
