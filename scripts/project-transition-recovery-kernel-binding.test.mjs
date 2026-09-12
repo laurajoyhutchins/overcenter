@@ -117,3 +117,27 @@ test('orchestration run receipts project the canonical transition settlement rec
   const result = await service.receipt({ run_id:'run-canonical-receipt' });
   assert.deepEqual(result.settlements[0]?.canonical_receipt, receipt);
 });
+
+
+test('production subject-aware finish requires a canonical project-transition receipt', async () => {
+  const service = (await import('../lib/orchestration-finish-runtime.js')).createSubjectAwareLeaseSettlementService({
+    requireCanonicalReceipt:true,
+    readLease:async () => ({
+      lease_id:'77777777-7777-4777-8777-777777777777',
+      run_id:'run-canonical-required',
+      gate:'project_transition',
+      claim_receipt:{ subject:'project_transition' },
+    }),
+    legacyLeases:{ async settleByRef() { throw new Error('legacy settlement was selected'); } },
+    projectTransitions:{ async settle() { return { ok:true, status:'settled', disposition:'completed' }; } },
+  });
+  await assert.rejects(
+    service.settleByRef({
+      lease_ref:'77777777-7777-4777-8777-777777777777',
+      disposition:'completed',
+      evidence:[],
+      idempotency_key:'canonical-required',
+    }),
+    error => error?.code === 'CANONICAL_SETTLEMENT_RECEIPT_REQUIRED',
+  );
+});
