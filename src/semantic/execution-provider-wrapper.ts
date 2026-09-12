@@ -52,6 +52,7 @@ export async function executeBoundProviderEffect<
     authority: ExecutionAuthority;
     idempotency_scope: string;
     payload: TPayload;
+    subject_kind?: ExecutionTransactionContext['subject_kind'];
     ports: ExecutionProviderWrapperPorts<TRequest, TPayload>;
   }>,
 ): Promise<ExecutionTransactionResult> {
@@ -88,8 +89,10 @@ export async function executeBoundProviderEffect<
     },
   };
   const context = input.ports.executionContext(input.request);
-  if (context.subject_kind !== 'provider_operation') {
-    throw Object.assign(new Error('provider effects require provider_operation subject kind'), {
+  const subjectKind = input.subject_kind ?? 'provider_operation';
+  if (!['provider_operation', 'project_transition', 'legacy_work'].includes(subjectKind)
+      || context.subject_kind !== subjectKind) {
+    throw Object.assign(new Error('execution subject kind does not match the provider effect binding'), {
       code: 'EXECUTION_SUBJECT_KIND_MISMATCH',
     });
   }
