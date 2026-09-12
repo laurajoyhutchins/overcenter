@@ -43,7 +43,7 @@ test('proof_state is semantic-subject-scoped and exact-revision keyed', async ()
 });
 
 test('orchestration_runs receives only canonical current and terminal pointers', async () => {
-  const sql = await migration('056_orchestration_run_canonicalion.sql');
+  const sql = await migration('056_orchestration_run_compaction.sql');
   assert.match(sql, /active_subject_key\s+text/i);
   assert.match(sql, /unresolved_operation_id\s+uuid/i);
   assert.match(sql, /final_effect_refs\s+jsonb/i);
