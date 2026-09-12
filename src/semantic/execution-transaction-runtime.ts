@@ -373,7 +373,7 @@ export async function executeExecutionTransaction<TPayload extends JsonValue>(
       identity: claimedIdentity,
     };
   }
-  if (claim.kind === 'replayed' && claim.snapshot.attempt_epoch > 0) {
+  if (claim.snapshot.attempt_epoch > 0) {
     return recoverExecutionTransaction({
       execution_id: identity.execution_id,
       intent: input.intent,
