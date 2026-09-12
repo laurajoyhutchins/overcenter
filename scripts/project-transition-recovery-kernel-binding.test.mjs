@@ -210,3 +210,24 @@ test('subject routing rejects canonical and projection subject disagreement', ()
     error => error?.code === 'ORCHESTRATION_LEASE_SUBJECT_INVALID',
   );
 });
+
+test('orchestration status treats canonical project-transition execution as live authority', async () => {
+  const source = await readFile(new URL('../lib/orchestration-status.js', import.meta.url), 'utf8');
+  const start = source.indexOf('function liveLeaseExistsSql');
+  const end = source.indexOf('\n}', start) + 2;
+  const liveLeasePredicate = source.slice(start, end);
+  assert.match(liveLeasePredicate, /FROM execution_state/);
+  assert.match(liveLeasePredicate, /subject_kind='project_transition'/);
+  assert.match(liveLeasePredicate, /settled\s*=\s*false/);
+  assert.match(liveLeasePredicate, /FROM work_leases/);
+});
+
+test('orchestration status enumerates canonical project-transition expiry before legacy slots', async () => {
+  const source = await readFile(new URL('../lib/orchestration-status.js', import.meta.url), 'utf8');
+  const start = source.indexOf('expired_active_slots');
+  const end = source.indexOf('leases_stuck_claiming', start);
+  const query = source.slice(start, end);
+  assert.match(query, /FROM execution_state/);
+  assert.match(query, /subject_kind='project_transition'/);
+  assert.ok(query.indexOf('FROM execution_state') < query.indexOf('FROM work_lease_slots'));
+});
