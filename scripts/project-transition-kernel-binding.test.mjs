@@ -219,6 +219,67 @@ test('project-transition slot reads use canonical execution identity', async () 
   assert.doesNotMatch(calls[0].sql, /FROM work_lease_slots/);
 });
 
+test('project-transition historical receipt replay uses projection history only after canonical lookup misses', async () => {
+  const leaseRef = '88888888-8888-4888-8888-888888888888';
+  const subjectKey = 'project_transition:historical';
+  const raw = {
+    lease_id:leaseRef,
+    work_ref:subjectKey,
+    gate:'project_transition',
+    run_id:'run-historical',
+    status:'settled',
+    created_at:'2026-09-12T18:00:00.000Z',
+    expires_at:'2026-09-12T18:30:00.000Z',
+    hard_expires_at:'2026-09-12T20:00:00.000Z',
+    claim_idempotency_key:'project-transition:historical-acquire',
+    claim_request_hash:'a'.repeat(64),
+    claim_receipt:{
+      schema:'project-transition-lease-claim-v1',
+      subject:'project_transition',
+      project_transition:{
+        project_ref:'github:laurajoyhutchins/overcenter',
+        transition_id:'historical',
+        repository:'laurajoyhutchins/overcenter',
+        authority_revision:'a'.repeat(40),
+        authority_derivation:'overcenter-project-graph-v1',
+        graph_fingerprint:'b'.repeat(64),
+        transition_definition_fingerprint:'c'.repeat(64),
+        transition_revision_fingerprint:'d'.repeat(64),
+        transition_dependency_fingerprint:'e'.repeat(64),
+        slot_key:subjectKey,
+        authority_epoch:2,
+      },
+      execution_id:'execution:historical',
+      operation_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      intent_sha256:'f'.repeat(64),
+    },
+    settle_idempotency_key:'project-transition-settle:historical-settle',
+    settle_plan:{ subject:'project_transition', disposition:'completed', evidence:[] },
+    settle_receipt:{ schema:'project-transition-lease-settlement-v1', disposition:'completed', graph_revision_change:null },
+    settled_at:'2026-09-12T18:20:00.000Z',
+  };
+  const calls = [];
+  const db = {
+    async query(sql, params) {
+      calls.push({ sql, params });
+      if (String(sql).includes('FROM execution_state')) return { rows:[] };
+      return { rows:[raw] };
+    },
+  };
+  const store = (await import('../lib/project-transition-lease-store.js')).createProjectTransitionLeasePostgresStore(db);
+  const lease = await store.getLease(leaseRef);
+  assert.equal(lease?.status, 'settled');
+  assert.equal(lease?.settlement_receipt?.schema, 'project-transition-lease-settlement-v1');
+  assert.match(calls[0].sql, /FROM execution_state/);
+  assert.match(calls[1].sql, /FROM work_leases/);
+  calls.length = 0;
+  const replay = await store.getLeaseByAcquireIdempotency('historical-acquire');
+  assert.equal(replay?.lease_id, leaseRef);
+  assert.equal(replay?.settle_idempotency_key, 'historical-settle');
+  assert.match(calls[0].sql, /FROM execution_state/);
+  assert.match(calls[1].sql, /FROM work_leases/);
+});
+
 test('project-transition Postgres lease reads use canonical execution identity', async () => {
   const leaseRef = '99999999-9999-4999-8999-999999999999';
   const canonical = {
