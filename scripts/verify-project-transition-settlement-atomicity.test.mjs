@@ -178,12 +178,23 @@ test('postgres project transition settlement writes the lease receipt and releas
     async query() { throw new Error('atomic settlement must not use standalone db.query calls'); },
     async transaction(statements) {
       transactions.push(statements);
-      return { results:[{ rows:[rawSettledRow] }, { rows:[{ lease_id:leaseId }] }, { rows:[{ atomicity_guard:1 }] }] };
+      return {
+        results:[
+          { rows:[{ execution_id:'execution-project-transition', operation_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }] },
+          { rows:[rawSettledRow] },
+          { rows:[{ lease_id:leaseId }] },
+          { rows:[{ operation_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }] },
+          { rows:[{ subject_key:slotKey, settlement_receipt:{ schema:'settlement-receipt-v1' } }] },
+          { rows:[{ atomicity_guard:1 }] },
+        ],
+      };
     },
   };
   const store = createProjectTransitionLeasePostgresStore(db, { capabilityFactory:() => 'unused' });
   const settled = await store.settleLeaseAtomically({
     lease_id:leaseId,
+    execution_id:'execution-project-transition',
+    operation_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     slot_key:slotKey,
     run_id:'run-1',
     project_ref:'github:laurajoyhutchins/overcenter',
@@ -206,4 +217,43 @@ test('postgres project transition settlement writes the lease receipt and releas
   assert.match(sql, /UPDATE work_leases/);
   assert.match(sql, /DELETE FROM work_lease_slots/);
   assert.match(sql, /atomicity_guard/);
+
+  const failingStore = createProjectTransitionLeasePostgresStore({
+    async query() { throw new Error('atomic settlement must not use standalone db.query calls'); },
+    async transaction() {
+      return {
+        results:[
+          { rows:[{ execution_id:'execution-project-transition', operation_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }] },
+          { rows:[rawSettledRow] },
+          { rows:[{ lease_id:leaseId }] },
+          { rows:[{ operation_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }] },
+          { rows:[{ subject_key:slotKey, settlement_receipt:{ schema:'settlement-receipt-v1' } }] },
+          { rows:[{ atomicity_guard:0 }] },
+        ],
+      };
+    },
+  });
+  await assert.rejects(
+    failingStore.settleLeaseAtomically({
+      lease_id:leaseId,
+      execution_id:'execution-project-transition',
+      operation_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      slot_key:slotKey,
+      run_id:'run-1',
+      project_ref:'github:laurajoyhutchins/overcenter',
+      transition_id:'transition-a',
+      repository:'laurajoyhutchins/overcenter',
+      authority_revision:'1'.repeat(40),
+      authority_derivation:'overcenter-project-graph-v1',
+      graph_fingerprint:'b'.repeat(64),
+      transition_definition_fingerprint:'c'.repeat(64),
+      transition_revision_fingerprint:'d'.repeat(64),
+      transition_dependency_fingerprint:'e'.repeat(64),
+      disposition:'completed',
+      settle_idempotency_key:'settle',
+      settled_at:'2026-09-01T01:45:00Z',
+      graph_revision_change:null,
+    }),
+    error => error?.code === 'PROJECT_TRANSITION_LEASE_STALE',
+  );
 });
