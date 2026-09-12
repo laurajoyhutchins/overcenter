@@ -14,6 +14,6 @@ test('orchestration recovery selects only nonterminal canonical executions', asy
 
   await store.currentExecution('run-project-transition');
   assert.equal(calls.length, 1);
-  assert.match(calls[0].sql, /lifecycle IN \('prepared', 'executing', 'effect_uncertain'\)/);
+  assert.match(calls[0].sql, /lifecycle IN \('prepared', 'executing', 'effect_uncertain', 'effect_confirmed', 'effect_absent'\)/);
   assert.match(calls[0].sql, /settled\s*=\s*false/);
 });
