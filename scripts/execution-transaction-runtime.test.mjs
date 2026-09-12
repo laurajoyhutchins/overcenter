@@ -680,14 +680,16 @@ test('confirmed mutation without an effect reference fails closed', async () => 
 
 
 test('successful execution binds proof persistence to the owning run', async () => {
+  const store = new MemoryStore();
   const result = await executeExecutionTransaction({
     intent:intent(),
     context:context(),
     provider:providerFor(),
-    store:new MemoryStore(),
+    store,
   });
   assert.equal(result.receipt.disposition, 'completed');
   assert.equal(result.receipt.execution_id, result.identity.execution_id);
+  assert.equal(store.executions.get(result.identity.execution_id).proof.run_id, result.identity.run_id);
 });
 
 
