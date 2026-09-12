@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { prepareProjectTransitionLeasePersistence, restoreProjectTransitionLease } from '../lib/project-transition-lease-store.js';
+import { createPostgresExecutionAuthorityStore } from '../lib/execution-authority.js';
 
 const root = new URL('../', import.meta.url);
 
@@ -153,4 +154,51 @@ test('restored project-transition settlement exposes the canonical receipt to or
     settle_receipt:{ canonical_receipt:receipt },
   });
   assert.deepEqual(restored?.settlement_receipt, receipt);
+});
+
+
+test('Postgres execution authority projects current project-transition identity from canonical execution state', async () => {
+  const leaseRef = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const calls = [];
+  const db = {
+    async query(sql, params) {
+      calls.push({ sql, params });
+      return {
+        rows:[{
+          lease_id:leaseRef,
+          subject_key:'project_transition:canonical',
+          subject_kind:'project_transition',
+          run_id:'run-canonical',
+          project_ref:'github:laurajoyhutchins/overcenter',
+          transition_id:'ship',
+          authority_epoch:3,
+          authority_repository:'laurajoyhutchins/overcenter',
+          authority_revision:'a'.repeat(40),
+          authority_derivation:'overcenter-project-graph-v1',
+          graph_fingerprint:'b'.repeat(64),
+          transition_definition_fingerprint:'c'.repeat(64),
+          transition_revision_fingerprint:'d'.repeat(64),
+          transition_dependency_fingerprint:'e'.repeat(64),
+          lifecycle:'executing',
+          settled:false,
+          expires_at:'2026-09-12T20:30:00.000Z',
+          hard_expires_at:'2026-09-12T23:00:00.000Z',
+          idempotency_key:'acquire-canonical',
+          intent_sha256:'f'.repeat(64),
+        }],
+      };
+    },
+  };
+  const store = createPostgresExecutionAuthorityStore(db);
+  const lease = await store.getLeaseById(leaseRef);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].sql, /FROM execution_state/);
+  assert.match(calls[0].sql, /subject_kind='project_transition'/);
+  assert.doesNotMatch(calls[0].sql, /FROM work_leases/);
+  assert.equal(lease.lease_id, leaseRef);
+  assert.equal(lease.status, 'active');
+  assert.equal(lease.claim_receipt.subject, 'project_transition');
+  assert.equal(lease.claim_receipt.project_transition.authority_epoch, 3);
+  assert.equal(lease.claim_receipt.project_transition.slot_key, 'project_transition:canonical');
+  assert.equal(Object.hasOwn(lease, 'active_capability_material'), false);
 });
