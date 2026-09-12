@@ -18,9 +18,17 @@ export default {
   description:descriptor.description,
   inputSchema:descriptor.input_schema,
   async handler(args,ctx) {
-    const providers = composeHatchableRuntimeProviders({ ...(ctx?.db ? { db:ctx.db } : {}) });
+    const providers = composeHatchableRuntimeProviders({
+      ...(ctx?.db ? { db:ctx.db } : {}),
+      ...(ctx?.executionTransactionStore ? { executionTransactionStore:ctx.executionTransactionStore } : {}),
+    });
     const { db } = providers;
-    const runtime = { db, api:providers.api, withGitHubAppApiClient:providers.githubAppAuth.withApiClient };
+    const runtime = {
+      db,
+      api:providers.api,
+      withGitHubAppApiClient:providers.githubAppAuth.withApiClient,
+      executionTransactionStore:providers.executionTransactionStore,
+    };
     const runs = createPostgresTargetAwareOrchestrationRunService(runtime);
     const advance = createPostgresOrchestrationAdvanceService(runtime);
     const finish = createPostgresSubjectAwareOrchestrationRunService(runtime);
