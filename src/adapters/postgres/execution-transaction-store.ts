@@ -719,7 +719,11 @@ export function createPostgresExecutionTransactionStore(
         const row = firstRow(proof.rows, 'PROOF_NOT_FOUND', 'proof was not persisted');
         if (text(row.execution_id) !== input.execution_id ||
             text(row.operation_id) !== input.operation_id ||
+            integer(row.attempt_epoch, 'attempt_epoch') !== input.attempt_epoch ||
+            text(row.authority_repository) !== input.authority_repository ||
             text(row.authority_revision) !== input.authority_revision ||
+            integer(row.authority_epoch, 'authority_epoch') !== input.authority_epoch ||
+            text(row.predicate_kind) !== input.predicate ||
             text(row.evidence_sha256) !== input.evidence_sha256) {
           return fail('PROOF_IDENTITY_MISMATCH', 'proof key was reused for different execution facts');
         }
@@ -743,11 +747,15 @@ export function createPostgresExecutionTransactionStore(
         const current = await executionById(client, input.identity.execution_id, true);
         if (!current) return fail('EXECUTION_NOT_FOUND', 'execution does not exist');
         if (Boolean(current.settled)) {
+          requireLease(current, input.identity, input.attempt_epoch);
           const receipt = receiptFromRow(current);
           if (receipt.execution_id !== input.identity.execution_id
               || receipt.operation_id !== input.identity.operation_id
               || receipt.authority_revision !== input.identity.authority_revision
               || receipt.authority_epoch !== input.identity.authority_epoch
+              || receipt.disposition !== input.disposition
+              || receipt.effect_ref !== input.effect_ref
+              || integer(current.current_attempt_epoch, 'current_attempt_epoch') !== input.attempt_epoch
               || receipt.evidence_sha256 !== input.evidence_sha256) {
             return fail('SETTLEMENT_FACT_MISMATCH', 'settlement receipt does not match the exact execution facts');
           }
