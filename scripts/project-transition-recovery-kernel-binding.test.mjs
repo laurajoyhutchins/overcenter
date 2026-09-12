@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createPostgresOrchestrationRecoveryStore } from '../lib/orchestration-recovery.js';
+import { createOrchestrationRunService } from '../lib/orchestration-runs.js';
 
 test('orchestration recovery selects only nonterminal canonical executions', async () => {
   const calls = [];
@@ -16,4 +17,60 @@ test('orchestration recovery selects only nonterminal canonical executions', asy
   assert.equal(calls.length, 1);
   assert.match(calls[0].sql, /lifecycle IN \('prepared', 'executing', 'effect_uncertain', 'effect_confirmed', 'effect_absent'\)/);
   assert.match(calls[0].sql, /settled\s*=\s*false/);
+});
+
+
+test('orchestration finish returns the canonical transition settlement receipt', async () => {
+  const receipt = {
+    schema:'settlement-receipt-v1',
+    execution_id:'execution:finish-receipt',
+    operation_id:'33333333-3333-4333-8333-333333333333',
+    authority_revision:'a'.repeat(40),
+    authority_epoch:4,
+    lifecycle:'settled',
+    disposition:'completed',
+    effect_ref:null,
+    evidence_sha256:'b'.repeat(64),
+  };
+  const run = {
+    run_id:'run-finish-receipt',
+    status:'active',
+    worker:'Fast Forward',
+    mode:'interactive',
+    started_at:'2026-09-12T20:00:00.000Z',
+    deadline_at:'2026-09-12T22:00:00.000Z',
+  };
+  const service = createOrchestrationRunService({
+    store:{
+      async getRun() { return run; },
+      async activeLeaseForRun() {
+        return {
+          lease_id:'44444444-4444-4444-8444-444444444444',
+          work_ref:'project_transition:finish',
+          gate:'project_transition',
+          run_id:run.run_id,
+          status:'active',
+          expires_at:'2026-09-12T21:00:00.000Z',
+        };
+      },
+      async finishRun(_runId, patch) {
+        Object.assign(run, patch);
+        return run;
+      },
+      async leasesForRun() { return []; },
+      async invocationsForRun() { return []; },
+    },
+    leases:{
+      async settleByRef() {
+        return { ok:true, status:'settled', disposition:'completed', settlement_receipt:receipt };
+      },
+    },
+    now:() => '2026-09-12T20:30:00.000Z',
+  });
+  const result = await service.finish({
+    run_id:run.run_id,
+    disposition:'clean-stop',
+    active_lease_settlement:{ disposition:'completed', evidence:[] },
+  });
+  assert.deepEqual(result.settlement_receipt, receipt);
 });
