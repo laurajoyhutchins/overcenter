@@ -71,6 +71,7 @@ test('the execution kernel owns provider settlement without orchestration-run or
   assert.match(sql, /drop\s+table\s+if\s+exists\s+github_release_receipts/i);
   assert.match(sql, /drop\s+table\s+if\s+exists\s+github_production_promotion_receipts/i);
   assert.match(sql, /drop\s+table\s+if\s+exists\s+portfolio_reconcile_receipts/i);
+  assert.match(sql, /drop\s+table\s+if\s+exists\s+portfolio_verification_receipts/i);
   assert.match(sql, /provider_operation/);
   assert.match(sql, /proof_state.*evidence|evidence.*proof_state/is);
 });
