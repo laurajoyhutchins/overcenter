@@ -258,6 +258,7 @@ test('project transition progress and continuation use canonical state with lega
       idempotencyKey:'acquire-progress-1',
     });
     const first = await store.acquireLeaseAtomically(firstInput);
+    bindExecution(firstInput, first);
     assert.equal(first.authority_epoch, 1);
 
     const checkpoint = { cursor:1, phase:'execute' };
@@ -318,6 +319,7 @@ test('project transition progress and continuation use canonical state with lega
       idempotencyKey:'acquire-progress-2',
     });
     const second = await store.acquireLeaseAtomically(secondInput);
+    bindExecution(secondInput, second);
     assert.equal(second.authority_epoch, 2);
     execution = await store.getExecutionState(secondInput.slot_key);
     assert.deepEqual(execution.continuation, checkpoint);
