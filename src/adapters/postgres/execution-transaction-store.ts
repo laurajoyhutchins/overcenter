@@ -1,3 +1,4 @@
+import { canonicalJson, sha256Text } from '../../semantic/canonical-json.js';
 import {
   assertExecutionIdentity,
   assertExecutionSnapshot,
@@ -223,6 +224,7 @@ function requireLease(
 ): DatabaseRow {
   if (!row) return fail('EXECUTION_NOT_FOUND', 'execution does not exist', { execution_id:identity.execution_id });
   if (!sameIdentity(row, identity) ||
+      text(row.run_id) !== identity.run_id ||
       text(row.lease_ref) !== identity.lease_ref ||
       integer(row.lease_epoch, 'lease_epoch') !== identity.lease_epoch ||
       integer(row.authority_epoch, 'authority_epoch') !== identity.authority_epoch) {
@@ -433,14 +435,17 @@ export function createPostgresExecutionTransactionStore(
         const currentLeaseEpoch = integer(current.lease_epoch, 'lease_epoch');
         if (String(current.lifecycle) === 'settled' || Boolean(current.settled)) {
           const snapshot = await snapshotFromRow(client, current);
-          return currentLease === input.lease_ref && currentLeaseEpoch === input.lease_epoch
+          return currentLease === input.lease_ref
+              && currentLeaseEpoch === input.lease_epoch
+              && text(current.run_id) === input.run_id
             ? { kind:'replayed', snapshot }
             : { kind:'busy', snapshot };
         }
 
         if (String(current.lifecycle) === 'executing' &&
             currentLease === input.lease_ref &&
-            currentLeaseEpoch === input.lease_epoch) {
+            currentLeaseEpoch === input.lease_epoch &&
+            text(current.run_id) === input.run_id) {
           return { kind:'replayed', snapshot:await snapshotFromRow(client, current) };
         }
 
@@ -459,7 +464,7 @@ export function createPostgresExecutionTransactionStore(
              AND authority_epoch = $5
              AND lifecycle NOT IN ('settled', 'rejected', 'escalated')
              AND (
-               (lease_ref = $3 AND lease_epoch = $4)
+               (run_id = $2 AND lease_ref = $3 AND lease_epoch = $4)
                OR expires_at <= now()
              )
            RETURNING *`,
@@ -494,16 +499,18 @@ export function createPostgresExecutionTransactionStore(
         });
         const result = await client.query<DatabaseRow>(
           `UPDATE execution_state SET
-             expires_at = $5,
+             expires_at = $6,
              updated_at = now()
            WHERE execution_id = $1
-             AND lease_ref = $2
-             AND lease_epoch = $3
-             AND authority_epoch = $4
+             AND run_id = $2
+             AND lease_ref = $3
+             AND lease_epoch = $4
+             AND authority_epoch = $5
              AND lifecycle IN ('executing', 'effect_uncertain')
            RETURNING *`,
           [
             input.execution_id,
+            input.run_id,
             input.lease_ref,
             input.lease_epoch,
             input.authority_epoch,
@@ -652,6 +659,18 @@ export function createPostgresExecutionTransactionStore(
     },
 
     async appendProof(input: AppendProofInput): Promise<ExecutionProof> {
+      let expectedEvidenceSha256: string;
+      try {
+        expectedEvidenceSha256 = await sha256Text(canonicalJson(input.evidence));
+      } catch (error) {
+        return fail('PROOF_EVIDENCE_INVALID', 'proof evidence is not canonical JSON', { cause: error });
+      }
+      if (expectedEvidenceSha256 !== input.evidence_sha256) {
+        return fail('PROOF_EVIDENCE_HASH_MISMATCH', 'proof evidence hash does not match canonical evidence', {
+          expected: expectedEvidenceSha256,
+          observed: input.evidence_sha256,
+        });
+      }
       return db.transaction(async (client) => {
         const current = await executionById(client, input.execution_id, true);
         if (!current) return fail('EXECUTION_NOT_FOUND', 'execution does not exist');
@@ -719,8 +738,12 @@ export function createPostgresExecutionTransactionStore(
         if (!current) return fail('EXECUTION_NOT_FOUND', 'execution does not exist');
         if (Boolean(current.settled)) {
           const receipt = receiptFromRow(current);
-          if (receipt.execution_id !== input.identity.execution_id) {
-            return fail('STALE_EXECUTION', 'settlement belongs to a different execution');
+          if (receipt.execution_id !== input.identity.execution_id
+              || receipt.operation_id !== input.identity.operation_id
+              || receipt.authority_revision !== input.identity.authority_revision
+              || receipt.authority_epoch !== input.identity.authority_epoch
+              || receipt.evidence_sha256 !== input.evidence_sha256) {
+            return fail('SETTLEMENT_FACT_MISMATCH', 'settlement receipt does not match the exact execution facts');
           }
           return receipt;
         }

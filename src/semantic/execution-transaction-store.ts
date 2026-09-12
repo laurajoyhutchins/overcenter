@@ -25,6 +25,7 @@ export interface ClaimExecutionInput {
 
 export interface HeartbeatExecutionInput {
   readonly execution_id: string;
+  readonly run_id: string;
   readonly lease_ref: string;
   readonly lease_epoch: number;
   readonly authority_epoch: number;

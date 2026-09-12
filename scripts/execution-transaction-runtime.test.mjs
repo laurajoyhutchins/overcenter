@@ -77,12 +77,14 @@ class MemoryStore {
     if (execution.identity.authority_epoch !== input.authority_epoch) {
       throw Object.assign(new Error('STALE_EXECUTION'), { code: 'STALE_EXECUTION' });
     }
-    const sameLease = execution.identity.lease_ref === input.lease_ref &&
+    const sameLease = execution.identity.run_id === input.run_id &&
+      execution.identity.lease_ref === input.lease_ref &&
       execution.identity.lease_epoch === input.lease_epoch;
     const expired = execution.lease_expires_at <= new Date().toISOString();
     if (!sameLease && !expired) {
       return { kind: 'busy', snapshot: this.snapshot(execution) };
     }
+    execution.identity.run_id = input.run_id;
     execution.identity.lease_ref = input.lease_ref;
     execution.identity.lease_epoch = input.lease_epoch;
     execution.lease_expires_at = input.lease_expires_at;
@@ -96,7 +98,8 @@ class MemoryStore {
 
   async recordAttempt({ identity, attempt_epoch, request_sha256 }) {
     const execution = this.executions.get(identity.execution_id);
-    if (!execution || execution.identity.lease_ref !== identity.lease_ref ||
+    if (!execution || execution.identity.run_id !== identity.run_id ||
+        execution.identity.lease_ref !== identity.lease_ref ||
         execution.identity.lease_epoch !== identity.lease_epoch) {
       throw Object.assign(new Error('STALE_EXECUTION'), { code: 'STALE_EXECUTION' });
     }
@@ -118,7 +121,8 @@ class MemoryStore {
 
   async recordInvocation({ identity, attempt_epoch, facts }) {
     const execution = this.executions.get(identity.execution_id);
-    if (!execution || execution.identity.lease_ref !== identity.lease_ref ||
+    if (!execution || execution.identity.run_id !== identity.run_id ||
+        execution.identity.lease_ref !== identity.lease_ref ||
         execution.identity.lease_epoch !== identity.lease_epoch ||
         execution.attempt_epoch !== attempt_epoch) {
       throw Object.assign(new Error('STALE_ATTEMPT'), { code: 'STALE_ATTEMPT' });
@@ -154,7 +158,8 @@ class MemoryStore {
 
   async settleExecution(input) {
     const execution = this.executions.get(input.identity.execution_id);
-    if (!execution || execution.identity.lease_ref !== input.identity.lease_ref ||
+    if (!execution || execution.identity.run_id !== input.identity.run_id ||
+        execution.identity.lease_ref !== input.identity.lease_ref ||
         execution.identity.lease_epoch !== input.identity.lease_epoch) {
       throw Object.assign(new Error('STALE_EXECUTION'), { code: 'STALE_EXECUTION' });
     }
