@@ -341,7 +341,7 @@ const DESCRIPTORS = Object.freeze({
   'orchestration.maintain':descriptor(
     'orchestration.maintain',
     'orchestration.maintain',
-    'Run bounded deterministic maintenance over current compact coordination and unresolved recovery state. The caller supplies no work target or recovery recipe; Overcenter discovers only already-authorized maintenance obligations and never selects semantic work.',
+    'Run bounded deterministic maintenance over current canonical execution state and unresolved recovery obligations. The caller supplies no work target or recovery recipe; Overcenter discovers only already-authorized maintenance obligations and never selects semantic work.',
     orchestrationMaintainSchema,
     'operator',
     INTERNAL_EXPOSURE,
