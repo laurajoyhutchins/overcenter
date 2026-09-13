@@ -34,14 +34,24 @@ async function blocked(service,key='blocked'){
 test('promotion release is exact, durable, idempotent, and removes the matching suspension',async()=>{
   const{service}=fixture();const suspension=await blocked(service);assert.ok(suspension);
   const input={project_ref:projectRef,transition_id:'transition-a',recovery_ref:suspension.recovery_ref,evidence:[{kind:'check-run',ref:'github-check:123'}],reason:'exact verification observed'};
-  const first=await service.releaseSuspension(input);assert.equal(first.released,true);assert.equal(first.idempotent_replay,false);
-  const replay=await service.releaseSuspension(input);assert.equal(replay.idempotent_replay,true);
+  const first=await service.releaseSuspension(input);assert.equal(first.released,true);assert.equal(first.basis,'promotion_condition_satisfied');assert.equal(first.idempotent_replay,false);
+  const replay=await service.releaseSuspension(input);assert.equal(replay.idempotent_replay,true);assert.equal(replay.basis,'promotion_condition_satisfied');
   assert.equal(await service.suspensionFor({project_ref:projectRef,transition_id:'transition-a'}),null);
 });
 
-test('promotion release fails closed for stale recovery identity and conflicting evidence',async()=>{
+test('promotion invalidation is a durable release basis and conflicts with a later satisfied claim',async()=>{
+  const{service}=fixture();const suspension=await blocked(service);assert.ok(suspension);
+  const invalidated={project_ref:projectRef,transition_id:'transition-a',recovery_ref:suspension.recovery_ref,basis:'promotion_condition_invalidated',evidence:[{kind:'check-run',ref:'github-check:failed'}],reason:'exact candidate verification failed'};
+  const first=await service.releaseSuspension(invalidated);assert.equal(first.released,true);assert.equal(first.basis,'promotion_condition_invalidated');assert.equal(first.idempotent_replay,false);
+  const replay=await service.releaseSuspension(invalidated);assert.equal(replay.idempotent_replay,true);assert.equal(replay.basis,'promotion_condition_invalidated');
+  await assert.rejects(()=>service.releaseSuspension({...invalidated,basis:'promotion_condition_satisfied'}),{code:'PROJECT_TRANSITION_IDEMPOTENCY_CONFLICT'});
+  assert.equal(await service.suspensionFor({project_ref:projectRef,transition_id:'transition-a'}),null);
+});
+
+test('promotion release fails closed for stale recovery identity, invalid basis, and conflicting evidence',async()=>{
   const{service}=fixture();const suspension=await blocked(service);
   await assert.rejects(()=>service.releaseSuspension({project_ref:projectRef,transition_id:'transition-a',recovery_ref:'project-transition-suspension:stale',evidence:[{kind:'check-run',ref:'github-check:123'}]}),{code:'PROJECT_TRANSITION_SUSPENSION_STALE'});
+  await assert.rejects(()=>service.releaseSuspension({project_ref:projectRef,transition_id:'transition-a',recovery_ref:suspension.recovery_ref,basis:'anything',evidence:[{kind:'check-run',ref:'github-check:123'}]}),{code:'PROJECT_TRANSITION_SUSPENSION_RELEASE_INVALID'});
   await service.releaseSuspension({project_ref:projectRef,transition_id:'transition-a',recovery_ref:suspension.recovery_ref,evidence:[{kind:'check-run',ref:'github-check:123'}]});
   await assert.rejects(()=>service.releaseSuspension({project_ref:projectRef,transition_id:'transition-a',recovery_ref:suspension.recovery_ref,evidence:[{kind:'check-run',ref:'github-check:456'}]}),{code:'PROJECT_TRANSITION_IDEMPOTENCY_CONFLICT'});
 });

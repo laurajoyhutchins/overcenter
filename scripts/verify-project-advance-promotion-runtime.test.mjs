@@ -19,6 +19,7 @@ test('untargeted WAITING advances surface the first suspended frontier transitio
   assert.equal(result.transition_id,'blocked-transition');
   assert.equal(result.resume_ref,'resume-1');
   assert.equal(result.promotion.recovery_ref,'project-transition-suspension:lease-1');
+  assert.deepEqual(result.promotion.required_result.dispositions,['completed','requeue']);
   assert.deepEqual(calls,[['advance',{project_ref:projectRef}],['suspensionFor','ready-without-suspension'],['suspensionFor','blocked-transition']]);
 });
 
@@ -33,4 +34,42 @@ test('targeted WAITING promotion packets retain the target transition identity',
   const result=await runtime.advance({project_ref:projectRef,transition_id:'blocked-transition'});
   assert.equal(result.outcome,'AGENT_EXECUTION_REQUIRED');
   assert.equal(result.transition_id,'blocked-transition');
+});
+
+test('negative promotion verification requeues the transition without claiming the promotion condition passed',async()=>{
+  const calls=[];
+  const runtime=createProjectAdvancePromotionRuntime({
+    host:{async advance(input){calls.push(['advance',input]);return{ok:true,outcome:'AGENT_EXECUTION_REQUIRED',transition_id:'blocked-transition'};}},
+    projectTransitions:{
+      async suspensionFor(){return{recovery_ref:'project-transition-suspension:lease-3',blocked_lease_ref:'lease-3',conditions:{promotion_condition:'candidate exact verification passes'}};},
+      async releaseSuspension(input){calls.push(['release',input]);return{ok:true,released:true,basis:input.basis};},
+    },
+  });
+  const result=await runtime.advance({
+    project_ref:projectRef,
+    transition_id:'blocked-transition',
+    resume_ref:'resume-3',
+    execution_result:{
+      disposition:'requeue',
+      evidence:[{kind:'github_check',ref:'github:check-run:failed-candidate'}],
+      reason:'The exact candidate failed its required verification and must be re-executed against current authority.',
+    },
+  });
+  assert.equal(calls[0][0],'release');
+  assert.equal(calls[0][1].basis,'promotion_condition_invalidated');
+  assert.equal(result.promotion_release.basis,'promotion_condition_invalidated');
+  assert.deepEqual(calls[1],['advance',{project_ref:projectRef,transition_id:'blocked-transition',resume_ref:'resume-3'}]);
+});
+
+test('unsupported promotion verification dispositions fail closed before release',async()=>{
+  let released=false;
+  const runtime=createProjectAdvancePromotionRuntime({
+    host:{async advance(){throw new Error('host should not resume');}},
+    projectTransitions:{
+      async suspensionFor(){return{recovery_ref:'project-transition-suspension:lease-4',blocked_lease_ref:'lease-4',conditions:{promotion_condition:'proof required'}};},
+      async releaseSuspension(){released=true;},
+    },
+  });
+  await assert.rejects(()=>runtime.advance({project_ref:projectRef,transition_id:'blocked-transition',resume_ref:'resume-4',execution_result:{disposition:'blocked',evidence:[{kind:'fact',ref:'x'}],reason:'still waiting'}}),{code:'PROJECT_TRANSITION_PROMOTION_RESULT_INVALID'});
+  assert.equal(released,false);
 });
