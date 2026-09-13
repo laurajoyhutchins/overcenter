@@ -64,9 +64,11 @@ test('Hatchable project.amend composes only transport authority and delegates se
   assert.match(mcpAmend, /githubAppAuth\.withApiClient/);
 });
 
-test('project.amend response recording is bounded and preserves authoritative success identity', () => {
+test('project.amend response recording preserves authoritative invocation identity in run-local evidence', () => {
   assert.match(workflow, /response_sha256/);
-  assert.match(workflow, /bounded_response/);
-  assert.match(workflow, /graph_revision/);
-  assert.match(workflow, /response_truncated/);
+  assert.match(workflow, /bounded-semantic-response\.json/);
+  assert.match(workflow, /request_id:\$request_id/);
+  assert.match(workflow, /command:\$command/);
+  assert.match(workflow, /expected_head:\$expected_head/);
+  assert.match(workflow, /response:\$response/);
 });
