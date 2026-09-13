@@ -82,3 +82,12 @@ test('project-transition canonical state preserves authority derivation and acqu
   assert.match(sql, /ADD COLUMN IF NOT EXISTS authority_derivation\s+text/i);
   assert.match(sql, /ADD COLUMN IF NOT EXISTS acquire_request_hash\s+text/i);
 });
+
+
+test('certainty guard permits may-have-mutated resolution without allowing confirmed regression', async () => {
+  const sql = await migration('063_execution_certainty_resolution.sql');
+  assert.match(sql, /CREATE OR REPLACE FUNCTION overcenter_certainty_transition_allowed/i);
+  assert.match(sql, /OLD\.mutation_certainty\s*=\s*'confirmed_mutated'/i);
+  assert.match(sql, /NEW\.mutation_certainty\s*=\s*'definitely_not_mutated'/i);
+  assert.match(sql, /DROP TRIGGER IF EXISTS overcenter_operation_certainty_guard/i);
+});
