@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { createGcpCommandForwarder } from '../lib/gcp-command-forwarder.js';
 
@@ -73,4 +74,13 @@ test('transport loss after dispatch is mutation-indeterminate and never retried'
   assert.equal(result.retryable, false);
   assert.equal(result.automatic_recovery_allowed, false);
   assert.equal(attempts, 1);
+});
+
+test('semantic workflow records sanitized response evidence per invocation, not in issue comments', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/gcp-semantic-command.yml', import.meta.url), 'utf8');
+  assert.doesNotMatch(workflow, /issues:\s*write/);
+  assert.doesNotMatch(workflow, /issues\/732\/comments/);
+  assert.match(workflow, /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/);
+  assert.match(workflow, /semantic-response-\$\{\{ inputs\.request_id \}\}/);
+  assert.match(workflow, /del\(\.lease_token,\.token,\.authorization,\.id_token\)/);
 });
