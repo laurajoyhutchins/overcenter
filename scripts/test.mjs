@@ -39,6 +39,7 @@ const maintainedTests = [
   'test-audit.test.mjs',
   'verify-github-workflow-dispatch.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
+  'verify-node-test-standardization.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',
   'verify-legacy-scheduled-cycle-cron-retirement.test.mjs',
   'verify-transition-first-dashboard.test.mjs',
