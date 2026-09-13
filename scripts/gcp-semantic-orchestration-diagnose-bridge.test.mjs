@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { createWorkerCommandHandler } from '../lib/worker-command-handler.js';
 
 const broker = await readFile(new URL('../api/gcp-semantic-command-dispatch.js', import.meta.url), 'utf8');
 const workflow = await readFile(new URL('../.github/workflows/gcp-semantic-command.yml', import.meta.url), 'utf8');
@@ -35,6 +36,35 @@ test('GCP workflow validates and forwards only typed orchestration.diagnose inpu
   assert.match(workflow, /\.run_id \| type == "string" and length > 0 and length <= 512/);
   assert.match(workflow, /\.work_ref \| type == "string" and length > 0 and length <= 128/);
   assert.match(workflow, /^[ \t]*[^\n]*orchestration\.diagnose[^\n]*\) input="\$command_input_json"/m);
+});
+
+test('diagnosis target run identity does not conflict with the transport invocation identity', async () => {
+  const observed = [];
+  const handler = createWorkerCommandHandler({
+    commandFailure:() => ({ status:400, body:{ ok:false } }),
+    executeSemanticWorkerCommand:async (command, input, runtime) => {
+      observed.push({ command, input, runtime });
+      return { status:200, body:{ ok:true } };
+    },
+    projectAuthoringFor:() => ({}),
+    providers:{},
+  });
+  const response = { status() { return this; }, json(value) { return value; } };
+
+  await handler({ body:{
+    command:'orchestration.diagnose',
+    input:{ run_id:'run-being-diagnosed' },
+    invocation_context:{ run_id:'diagnosis-invocation' },
+  } }, response);
+  await handler({ body:{
+    command:'project.inspect',
+    input:{ project_ref:'github:laurajoyhutchins/overcenter' },
+    invocation_context:{ run_id:'inspection-invocation' },
+  } }, response);
+
+  assert.equal(observed[0].input.run_id, 'run-being-diagnosed');
+  assert.equal(Object.hasOwn(observed[0].runtime, 'invocationContext'), false);
+  assert.deepEqual(observed[1].runtime.invocationContext, { run_id:'inspection-invocation' });
 });
 
 test('diagnosis transport delegates to the existing authoritative worker implementation', () => {
