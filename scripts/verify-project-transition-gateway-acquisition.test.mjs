@@ -111,3 +111,39 @@ test('project transition acquisition maps the transaction atomicity guard to ord
     (error) => error?.code === 'UNIQUE_VIOLATION' && /occupied/.test(error.message),
   );
 });
+
+
+test('project transition acquisition replays the canonical winner after same-key contention', async () => {
+  let queryCalls = 0;
+  const canonical = {
+    ...row,
+    subject_kind:'project_transition',
+    execution_id:'execution:project-transition',
+    operation_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    lifecycle:'executing',
+    settled:false,
+    authority_epoch:1,
+    lease_ref:row.lease_id,
+    idempotency_scope:'project_transition',
+    idempotency_key:row.acquire_idempotency_key,
+    intent_sha256:'1'.repeat(64),
+    acquire_request_hash:row.acquire_request_hash,
+  };
+  const db = {
+    async query(sql, params) {
+      queryCalls += 1;
+      assert.match(sql, /idempotency_scope/);
+      assert.deepEqual(params, ['project_transition', row.acquire_idempotency_key]);
+      return { rows:[canonical] };
+    },
+    async transaction() {
+      throw Object.assign(new Error('atomicity guard contention'), { code:'22012' });
+    },
+  };
+  const store = createProjectTransitionLeasePostgresStore(db, { capabilityFactory:()=> 'ptl_test_capability' });
+  const replay = await store.acquireLeaseAtomically(row);
+  assert.equal(replay.lease_id, row.lease_id);
+  assert.equal(replay.execution_id, canonical.execution_id);
+  assert.equal(replay.operation_id, canonical.operation_id);
+  assert.equal(queryCalls, 1);
+});
