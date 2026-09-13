@@ -200,6 +200,12 @@ const orchestrationDiagnoseSchema = Object.freeze({
   additionalProperties:false,
 });
 
+const orchestrationMetricsSchema = Object.freeze({
+  type:'object',
+  properties:{ window:{type:'string',enum:['24h','7d','30d']} },
+  additionalProperties:false,
+});
+
 const productionPromoteSchema = Object.freeze({
   type:'object',
   required:['repo'],
@@ -359,6 +365,14 @@ const DESCRIPTORS = Object.freeze({
     'orchestration.diagnose',
     'Read current durable orchestration state and return the typed failure class, exact deterministic recovery operation, and escalation boundary. This is state inspection and recovery classification only; it does not plan or select work.',
     orchestrationDiagnoseSchema,
+    'operator',
+    INTERNAL_EXPOSURE,
+  ),
+  'orchestration.metrics':descriptor(
+    'orchestration.metrics',
+    'orchestration.metrics',
+    'Read authoritative Overcenter outcome and orchestration metrics for a bounded time window. This operator surface is measurement-only: it grants no mutation authority and cannot settle project state.',
+    orchestrationMetricsSchema,
     'operator',
     INTERNAL_EXPOSURE,
   ),

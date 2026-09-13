@@ -87,6 +87,7 @@ const maintainedTests = [
   'verify-runtime-provider-boundary.test.mjs',
   'verify-github-graph-authority.test.mjs',
   'verify-overcenter-project-graph-capacity.test.mjs',
+  'verify-overcenter-metrics-semantic-surface.test.mjs',
   'verify-repository-metadata-command.test.mjs',
   'verify-repository-rename-command.test.mjs',
   'verify-repository-register-command.test.mjs',
