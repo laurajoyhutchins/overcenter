@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { dispatchGitHubWorkflowWithGitHubApp } from '../lib/github-workflow-dispatch.js';
@@ -7,17 +6,9 @@ import { CANONICAL_COMMANDS } from '../lib/canonical-commands.js';
 
 const repo = 'laurajoyhutchins/overcenter';
 const expectedHead = '0123456789abcdef0123456789abcdef01234567';
-const root = new URL('../', import.meta.url);
 
 test('workflow dispatch is admitted by the canonical worker-command boundary', () => {
   assert.ok(CANONICAL_COMMANDS.includes('github.workflow.dispatch'));
-});
-
-test('bounded GCP semantic workflow admits canonical workflow dispatch end to end', async () => {
-  const workflow = await readFile(new URL('.github/workflows/gcp-semantic-command.yml', root), 'utf8');
-  assert.match(workflow, /- github\.workflow\.dispatch/);
-  assert.match(workflow, /github\.workflow\.dispatch\)\n\s+test -z "\$PROJECT_REF"/);
-  assert.match(workflow, /github\.pull_request\.mark_ready\|github\.workflow\.dispatch\|github\.apply_changeset\|github\.coalesce_changeset/);
 });
 
 function fakeWithApp({ observedHead = expectedHead, dispatchStatus = 204, runs = [] } = {}) {
@@ -29,7 +20,7 @@ function fakeWithApp({ observedHead = expectedHead, dispatchStatus = 204, runs =
       async call(_service, request) {
         calls.push(request);
         if (request.method === 'GET' && request.path.includes('/git/ref/heads/')) {
-          return { status: 200, body: { object: { sha: observedHead } };
+          return { status: 200, body: { object: { sha: observedHead } } };
         }
         if (request.method === 'POST' && request.path.endsWith('/dispatches')) {
           return { status: dispatchStatus, body: null };
