@@ -139,3 +139,36 @@ Next work:
 6. commit each slice durably to this branch.
 
 Do not add a permanent kernel-v2 facade beside the old lifecycle.
+
+## Reconstruction status — 2026-09-13
+
+The lost ephemeral implementation has been reconstructed on the durable branch. The source head immediately before this checkpoint refresh is `ccdf9fb09435c6a83a3d73eda87688ad5673ef55`; this document update is committed as the next durable slice.
+
+Canonical source now present:
+
+- `src/semantic/execution-transaction.ts`;
+- `src/semantic/execution-transaction-runtime.ts`;
+- `src/semantic/execution-transaction-store.ts`;
+- `src/adapters/postgres/execution-transaction-store.ts`;
+- `src/semantic/canonical-json.ts`;
+- provider wrappers for deterministic work settlement, GitHub changesets, GitHub releases, portfolio reconciliation, production materialization/promotion, and project authoring;
+- JavaScript runtime mirrors used by the maintained application.
+
+Durable schema now includes migrations `060` through `064). Migrations `063` and `064` close two correctness gaps found during reconstruction: valid certainty resolution after provider readback, and exact settlement-request binding for project-transition receipts.
+
+The project-transition ratchet has been partially migrated. Canonical `execution_state`, `operation_state`, and `proof_state` own transition identity, authority revision/epoch, lease epoch, heartbeat/checkpoint state, settlement receipt, and expiry classification. The legacy `work_leases` row and orchestration graph state remain projections/fallbacks in several paths. Canonical transition settlement is replayed before the legacy settlement ledger, and legacy settlement replay excludes project-transition projection rows. Expired uncertain transitions now produce confirm-only authority-reconciliation metadata.
+
+The following remain intentionally retained until the conformance gates are demonstrated:
+
+- `lib/work-leases.js` generic claim/settle/checkpoint/heartbeat/requeue lifecycle;
+- the transition API and projection code in `lib/project-transition-leases.js`, `lib/project-transition-lease-store.js`, and stale reconciliation;
+- orchestration finish and maintenance fallbacks in `lib/orchestration-finish-runtime.js` and `lib/orchestration-runs.js`;
+- execution-authority and evidence readers that still fall back to legacy projection rows;
+- provider-specific readback and conditional mutation in `lib/project-transition-authoritative-effect-github-runtime.js`;
+- specialized journal resolution for release/template commands.
+
+An explicit unresolved ratchet is expired `effect_uncertain` project-transition recovery: the canonical recovery record is produced and marked confirm-only, but the authoritative provider-confirmation path still requires an active executing child lease. This must be wired through canonical operation identity before deleting transition leases or any `work_leases` fallback.
+
+Conformance coverage is present for all twelve required scenarios, including canonical settlement replay and transition settlement request binding. Current execution evidence is intentionally limited: the local exec server failed its initialization handshake, so no current-head test, typecheck, build, or PostgreSQL run is claimed. GitHub reported no workflow runs and no status checks for `ccdf9fb09435c6a83a3d73eda87688ad5673ef55`. The verification numbers in the earlier section are historical results from before the ephemeral worktree disappeared and must not be read as verification of this reconstructed head.
+
+Next deletion opportunity: make canonical operation recovery resolve expired uncertain transition effects through a confirm-only provider readback transaction; then run the twelve scenarios against PostgreSQL and delete the transition `work_leases` projection/settlement and obsolete authority compatibility paths only when zero stale-worker settlement, zero ambiguous writers, exact revision/epoch fencing, deterministic expiry/recovery, durable receipt replay, safe requeue, and no blind retry after uncertainty are all proven.
