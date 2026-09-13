@@ -99,8 +99,12 @@ test('project transition acquisition uses the transaction primitive instead of a
 });
 
 test('project transition acquisition maps the transaction atomicity guard to ordinary contention', async () => {
+  let queryCalls = 0;
   const db = {
-    async query() { throw new Error('query should not run'); },
+    async query() {
+      queryCalls += 1;
+      return { rows:[] };
+    },
     async transaction() {
       throw Object.assign(new Error('division by zero'), { code:'22012' });
     },
@@ -110,6 +114,7 @@ test('project transition acquisition maps the transaction atomicity guard to ord
     () => store.acquireLeaseAtomically(row),
     (error) => error?.code === 'UNIQUE_VIOLATION' && /occupied/.test(error.message),
   );
+  assert.equal(queryCalls, 1);
 });
 
 
