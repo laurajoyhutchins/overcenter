@@ -240,6 +240,59 @@ test('postgres settlement rejects an expired worker before proof or receipt muta
   }
 });
 
+test('postgres certainty permits unknown effects to resolve as definitely absent', async () => {
+  const client = postgresClient();
+  await client.connect();
+  try {
+    await prepareSchema(client);
+    await seedRun(client);
+    const store = createPostgresExecutionTransactionStore(createNodePostgresTransactionExecutor(client));
+    const exactIdentity = identity();
+    await store.prepareExecution({ identity:exactIdentity, lifecycle:'prepared' });
+    await store.claimExecution({
+      execution_id:exactIdentity.execution_id,
+      run_id:exactIdentity.run_id,
+      lease_ref:exactIdentity.lease_ref,
+      lease_epoch:1,
+      authority_epoch:exactIdentity.authority_epoch,
+      lease_expires_at:'2999-01-01T00:00:00.000Z',
+    });
+    await store.recordAttempt({
+      identity:exactIdentity,
+      attempt_epoch:1,
+      request_sha256:'b'.repeat(64),
+    });
+    await store.recordInvocation({
+      identity:exactIdentity,
+      attempt_epoch:1,
+      facts:{
+        transport:'unknown',
+        committed:null,
+        effect_ref:null,
+        response_sha256:null,
+        evidence:{ status:'timeout' },
+      },
+    });
+    const resolved = await store.recordInvocation({
+      identity:exactIdentity,
+      attempt_epoch:1,
+      facts:{
+        status:'absent',
+        effect_ref:null,
+        predicate:'exact-readback',
+        evidence:{ status:'absent' },
+      },
+    });
+    assert.equal(resolved.mutation_certainty, 'definitely_not_mutated');
+    const execution = await store.readExecution(exactIdentity.execution_id);
+    assert.equal(execution.mutation_certainty, 'definitely_not_mutated');
+    assert.equal(execution.lifecycle, 'effect_absent');
+  } finally {
+    await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
+    await client.end();
+  }
+});
+
 test('postgres transaction store fences claims and binds proof to exact execution identity', async () => {
   const client = postgresClient();
   await client.connect();
