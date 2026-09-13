@@ -220,6 +220,7 @@ test('postgres project transition settlement writes the lease receipt and releas
     transition_dependency_fingerprint:'e'.repeat(64),
     disposition:'completed',
     settle_idempotency_key:'settle',
+    settlement_request_sha256:'c'.repeat(64),
     settled_at:'2026-09-01T01:45:00Z',
     graph_revision_change:null,
   });
@@ -263,6 +264,7 @@ test('postgres project transition settlement writes the lease receipt and releas
       transition_dependency_fingerprint:'e'.repeat(64),
       disposition:'completed',
       settle_idempotency_key:'settle',
+    settlement_request_sha256:'c'.repeat(64),
       settled_at:'2026-09-01T01:45:00Z',
       graph_revision_change:null,
     }),
