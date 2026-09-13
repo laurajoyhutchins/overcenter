@@ -36,7 +36,7 @@ test('targeted WAITING promotion packets retain the target transition identity',
   assert.equal(result.transition_id,'blocked-transition');
 });
 
-test('negative promotion verification requeues the transition without claiming the promotion condition passed',async()=>{
+test('negative promotion verification requeues the transition while resuming the durable run by its original target identity',async()=>{
   const calls=[];
   const runtime=createProjectAdvancePromotionRuntime({
     host:{async advance(input){calls.push(['advance',input]);return{ok:true,outcome:'AGENT_EXECUTION_REQUIRED',transition_id:'blocked-transition'};}},
@@ -58,7 +58,7 @@ test('negative promotion verification requeues the transition without claiming t
   assert.equal(calls[0][0],'release');
   assert.equal(calls[0][1].basis,'promotion_condition_invalidated');
   assert.equal(result.promotion_release.basis,'promotion_condition_invalidated');
-  assert.deepEqual(calls[1],['advance',{project_ref:projectRef,transition_id:'blocked-transition',resume_ref:'resume-3'}]);
+  assert.deepEqual(calls[1],['advance',{project_ref:projectRef,resume_ref:'resume-3'}]);
 });
 
 test('unsupported promotion verification dispositions fail closed before release',async()=>{
