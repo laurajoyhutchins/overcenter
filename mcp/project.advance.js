@@ -1,13 +1,10 @@
 import { composeHatchableRuntimeProviders } from 'lib/hatchable-runtime-providers.js';
 import { executeCorrelatedCommand } from 'lib/orchestration-journal.js';
 import { projectAdvanceFor } from 'lib/project-advance-overcenter-host.js';
+import { createProjectAdvancePromotionRuntime } from 'lib/project-advance-promotion-runtime.js';
 import { createPostgresProjectTransitionAuthoritativeEffectConfirmationService } from 'lib/project-transition-authoritative-effect-github-runtime.js';
 import { createPostgresSubjectAwareOrchestrationRunService } from 'lib/orchestration-finish-runtime.js';
-import {
-  createPostgresOrchestrationAdvanceService,
-  createPostgresTargetAwareOrchestrationRunService,
-  statusForOrchestrationAdvanceRuntimeError,
-} from 'lib/orchestration-run-target-runtime.js';
+import { createPostgresOrchestrationAdvanceService, createPostgresProjectTransitionLeaseService, createPostgresTargetAwareOrchestrationRunService, statusForOrchestrationAdvanceRuntimeError } from 'lib/orchestration-run-target-runtime.js';
 import { semanticCommandDescriptor } from 'lib/semantic-command-descriptors.js';
 
 const descriptor = semanticCommandDescriptor('project.advance');
@@ -22,19 +19,16 @@ export default {
     const { db } = providers;
     const runtime = { db, api:providers.api, withGitHubAppApiClient:providers.githubAppAuth.withApiClient };
     const runs = createPostgresTargetAwareOrchestrationRunService(runtime);
-    const advance = createPostgresOrchestrationAdvanceService(runtime);
+    const projectTransitions = createPostgresProjectTransitionLeaseService(runtime);
+    const advance = createPostgresOrchestrationAdvanceService({ ...runtime, projectTransitions });
     const finish = createPostgresSubjectAwareOrchestrationRunService(runtime);
     const authoritativeEffect = createPostgresProjectTransitionAuthoritativeEffectConfirmationService(runtime);
+    const host = projectAdvanceFor({ db, runs, advance, finish, confirmAuthoritativeEffect:(request) => authoritativeEffect.confirm(request) });
+    const promotion = createProjectAdvancePromotionRuntime({ host, projectTransitions });
     const response = await executeCorrelatedCommand(
       'project.advance',
       args || {},
-      (input) => projectAdvanceFor({
-        db,
-        runs,
-        advance,
-        finish,
-        confirmAuthoritativeEffect:(request) => authoritativeEffect.confirm(request),
-      }).advance(input),
+      (input) => promotion.advance(input),
       {
         statusForFailure:statusForOrchestrationAdvanceRuntimeError,
         defaultError:'PROJECT_ADVANCE_ERROR',
