@@ -869,6 +869,9 @@ export function createPostgresExecutionTransactionStore(
           disposition: input.disposition,
           effect_ref: input.effect_ref ?? text(operation.effect_ref),
           evidence_sha256: input.evidence_sha256,
+          ...(input.identity.subject_kind === 'project_transition'
+            ? { settlement_request_sha256: input.identity.intent_sha256 }
+            : {}),
         };
         assertSettlementReceipt(receipt);
         const result = await client.query<DatabaseRow>(
