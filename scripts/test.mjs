@@ -46,6 +46,7 @@ const maintainedTests = [
   'verify-compact-correctness-boundary.test.mjs',
   'verify-work-lease-config.test.mjs',
   'verify-project-horizon.test.mjs',
+  'verify-project-explanation-model.test.mjs',
   'verify-project-inspect-snapshot-correct.test.mjs',
   'verify-project-obligation-contract.test.mjs',
   'verify-project-transition-certificate.test.mjs',
