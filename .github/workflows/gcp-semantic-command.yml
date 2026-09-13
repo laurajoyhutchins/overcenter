@@ -81,7 +81,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
   id-token: write
 
 jobs:
@@ -234,36 +233,36 @@ jobs:
           test "$status" = 200
           jq -e '.ok == true' "$RUNNER_TEMP/semantic-response.json" >/dev/null
 
-      - name: Record bounded semantic response
+      - name: Prepare bounded semantic response artifact
         if: always()
-        continue-on-error: true
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test -f "$RUNNER_TEMP/semantic-response.json" || exit 0
           sanitized="$(jq -c 'walk(if type == "object" then del(.lease_token,.token,.authorization,.id_token) else . end)' "$RUNNER_TEMP/semantic-response.json")"
           response_sha256="$(printf '%s' "$sanitized" | sha256sum | cut -d' ' -f1)"
-          bounded_response="$sanitized"
-          response_truncated=false
-          if [ "${#sanitized}" -gt 48000 ]; then
-            bounded_response="$(jq -c --arg response_sha256 "$response_sha256" '{
-              ok,
-              schema,
-              command,
-              schema_version,
-              observed_at,
-              authority,
-              diff,
-              graph_revision:(.graph.revision // null),
-              graph_schema:(.graph.schema // null),
-              response_sha256:$response_sha256,
-              response_truncated:true
-            } | with_entries(select(.value != null))' "$RUNNER_TEMP/semantic-response.json")"
-            response_truncated=true
-          else
-            bounded_response="$(jq -c --arg response_sha256 "$response_sha256" '. + {response_sha256:$response_sha256,response_truncated:false}' "$RUNNER_TEMP/semantic-response.json")"
-          fi
-          body="$(jq -n --arg request_id "$REQUEST_ID" --arg command "$COMMAND" --arg expected_head "$EXPECTED_HEAD" --arg response "$bounded_response" --arg response_sha256 "$response_sha256" --argjson response_truncated "$response_truncated" '{body:("### GCP semantic response\n\n- request_id: `" + $request_id + "`\n- command: `" + $command + "`\n- expected_head: `" + $expected_head + "`\n- response_sha256: `" + $response_sha256 + "`\n- response_truncated: `" + ($response_truncated|tostring) + "`\n\n```json\n" + $response + "\n```")}')"
-          gh api --method POST -H 'Accept: application/vnd.github+json' "/repos/${GITHUB_REPOSITORY}/issues/732/comments" --input - <<<"$body"
+          jq -n \
+            --arg request_id "$REQUEST_ID" \
+            --arg command "$COMMAND" \
+            --arg expected_head "$EXPECTED_HEAD" \
+            --arg response_sha256 "$response_sha256" \
+            --argjson response "$sanitized" \
+            '{request_id:$request_id,command:$command,expected_head:$expected_head,response_sha256:$response_sha256,response:$response}' \
+            > "$RUNNER_TEMP/bounded-semantic-response.json"
+          {
+            echo '### GCP semantic response'
+            echo
+            echo "- request_id: \`$REQUEST_ID\`"
+            echo "- command: \`$COMMAND\`"
+            echo "- expected_head: \`$EXPECTED_HEAD\`"
+            echo "- response_sha256: \`$response_sha256\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded semantic response artifact
+        if: always() && hashFiles(format('{0}/bounded-semantic-response.json', runner.temp)) != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: semantic-response-${{ inputs.request_id }}
+          path: ${{ runner.temp }}/bounded-semantic-response.json
+          if-no-files-found: error
+          retention-days: 30
