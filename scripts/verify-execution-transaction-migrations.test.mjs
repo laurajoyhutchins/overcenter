@@ -96,7 +96,8 @@ test('project-transition settlement receipts bind the exact settlement request',
   const sql = await migration('064_project_transition_settlement_request_binding.sql');
   assert.match(sql, /subject_kind\s*=\s*'project_transition'/i);
   assert.match(sql, /settlement_request_sha256/i);
-  assert.match(sql, /settlement_request_sha256.*\^\s*'\^\[0-9a-f\]\{64\}\
-/is);
+  assert.ok(sql.includes("!~ '^[0-9a-f]{64}  assert.match(sql, /SETTLEMENT_RECEIPT_REQUEST_BINDING_MISMATCH/i);
+});
+"));
   assert.match(sql, /SETTLEMENT_RECEIPT_REQUEST_BINDING_MISMATCH/i);
 });
