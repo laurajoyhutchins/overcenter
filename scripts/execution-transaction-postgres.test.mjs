@@ -163,6 +163,45 @@ test('postgres claim advances the lease epoch for expired same-token redelivery'
   }
 });
 
+test('postgres claim refuses an expired takeover past the hard execution horizon', async () => {
+  const client = postgresClient();
+  await client.connect();
+  try {
+    await prepareSchema(client);
+    await seedRun(client);
+    const store = createPostgresExecutionTransactionStore(createNodePostgresTransactionExecutor(client));
+    const exactIdentity = identity();
+    await store.prepareExecution({ identity:exactIdentity, lifecycle:'prepared' });
+    const first = await store.claimExecution({
+      execution_id:exactIdentity.execution_id,
+      run_id:exactIdentity.run_id,
+      lease_ref:exactIdentity.lease_ref,
+      lease_epoch:1,
+      authority_epoch:exactIdentity.authority_epoch,
+      lease_expires_at:'2999-01-01T00:00:00.000Z',
+    });
+    assert.equal(first.kind, 'claimed');
+
+    await client.query(
+      'UPDATE execution_state SET expires_at=$1, hard_expires_at=$2 WHERE execution_id=$3',
+      ['1970-01-01T00:00:00.000Z', '2026-09-12T00:00:00.000Z', exactIdentity.execution_id],
+    );
+    const replacement = await store.claimExecution({
+      execution_id:exactIdentity.execution_id,
+      run_id:'run-2',
+      lease_ref:'00000000-0000-4000-8000-000000000002',
+      lease_epoch:2,
+      authority_epoch:exactIdentity.authority_epoch,
+      lease_expires_at:'2999-01-01T00:00:00.000Z',
+    });
+    assert.equal(replacement.kind, 'busy');
+    assert.equal(replacement.snapshot.identity.lease_epoch, 1);
+  } finally {
+    await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
+    await client.end();
+  }
+});
+
 test('postgres transaction store fences claims and binds proof to exact execution identity', async () => {
   const client = postgresClient();
   await client.connect();
