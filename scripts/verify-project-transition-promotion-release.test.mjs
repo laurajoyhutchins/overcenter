@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPromotionAwareProjectTransitionLeaseService } from '../lib/project-transition-promotion-release.js';
+import { successfulStageResponsibilities } from '../lib/work-lifecycle.js';
 
 const projectRef='github:laurajoyhutchins/overcenter';
 const revision='1'.repeat(40);
-const transition={id:'transition-a',priority:1,requires:[],lifecycle:{current_stage:'ENABLE',responsibilities:{}},executor:{kind:'agent',role:'engineering',skill:'implementation'},phase_bindings:{}};
+const transition={id:'transition-a',priority:1,requires:[],lifecycle:{current_stage:'ENABLE',responsibilities:successfulStageResponsibilities('ENABLE')},executor:{kind:'agent',role:'engineering',skill:'implementation'},phase_bindings:{}};
 const graph={schema:'project-graph-authority-v1',project_ref:projectRef,authority:{definition:{kind:'github',repository:'laurajoyhutchins/overcenter',revision,derivation:'overcenter-project-graph-v1'},observations:[]},nodes:[transition],horizons:[]};
 
 function fixture(){
