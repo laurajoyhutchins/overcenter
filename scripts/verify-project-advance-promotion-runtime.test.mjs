@@ -20,6 +20,7 @@ test('untargeted WAITING advances surface the first suspended frontier transitio
   assert.equal(result.resume_ref,'resume-1');
   assert.equal(result.promotion.recovery_ref,'project-transition-suspension:lease-1');
   assert.deepEqual(result.promotion.required_result.dispositions,['completed','requeue']);
+  assert.deepEqual(result.promotion.required_result.requeue_classes,['wait_for_observable_change']);
   assert.deepEqual(calls,[['advance',{project_ref:projectRef}],['suspensionFor','ready-without-suspension'],['suspensionFor','blocked-transition']]);
 });
 
@@ -59,6 +60,30 @@ test('negative promotion verification requeues the transition while resuming the
   assert.equal(calls[0][1].basis,'promotion_condition_invalidated');
   assert.equal(result.promotion_release.basis,'promotion_condition_invalidated');
   assert.deepEqual(calls[1],['advance',{project_ref:projectRef,resume_ref:'resume-3'}]);
+});
+
+test('wait-for-observable-change records a durable observation without releasing the suspension',async()=>{
+  const calls=[];let deferred=false;
+  const suspension={recovery_ref:'project-transition-suspension:lease-6',blocked_lease_ref:'lease-6',conditions:{promotion_condition:'authoritative source contains predecessor'}};
+  const runtime=createProjectAdvancePromotionRuntime({
+    host:{async advance(input){calls.push(['advance',input]);return{ok:true,outcome:'WAITING',frontier:['blocked-transition'],resume_ref:'resume-6'};}},
+    projectTransitions:{
+      async suspensionFor(){return suspension;},
+      async promotionSuspensionFor(){return deferred?null:suspension;},
+      async deferSuspension(input){calls.push(['defer',input]);deferred=true;return{ok:true,deferred:true,recovery_ref:input.recovery_ref,authority_revision:'1'.repeat(40)};},
+      async releaseSuspension(){throw new Error('wait-for-observable-change must not release suspension');},
+    },
+  });
+  const result=await runtime.advance({
+    project_ref:projectRef,
+    transition_id:'blocked-transition',
+    resume_ref:'resume-6',
+    execution_result:{disposition:'requeue',requeue_class:'wait_for_observable_change',evidence:[{kind:'github_commit_compare',ref:'github:compare:diverged'}],reason:'condition remains valid but is false at this authority'},
+  });
+  assert.equal(result.outcome,'WAITING');
+  assert.equal(result.promotion_observation.deferred,true);
+  assert.equal(calls[0][0],'defer');
+  assert.deepEqual(calls[1],['advance',{project_ref:projectRef,resume_ref:'resume-6'}]);
 });
 
 test('a resume failure after durable promotion release preserves mutation uncertainty',async()=>{
