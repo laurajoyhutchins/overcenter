@@ -11,6 +11,7 @@ const REF = 'dev';
 const SHA40 = /^[0-9a-f]{40}$/;
 const PROJECT_REF = /^github:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const WORKFLOW_NAME = /^[A-Za-z0-9_.-]+\.ya?ml$/;
 const TRANSITION = /^\S{1,256}$/;
 const RESUME = /^\S{1,512}$/;
 const PROJECT_COMMANDS = new Set(['project.inspect', 'project.advance']);
@@ -19,13 +20,15 @@ const CONTROL_COMMANDS = new Set(['orchestration.maintain']);
 const DIAGNOSIS_COMMANDS = new Set(['orchestration.diagnose']);
 const PRODUCTION_COMMANDS = new Set(['production.reconcile']);
 const GITHUB_INTEGRATION_COMMANDS = new Set(['github.pull_request.mark_ready']);
+const WORKFLOW_DISPATCH_COMMANDS = new Set(['github.workflow.dispatch']);
 const LEASE_MUTATION_COMMANDS = new Set(['github.apply_changeset', 'github.coalesce_changeset', 'github.apply_text_replacements']);
-const ALLOWED_COMMANDS = new Set([...PROJECT_COMMANDS, ...PROJECT_AUTHORING_COMMANDS, ...CONTROL_COMMANDS, ...DIAGNOSIS_COMMANDS, ...PRODUCTION_COMMANDS, ...GITHUB_INTEGRATION_COMMANDS, ...LEASE_MUTATION_COMMANDS]);
+const ALLOWED_COMMANDS = new Set([...PROJECT_COMMANDS, ...PROJECT_AUTHORING_COMMANDS, ...CONTROL_COMMANDS, ...DIAGNOSIS_COMMANDS, ...PRODUCTION_COMMANDS, ...GITHUB_INTEGRATION_COMMANDS, ...WORKFLOW_DISPATCH_COMMANDS, ...LEASE_MUTATION_COMMANDS]);
 const ALLOWED_FIELDS = new Set(['command', 'project_ref', 'expected_head', 'transition_id', 'resume_ref', 'execution_result', 'input']);
 const PROJECT_AMEND_INPUT_FIELDS = new Set(['project_ref', 'expected_revision', 'amendment']);
 const ORCHESTRATION_DIAGNOSE_INPUT_FIELDS = new Set(['run_id', 'work_ref']);
 const PRODUCTION_RECONCILE_INPUT_FIELDS = new Set(['repo']);
 const GITHUB_PR_READY_INPUT_FIELDS = new Set(['repo', 'pull_request', 'expected_head', 'run_id']);
+const GITHUB_WORKFLOW_DISPATCH_INPUT_FIELDS = new Set(['repo', 'workflow', 'ref', 'expected_head', 'inputs']);
 const COMMAND_INPUT_CHUNK_SIZE = 4000;
 const MAX_COMMAND_INPUT_CHUNKS = 6;
 const MAX_COMMAND_INPUT_CHARS = COMMAND_INPUT_CHUNK_SIZE * MAX_COMMAND_INPUT_CHUNKS;
@@ -108,6 +111,24 @@ function normalizeGitHubIntegrationInput(command, value) {
   return encoded;
 }
 
+function normalizeGitHubWorkflowDispatchInput(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid('input must be an object for github.workflow.dispatch');
+  const unknown = Object.keys(value).filter((key) => !GITHUB_WORKFLOW_DISPATCH_INPUT_FIELDS.has(key));
+  if (unknown.length) throw invalid('github.workflow.dispatch input contains unknown fields', { fields: unknown.sort() });
+  const repo = String(value.repo || '').trim();
+  const workflow = String(value.workflow || '').trim();
+  const ref = String(value.ref || '').trim();
+  const expectedHead = String(value.expected_head || '').trim().toLowerCase();
+  if (!REPOSITORY.test(repo)) throw invalid('github.workflow.dispatch repo must be owner/repo');
+  if (!WORKFLOW_NAME.test(workflow)) throw invalid('github.workflow.dispatch workflow must be a bounded workflow filename');
+  if (!ref || ref.length > 256) throw invalid('github.workflow.dispatch ref must be a non-empty bounded ref');
+  if (!SHA40.test(expectedHead)) throw invalid('github.workflow.dispatch expected_head must be an exact 40-character Git SHA');
+  if (!value.inputs || typeof value.inputs !== 'object' || Array.isArray(value.inputs)) throw invalid('github.workflow.dispatch inputs must be an object');
+  const encoded = JSON.stringify({ repo, workflow, ref, expected_head: expectedHead, inputs: value.inputs });
+  if (encoded.length > MAX_COMMAND_INPUT_CHARS) throw invalid('input is too large for the bounded GCP workflow bridge');
+  return encoded;
+}
+
 function normalizeLeaseMutationInput(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid('input must be an object for lease-scoped GitHub mutations');
   const encoded = JSON.stringify(value);
@@ -178,6 +199,12 @@ function normalize(bodyInput) {
     if (projectRef) throw invalid('GitHub integration commands derive their target from input and do not accept project_ref');
     if (transitionId || resumeRef || executionResult) throw invalid('GitHub integration commands do not accept project.advance continuation fields');
     return { command, project_ref: '', expected_head: expectedHead, transition_id: '', resume_ref: '', execution_result_json: '', command_input_json: normalizeGitHubIntegrationInput(command, body.input) };
+  }
+
+  if (WORKFLOW_DISPATCH_COMMANDS.has(command)) {
+    if (projectRef) throw invalid('github.workflow.dispatch derives its target from input and does not accept project_ref');
+    if (transitionId || resumeRef || executionResult) throw invalid('github.workflow.dispatch does not accept project.advance continuation fields');
+    return { command, project_ref: '', expected_head: expectedHead, transition_id: '', resume_ref: '', execution_result_json: '', command_input_json: normalizeGitHubWorkflowDispatchInput(body.input) };
   }
 
   if (projectRef) throw invalid('lease-scoped GitHub mutations derive their target from the lease and do not accept project_ref');
