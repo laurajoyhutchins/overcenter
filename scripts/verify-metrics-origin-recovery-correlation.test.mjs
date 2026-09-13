@@ -13,6 +13,21 @@ test('execution origin is low-cardinality and preserves unknown history', () => 
   assert.throws(() => invocationCorrelationFacts({ origin:'chatgpt' }), /REQUEST_INVALID|origin/);
 });
 
+test('operator paperwork is distinguishable from automated recovery without inventing a reasoning boundary', () => {
+  const operator = invocationCorrelationFacts({ origin:'operator', reasoning_boundary_id:'reasoning:operator-1' });
+  const recovery = invocationCorrelationFacts({
+    origin:'recovery',
+    recovery_decision_id:'decision-1',
+    recovery_attempt_id:'attempt-1',
+  });
+  assert.equal(operator.execution_origin, 'operator');
+  assert.equal(operator.reasoning_boundary_id, 'reasoning:operator-1');
+  assert.equal(recovery.execution_origin, 'recovery');
+  assert.equal(recovery.reasoning_boundary_id, null);
+  assert.equal(recovery.recovery_decision_id, 'decision-1');
+  assert.equal(recovery.recovery_attempt_id, 'attempt-1');
+});
+
 test('recovery correlation and reasoning boundary facts are bounded identifiers', () => {
   assert.deepEqual(invocationCorrelationFacts({
     origin:'recovery',
