@@ -59,7 +59,7 @@ test('legacy settlement replay excludes project-transition projection rows', asy
       calls.push({ sql, params });
       if (/FROM execution_state/i.test(sql)) return { rows:[] };
       if (/FROM work_leases/i.test(sql)) {
-        if (/COALESCE\\(claim_receipt->>'subject',''\\)\\s*<>\\s*'project_transition'/i.test(sql)) {
+        if (/COALESCE\(claim_receipt->>'subject',''\\)\\s*<>\\s*'project_transition'/i.test(sql)) {
           return { rows:[] };
         }
         return {
