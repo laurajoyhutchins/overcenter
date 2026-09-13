@@ -49,5 +49,16 @@ test('node:test is the only executable test dialect', async () => {
     if (/run[A-Za-z0-9_$]*Tests/.test(source)) violations.push(`${path}: manually invokes a legacy suite runner`);
   }
 
+  const canonicalRunner = await readFile(new URL('scripts/test.mjs', root), 'utf8');
+  if (!/import\s+\{\s*auditRepository\s*\}\s+from\s+['\"]\.\/test-audit\.mjs['\"]/.test(canonicalRunner)) {
+    violations.push('scripts/test.mjs: canonical execution does not consume the revision-bound test audit');
+  }
+  if (!/run\(\['--test',\s*\.\.\.audit\.files\]\)/.test(canonicalRunner)) {
+    violations.push('scripts/test.mjs: canonical node:test execution is not sourced from the audit census');
+  }
+  if (/maintainedTests|regression-suite-registry/.test(canonicalRunner)) {
+    violations.push('scripts/test.mjs: parallel manual test inventory still exists');
+  }
+
   assert.deepEqual(violations, []);
 });
