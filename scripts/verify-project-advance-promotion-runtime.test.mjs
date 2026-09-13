@@ -61,6 +61,20 @@ test('negative promotion verification requeues the transition while resuming the
   assert.deepEqual(calls[1],['advance',{project_ref:projectRef,resume_ref:'resume-3'}]);
 });
 
+test('a resume failure after durable promotion release preserves mutation uncertainty',async()=>{
+  const runtime=createProjectAdvancePromotionRuntime({
+    host:{async advance(){const error=new Error('resume failed');error.code='PROJECT_ADVANCE_RESUME_TARGET_MISMATCH';error.details={may_have_mutated:false};throw error;}},
+    projectTransitions:{
+      async suspensionFor(){return{recovery_ref:'project-transition-suspension:lease-5',blocked_lease_ref:'lease-5',conditions:{promotion_condition:'candidate verification fails'}};},
+      async releaseSuspension(){return{ok:true,released:true,recovery_ref:'project-transition-suspension:lease-5'};},
+    },
+  });
+  await assert.rejects(
+    ()=>runtime.advance({project_ref:projectRef,transition_id:'blocked-transition',resume_ref:'resume-5',execution_result:{disposition:'requeue',evidence:[{kind:'github_check',ref:'github:check-run:failed'}],reason:'exact verification failed'}}),
+    (error)=>error.code==='PROJECT_ADVANCE_RESUME_TARGET_MISMATCH'&&error.details?.may_have_mutated===true&&error.details?.recovery_ref==='project-transition-suspension:lease-5',
+  );
+});
+
 test('unsupported promotion verification dispositions fail closed before release',async()=>{
   let released=false;
   const runtime=createProjectAdvancePromotionRuntime({
