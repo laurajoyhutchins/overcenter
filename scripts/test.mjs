@@ -109,7 +109,7 @@ for (const prefix of ['exact-revision-v8-verification', 'production-materializat
 
 run(['scripts/verify-regression-suite-registry.mjs']);
 run(['scripts/verify-orchestration-drive.mjs']);
-run(['--test', ...[...new Set(maintainedTests)].sort().map(name => `scripts/${name}`), 'lib/scheduled-cycle-completeness.test.js']);
+run(['--test', ...[...new Set(maintainedTests)].sort().map(name => `scripts/${name}`), 'lib/scheduled-cycle-completeness.test.js', 'lib/linear-archive.test.js']);
 
 for (const directory of ['api', 'lib', 'mcp', 'pages']) {
   for (const file of await javascriptFiles(directory)) run(['--check', file]);
