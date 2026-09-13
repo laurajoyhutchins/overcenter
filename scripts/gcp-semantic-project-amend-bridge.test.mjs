@@ -55,6 +55,15 @@ test('PR integration is brokered through GCP instead of thawing Hatchable GitHub
   assert.match(workflow, /project\.amend\|github\.pull_request\.mark_ready\|github\.workflow\.dispatch\|github\.apply_changeset\|github\.coalesce_changeset\|github\.apply_text_replacements\)/);
 });
 
+test('workflow dispatch remains a bounded transport command instead of Hatchable orchestration', () => {
+  assert.match(broker, /WORKFLOW_DISPATCH_COMMANDS = new Set\(\['github\.workflow\.dispatch'\]\)/);
+  assert.match(broker, /GITHUB_WORKFLOW_DISPATCH_INPUT_FIELDS = new Set\(\['repo', 'workflow', 'ref', 'expected_head', 'inputs'\]\)/);
+  assert.match(broker, /normalizeGitHubWorkflowDispatchInput/);
+  assert.match(broker, /github\.workflow\.dispatch derives its target from input and does not accept project_ref/);
+  assert.match(broker, /command_input_json: normalizeGitHubWorkflowDispatchInput\(body\.input\)/);
+  assert.doesNotMatch(broker, /github\.workflow\.dispatch[\s\S]{0,200}projectTransitions|github\.workflow\.dispatch[\s\S]{0,200}lease/);
+});
+
 test('Hatchable project.amend composes only transport authority and delegates semantic execution', () => {
   assert.match(mcpAmend, /composeHatchableRuntimeProviders/);
   assert.doesNotMatch(mcpAmend, /executeSemanticWorkerCommand/);
