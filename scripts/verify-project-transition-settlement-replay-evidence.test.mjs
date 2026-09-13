@@ -35,6 +35,10 @@ test('idempotent project-transition settlement replay preserves graph revision e
         disposition:input.disposition,
         settle_idempotency_key:input.settle_idempotency_key,
         settled_at:input.settled_at,
+        settlement_receipt:{
+          schema:'settlement-receipt-v1',
+          settlement_request_sha256:input.settlement_request_sha256,
+        },
         graph_revision_change:input.graph_revision_change || null,
       };
       leases.set(input.lease_id, row);
