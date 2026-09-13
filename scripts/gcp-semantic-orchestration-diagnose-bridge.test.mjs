@@ -38,7 +38,7 @@ test('GCP workflow validates and forwards only typed orchestration.diagnose inpu
   assert.match(workflow, /^[ \t]*[^\n]*orchestration\.diagnose[^\n]*\) input="\$command_input_json"/m);
 });
 
-test('diagnosis target run identity does not conflict with the transport invocation identity', async () => {
+test('diagnosis target run identity overrides transport invocation identity at the worker boundary', async () => {
   const observed = [];
   const handler = createWorkerCommandHandler({
     commandFailure:() => ({ status:400, body:{ ok:false } }),
@@ -54,7 +54,7 @@ test('diagnosis target run identity does not conflict with the transport invocat
   await handler({ body:{
     command:'orchestration.diagnose',
     input:{ run_id:'run-being-diagnosed' },
-    invocation_context:{ run_id:'diagnosis-invocation' },
+    invocation_context:{ run_id:'diagnosis-invocation', expected_head:'abc123' },
   } }, response);
   await handler({ body:{
     command:'project.inspect',
@@ -63,7 +63,7 @@ test('diagnosis target run identity does not conflict with the transport invocat
   } }, response);
 
   assert.equal(observed[0].input.run_id, 'run-being-diagnosed');
-  assert.equal(Object.hasOwn(observed[0].runtime, 'invocationContext'), false);
+  assert.deepEqual(observed[0].runtime.invocationContext, { run_id:'run-being-diagnosed', expected_head:'abc123' });
   assert.deepEqual(observed[1].runtime.invocationContext, { run_id:'inspection-invocation' });
 });
 
