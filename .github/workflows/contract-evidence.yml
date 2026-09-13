@@ -5,7 +5,7 @@ on:
     branches: [dev]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   contract-evidence:
@@ -35,7 +35,7 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -44,6 +44,7 @@ jobs:
       - name: Run contract evidence tests
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
       - name: Generate candidate contract evidence once
+        id: generate
         if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
@@ -53,12 +54,27 @@ jobs:
             --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
             --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
             --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Preserve candidate contract evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: candidate-contract-evidence
-          path: ${{ runner.temp }}/contract-evidence
+      - name: Materialize generated contract evidence
+        if: ${{ always() && steps.generate.outcome == 'success' }}
+        run: |
+          EXPECTED_HEAD="${GITHUB_SHA}"
+          CURRENT_REMOTE="$(git ls-remote origin "refs/heads/${GITHUB_HEAD_REF}" | cut -f1)"
+          if [ "$CURRENT_REMOTE" != "$EXPECTED_HEAD" ]; then
+            echo "Head moved: expected $EXPECTED_HEAD, found $CURRENT_REMOTE" >&2
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" generated/contracts/catalog.json
+          cp "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" docs/generated/data-contracts.md
+          cp "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md" docs/generated/data-contract-authority-atlas.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated/contracts/catalog.json docs/generated/data-contracts.md docs/generated/data-contract-authority-atlas.md
+          if git diff --cached --quiet; then
+            echo "No generated evidence delta."
+            exit 0
+          fi
+          git commit -m "chore: refresh generated contract evidence"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
       - name: Print exact generated catalog delta
         run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
       - name: Verify committed generated evidence
