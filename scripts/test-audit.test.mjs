@@ -36,6 +36,20 @@ test('test audit binds literal native test cases to the exact revision', async (
   }
 });
 
+test('test audit includes native node:test modifiers and ignores unrelated property calls', async () => {
+  const root = await fixture({
+    'lib/modifiers.test.js': "import test from 'node:test';\ntest.skip('skipped', () => {});\ntest.todo('todo');\ntest.only('only', () => {});\nconst helper = { test() {} };\nhelper.test('not a test');\n",
+  });
+  try {
+    const result = await auditRepository({ root, revision: REVISION });
+    assert.equal(result.unresolved_count, 0);
+    assert.equal(result.case_count, 3);
+    assert.deepEqual(result.cases.map((entry) => entry.name), ['skipped', 'todo', 'only']);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('test audit fails closed in its census for dynamic test names', async () => {
   const root = await fixture({
     'scripts/dynamic.test.mjs': "import test from 'node:test';\nconst name = 'dynamic';\ntest(name, () => {});\n",

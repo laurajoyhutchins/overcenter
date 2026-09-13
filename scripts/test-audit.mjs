@@ -32,7 +32,14 @@ function literalText(node) {
 
 function callName(expression) {
   if (ts.isIdentifier(expression)) return expression.text;
-  if (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.name)) return expression.name.text;
+  if (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.name)) {
+    if (
+      ts.isIdentifier(expression.expression)
+      && (expression.expression.text === 'test' || expression.expression.text === 'it')
+      && ['skip', 'todo', 'only'].includes(expression.name.text)
+    ) return expression.expression.text;
+    if (expression.name.text === 'run') return 'run';
+  }
   return null;
 }
 
