@@ -49,7 +49,7 @@
 - `github.production-promotion-receipt.persistence` — authority `postgres:public.github_production_promotion_receipts#table`; SemVer `database-layout`; 15 projections
 - `github.release-receipt.persistence` — authority `postgres:public.github_release_receipts#table`; SemVer `database-layout`; 18 projections
 - `github.required-check-observation.persistence` — authority `postgres:public.github_required_check_observations#table`; SemVer `database-layout`; 10 projections
-- `orchestration.command-invocation.persistence` — authority `postgres:public.orchestration_command_invocations#table`; SemVer `database-layout`; 22 projections
+- `orchestration.command-invocation.persistence` — authority `postgres:public.orchestration_command_invocations#table`; SemVer `database-layout`; 28 projections
 - `orchestration.horizon.persistence` — authority `postgres:public.orchestration_horizons#table`; SemVer `database-layout`; 8 projections
 - `orchestration.invocation-resolution.persistence` — authority `postgres:public.orchestration_invocation_resolutions#table`; SemVer `database-layout`; 7 projections
 - `orchestration.run.persistence` — authority `postgres:public.orchestration_runs#table`; SemVer `database-layout`; 45 projections
