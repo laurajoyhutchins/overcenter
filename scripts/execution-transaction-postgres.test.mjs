@@ -63,6 +63,7 @@ async function prepareSchema(client) {
     '060_execution_transaction_identity.sql',
     '061_execution_transaction_cleanup.sql',
     '063_execution_certainty_resolution.sql',
+    '064_project_transition_settlement_request_binding.sql',
   ]) {
     await client.query(await migration(name));
   }
@@ -451,6 +452,7 @@ test('postgres exact settled duplicates replay receipts after lease expiry', asy
       effect_ref:'provider-effect-1',
       evidence_sha256:evidenceSha,
     });
+    assert.equal(settled.settlement_request_sha256, exactIdentity.intent_sha256);
     await client.query(
       'UPDATE execution_state SET expires_at=$1 WHERE execution_id=$2',
       ['1970-01-01T00:00:00.000Z', exactIdentity.execution_id],
