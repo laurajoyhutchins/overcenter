@@ -57,7 +57,7 @@ jobs:
       - name: Materialize generated contract evidence
         if: ${{ always() && steps.generate.outcome == 'success' }}
         run: |
-          EXPECTED_HEAD="${GITHUB_SHA}"
+          EXPECTED_HEAD="$(git rev-parse HEAD)"
           CURRENT_REMOTE="$(git ls-remote origin "refs/heads/${GITHUB_HEAD_REF}" | cut -f1)"
           if [ "$CURRENT_REMOTE" != "$EXPECTED_HEAD" ]; then
             echo "Head moved: expected $EXPECTED_HEAD, found $CURRENT_REMOTE" >&2
