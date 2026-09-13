@@ -134,6 +134,7 @@ export interface SettlementReceipt {
   readonly disposition: 'completed' | 'no_effect' | 'rejected' | 'escalated';
   readonly effect_ref: string | null;
   readonly evidence_sha256: string;
+  readonly settlement_request_sha256?: string;
 }
 
 export type RecoveryDecision =
@@ -333,6 +334,11 @@ export function assertSettlementReceipt(value: unknown): asserts value is Settle
     requiredText(receipt[field], field);
   }
   nonNegativeInteger(receipt.authority_epoch, 'authority_epoch');
+  if (receipt.settlement_request_sha256 !== undefined
+      && (typeof receipt.settlement_request_sha256 !== 'string'
+        || !/^[0-9a-f]{64}$/.test(receipt.settlement_request_sha256))) {
+    throw new Error('settlement receipt request hash is invalid');
+  }
   if (!['completed', 'no_effect', 'rejected', 'escalated'].includes(String(receipt.disposition))) {
     throw new Error('settlement receipt disposition is invalid');
   }
