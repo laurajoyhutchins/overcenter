@@ -202,6 +202,43 @@ test('postgres claim refuses an expired takeover past the hard execution horizon
   }
 });
 
+test('postgres settlement rejects an expired worker before proof or receipt mutation', async () => {
+  const client = postgresClient();
+  await client.connect();
+  try {
+    await prepareSchema(client);
+    await seedRun(client);
+    const store = createPostgresExecutionTransactionStore(createNodePostgresTransactionExecutor(client));
+    const exactIdentity = identity();
+    await store.prepareExecution({ identity:exactIdentity, lifecycle:'prepared' });
+    await store.claimExecution({
+      execution_id:exactIdentity.execution_id,
+      run_id:exactIdentity.run_id,
+      lease_ref:exactIdentity.lease_ref,
+      lease_epoch:1,
+      authority_epoch:exactIdentity.authority_epoch,
+      lease_expires_at:'2999-01-01T00:00:00.000Z',
+    });
+    await client.query(
+      'UPDATE execution_state SET expires_at=$1 WHERE execution_id=$2',
+      ['1970-01-01T00:00:00.000Z', exactIdentity.execution_id],
+    );
+    await assert.rejects(
+      store.settleExecution({
+        identity:exactIdentity,
+        attempt_epoch:0,
+        disposition:'no_effect',
+        effect_ref:null,
+        evidence_sha256:'e'.repeat(64),
+      }),
+      error => error?.code === 'STALE_EXECUTION',
+    );
+  } finally {
+    await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
+    await client.end();
+  }
+});
+
 test('postgres transaction store fences claims and binds proof to exact execution identity', async () => {
   const client = postgresClient();
   await client.connect();
