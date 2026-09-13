@@ -6,18 +6,19 @@ import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 const TEST_SUFFIXES = Object.freeze(['.test.js', '.spec.js', '.test.mjs']);
-const TEST_ROOTS = Object.freeze(['lib', 'scripts']);
+const EXCLUDED_DIRECTORIES = Object.freeze(new Set(['.git', 'node_modules']));
 const SHA40 = /^[0-9a-f]{40}$/;
 
 function repoPath(root, absolute) {
   return relative(root, absolute).split(sep).join('/');
 }
 
-async function collectTestFiles(root, directory) {
+async function collectTestFiles(root, directory = '') {
   const absolute = join(root, directory);
   const entries = await readdir(absolute, { withFileTypes: true });
   const files = [];
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.isDirectory() && EXCLUDED_DIRECTORIES.has(entry.name)) continue;
     const child = join(absolute, entry.name);
     if (entry.isDirectory()) files.push(...await collectTestFiles(root, repoPath(root, child)));
     else if (entry.isFile() && TEST_SUFFIXES.some((suffix) => entry.name.endsWith(suffix))) files.push(child);
@@ -102,8 +103,7 @@ export async function auditRepository({ root = process.cwd(), revision = null } 
   const exactRevision = String(revision || gitRevision(root)).trim().toLowerCase();
   if (!SHA40.test(exactRevision)) throw new Error('test audit requires an exact 40-character Git revision');
 
-  const files = [];
-  for (const directory of TEST_ROOTS) files.push(...await collectTestFiles(root, directory));
+  const files = await collectTestFiles(root);
   files.sort((a, b) => repoPath(root, a).localeCompare(repoPath(root, b)));
 
   const cases = [];

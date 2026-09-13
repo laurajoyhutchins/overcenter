@@ -36,6 +36,20 @@ test('test audit binds literal native test cases to the exact revision', async (
   }
 });
 
+test('test audit discovers supported tests outside historical lib and scripts roots', async () => {
+  const root = await fixture({
+    'integration/outside.test.js': "import test from 'node:test';\ntest('outside roots', () => {});\n",
+  });
+  try {
+    const result = await auditRepository({ root, revision: REVISION });
+    assert.equal(result.unresolved_count, 0);
+    assert.deepEqual(result.files, ['integration/outside.test.js']);
+    assert.equal(result.case_count, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('test audit includes native node:test modifiers and ignores unrelated property calls', async () => {
   const root = await fixture({
     'lib/modifiers.test.js': "import test from 'node:test';\ntest.skip('skipped', () => {});\ntest.todo('todo');\ntest.only('only', () => {});\nconst helper = { test() {} };\nhelper.test('not a test');\n",
