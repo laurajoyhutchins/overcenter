@@ -28,7 +28,7 @@ test('node:test is the only executable test dialect', async () => {
 
   for (const path of testFiles) {
     const source = await readFile(new URL(path, root), 'utf8');
-    if (path.endsWith('.spec.js')) violations.push(`${path}: use .test.js suffix`);
+    // Both .test.js and .spec.js are canonical native Node test modules.
     if (!/from\s+['\"]node:test['\"]/.test(source)) violations.push(`${path}: missing node:test import`);
     if (/export\s+async\s+function\s+run[A-Za-z0-9_$]*Tests\s*\(/.test(source)) violations.push(`${path}: exports legacy run*Tests runner`);
     if (/(?:async\s+)?function\s+(?:run|t)\s*\(\s*name\s*,\s*fn\s*\)/.test(source)) violations.push(`${path}: defines a bespoke test runner`);

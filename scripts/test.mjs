@@ -111,7 +111,7 @@ for (const prefix of ['exact-revision-v8-verification', 'production-materializat
 
 // Legacy regression registry retired; lib/**/*.test.js is discovered below.
 run(['scripts/verify-orchestration-drive.mjs']);
-const nativeLibraryTests = (await javascriptFiles('lib')).filter(file => file.endsWith('.test.js')).sort();
+const nativeLibraryTests = (await javascriptFiles('lib')).filter(file => /\.(?:test|spec)\.js$/.test(file)).sort();
 run(['--test', ...[...new Set(maintainedTests)].sort().map(name => `scripts/${name}`), ...nativeLibraryTests]);
 run(['scripts/test-audit.mjs', '--check']);
 
