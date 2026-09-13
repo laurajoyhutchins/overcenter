@@ -93,6 +93,7 @@ async function prepareSchema(client) {
   await client.query(await migration('060_execution_transaction_identity.sql'));
   await client.query(await migration('061_execution_transaction_cleanup.sql'));
   await client.query(await migration('062_project_transition_canonical_authority.sql'));
+  await client.query(await migration('064_project_transition_settlement_request_binding.sql'));
 }
 
 async function seedRun(client, runId) {
@@ -152,6 +153,7 @@ function settlement(row, authorityEpoch, key) {
     transition_dependency_fingerprint:row.transition_dependency_fingerprint,
     disposition:'completed',
     settle_idempotency_key:key,
+    settlement_request_sha256:'1'.repeat(64),
     settled_at:'2026-09-01T21:10:00.000Z',
     graph_revision_change:null,
   };
