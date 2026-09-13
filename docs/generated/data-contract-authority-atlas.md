@@ -1103,7 +1103,7 @@ _None._
 - SemVer: `database-layout`
 - Authority: `postgres:public.orchestration_command_invocations#table` (`postgres`)
 - Authority source: `public.orchestration_command_invocations#table`
-- Manifestations: 23
+- Manifestations: 29
 
 ### Outgoing relationships
 
@@ -1119,6 +1119,8 @@ _None._
   - Source: `public.orchestration_command_invocations#command`
 - `postgres:public.orchestration_command_invocations#completed_at` (`postgres`)
   - Source: `public.orchestration_command_invocations#completed_at`
+- `postgres:public.orchestration_command_invocations#constraint:orchestration_command_invocations_execution_origin_check` (`postgres`)
+  - Source: `public.orchestration_command_invocations#constraint:orchestration_command_invocations_execution_origin_check`
 - `postgres:public.orchestration_command_invocations#constraint:orchestration_command_invocations_outcome_check` (`postgres`)
   - Source: `public.orchestration_command_invocations#constraint:orchestration_command_invocations_outcome_check`
 - `postgres:public.orchestration_command_invocations#constraint:orchestration_command_invocations_pkey` (`postgres`)
@@ -1127,6 +1129,8 @@ _None._
   - Source: `public.orchestration_command_invocations#error_class`
 - `postgres:public.orchestration_command_invocations#error_code` (`postgres`)
   - Source: `public.orchestration_command_invocations#error_code`
+- `postgres:public.orchestration_command_invocations#execution_origin` (`postgres`)
+  - Source: `public.orchestration_command_invocations#execution_origin`
 - `postgres:public.orchestration_command_invocations#idempotency_key` (`postgres`)
   - Source: `public.orchestration_command_invocations#idempotency_key`
 - `postgres:public.orchestration_command_invocations#invocation_id` (`postgres`)
@@ -1135,6 +1139,14 @@ _None._
   - Source: `public.orchestration_command_invocations#may_have_mutated`
 - `postgres:public.orchestration_command_invocations#outcome` (`postgres`)
   - Source: `public.orchestration_command_invocations#outcome`
+- `postgres:public.orchestration_command_invocations#packet_schema` (`postgres`)
+  - Source: `public.orchestration_command_invocations#packet_schema`
+- `postgres:public.orchestration_command_invocations#reasoning_boundary_id` (`postgres`)
+  - Source: `public.orchestration_command_invocations#reasoning_boundary_id`
+- `postgres:public.orchestration_command_invocations#recovery_attempt_id` (`postgres`)
+  - Source: `public.orchestration_command_invocations#recovery_attempt_id`
+- `postgres:public.orchestration_command_invocations#recovery_decision_id` (`postgres`)
+  - Source: `public.orchestration_command_invocations#recovery_decision_id`
 - `postgres:public.orchestration_command_invocations#rejection` (`postgres`)
   - Source: `public.orchestration_command_invocations#rejection`
 - `postgres:public.orchestration_command_invocations#request_projection` (`postgres`)
