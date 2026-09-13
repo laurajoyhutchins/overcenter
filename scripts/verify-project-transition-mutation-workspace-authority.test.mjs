@@ -106,6 +106,12 @@ test('project transition mutation authority accepts the opaque plink lease refer
   assert.equal(authority.transition_id, TRANSITION_ID);
 });
 
+test('project transition mutation authority accepts the project-transition lease reference emitted by bounded execution', async () => {
+  const authority = await fixture().require({ lease_ref:`project-transition:${LEASE_REF}`, repository:REPOSITORY });
+  assert.equal(authority.lease_ref, LEASE_REF);
+  assert.equal(authority.transition_id, TRANSITION_ID);
+});
+
 test('postgres project-transition mutation authority does not require a legacy Linear API provider', () => {
   const authority = createPostgresExecutionAuthorityService({
     store:{

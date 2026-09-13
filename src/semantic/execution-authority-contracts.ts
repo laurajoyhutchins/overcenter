@@ -22,7 +22,11 @@ export function normalizeExecutionAuthorityLocator(
     : {};
   const leaseToken = typeof value.lease_token === 'string' ? value.lease_token.trim() : '';
   const opaqueLeaseRef = typeof value.lease_ref === 'string' ? value.lease_ref.trim() : '';
-  const leaseRef = opaqueLeaseRef.startsWith('plink:') ? opaqueLeaseRef.slice('plink:'.length).trim() : opaqueLeaseRef;
+  const leaseRef = opaqueLeaseRef.startsWith('plink:')
+    ? opaqueLeaseRef.slice('plink:'.length).trim()
+    : opaqueLeaseRef.startsWith('project-transition:')
+      ? opaqueLeaseRef.slice('project-transition:'.length).trim()
+      : opaqueLeaseRef;
   if (!leaseToken && !leaseRef) {
     return fail('EXECUTION_AUTHORITY_REQUIRED', 'an active Overcenter execution lease is required for this mutation', {
       repository: repositoryForFailure(),
