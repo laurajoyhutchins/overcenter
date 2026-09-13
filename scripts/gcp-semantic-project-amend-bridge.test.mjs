@@ -66,7 +66,7 @@ test('Hatchable project.amend composes only transport authority and delegates se
 
 test('project.amend response recording is bounded and preserves authoritative success identity', () => {
   assert.match(workflow, /response_sha256/);
-  assert.match(workflow, /bounded_response/);
+  assert.match(workflow, /bounded-semantic-response\.json/);
   assert.match(workflow, /graph_revision/);
   assert.match(workflow, /response_truncated/);
 });
