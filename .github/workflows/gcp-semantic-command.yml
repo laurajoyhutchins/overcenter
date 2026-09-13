@@ -234,6 +234,7 @@ jobs:
           jq -e '.ok == true' "$RUNNER_TEMP/semantic-response.json" >/dev/null
 
       - name: Prepare bounded semantic response artifact
+        id: response_artifact
         if: always()
         shell: bash
         run: |
@@ -249,6 +250,7 @@ jobs:
             --argjson response "$sanitized" \
             '{request_id:$request_id,command:$command,expected_head:$expected_head,response_sha256:$response_sha256,response:$response}' \
             > "$RUNNER_TEMP/bounded-semantic-response.json"
+          echo 'artifact_ready=true' >> "$GITHUB_OUTPUT"
           {
             echo '### GCP semantic response'
             echo
@@ -259,7 +261,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload bounded semantic response artifact
-        if: always() && hashFiles(format('{0}/bounded-semantic-response.json', runner.temp)) != ''
+        if: always() && steps.response_artifact.outputs.artifact_ready == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: semantic-response-${{ inputs.request_id }}
