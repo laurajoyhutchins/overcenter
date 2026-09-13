@@ -8,6 +8,7 @@ import {
 import {
   createPostgresExecutionTransactionStore,
 } from '../dist/portable/adapters/postgres/execution-transaction-store.js';
+import { canonicalJson, sha256Text } from '../dist/portable/semantic/canonical-json.js';
 
 const { Client } = pg;
 const root = new URL('../', import.meta.url);
@@ -320,6 +321,94 @@ test('postgres transaction store fences claims and binds proof to exact executio
       }),
       (error) => error?.code === 'EFFECT_UNCERTAIN',
     );
+  } finally {
+    await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
+    await client.end();
+  }
+});
+
+
+test('postgres exact settled duplicates replay receipts after lease expiry', async () => {
+  const client = postgresClient();
+  await client.connect();
+  try {
+    await prepareSchema(client);
+    await seedRun(client);
+    const store = createPostgresExecutionTransactionStore(createNodePostgresTransactionExecutor(client));
+    const exactIdentity = identity();
+    await store.prepareExecution({ identity:exactIdentity, lifecycle:'prepared' });
+    await store.claimExecution({
+      execution_id:exactIdentity.execution_id,
+      run_id:exactIdentity.run_id,
+      lease_ref:exactIdentity.lease_ref,
+      lease_epoch:1,
+      authority_epoch:exactIdentity.authority_epoch,
+      lease_expires_at:'2999-01-01T00:00:00.000Z',
+    });
+    await store.recordAttempt({
+      identity:exactIdentity,
+      attempt_epoch:1,
+      request_sha256:'b'.repeat(64),
+    });
+    await store.recordInvocation({
+      identity:exactIdentity,
+      attempt_epoch:1,
+      facts:{
+        transport:'accepted',
+        committed:true,
+        effect_ref:'provider-effect-1',
+        response_sha256:'c'.repeat(64),
+        evidence:{ status:'accepted' },
+      },
+    });
+    const evidence = {
+      schema:'execution-proof-evidence-v1',
+      execution_id:exactIdentity.execution_id,
+      operation_id:exactIdentity.operation_id,
+      attempt_epoch:1,
+      authority:{
+        repository:exactIdentity.authority_repository,
+        revision:exactIdentity.authority_revision,
+        epoch:exactIdentity.authority_epoch,
+      },
+      predicate:'provider-invocation',
+      evidence:{ status:'accepted' },
+    };
+    const evidenceSha = await sha256Text(canonicalJson(evidence));
+    await store.appendProof({
+      proof_id:'proof:settled-replay',
+      execution_id:exactIdentity.execution_id,
+      operation_id:exactIdentity.operation_id,
+      run_id:exactIdentity.run_id,
+      lease_ref:exactIdentity.lease_ref,
+      lease_epoch:1,
+      attempt_epoch:1,
+      authority_repository:exactIdentity.authority_repository,
+      authority_revision:exactIdentity.authority_revision,
+      authority_epoch:exactIdentity.authority_epoch,
+      predicate:'provider-invocation',
+      evidence_sha256:evidenceSha,
+      evidence,
+    });
+    const settled = await store.settleExecution({
+      identity:exactIdentity,
+      attempt_epoch:1,
+      disposition:'completed',
+      effect_ref:'provider-effect-1',
+      evidence_sha256:evidenceSha,
+    });
+    await client.query(
+      'UPDATE execution_state SET expires_at=$1 WHERE execution_id=$2',
+      ['1970-01-01T00:00:00.000Z', exactIdentity.execution_id],
+    );
+    const replay = await store.settleExecution({
+      identity:exactIdentity,
+      attempt_epoch:1,
+      disposition:'completed',
+      effect_ref:'provider-effect-1',
+      evidence_sha256:evidenceSha,
+    });
+    assert.deepEqual(replay, settled);
   } finally {
     await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
     await client.end();
