@@ -9,7 +9,7 @@ const transition={id:'transition-a',priority:1,requires:[],lifecycle:{current_st
 const graph={schema:'project-graph-authority-v1',project_ref:projectRef,authority:{definition:{kind:'github',repository:'laurajoyhutchins/overcenter',revision,derivation:'overcenter-project-graph-v1'},observations:[]},nodes:[transition],horizons:[]};
 
 function fixture(){
-  const operations=new Map(),leases=new Map(),slots=new Map();
+  const operations=new Map(),leases=new Map(),slots=new Map();let currentRevision=revision;
   const runs=new Map([['run-1',{run_id:'run-1',status:'active',deadline_at:'2026-09-13T14:00:00Z'}]]);
   const store={
     async getRun(id){return runs.get(id)||null;},async getLease(id){return leases.get(id)||null;},async getLeaseByAcquireIdempotency(key){return [...leases.values()].find(row=>row.acquire_idempotency_key===key)||null;},async getLatestSettledLeaseForTransition(){return [...leases.values()].filter(row=>row.status==='settled').at(-1)||null;},async getSlot(key){return slots.get(key)||null;},
@@ -22,7 +22,8 @@ function fixture(){
     async succeed(input){const key=opKey(input.command,input.scope,input.idempotency_key);const prior=operations.get(key);const operation={...prior,state:'succeeded',resolution:input.resolution,result_sha256:input.result_sha256,may_have_mutated:input.may_have_mutated};operations.set(key,operation);return operation;},
   };
   let counter=0;
-  return{service:createPromotionAwareProjectTransitionLeaseService({store,operationStore,readProjectGraph:async()=>graph,now:()=> '2026-09-13T12:00:00Z',uuid:()=>`00000000-0000-4000-8000-${String(++counter).padStart(12,'0')}`})};
+  const readProjectGraph=async()=>({...graph,authority:{...graph.authority,definition:{...graph.authority.definition,revision:currentRevision}}});
+  return{service:createPromotionAwareProjectTransitionLeaseService({store,operationStore,readProjectGraph,now:()=> '2026-09-13T12:00:00Z',uuid:()=>`00000000-0000-4000-8000-${String(++counter).padStart(12,'0')}`}),setRevision(value){currentRevision=value;}};
 }
 
 async function blocked(service,key='blocked'){
@@ -46,6 +47,17 @@ test('promotion invalidation is a durable release basis and conflicts with a lat
   const replay=await service.releaseSuspension(invalidated);assert.equal(replay.idempotent_replay,true);assert.equal(replay.basis,'promotion_condition_invalidated');
   await assert.rejects(()=>service.releaseSuspension({...invalidated,basis:'promotion_condition_satisfied'}),{code:'PROJECT_TRANSITION_IDEMPOTENCY_CONFLICT'});
   assert.equal(await service.suspensionFor({project_ref:projectRef,transition_id:'transition-a'}),null);
+});
+
+test('promotion observation suppresses repeated verification only at the same authority revision',async()=>{
+  const{service,setRevision}=fixture();const suspension=await blocked(service);assert.ok(suspension);
+  const input={project_ref:projectRef,transition_id:'transition-a',recovery_ref:suspension.recovery_ref,evidence:[{kind:'github_commit_compare',ref:'github:compare:diverged'}],reason:'condition remains valid but false at this authority'};
+  const first=await service.deferSuspension(input);assert.equal(first.deferred,true);assert.equal(first.authority_revision,revision);assert.equal(first.idempotent_replay,false);
+  const replay=await service.deferSuspension(input);assert.equal(replay.idempotent_replay,true);
+  assert.ok(await service.suspensionFor({project_ref:projectRef,transition_id:'transition-a'}));
+  assert.equal(await service.promotionSuspensionFor({project_ref:projectRef,transition_id:'transition-a'}),null);
+  setRevision('2'.repeat(40));
+  assert.ok(await service.promotionSuspensionFor({project_ref:projectRef,transition_id:'transition-a'}));
 });
 
 test('promotion release fails closed for stale recovery identity, invalid basis, and conflicting evidence',async()=>{
