@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   assertExecutionIdentity,
+  assertExecutionSnapshot,
   canTransition,
   classifyRecovery,
   mutationCertaintyFromFacts,
@@ -112,5 +113,17 @@ test('identity validation rejects an unknown subject kind at the kernel boundary
   assert.throws(
     () => assertExecutionIdentity(identity),
     /subject_kind is invalid/,
+  );
+});
+
+
+test('snapshot validation rejects settlement state without its durable receipt', () => {
+  const invalid = snapshot('settled', 'confirmed_mutated');
+  invalid.identity.subject_kind = 'provider_operation';
+  invalid.settled = true;
+  invalid.settlement_receipt = null;
+  assert.throws(
+    () => assertExecutionSnapshot(invalid),
+    /settled snapshot must carry a settlement receipt/,
   );
 });
