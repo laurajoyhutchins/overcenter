@@ -217,11 +217,12 @@ function sameIdentity(row: DatabaseRow, identity: ExecutionIdentity): boolean {
     text(row.intent_sha256 ?? row.request_sha256 ?? '') === identity.intent_sha256;
 }
 
-function requireLease(
+async function requireLease(
+  client: NodePostgresClient,
   row: DatabaseRow | null,
   identity: ExecutionIdentity,
   attemptEpoch?: number,
-): DatabaseRow {
+): Promise<DatabaseRow> {
   if (!row) return fail('EXECUTION_NOT_FOUND', 'execution does not exist', { execution_id:identity.execution_id });
   if (!sameIdentity(row, identity) ||
       text(row.run_id) !== identity.run_id ||
@@ -241,6 +242,20 @@ function requireLease(
       execution_id:identity.execution_id,
       expected:attemptEpoch,
       observed:row.current_attempt_epoch,
+    });
+  }
+  const freshness = await client.query<DatabaseRow>(
+    `SELECT expires_at <= now()
+              OR (hard_expires_at IS NOT NULL AND hard_expires_at <= now()) AS expired
+       FROM execution_state
+      WHERE execution_id = $1`,
+    [identity.execution_id],
+  );
+  if (Boolean(freshness.rows[0]?.expired)) {
+    return fail('STALE_EXECUTION', 'execution lease has expired', {
+      execution_id:identity.execution_id,
+      lease_ref:identity.lease_ref,
+      lease_epoch:identity.lease_epoch,
     });
   }
   return row;
@@ -523,7 +538,7 @@ export function createPostgresExecutionTransactionStore(
         const current = await executionById(client, input.execution_id, true);
         const identity = current ? identityFromRow(current) : null;
         if (!identity) return fail('EXECUTION_NOT_FOUND', 'execution does not exist');
-        requireLease(current, {
+        await requireLease(client, current, {
           ...identity,
           lease_ref:input.lease_ref,
           lease_epoch:input.lease_epoch,
@@ -558,7 +573,7 @@ export function createPostgresExecutionTransactionStore(
       assertExecutionIdentity(input.identity);
       return db.transaction(async (client) => {
         const current = await executionById(client, input.identity.execution_id, true);
-        requireLease(current, input.identity);
+        await requireLease(client, current, input.identity);
         const currentCertainty = certainty(current?.mutation_certainty);
         if (currentCertainty !== 'definitely_not_mutated' ||
             ['effect_uncertain', 'effect_confirmed', 'effect_absent'].includes(String(current?.lifecycle))) {
@@ -635,7 +650,7 @@ export function createPostgresExecutionTransactionStore(
       }
       return db.transaction(async (client) => {
         const current = await executionById(client, input.identity.execution_id, true);
-        requireLease(current, input.identity, input.attempt_epoch);
+        await requireLease(client, current, input.identity, input.attempt_epoch);
         const result = await client.query<DatabaseRow>(
           `UPDATE operation_state SET
              state = $4,
@@ -701,7 +716,7 @@ export function createPostgresExecutionTransactionStore(
             text(current.authority_revision) !== input.authority_revision) {
           return fail('PROOF_IDENTITY_MISMATCH', 'proof does not match the exact execution identity');
         }
-        requireLease(current, {
+        await requireLease(client, current, {
           ...identityFromRow(current),
           run_id: input.run_id,
           lease_ref: input.lease_ref,
@@ -779,7 +794,7 @@ export function createPostgresExecutionTransactionStore(
         const current = await executionById(client, input.identity.execution_id, true);
         if (!current) return fail('EXECUTION_NOT_FOUND', 'execution does not exist');
         if (Boolean(current.settled)) {
-          requireLease(current, input.identity, input.attempt_epoch);
+          await requireLease(client, current, input.identity, input.attempt_epoch);
           const receipt = receiptFromRow(current);
           if (receipt.execution_id !== input.identity.execution_id
               || receipt.operation_id !== input.identity.operation_id
@@ -793,7 +808,7 @@ export function createPostgresExecutionTransactionStore(
           }
           return receipt;
         }
-        requireLease(current, input.identity, input.attempt_epoch);
+        await requireLease(client, current, input.identity, input.attempt_epoch);
         const currentCertainty = certainty(current.mutation_certainty);
         if (currentCertainty === 'may_have_mutated') {
           return fail('EFFECT_UNCERTAIN', 'may_have_mutated execution can only be confirmed or escalated');
