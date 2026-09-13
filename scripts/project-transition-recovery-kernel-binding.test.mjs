@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { createPostgresOrchestrationRecoveryStore } from '../lib/orchestration-recovery.js';
+import { createOrchestrationResumeService, createPostgresOrchestrationRecoveryStore } from '../lib/orchestration-recovery.js';
 import { createOrchestrationRunService } from '../lib/orchestration-runs.js';
 import { durableLeaseSubject } from '../lib/orchestration-lease-authority.js';
 
@@ -261,4 +261,39 @@ test('project graph observations read canonical transition settlements before hi
   assert.match(lookup, /settlement_receipt/);
   assert.match(lookup, /subject_kind='project_transition'/);
   assert.ok(lookup.indexOf('FROM execution_state') < lookup.indexOf('FROM work_leases'));
+});
+
+
+test('expired uncertain canonical execution requires confirm-only recovery', async () => {
+  const execution = {
+    subject_key:'project_transition:uncertain',
+    subject_kind:'project_transition',
+    run_id:'run-uncertain',
+    lease_ref:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    lifecycle:'effect_uncertain',
+    settled:false,
+    mutation_certainty:'may_have_mutated',
+    effect_ref:'provider-effect-uncertain',
+    authority_epoch:7,
+    authority_repository:'laurajoyhutchins/overcenter',
+    authority_revision:'a'.repeat(40),
+    expires_at:'2026-09-12T20:00:00.000Z',
+    hard_expires_at:'2026-09-12T22:00:00.000Z',
+  };
+  const service = createOrchestrationResumeService({
+    store:{
+      async getRun() { return { run_id:'run-uncertain', status:'active', worker:'project.advance' }; },
+      async currentExecution() { return execution; },
+      async unresolvedOperation() { return null; },
+      async currentLegacyLease() { return null; },
+    },
+    authoritative:{ async getIssue() { throw new Error('uncertain canonical recovery must not fall through to Linear'); } },
+    now:() => '2026-09-12T20:30:00.000Z',
+  });
+
+  const packet = await service.resume({ run_id:'run-uncertain' });
+  assert.equal(packet.continuation, 'reconcile_authority');
+  assert.equal(packet.evidence[0].confirm_only, true);
+  assert.equal(packet.evidence[0].mutation_certainty, 'may_have_mutated');
+  assert.equal(packet.evidence[0].effect_ref, 'provider-effect-uncertain');
 });
