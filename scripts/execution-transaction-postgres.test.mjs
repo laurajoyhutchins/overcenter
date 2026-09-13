@@ -62,6 +62,7 @@ async function prepareSchema(client) {
     '056_orchestration_run_compaction.sql',
     '060_execution_transaction_identity.sql',
     '061_execution_transaction_cleanup.sql',
+    '063_execution_certainty_resolution.sql',
   ]) {
     await client.query(await migration(name));
   }
