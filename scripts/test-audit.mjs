@@ -5,7 +5,7 @@ import { join, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
-const TEST_SUFFIXES = Object.freeze(['.test.js', '.test.mjs']);
+const TEST_SUFFIXES = Object.freeze(['.test.js', '.spec.js', '.test.mjs']);
 const TEST_ROOTS = Object.freeze(['lib', 'scripts']);
 const SHA40 = /^[0-9a-f]{40}$/;
 

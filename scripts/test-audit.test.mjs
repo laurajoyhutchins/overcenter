@@ -22,12 +22,13 @@ async function fixture(files) {
 test('test audit binds literal native test cases to the exact revision', async () => {
   const root = await fixture({
     'lib/example.test.js': "import test from 'node:test';\ntest('alpha', () => {});\ntest(`beta`, () => {});\n",
+    'lib/example.spec.js': "import test from 'node:test';\ntest('gamma', () => {});\n",
   });
   try {
     const first = await auditRepository({ root, revision: REVISION });
     const second = await auditRepository({ root, revision: REVISION });
     assert.equal(first.unresolved_count, 0);
-    assert.equal(first.case_count, 2);
+    assert.equal(first.case_count, 3);
     assert.deepEqual(first.cases.map((entry) => entry.id), second.cases.map((entry) => entry.id));
     assert.ok(first.cases.every((entry) => /^[0-9a-f]{64}$/.test(entry.id)));
   } finally {
