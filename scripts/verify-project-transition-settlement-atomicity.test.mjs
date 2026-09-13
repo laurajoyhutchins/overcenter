@@ -5,6 +5,7 @@ import { createProjectTransitionLeasePostgresStore } from '../lib/project-transi
 import { createProjectTransitionLeaseService } from '../lib/project-transition-leases.js';
 import { createProjectTransitionStaleAuthorityReconciler } from '../lib/project-transition-stale-reconciliation.js';
 import { PRODUCTIVE_STAGES } from '../lib/work-lifecycle.js';
+import { semanticRequestHash } from '../lib/orchestration-journal.js';
 
 function responsibilitiesFor(target) {
   const index = PRODUCTIVE_STAGES.indexOf(target);
@@ -26,6 +27,7 @@ test('project transition settlement delegates the lease and slot state change to
   const slots = new Map();
   const runs = new Map([['run-1', { run_id:'run-1', status:'active', deadline_at:'2026-09-01T03:00:00Z' }]]);
   let atomicCalls = 0;
+  let atomicInput = null;
   let splitSettlementUpdateCalled = false;
   let splitSlotDeleteCalled = false;
   const store = {
@@ -50,6 +52,7 @@ test('project transition settlement delegates the lease and slot state change to
     },
     async settleLeaseAtomically(input) {
       atomicCalls += 1;
+      atomicInput = input;
       const current = leases.get(input.lease_id);
       const next = {
         ...current,
@@ -86,6 +89,15 @@ test('project transition settlement delegates the lease and slot state change to
   });
   assert.equal(settled.status, 'settled');
   assert.equal(atomicCalls, 1);
+  assert.equal(
+    atomicInput.settlement_request_sha256,
+    await semanticRequestHash('work.settle', {
+      lease_ref:lease.lease_ref,
+      run_id:'run-1',
+      disposition:'completed',
+      idempotency_key:'settle-atomic-settlement',
+    }),
+  );
   assert.equal(splitSettlementUpdateCalled, false);
   assert.equal(splitSlotDeleteCalled, false);
 });
