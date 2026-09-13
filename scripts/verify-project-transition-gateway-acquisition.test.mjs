@@ -91,7 +91,7 @@ test('project transition acquisition uses the transaction primitive instead of a
   assert.equal(transactionItems[0].params.length, 37);
   assertDenseParameterVector(transactionItems[0]);
   assert.match(transactionItems[1].sql, /INSERT INTO work_leases/);
-  assert.equal(transactionItems[1].params.length, 26);
+  assert.equal(transactionItems[1].params.length, 8);
   assertDenseParameterVector(transactionItems[1]);
   assert.match(transactionItems[2].sql, /INSERT INTO work_lease_slots/);
   assert.equal(lease.lease_id, row.lease_id);
