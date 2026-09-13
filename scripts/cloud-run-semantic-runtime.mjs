@@ -1,6 +1,7 @@
 import { commandFailure } from '../lib/command-response.js';
 import { createGitHubAppAuth } from '../lib/github-app-auth.js';
 import { projectAuthoringFor } from '../lib/project-authoring-overcenter-host.js';
+import { createPostgresProjectAdvanceRuntime } from '../lib/project-advance-runtime.js';
 import { createGitHubProjectGraphRuntime } from '../lib/project-graph-github-runtime.js';
 import { projectInspectForGitHub } from '../lib/project-inspect-github-runtime.js';
 import { createRuntimeProviders } from '../lib/runtime-providers.js';
@@ -64,8 +65,13 @@ export function createCloudRunReadOnlyProjectInspector({ db, env = process.env }
 export function createCloudRunSemanticWorker({ db, env = process.env, logger = console } = {}) {
   const database = createCloudRunDatabaseBinding(db);
   const providers = composeCloudRunRuntimeProviders({ db:database, env });
+  const projectAdvance = createPostgresProjectAdvanceRuntime({
+    ...providers,
+    db:database,
+    withGitHubAppApiClient:providers.githubAppAuth.withApiClient,
+  });
   const handler = createWorkerCommandHandler({
-    providers,
+    providers:Object.freeze({ ...providers, projectAdvance }),
     commandFailure,
     projectAuthoringFor,
     executeSemanticWorkerCommand,
