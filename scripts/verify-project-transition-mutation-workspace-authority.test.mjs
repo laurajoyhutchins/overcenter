@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createExecutionAuthorityService } from '../lib/execution-authority-core.js';
+import { createPostgresExecutionAuthorityService } from '../lib/execution-authority.js';
 import { deriveProjectTransitionGithubWorkspace } from '../lib/project-transition-github-workspace.js';
 
 const REPOSITORY = 'laurajoyhutchins/overcenter';
@@ -103,4 +104,15 @@ test('project transition mutation authority accepts the opaque plink lease refer
   const authority = await fixture().require({ lease_ref:`plink:${LEASE_REF}`, repository:REPOSITORY });
   assert.equal(authority.lease_ref, LEASE_REF);
   assert.equal(authority.transition_id, TRANSITION_ID);
+});
+
+test('postgres project-transition mutation authority does not require a legacy Linear API provider', () => {
+  const authority = createPostgresExecutionAuthorityService({
+    store:{
+      async getLeaseById() { return null; },
+      async getLeaseByTokenHash() { return null; },
+    },
+    projectTransitions:{ async require() { return null; } },
+  });
+  assert.equal(typeof authority.require, 'function');
 });
