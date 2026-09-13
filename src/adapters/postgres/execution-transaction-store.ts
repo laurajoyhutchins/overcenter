@@ -217,12 +217,11 @@ function sameIdentity(row: DatabaseRow, identity: ExecutionIdentity): boolean {
     text(row.intent_sha256 ?? row.request_sha256 ?? '') === identity.intent_sha256;
 }
 
-async function requireLease(
-  client: NodePostgresClient,
+function requireLeaseIdentity(
   row: DatabaseRow | null,
   identity: ExecutionIdentity,
   attemptEpoch?: number,
-): Promise<DatabaseRow> {
+): DatabaseRow {
   if (!row) return fail('EXECUTION_NOT_FOUND', 'execution does not exist', { execution_id:identity.execution_id });
   if (!sameIdentity(row, identity) ||
       text(row.run_id) !== identity.run_id ||
@@ -244,6 +243,16 @@ async function requireLease(
       observed:row.current_attempt_epoch,
     });
   }
+  return row;
+}
+
+async function requireLease(
+  client: NodePostgresClient,
+  row: DatabaseRow | null,
+  identity: ExecutionIdentity,
+  attemptEpoch?: number,
+): Promise<DatabaseRow> {
+  const current = requireLeaseIdentity(row, identity, attemptEpoch);
   const freshness = await client.query<DatabaseRow>(
     `SELECT expires_at <= now()
               OR (hard_expires_at IS NOT NULL AND hard_expires_at <= now()) AS expired
@@ -258,7 +267,7 @@ async function requireLease(
       lease_epoch:identity.lease_epoch,
     });
   }
-  return row;
+  return current;
 }
 
 function receiptFromRow(row: DatabaseRow): SettlementReceipt {
@@ -794,7 +803,7 @@ export function createPostgresExecutionTransactionStore(
         const current = await executionById(client, input.identity.execution_id, true);
         if (!current) return fail('EXECUTION_NOT_FOUND', 'execution does not exist');
         if (Boolean(current.settled)) {
-          await requireLease(client, current, input.identity, input.attempt_epoch);
+          requireLeaseIdentity(current, input.identity, input.attempt_epoch);
           const receipt = receiptFromRow(current);
           if (receipt.execution_id !== input.identity.execution_id
               || receipt.operation_id !== input.identity.operation_id
