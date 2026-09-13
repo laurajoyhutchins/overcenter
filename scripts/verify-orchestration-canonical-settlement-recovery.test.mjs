@@ -50,3 +50,43 @@ test('maintenance replays a canonical project-transition settlement before legac
   assert.ok(canonicalIndex >= 0, 'canonical settlement receipt must be queried');
   assert.equal(legacyIndex, -1, 'legacy work lease receipt must not be consulted after canonical settlement is found');
 });
+
+
+test('legacy settlement replay excludes project-transition projection rows', async () => {
+  const calls = [];
+  const db = {
+    async query(sql, params = []) {
+      calls.push({ sql, params });
+      if (/FROM execution_state/i.test(sql)) return { rows:[] };
+      if (/FROM work_leases/i.test(sql)) {
+        return {
+          rows:[{
+            receipt:{
+              schema:'project-transition-lease-settlement-v1',
+              disposition:'completed',
+            },
+            request_sha256:'request-canonical',
+          }],
+        };
+      }
+      if (/INSERT INTO orchestration_invocation_resolutions/i.test(sql)) {
+        return { rows:[{ invocation_id:'invocation-projection', resolution_kind:'externally_confirmed' }] };
+      }
+      throw new Error(`unexpected query: ${sql}`);
+    },
+  };
+
+  const result = await createPostgresOrchestrationMaintenanceStore(db).reconcileInvocation({
+    invocation_id:'invocation-projection',
+    command:'work.settle',
+    idempotency_key:'settle-canonical',
+    request_sha256:'request-canonical',
+    outcome:'indeterminate',
+    may_have_mutated:true,
+  });
+
+  assert.equal(result, null);
+  const legacyCall = calls.find((call) => /FROM work_leases/i.test(call.sql));
+  assert.ok(legacyCall);
+  assert.match(legacyCall.sql, /COALESCE\(claim_receipt->>'subject',''\)\s*<>\s*'project_transition'/i);
+});
