@@ -442,10 +442,19 @@ export function createPostgresExecutionTransactionStore(
             : { kind:'busy', snapshot };
         }
 
+        const expiration = await client.query<DatabaseRow>(
+          `SELECT expires_at <= now()
+                    OR (hard_expires_at IS NOT NULL AND hard_expires_at <= now()) AS expired
+             FROM execution_state
+            WHERE execution_id = $1`,
+          [input.execution_id],
+        );
+        const expired = Boolean(expiration.rows[0]?.expired);
         if (String(current.lifecycle) === 'executing' &&
             currentLease === input.lease_ref &&
             currentLeaseEpoch === input.lease_epoch &&
-            text(current.run_id) === input.run_id) {
+            text(current.run_id) === input.run_id &&
+            !expired) {
           return { kind:'replayed', snapshot:await snapshotFromRow(client, current) };
         }
 
@@ -454,9 +463,18 @@ export function createPostgresExecutionTransactionStore(
              lifecycle = 'executing',
              run_id = $2,
              lease_ref = $3,
-             lease_epoch = $4,
-             expires_at = $6,
-             hard_expires_at = GREATEST(COALESCE(hard_expires_at, $6), $6),
+             lease_epoch = CASE
+               WHEN expires_at <= now() THEN GREATEST($4, lease_epoch + 1)
+               ELSE $4
+             END,
+             expires_at = CASE
+               WHEN lifecycle = 'prepared' OR hard_expires_at IS NULL THEN $6
+               ELSE LEAST($6, hard_expires_at)
+             END,
+             hard_expires_at = CASE
+               WHEN lifecycle = 'prepared' OR hard_expires_at IS NULL THEN $6
+               ELSE hard_expires_at
+             END,
              settled = false,
              settled_at = NULL,
              updated_at = now()
@@ -464,8 +482,22 @@ export function createPostgresExecutionTransactionStore(
              AND authority_epoch = $5
              AND lifecycle NOT IN ('settled', 'rejected', 'escalated')
              AND (
-               (run_id = $2 AND lease_ref = $3 AND lease_epoch = $4)
-               OR (expires_at <= now() AND $4 > lease_epoch)
+               (
+                 run_id = $2
+                 AND lease_ref = $3
+                 AND lease_epoch = $4
+                 AND expires_at > now()
+                 AND (hard_expires_at IS NULL OR hard_expires_at > now())
+               )
+               OR (
+                 expires_at <= now()
+                 AND $4 >= lease_epoch
+                 AND (
+                   lifecycle = 'prepared'
+                   OR hard_expires_at IS NULL
+                   OR hard_expires_at > now()
+                 )
+               )
              )
            RETURNING *`,
           [
