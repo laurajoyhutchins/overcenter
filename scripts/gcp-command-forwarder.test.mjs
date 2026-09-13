@@ -84,3 +84,9 @@ test('semantic workflow records sanitized response evidence per invocation, not 
   assert.match(workflow, /semantic-response-\$\{\{ inputs\.request_id \}\}/);
   assert.match(workflow, /del\(\.lease_token,\.token,\.authorization,\.id_token\)/);
 });
+
+test('semantic workflow binds broker request identity into Overcenter invocation context', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/gcp-semantic-command.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /--arg request_id "\$REQUEST_ID"/);
+  assert.match(workflow, /invocation_context:\{run_id:\$request_id\}/);
+});
