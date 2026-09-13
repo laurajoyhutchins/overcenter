@@ -18,7 +18,7 @@ function graph() {
   };
 }
 
-test('project.inspect reports blocked-settlement suspension as waiting, not available', async () => {
+test('project.inspect reports blocked-settlement suspension as waiting with durable recovery evidence', async () => {
   const observations = [];
   const inspect = projectInspectFor({
     readProjectGraph:async () => graph(),
@@ -26,7 +26,22 @@ test('project.inspect reports blocked-settlement suspension as waiting, not avai
     now:() => '2026-09-06T08:30:00.000Z',
     readTransitionOccupancy:async (input) => {
       observations.push(input);
-      if (input.transition_id === 'blocked-ready') return { occupied:false, suspended:true, suspension_reason:'blocked_settlement_promotion' };
+      if (input.transition_id === 'blocked-ready') return {
+        occupied:false,
+        suspended:true,
+        suspension_reason:'blocked_settlement_promotion',
+        suspension:{
+          recovery_ref:'project-transition-suspension:lease-1',
+          blocked_lease_ref:'lease-1',
+          authority_revision:'b'.repeat(40),
+          settled_at:'2026-09-06T08:20:00.000Z',
+          reason:'waiting for production convergence',
+          conditions:{
+            promotion_condition:'production authority reaches the candidate revision',
+            release_when:['promotion_condition_satisfied','transition_revision_changes','transition_dependencies_change'],
+          },
+        },
+      };
       if (input.transition_id === 'occupied-ready') return { occupied:true, expires_at:'2026-09-06T08:40:00.000Z', suspended:false };
       return { occupied:false, suspended:false };
     },
@@ -35,7 +50,23 @@ test('project.inspect reports blocked-settlement suspension as waiting, not avai
   const result = await inspect.inspect({ project_ref:'github:example/project' });
   assert.equal(result.authority_revision, REVISION);
   assert.deepEqual(result.frontier_details, [
-    { id:'blocked-ready', availability:'waiting', occupied:false, expires_at:null, suspended:true, wait_reason:'blocked_settlement_promotion' },
+    {
+      id:'blocked-ready',
+      availability:'waiting',
+      occupied:false,
+      expires_at:null,
+      suspended:true,
+      wait_reason:'blocked_settlement_promotion',
+      suspension:{
+        recovery_ref:'project-transition-suspension:lease-1',
+        blocked_lease_ref:'lease-1',
+        authority_revision:'b'.repeat(40),
+        settled_at:'2026-09-06T08:20:00.000Z',
+        reason:'waiting for production convergence',
+        promotion_condition:'production authority reaches the candidate revision',
+        release_when:['promotion_condition_satisfied','transition_revision_changes','transition_dependencies_change'],
+      },
+    },
     { id:'occupied-ready', availability:'occupied', occupied:true, expires_at:'2026-09-06T08:40:00.000Z', suspended:false, wait_reason:null },
     { id:'free-ready', availability:'available', occupied:false, expires_at:null, suspended:false, wait_reason:null },
   ]);
