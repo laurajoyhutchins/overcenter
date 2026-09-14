@@ -11,7 +11,7 @@ jobs:
   contract-evidence:
     runs-on: ubuntu-latest
     services:
-      postgres:
+      candidate_postgres:
         image: postgres:16
         env:
           POSTGRES_DB: overcenter
@@ -19,6 +19,19 @@ jobs:
           POSTGRES_PASSWORD: overcenter
         ports:
           - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U overcenter -d overcenter"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      base_postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: overcenter
+          POSTGRES_USER: overcenter
+          POSTGRES_PASSWORD: overcenter
+        ports:
+          - 5433:5432
         options: >-
           --health-cmd="pg_isready -U overcenter -d overcenter"
           --health-interval=10s
@@ -33,45 +46,120 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Bind exact verification identity
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "CANDIDATE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "BASE_SHA=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
+          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_ENV"
+          echo "BASE_ROOT=$RUNNER_TEMP/contract-evidence-base" >> "$GITHUB_ENV"
+          echo "BASE_EVIDENCE=$RUNNER_TEMP/contract-evidence/base" >> "$GITHUB_ENV"
+          echo "CANDIDATE_EVIDENCE=$RUNNER_TEMP/contract-evidence/candidate" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install contract evidence tooling
+      - name: Install candidate contract evidence tooling
         run: npm install --prefix scripts/contract-evidence --no-save --package-lock=false
       - name: Run contract evidence tests
         run: node --test scripts/contract-evidence/*.test.mjs scripts/contract-evidence/overcenter/*.test.mjs
-      - name: Generate candidate contract evidence once
+      - name: Prepare exact base verifier
         run: |
-          mkdir -p "$RUNNER_TEMP/contract-evidence/generated/contracts" "$RUNNER_TEMP/contract-evidence/docs/generated"
+          git worktree add --detach "$BASE_ROOT" "$BASE_SHA"
+          npm install --prefix "$BASE_ROOT/scripts/contract-evidence" --no-save --package-lock=false
+      - name: Generate exact base contract evidence
+        run: |
+          mkdir -p "$BASE_EVIDENCE/generated/contracts" "$BASE_EVIDENCE/docs/generated"
+          (
+            cd "$BASE_ROOT"
+            PGPORT=5433 node scripts/contract-evidence/cli.mjs generate \
+              --repo-root . \
+              --config scripts/contract-evidence/overcenter/config.mjs \
+              --catalog "$BASE_EVIDENCE/generated/contracts/catalog.json" \
+              --docs "$BASE_EVIDENCE/docs/generated/data-contracts.md" \
+              --atlas "$BASE_EVIDENCE/docs/generated/data-contract-authority-atlas.md"
+          )
+      - name: Generate exact candidate contract evidence
+        run: |
+          mkdir -p "$CANDIDATE_EVIDENCE/generated/contracts" "$CANDIDATE_EVIDENCE/docs/generated"
           node scripts/contract-evidence/cli.mjs generate \
             --repo-root . \
             --config scripts/contract-evidence/overcenter/config.mjs \
-            --catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
-            --docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
-            --atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md"
-      - name: Print exact generated catalog delta
-        run: diff -u generated/contracts/catalog.json "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" || true
-      - name: Verify committed generated evidence
-        run: |
-          node scripts/contract-evidence/cli.mjs check \
-            --expected-catalog "$RUNNER_TEMP/contract-evidence/generated/contracts/catalog.json" \
-            --expected-docs "$RUNNER_TEMP/contract-evidence/docs/generated/data-contracts.md" \
-            --expected-atlas "$RUNNER_TEMP/contract-evidence/docs/generated/data-contract-authority-atlas.md" \
-            --catalog generated/contracts/catalog.json \
-            --docs docs/generated/data-contracts.md \
-            --atlas docs/generated/data-contract-authority-atlas.md
+            --catalog "$CANDIDATE_EVIDENCE/generated/contracts/catalog.json" \
+            --docs "$CANDIDATE_EVIDENCE/docs/generated/data-contracts.md" \
+            --atlas "$CANDIDATE_EVIDENCE/docs/generated/data-contract-authority-atlas.md"
       - name: Enforce historical unclassified ratchet
         run: |
-          git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
-          MERGE_BASE=$(git merge-base HEAD "origin/${{ github.base_ref }}")
-          if git cat-file -e "$MERGE_BASE:generated/contracts/catalog.json" 2>/dev/null; then
-            git show "$MERGE_BASE:generated/contracts/catalog.json" > "$RUNNER_TEMP/base-contract-catalog.json"
-            node scripts/contract-evidence/cli.mjs compare \
-              --base-catalog "$RUNNER_TEMP/base-contract-catalog.json" \
-              --head-catalog generated/contracts/catalog.json
-          else
-            echo "No merge-base contract catalog exists; establishing the initial evidence baseline."
-          fi
+          node scripts/contract-evidence/cli.mjs compare \
+            --base-catalog "$BASE_EVIDENCE/generated/contracts/catalog.json" \
+            --head-catalog "$CANDIDATE_EVIDENCE/generated/contracts/catalog.json"
+      - name: Attest exact derived contract evidence
+        run: |
+          (
+            cd "$CANDIDATE_EVIDENCE"
+            sha256sum \
+              generated/contracts/catalog.json \
+              docs/generated/data-contracts.md \
+              docs/generated/data-contract-authority-atlas.md \
+              > manifest.sha256
+          )
+          VERIFIER_DIGEST="$(printf '%s\n%s\n%s\n' \
+            "$(git rev-parse HEAD:scripts/contract-evidence)" \
+            "$(git rev-parse HEAD:packages/contract-evidence)" \
+            "$(git rev-parse HEAD:.github/workflows/contract-evidence.yml)" \
+            | sha256sum | cut -d' ' -f1)"
+          EVIDENCE_DIGEST="$(sha256sum "$CANDIDATE_EVIDENCE/manifest.sha256" | cut -d' ' -f1)"
+          BASE_EVIDENCE_DIGEST="$(sha256sum "$BASE_EVIDENCE/generated/contracts/catalog.json" | cut -d' ' -f1)"
+          node --input-type=module - \
+            "$CANDIDATE_EVIDENCE/attestation.json" \
+            "$CANDIDATE_SHA" \
+            "$HEAD_SHA" \
+            "$BASE_SHA" \
+            "$VERIFIER_DIGEST" \
+            "$EVIDENCE_DIGEST" \
+            "$BASE_EVIDENCE_DIGEST" \
+            "$GITHUB_REPOSITORY" \
+            "$GITHUB_RUN_ID" \
+            "$GITHUB_RUN_ATTEMPT" <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          const [
+            path,
+            candidateSha,
+            headSha,
+            baseSha,
+            verifierDigest,
+            evidenceDigest,
+            baseEvidenceDigest,
+            repository,
+            workflowRunId,
+            workflowRunAttempt,
+          ] = process.argv.slice(2);
+          writeFileSync(path, JSON.stringify({
+            schema:'overcenter-contract-evidence-attestation-v1',
+            repository,
+            candidate_sha:candidateSha,
+            head_sha:headSha,
+            base_sha:baseSha,
+            verifier_digest:`sha256:${verifierDigest}`,
+            evidence_digest:`sha256:${evidenceDigest}`,
+            base_evidence_digest:`sha256:${baseEvidenceDigest}`,
+            predicate:'no-new-unclassified-contract-identities',
+            result:'pass',
+            workflow_run_id:workflowRunId,
+            workflow_run_attempt:Number(workflowRunAttempt),
+          }, null, 2) + '\n');
+          NODE
+      - name: Upload exact contract evidence attestation
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-evidence-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/contract-evidence/candidate/attestation.json
+            ${{ runner.temp }}/contract-evidence/candidate/manifest.sha256
+            ${{ runner.temp }}/contract-evidence/candidate/generated/contracts/catalog.json
+            ${{ runner.temp }}/contract-evidence/candidate/docs/generated/data-contracts.md
+            ${{ runner.temp }}/contract-evidence/candidate/docs/generated/data-contract-authority-atlas.md
+            ${{ runner.temp }}/contract-evidence/base/generated/contracts/catalog.json
+          if-no-files-found: error
+          retention-days: 90
