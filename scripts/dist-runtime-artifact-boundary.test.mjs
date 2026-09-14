@@ -60,17 +60,20 @@ test('runtime artifact source projection fails closed when dist has no establish
   );
 });
 
-test('verification and production workflows build dist through the canonical package boundary', async () => {
-  const expectations = [
-    ['.github/workflows/exact-revision-v8.yml', 'node scripts/exact-revision-v8-dist-verification-http.mjs'],
-    ['.github/workflows/production-materialization.yml', 'node scripts/production-materialization-dist-http.mjs'],
-  ];
-  for (const [workflow, command] of expectations) {
-    const source = await readFile(new URL(`../${workflow}`, import.meta.url), 'utf8');
-    const build = source.indexOf('npm run build:runtime');
-    const projection = source.indexOf(command);
-    assert.ok(build >= 0, `${workflow} must build the runtime artifact through npm`);
-    assert.ok(projection >= 0, `${workflow} must project the runtime artifact`);
-    assert.ok(build < projection, `${workflow} must build before projection`);
-  }
+test('production materialization projects Hatchable runtime artifacts while exact-revision verifies the portable GCP boundary', async () => {
+  const productionMaterialization = await readFile(new URL('../.github/workflows/production-materialization.yml', import.meta.url), 'utf8');
+  const productionBuild = productionMaterialization.indexOf('npm run build:runtime');
+  const productionProjection = productionMaterialization.indexOf('node scripts/production-materialization-dist-http.mjs');
+  assert.ok(productionBuild >= 0, 'production materialization must build the Hatchable runtime artifact through npm');
+  assert.ok(productionProjection >= 0, 'production materialization must project the Hatchable runtime artifact');
+  assert.ok(productionBuild < productionProjection, 'production materialization must build before projection');
+
+  const exactRevision = await readFile(new URL('../.github/workflows/exact-revision-v8.yml', import.meta.url), 'utf8');
+  assert.match(exactRevision, /TARGET_REVISION/);
+  assert.match(exactRevision, /git rev-parse HEAD/);
+  assert.match(exactRevision, /npm run build:portable/);
+  assert.match(exactRevision, /cloud-run-command-ingress-host\.test\.mjs/);
+  assert.match(exactRevision, /cloud-run-target-authority\.test\.mjs/);
+  assert.match(exactRevision, /github-command-issue\.test\.mjs/);
+  assert.doesNotMatch(exactRevision, /HATCHABLE_TOKEN|HATCHABLE_VERIFICATION_PROJECT|exact-revision-v8-dist-verification-http|production-materialization-dist-http/);
 });
