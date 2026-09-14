@@ -104,7 +104,7 @@ jobs:
             --arg resume_ref "$resume_ref" \
             --arg execution_result_json "$execution_result_json" \
             --arg command_input_0 "$command_input_0" \
-            '{ref:$ref,inputs:{request_id:$request_id,command:$command,project_ref:$project_ref,expected_head:$expected_head,transition_id:$transition_id,resume_ref:$resume_ref,execution_result_json:$execution_result_json,command_input_0:$command_input_0,command_input_1:"",command_input_2:"",command_input_3:"",command_input_4:"",command_input_5:""}}' \
+            '{ref:$ref,return_run_details:true,inputs:{request_id:$request_id,command:$command,project_ref:$project_ref,expected_head:$expected_head,transition_id:$transition_id,resume_ref:$resume_ref,execution_result_json:$execution_result_json,command_input_0:$command_input_0,command_input_1:"",command_input_2:"",command_input_3:"",command_input_4:"",command_input_5:""}}' \
             > "$RUNNER_TEMP/workflow-dispatch.json"
 
           echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
@@ -120,7 +120,7 @@ jobs:
           set -euo pipefail
           set +e
           http_status="$(curl --silent --show-error \
-            -o "$RUNNER_TEMP/dispatch-response.txt" \
+            -o "$RUNNER_TEMP/dispatch-response.json" \
             -w '%{http_code}' \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H 'Accept: application/vnd.github+json' \
@@ -132,48 +132,18 @@ jobs:
           curl_exit=$?
           set -e
 
-          if [ "$curl_exit" -eq 0 ] && [ "$http_status" = 204 ]; then
+          if [ "$curl_exit" -eq 0 ] && [ "$http_status" = 200 ] && \
+             jq -e '(.workflow_run_id | type == "number") and (.workflow_run_id > 0) and (.run_url | type == "string" and length > 0) and (.html_url | type == "string" and length > 0)' \
+               "$RUNNER_TEMP/dispatch-response.json" >/dev/null; then
             echo 'dispatch_state=confirmed' >> "$GITHUB_OUTPUT"
             echo 'may_have_dispatched=false' >> "$GITHUB_OUTPUT"
+            echo "run_id=$(jq -r '.workflow_run_id' "$RUNNER_TEMP/dispatch-response.json")" >> "$GITHUB_OUTPUT"
+            echo "run_url=$(jq -r '.html_url' "$RUNNER_TEMP/dispatch-response.json")" >> "$GITHUB_OUTPUT"
           else
             echo 'dispatch_state=indeterminate' >> "$GITHUB_OUTPUT"
             echo 'may_have_dispatched=true' >> "$GITHUB_OUTPUT"
           fi
           echo "http_status=$http_status" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve canonical dev workflow run
-        id: canonical
-        if: steps.dispatch.outputs.dispatch_state == 'confirmed'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REQUEST_ID: ${{ steps.prepare.outputs.request_id }}
-          COMMAND: ${{ steps.prepare.outputs.command }}
-          EXPECTED_HEAD: ${{ steps.prepare.outputs.expected_head }}
-        run: |
-          set -euo pipefail
-          expected_title="GCP semantic $COMMAND $REQUEST_ID"
-          for attempt in $(seq 1 20); do
-            curl --fail --silent --show-error \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H 'Accept: application/vnd.github+json' \
-              -H 'X-GitHub-Api-Version: 2026-03-10' \
-              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/gcp-semantic-command.yml/runs?event=workflow_dispatch&branch=dev&per_page=30" \
-              > "$RUNNER_TEMP/canonical-runs.json"
-            run="$(jq -c --arg title "$expected_title" --arg head "$EXPECTED_HEAD" \
-              '[.workflow_runs[] | select(.display_title == $title and .head_sha == $head)] | first // empty' \
-              "$RUNNER_TEMP/canonical-runs.json")"
-            if [ -n "$run" ]; then
-              run_id="$(jq -r '.id' <<<"$run")"
-              run_url="$(jq -r '.html_url' <<<"$run")"
-              echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-              echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo 'confirmed workflow_dispatch was not yet observable as a canonical dev run' >&2
-          exit 1
 
       - name: Prepare bounded relay receipt
         id: receipt
@@ -186,8 +156,8 @@ jobs:
           DISPATCH_STATE: ${{ steps.dispatch.outputs.dispatch_state }}
           MAY_HAVE_DISPATCHED: ${{ steps.dispatch.outputs.may_have_dispatched }}
           DISPATCH_HTTP_STATUS: ${{ steps.dispatch.outputs.http_status }}
-          CANONICAL_RUN_ID: ${{ steps.canonical.outputs.run_id }}
-          CANONICAL_RUN_URL: ${{ steps.canonical.outputs.run_url }}
+          CANONICAL_RUN_ID: ${{ steps.dispatch.outputs.run_id }}
+          CANONICAL_RUN_URL: ${{ steps.dispatch.outputs.run_url }}
         run: |
           set -euo pipefail
           jq -n \
@@ -224,7 +194,7 @@ jobs:
           retention-days: 30
 
       - name: Retire command branch
-        if: steps.dispatch.outputs.dispatch_state == 'confirmed' && steps.canonical.outcome == 'success' && steps.receipt.outputs.artifact_ready == 'true'
+        if: steps.dispatch.outputs.dispatch_state == 'confirmed' && steps.receipt.outputs.artifact_ready == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -242,7 +212,7 @@ jobs:
         shell: bash
         env:
           DISPATCH_STATE: ${{ steps.dispatch.outputs.dispatch_state }}
-          CANONICAL_RUN_ID: ${{ steps.canonical.outputs.run_id }}
+          CANONICAL_RUN_ID: ${{ steps.dispatch.outputs.run_id }}
         run: |
           set -euo pipefail
           test "$DISPATCH_STATE" = confirmed
