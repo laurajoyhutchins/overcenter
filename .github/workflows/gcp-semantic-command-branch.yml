@@ -7,16 +7,15 @@ on:
       - 'overcenter-command/*'
 
 permissions:
+  actions: write
   contents: write
-  id-token: write
 
 jobs:
-  invoke:
+  relay:
     if: github.actor == github.repository_owner || github.actor == 'overcenter-app[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
       COMMAND_FILE: .overcenter-command.json
     steps:
       - name: Check out exact command branch
@@ -34,6 +33,7 @@ jobs:
           [[ "$GITHUB_REF_NAME" =~ ^overcenter-command/[A-Za-z0-9._-]{1,96}$ ]]
           test -f "$COMMAND_FILE"
           test "$(stat -c %s "$COMMAND_FILE")" -le 16384
+
           git fetch --no-tags --depth=1 origin dev
           dev_head="$(git rev-parse FETCH_HEAD)"
           test "$(git rev-parse HEAD^)" = "$dev_head"
@@ -42,6 +42,7 @@ jobs:
           test "$changed" = "$COMMAND_FILE"
           expected_head="$(jq -r '.expected_head // empty' "$COMMAND_FILE")"
           test "$expected_head" = "$dev_head"
+
           owner="$GITHUB_REPOSITORY_OWNER"
           repo_name="${GITHUB_REPOSITORY#*/}"
           jq -n \
@@ -51,101 +52,179 @@ jobs:
             --rawfile body "$COMMAND_FILE" \
             '{action:"opened",issue:{number:1,title:"[overcenter-command]",body:$body,user:{login:$owner}},repository:{name:$repo_name,full_name:$full_name,owner:{login:$owner}}}' \
             > "$RUNNER_TEMP/synthetic-command-event.json"
+
           node scripts/github-command-issue.mjs "$RUNNER_TEMP/synthetic-command-event.json" "$dev_head" \
-            > "$RUNNER_TEMP/prepared-command.issue.json"
-          request_id="github-command-branch:${GITHUB_SHA}"
-          jq --arg request_id "$request_id" \
-            '.request_id=$request_id | .payload.invocation_context.reasoning_boundary_id=$request_id' \
-            "$RUNNER_TEMP/prepared-command.issue.json" > "$RUNNER_TEMP/prepared-command.json"
-          jq -c '.payload' "$RUNNER_TEMP/prepared-command.json" > "$RUNNER_TEMP/worker-command.json"
+            > "$RUNNER_TEMP/prepared-command.json"
+          jq -e '.schema == "overcenter-github-command-prepared-v1" and (.payload | type == "object")' \
+            "$RUNNER_TEMP/prepared-command.json" >/dev/null
+
+          request_id="github-command-branch-${GITHUB_SHA}"
+          command="$(jq -r '.payload.command' "$RUNNER_TEMP/prepared-command.json")"
+          input="$(jq -c '.payload.input' "$RUNNER_TEMP/prepared-command.json")"
+          project_ref=''
+          transition_id=''
+          resume_ref=''
+          execution_result_json=''
+          command_input_0=''
+
+          case "$command" in
+            project.inspect)
+              project_ref="$(jq -r '.project_ref' <<<"$input")"
+              ;;
+            project.advance)
+              project_ref="$(jq -r '.project_ref' <<<"$input")"
+              transition_id="$(jq -r '.transition_id // ""' <<<"$input")"
+              resume_ref="$(jq -r '.resume_ref // ""' <<<"$input")"
+              if jq -e 'has("execution_result")' <<<"$input" >/dev/null; then
+                execution_result_json="$(jq -c '.execution_result' <<<"$input")"
+              fi
+              ;;
+            project.define|project.amend)
+              project_ref="$(jq -r '.project_ref' <<<"$input")"
+              command_input_0="$input"
+              ;;
+            orchestration.maintain)
+              ;;
+            orchestration.diagnose|production.reconcile|github.pull_request.mark_ready|github.workflow.dispatch|github.apply_changeset|github.coalesce_changeset|github.apply_text_replacements)
+              command_input_0="$input"
+              ;;
+            *)
+              echo "unsupported prepared command: $command" >&2
+              exit 2
+              ;;
+          esac
+
+          jq -n \
+            --arg ref "dev" \
+            --arg request_id "$request_id" \
+            --arg command "$command" \
+            --arg project_ref "$project_ref" \
+            --arg expected_head "$dev_head" \
+            --arg transition_id "$transition_id" \
+            --arg resume_ref "$resume_ref" \
+            --arg execution_result_json "$execution_result_json" \
+            --arg command_input_0 "$command_input_0" \
+            '{ref:$ref,inputs:{request_id:$request_id,command:$command,project_ref:$project_ref,expected_head:$expected_head,transition_id:$transition_id,resume_ref:$resume_ref,execution_result_json:$execution_result_json,command_input_0:$command_input_0,command_input_1:"",command_input_2:"",command_input_3:"",command_input_4:"",command_input_5:""}}' \
+            > "$RUNNER_TEMP/workflow-dispatch.json"
+
           echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          echo "command=$command" >> "$GITHUB_OUTPUT"
           echo "expected_head=$dev_head" >> "$GITHUB_OUTPUT"
 
-      - name: Authenticate to authoritative GCP runtime
-        id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
-        with:
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
-          token_format: id_token
-          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
-          id_token_include_email: true
-          request_reason: Overcenter GitHub branch semantic command ${{ github.sha }}
-
-      - name: Invoke authoritative semantic command
-        id: invoke
+      - name: Dispatch trusted dev semantic workflow
+        id: dispatch
         shell: bash
         env:
-          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-          REQUEST_ID: ${{ steps.prepare.outputs.request_id }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           set +e
-          status="$(curl --silent --show-error -o "$RUNNER_TEMP/semantic-response.json" -w '%{http_code}' \
-            -H "Authorization: Bearer $ID_TOKEN" \
+          http_status="$(curl --silent --show-error \
+            -o "$RUNNER_TEMP/dispatch-response.txt" \
+            -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
             -H 'content-type: application/json' \
-            -H 'x-overcenter-authority-mode: authoritative' \
-            -H "x-overcenter-request-id: $REQUEST_ID" \
             -X POST \
-            --data-binary @"$RUNNER_TEMP/worker-command.json" \
-            "$SERVICE_AUDIENCE/api/worker-command")"
+            --data-binary @"$RUNNER_TEMP/workflow-dispatch.json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/gcp-semantic-command.yml/dispatches")"
           curl_exit=$?
           set -e
-          if [ "$curl_exit" -ne 0 ]; then
-            jq -n --arg message "GCP semantic command transport failed after dispatch; execution outcome is indeterminate" \
-              '{ok:false,error:"GITHUB_BRANCH_GCP_TRANSPORT_INDETERMINATE",message:$message,error_class:"transport",retryable:false,may_have_mutated:true,automatic_recovery_allowed:false,escalation_required:true}' \
-              > "$RUNNER_TEMP/semantic-response.json"
-            status=0
-          fi
-          echo "http_status=$status" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare bounded semantic response artifact
-        id: response_artifact
-        if: always() && steps.prepare.outcome == 'success'
+          if [ "$curl_exit" -eq 0 ] && [ "$http_status" = 204 ]; then
+            echo 'dispatch_state=confirmed' >> "$GITHUB_OUTPUT"
+            echo 'may_have_dispatched=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'dispatch_state=indeterminate' >> "$GITHUB_OUTPUT"
+            echo 'may_have_dispatched=true' >> "$GITHUB_OUTPUT"
+          fi
+          echo "http_status=$http_status" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve canonical dev workflow run
+        id: canonical
+        if: steps.dispatch.outputs.dispatch_state == 'confirmed'
         shell: bash
         env:
-          HTTP_STATUS: ${{ steps.invoke.outputs.http_status }}
+          GH_TOKEN: ${{ github.token }}
           REQUEST_ID: ${{ steps.prepare.outputs.request_id }}
+          COMMAND: ${{ steps.prepare.outputs.command }}
           EXPECTED_HEAD: ${{ steps.prepare.outputs.expected_head }}
         run: |
           set -euo pipefail
-          test -f "$RUNNER_TEMP/semantic-response.json" || exit 0
-          jq -c 'walk(if type == "object" then del(.lease_token,.token,.authorization,.id_token) else . end)' \
-            "$RUNNER_TEMP/semantic-response.json" > "$RUNNER_TEMP/sanitized-response.json"
-          response_sha256="$(sha256sum "$RUNNER_TEMP/sanitized-response.json" | cut -d' ' -f1)"
+          expected_title="GCP semantic $COMMAND $REQUEST_ID"
+          for attempt in $(seq 1 20); do
+            curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2026-03-10' \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/gcp-semantic-command.yml/runs?event=workflow_dispatch&branch=dev&per_page=30" \
+              > "$RUNNER_TEMP/canonical-runs.json"
+            run="$(jq -c --arg title "$expected_title" --arg head "$EXPECTED_HEAD" \
+              '[.workflow_runs[] | select(.display_title == $title and .head_sha == $head)] | first // empty' \
+              "$RUNNER_TEMP/canonical-runs.json")"
+            if [ -n "$run" ]; then
+              run_id="$(jq -r '.id' <<<"$run")"
+              run_url="$(jq -r '.html_url' <<<"$run")"
+              echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+              echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'confirmed workflow_dispatch was not yet observable as a canonical dev run' >&2
+          exit 1
+
+      - name: Prepare bounded relay receipt
+        id: receipt
+        if: always() && steps.prepare.outcome == 'success' && steps.dispatch.outcome == 'success'
+        shell: bash
+        env:
+          REQUEST_ID: ${{ steps.prepare.outputs.request_id }}
+          COMMAND: ${{ steps.prepare.outputs.command }}
+          EXPECTED_HEAD: ${{ steps.prepare.outputs.expected_head }}
+          DISPATCH_STATE: ${{ steps.dispatch.outputs.dispatch_state }}
+          MAY_HAVE_DISPATCHED: ${{ steps.dispatch.outputs.may_have_dispatched }}
+          DISPATCH_HTTP_STATUS: ${{ steps.dispatch.outputs.http_status }}
+          CANONICAL_RUN_ID: ${{ steps.canonical.outputs.run_id }}
+          CANONICAL_RUN_URL: ${{ steps.canonical.outputs.run_url }}
+        run: |
+          set -euo pipefail
           jq -n \
             --arg schema "overcenter-github-command-branch-response-v1" \
             --arg request_id "$REQUEST_ID" \
+            --arg command "$COMMAND" \
             --arg expected_head "$EXPECTED_HEAD" \
             --arg command_branch "$GITHUB_REF_NAME" \
             --arg command_commit "$GITHUB_SHA" \
-            --arg http_status "${HTTP_STATUS:-0}" \
-            --arg response_sha256 "$response_sha256" \
-            --slurpfile response "$RUNNER_TEMP/sanitized-response.json" \
-            '{schema:$schema,request_id:$request_id,expected_head:$expected_head,command_branch:$command_branch,command_commit:$command_commit,http_status:($http_status|tonumber),response_sha256:$response_sha256,response:$response[0]}' \
-            > "$RUNNER_TEMP/bounded-semantic-response.json"
+            --arg dispatch_state "${DISPATCH_STATE:-indeterminate}" \
+            --arg may_have_dispatched "${MAY_HAVE_DISPATCHED:-true}" \
+            --arg dispatch_http_status "${DISPATCH_HTTP_STATUS:-0}" \
+            --arg canonical_run_id "${CANONICAL_RUN_ID:-}" \
+            --arg canonical_run_url "${CANONICAL_RUN_URL:-}" \
+            '{schema:$schema,request_id:$request_id,command:$command,expected_head:$expected_head,command_branch:$command_branch,command_commit:$command_commit,dispatch_state:$dispatch_state,may_have_dispatched:($may_have_dispatched=="true"),dispatch_http_status:($dispatch_http_status|tonumber),canonical_workflow:"gcp-semantic-command.yml",canonical_run_id:(if $canonical_run_id=="" then null else ($canonical_run_id|tonumber) end),canonical_run_url:(if $canonical_run_url=="" then null else $canonical_run_url end),response_artifact_name:("semantic-response-"+$request_id)}' \
+            > "$RUNNER_TEMP/bounded-relay-receipt.json"
           echo 'artifact_ready=true' >> "$GITHUB_OUTPUT"
           {
-            echo '### GCP semantic command branch receipt'
+            echo '### GCP semantic command branch relay'
             echo
             echo "- request_id: \`$REQUEST_ID\`"
             echo "- expected_head: \`$EXPECTED_HEAD\`"
-            echo "- command_commit: \`$GITHUB_SHA\`"
-            echo "- response_sha256: \`$response_sha256\`"
+            echo "- dispatch_state: \`${DISPATCH_STATE:-indeterminate}\`"
+            echo "- canonical_run_id: \`${CANONICAL_RUN_ID:-unresolved}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload bounded semantic response artifact
-        if: always() && steps.response_artifact.outputs.artifact_ready == 'true'
+      - name: Upload bounded relay receipt
+        if: always() && steps.receipt.outputs.artifact_ready == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: semantic-response-${{ github.sha }}
-          path: ${{ runner.temp }}/bounded-semantic-response.json
+          name: semantic-relay-${{ github.sha }}
+          path: ${{ runner.temp }}/bounded-relay-receipt.json
           if-no-files-found: error
           retention-days: 30
 
       - name: Retire command branch
-        if: always() && steps.response_artifact.outputs.artifact_ready == 'true'
+        if: steps.dispatch.outputs.dispatch_state == 'confirmed' && steps.canonical.outcome == 'success' && steps.receipt.outputs.artifact_ready == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -158,12 +237,13 @@ jobs:
             -X DELETE \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/git/refs/heads/$GITHUB_REF_NAME"
 
-      - name: Assert semantic command succeeded
-        if: always() && steps.response_artifact.outputs.artifact_ready == 'true'
+      - name: Assert relay certainty
+        if: always()
         shell: bash
         env:
-          HTTP_STATUS: ${{ steps.invoke.outputs.http_status }}
+          DISPATCH_STATE: ${{ steps.dispatch.outputs.dispatch_state }}
+          CANONICAL_RUN_ID: ${{ steps.canonical.outputs.run_id }}
         run: |
           set -euo pipefail
-          test "$HTTP_STATUS" = 200
-          jq -e '.ok == true' "$RUNNER_TEMP/semantic-response.json" >/dev/null
+          test "$DISPATCH_STATE" = confirmed
+          test -n "$CANONICAL_RUN_ID"
