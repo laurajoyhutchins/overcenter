@@ -1,6 +1,10 @@
 name: GCP authoritative deployment
 
 on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-authoritative-deploy.yml
   workflow_dispatch:
     inputs:
       exact_revision:
@@ -10,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 concurrency:
@@ -28,24 +33,42 @@ jobs:
       FAILED_TRANSITION: finish-hatchable-gcp-authoritative-state-migration
       FAILED_OBSERVED_AT: 2026-09-09T00:27:08.894Z
       ACCEPTANCE_TRANSITION: make-mechanical-changeset-coalescing-actionable
+      EXACT_REVISION: ${{ inputs.exact_revision || github.sha }}
     steps:
       - name: Check out exact authoritative source revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ inputs.exact_revision }}
+          ref: ${{ inputs.exact_revision || github.sha }}
           persist-credentials: false
           fetch-depth: 1
 
       - name: Prove exact revision is authoritative development source
         shell: bash
-        env:
-          EXACT_REVISION: ${{ inputs.exact_revision }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/dev"
           test "$(git rev-parse HEAD)" = "$EXACT_REVISION"
           test "$GITHUB_SHA" = "$EXACT_REVISION"
           test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXACT_REVISION"
+
+      - name: Wait for exact-revision verification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/exact-revision-v8.yml/runs?branch=dev&event=push&per_page=20"
+          for attempt in $(seq 1 40); do
+            body="$(curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2026-03-10' "$api")"
+            state="$(jq -r --arg revision "$EXACT_REVISION" '[.workflow_runs[] | select(.head_sha == $revision)] | first | if . == null then "missing" elif .status != "completed" then .status else .conclusion end' <<<"$body")"
+            case "$state" in
+              success) exit 0 ;;
+              failure|cancelled|timed_out|action_required|startup_failure|stale) echo "exact-revision verification failed: $state" >&2; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo 'exact-revision verification did not complete in bounded window' >&2
+          exit 1
 
       - name: Authenticate to Google Cloud with GitHub OIDC
         id: auth
@@ -57,7 +80,7 @@ jobs:
           token_format: id_token
           id_token_audience: ${{ env.SERVICE_AUDIENCE }}
           id_token_include_email: true
-          request_reason: Overcenter authoritative deployment ${{ inputs.exact_revision }}
+          request_reason: Overcenter authoritative deployment ${{ env.EXACT_REVISION }}
 
       - name: Install Google Cloud CLI
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
@@ -73,7 +96,6 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
-          EXACT_REVISION: ${{ inputs.exact_revision }}
         run: bash ./scripts/gcp/deploy-authoritative.sh
 
       - name: Reconcile failed attempt and prove reversible GCP acceptance cycle
@@ -82,5 +104,4 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           OVERCENTER_GITHUB_APP_ID: ${{ vars.OVERCENTER_GITHUB_APP_ID }}
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-          EXACT_REVISION: ${{ inputs.exact_revision }}
         run: bash ./scripts/gcp/prove-authoritative-runtime-http.sh
