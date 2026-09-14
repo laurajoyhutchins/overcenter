@@ -30,6 +30,9 @@ test('command branch ingress relays exact-revision commands through trusted dev 
   assert.match(workflow, /github-command-issue\.mjs/);
   assert.match(workflow, /actions\/workflows\/gcp-semantic-command\.yml\/dispatches/);
   assert.match(workflow, /--arg ref "dev"/);
+  assert.match(workflow, /return_run_details:true/);
+  assert.match(workflow, /\[ "\$http_status" = 200 \]/);
+  assert.match(workflow, /\.workflow_run_id/);
   assert.match(workflow, /overcenter-github-command-branch-response-v1/);
   assert.match(workflow, /actions\/upload-artifact/);
   assert.match(workflow, /git\/refs\/heads\/\$GITHUB_REF_NAME/);
