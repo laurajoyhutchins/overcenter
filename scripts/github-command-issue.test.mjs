@@ -10,7 +10,7 @@ const CORRELATION = { origin:'operator', reasoning_boundary_id:REQUEST_ID };
 function event(body, overrides = {}) {
   return {
     action: 'opened',
-    repository: { owner: { login: 'laurajoyhutchins' } },
+    repository: { name:'overcenter', full_name:'laurajoyhutchins/overcenter', owner: { login: 'laurajoyhutchins' } },
     issue: {
       number: 901,
       title: '[overcenter-command]',
@@ -129,6 +129,42 @@ test('prepares only lease-scoped repository mutation inputs through the issue in
     command: 'github.apply_text_replacements',
     input: { replacements: [], commit_message:'missing lease' },
   }), SHA), /lease_ref/);
+});
+
+test('prepares same-repository exact-dev workflow dispatch through the canonical worker command', () => {
+  const input = {
+    repo:'laurajoyhutchins/overcenter',
+    workflow:'gcp-authoritative-deploy.yml',
+    ref:'dev',
+    expected_head:SHA,
+    inputs:{ exact_revision:SHA },
+  };
+  const result = prepareIssueCommand(event({
+    schema:'overcenter-github-command-v1',
+    expected_head:SHA,
+    command:'github.workflow.dispatch',
+    input,
+  }), SHA);
+  assert.deepEqual(result.payload, {
+    command:'github.workflow.dispatch',
+    input,
+    invocation_context:CORRELATION,
+  });
+  assert.throws(() => prepareIssueCommand(event({
+    schema:'overcenter-github-command-v1', expected_head:SHA,
+    command:'github.workflow.dispatch',
+    input:{ ...input, repo:'laurajoyhutchins/other' },
+  }), SHA), /same repository/);
+  assert.throws(() => prepareIssueCommand(event({
+    schema:'overcenter-github-command-v1', expected_head:SHA,
+    command:'github.workflow.dispatch',
+    input:{ ...input, ref:'main' },
+  }), SHA), /dev/);
+  assert.throws(() => prepareIssueCommand(event({
+    schema:'overcenter-github-command-v1', expected_head:SHA,
+    command:'github.workflow.dispatch',
+    input:{ ...input, expected_head:'b'.repeat(40) },
+  }), SHA), /exact authority/);
 });
 
 test('lease mutation ingress rejects project and continuation authority smuggling', () => {
