@@ -102,49 +102,63 @@ test('prepares bounded owner-issued orchestration.diagnose without project conte
   });
 });
 
+test('prepares only lease-scoped repository mutation inputs through the issue ingress', () => {
+  const input = {
+    lease_ref: 'lease:abc',
+    replacements: [{ path:'README.md', old:'before', new_text:'after', expected_count:1 }],
+    commit_message: 'fix: bounded repair',
+  };
+  const result = prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1',
+    expected_head: SHA,
+    command: 'github.apply_text_replacements',
+    input,
+  }), SHA);
+  assert.deepEqual(result.payload, {
+    command: 'github.apply_text_replacements',
+    input,
+    invocation_context: { run_id: `github-issue:901:${SHA}` },
+  });
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1',
+    expected_head: SHA,
+    command: 'github.apply_text_replacements',
+    input: { replacements: [], commit_message:'missing lease' },
+  }), SHA), /lease_ref/);
+});
+
+test('lease mutation ingress rejects project and continuation authority smuggling', () => {
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1', expected_head: SHA,
+    command: 'github.apply_changeset', input: { lease_ref:'lease:abc', changes:[], commit_message:'x' },
+    project_ref: 'github:laurajoyhutchins/overcenter',
+  }), SHA), /bounded input envelope/);
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1', expected_head: SHA,
+    command: 'github.apply_changeset', input: { lease_ref:'lease:abc', changes:[], commit_message:'x' },
+    resume_ref: 'resume:x',
+  }), SHA), /bounded input envelope/);
+});
+
 test('rejects malformed or cross-command orchestration.diagnose fields before dispatch', () => {
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose',
-  }), SHA), /run_id/);
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose', run_id: 'x'.repeat(513),
-  }), SHA), /run_id/);
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose', run_id: 'run:833', work_ref: 'x'.repeat(129),
-  }), SHA), /work_ref/);
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose', run_id: 'run:833', project_ref: 'github:laurajoyhutchins/overcenter',
-  }), SHA), /does not accept project/);
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter', run_id: 'run:833',
-  }), SHA), /does not accept diagnose/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose' }), SHA), /run_id/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose', run_id: 'x'.repeat(513) }), SHA), /run_id/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose', run_id: 'run:833', work_ref: 'x'.repeat(129) }), SHA), /work_ref/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose', run_id: 'run:833', project_ref: 'github:laurajoyhutchins/overcenter' }), SHA), /does not accept project/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter', run_id: 'run:833' }), SHA), /does not accept diagnose/);
 });
 
 test('rejects non-owner, stale-revision, unknown-field, and oversized amendment requests before dispatch', () => {
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter',
-  }, { issue: { user: { login: 'someone-else' } } }), SHA), /repository owner/);
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: 'b'.repeat(40), command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter',
-  }), SHA), /stale/);
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter', surprise: true,
-  }), SHA), /unknown fields/);
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.amend', project_ref: 'github:laurajoyhutchins/overcenter', amendment: { note: 'x'.repeat(13_000) },
-  }), SHA), /amendment is too large/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter' }, { issue: { user: { login: 'someone-else' } } }), SHA), /repository owner/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: 'b'.repeat(40), command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter' }), SHA), /stale/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter', surprise: true }), SHA), /unknown fields/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.amend', project_ref: 'github:laurajoyhutchins/overcenter', amendment: { note: 'x'.repeat(13_000) } }), SHA), /amendment is too large/);
 });
 
 test('rejects command-specific fields outside their command boundary', () => {
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter', transition_id: 'x',
-  }), SHA), /does not accept continuation/);
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.advance', project_ref: 'github:laurajoyhutchins/overcenter', execution_result: { outcome: 'completed' },
-  }), SHA), /requires resume_ref/);
-  assert.throws(() => prepareIssueCommand(event({
-    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.amend', project_ref: 'github:laurajoyhutchins/overcenter', amendment: {}, transition_id: 'x',
-  }), SHA), /project.amend does not accept continuation fields/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter', transition_id: 'x' }), SHA), /does not accept continuation/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.advance', project_ref: 'github:laurajoyhutchins/overcenter', execution_result: { outcome: 'completed' } }), SHA), /requires resume_ref/);
+  assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.amend', project_ref: 'github:laurajoyhutchins/overcenter', amendment: {}, transition_id: 'x' }), SHA), /project.amend does not accept continuation fields/);
 });
 
 test('trusted default-branch workflow invokes GCP directly and emits a sanitized issue receipt', async () => {
