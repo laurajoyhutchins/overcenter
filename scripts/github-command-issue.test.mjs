@@ -55,7 +55,36 @@ test('preserves bounded project.advance continuation fields', () => {
   });
 });
 
-test('rejects non-owner, stale-revision, and unknown-field requests before dispatch', () => {
+test('prepares owner-issued project.amend with exact authority supplied by the trusted ingress', () => {
+  const amendment = {
+    upsert_transitions: [{
+      id: 'single-execution-transaction-authority',
+      priority: 200,
+      requires: [],
+      executor: { kind: 'agent', role: 'implementation', skill: 'test-driven-development' },
+    }],
+    remove_transition_ids: [],
+    confirmed_transition_ids: [],
+  };
+  const result = prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1',
+    expected_head: SHA,
+    command: 'project.amend',
+    project_ref: 'github:laurajoyhutchins/overcenter',
+    amendment,
+  }), SHA);
+  assert.deepEqual(result.payload, {
+    command: 'project.amend',
+    input: {
+      project_ref: 'github:laurajoyhutchins/overcenter',
+      expected_revision: SHA,
+      amendment,
+    },
+    invocation_context: { run_id: `github-issue:901:${SHA}` },
+  });
+});
+
+test('rejects non-owner, stale-revision, unknown-field, and oversized amendment requests before dispatch', () => {
   assert.throws(() => prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter',
   }, { issue: { user: { login: 'someone-else' } } }), SHA), /repository owner/);
@@ -65,15 +94,21 @@ test('rejects non-owner, stale-revision, and unknown-field requests before dispa
   assert.throws(() => prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter', surprise: true,
   }), SHA), /unknown fields/);
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.amend', project_ref: 'github:laurajoyhutchins/overcenter', amendment: { note: 'x'.repeat(13_000) },
+  }), SHA), /amendment is too large/);
 });
 
-test('rejects inspect continuation and execution results without resume_ref', () => {
+test('rejects command-specific fields outside their command boundary', () => {
   assert.throws(() => prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter', transition_id: 'x',
   }), SHA), /does not accept continuation/);
   assert.throws(() => prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.advance', project_ref: 'github:laurajoyhutchins/overcenter', execution_result: { outcome: 'completed' },
   }), SHA), /requires resume_ref/);
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.amend', project_ref: 'github:laurajoyhutchins/overcenter', amendment: {}, transition_id: 'x',
+  }), SHA), /project.amend does not accept continuation fields/);
 });
 
 test('trusted default-branch workflow invokes GCP directly and emits a sanitized issue receipt', async () => {

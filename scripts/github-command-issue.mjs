@@ -13,8 +13,10 @@ const ALLOWED_FIELDS = new Set([
   'transition_id',
   'resume_ref',
   'execution_result',
+  'amendment',
 ]);
 const MAX_BODY_CHARS = 16_384;
+const MAX_AMENDMENT_CHARS = 12_000;
 
 function invalid(message) {
   throw Object.assign(new Error(message), { code:'GITHUB_COMMAND_ISSUE_INVALID' });
@@ -50,22 +52,34 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (expectedHead !== authorityRevision) invalid('command issue is stale relative to the trusted dev revision');
 
   const command = String(body.command || '').trim();
-  if (command !== 'project.inspect' && command !== 'project.advance') invalid('only project.inspect and project.advance are admitted');
+  if (!['project.inspect', 'project.advance', 'project.amend'].includes(command)) {
+    invalid('only project.inspect, project.advance, and project.amend are admitted');
+  }
   const projectRef = String(body.project_ref || '').trim();
   if (!PROJECT_REF.test(projectRef)) invalid('project_ref must be a canonical github:owner/repo reference');
 
   const transitionId = body.transition_id === undefined ? '' : String(body.transition_id).trim();
   const resumeRef = body.resume_ref === undefined ? '' : String(body.resume_ref).trim();
   const hasExecutionResult = body.execution_result !== undefined && body.execution_result !== null;
+  const hasAmendment = body.amendment !== undefined && body.amendment !== null;
   if (transitionId && !TRANSITION.test(transitionId)) invalid('transition_id is invalid');
   if (resumeRef && !RESUME.test(resumeRef)) invalid('resume_ref is invalid');
   if (hasExecutionResult) object(body.execution_result, 'execution_result');
   if (JSON.stringify(body.execution_result ?? {}).length > 4096) invalid('execution_result is too large');
+  if (hasAmendment) object(body.amendment, 'amendment');
+  if (JSON.stringify(body.amendment ?? {}).length > MAX_AMENDMENT_CHARS) invalid('amendment is too large');
 
-  if (command === 'project.inspect' && (transitionId || resumeRef || hasExecutionResult)) {
-    invalid('project.inspect does not accept continuation fields');
+  if (command === 'project.inspect' && (transitionId || resumeRef || hasExecutionResult || hasAmendment)) {
+    invalid('project.inspect does not accept continuation or amendment fields');
   }
-  if (hasExecutionResult && !resumeRef) invalid('execution_result requires resume_ref');
+  if (command === 'project.advance') {
+    if (hasExecutionResult && !resumeRef) invalid('execution_result requires resume_ref');
+    if (hasAmendment) invalid('project.advance does not accept amendment');
+  }
+  if (command === 'project.amend') {
+    if (!hasAmendment) invalid('project.amend requires amendment');
+    if (transitionId || resumeRef || hasExecutionResult) invalid('project.amend does not accept continuation fields');
+  }
 
   const issueNumber = Number(issue.number);
   if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) invalid('issue number is invalid');
@@ -75,6 +89,10 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
     if (transitionId) input.transition_id = transitionId;
     if (resumeRef) input.resume_ref = resumeRef;
     if (hasExecutionResult) input.execution_result = body.execution_result;
+  }
+  if (command === 'project.amend') {
+    input.expected_revision = authorityRevision;
+    input.amendment = body.amendment;
   }
   return {
     schema:'overcenter-github-command-prepared-v1',
