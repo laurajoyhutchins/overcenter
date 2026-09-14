@@ -201,20 +201,21 @@ test('rejects command-specific fields outside their command boundary', () => {
   assert.throws(() => prepareIssueCommand(event({ schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.amend', project_ref: 'github:laurajoyhutchins/overcenter', amendment: {}, transition_id: 'x' }), SHA), /project.amend does not accept continuation fields/);
 });
 
-test('trusted default-branch workflow invokes GCP directly and emits a sanitized issue receipt', async () => {
-  const workflow = await readFile(new URL('../.github/workflows/gcp-semantic-command-issue.yml', import.meta.url), 'utf8');
-  assert.match(workflow, /issues:\s*\n\s*types: \[opened\]/);
-  assert.match(workflow, /id-token: write/);
-  assert.match(workflow, /issues: write/);
-  assert.match(workflow, /test "\$GITHUB_REF" = "refs\/heads\/dev"/);
-  assert.match(workflow, /git ls-remote origin refs\/heads\/dev/);
+test('branch transport invokes the canonical dev semantic workflow without Issue writes or branch OIDC', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/gcp-semantic-command-branch.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /push:/);
+  assert.match(workflow, /overcenter-command\/\*/);
+  assert.match(workflow, /actions: write/);
+  assert.match(workflow, /contents: write/);
   assert.match(workflow, /github-command-issue\.mjs/);
-  assert.match(workflow, /google-github-actions\/auth@/);
-  assert.match(workflow, /\/api\/worker-command/);
+  assert.match(workflow, /gcp-semantic-command\.yml\/dispatches/);
+  assert.match(workflow, /--arg ref "dev"/);
+  assert.match(workflow, /return_run_details:true/);
+  assert.doesNotMatch(workflow, /issues: write/);
+  assert.doesNotMatch(workflow, /\/issues\//);
+  assert.doesNotMatch(workflow, /id-token: write/);
+  assert.doesNotMatch(workflow, /google-github-actions\/auth@/);
   assert.doesNotMatch(workflow, /Hatchable|hatchable/i);
-  assert.match(workflow, /del\(\.lease_token,\.token,\.authorization,\.id_token\)/);
-  assert.match(workflow, /issues\/\$ISSUE_NUMBER\/comments/);
-  assert.match(workflow, /state_reason.*completed/);
 });
 
 test('required exact-revision gate verifies the portable GCP boundary without Hatchable', async () => {
