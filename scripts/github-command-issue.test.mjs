@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { prepareIssueCommand } from './github-command-issue.mjs';
 
 const SHA = 'a'.repeat(40);
+const REQUEST_ID = `github-issue:901:${SHA}`;
+const CORRELATION = { origin:'operator', reasoning_boundary_id:REQUEST_ID };
 
 function event(body, overrides = {}) {
   return {
@@ -20,7 +22,7 @@ function event(body, overrides = {}) {
   };
 }
 
-test('prepares owner-issued project.inspect against the exact dev revision', () => {
+test('prepares owner-issued project.inspect against the exact dev revision without inventing a run identity', () => {
   const result = prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1',
     expected_head: SHA,
@@ -28,15 +30,15 @@ test('prepares owner-issued project.inspect against the exact dev revision', () 
     project_ref: 'github:laurajoyhutchins/overcenter',
   }), SHA);
   assert.equal(result.schema, 'overcenter-github-command-prepared-v1');
-  assert.equal(result.request_id, `github-issue:901:${SHA}`);
+  assert.equal(result.request_id, REQUEST_ID);
   assert.deepEqual(result.payload, {
     command: 'project.inspect',
     input: { project_ref: 'github:laurajoyhutchins/overcenter' },
-    invocation_context: { run_id: `github-issue:901:${SHA}` },
+    invocation_context: CORRELATION,
   });
 });
 
-test('preserves bounded project.advance continuation fields', () => {
+test('preserves bounded project.advance continuation fields and uses only a real continuation run identity', () => {
   const execution_result = { outcome: 'completed', evidence: ['receipt:1'] };
   const result = prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1',
@@ -45,6 +47,7 @@ test('preserves bounded project.advance continuation fields', () => {
     project_ref: 'github:laurajoyhutchins/overcenter',
     transition_id: 'transport-independence',
     resume_ref: 'resume:abc',
+    run_id: 'run:abc',
     execution_result,
   }), SHA);
   assert.deepEqual(result.payload.input, {
@@ -53,9 +56,10 @@ test('preserves bounded project.advance continuation fields', () => {
     resume_ref: 'resume:abc',
     execution_result,
   });
+  assert.deepEqual(result.payload.invocation_context, { ...CORRELATION, run_id:'run:abc' });
 });
 
-test('prepares owner-issued project.amend with exact authority supplied by the trusted ingress', () => {
+test('prepares owner-issued project.amend with exact authority and correlation but no synthetic run identity', () => {
   const amendment = {
     upsert_transitions: [{
       id: 'single-execution-transaction-authority',
@@ -80,11 +84,11 @@ test('prepares owner-issued project.amend with exact authority supplied by the t
       expected_revision: SHA,
       amendment,
     },
-    invocation_context: { run_id: `github-issue:901:${SHA}` },
+    invocation_context: CORRELATION,
   });
 });
 
-test('prepares bounded owner-issued orchestration.diagnose without project context', () => {
+test('prepares bounded owner-issued orchestration.diagnose with the actual durable run identity', () => {
   const result = prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1',
     expected_head: SHA,
@@ -98,11 +102,11 @@ test('prepares bounded owner-issued orchestration.diagnose without project conte
       run_id: 'run:833',
       work_ref: 'project-authoring:833',
     },
-    invocation_context: { run_id: `github-issue:901:${SHA}` },
+    invocation_context: { ...CORRELATION, run_id:'run:833' },
   });
 });
 
-test('prepares only lease-scoped repository mutation inputs through the issue ingress', () => {
+test('prepares only lease-scoped repository mutation inputs through the issue ingress without inventing a run identity', () => {
   const input = {
     lease_ref: 'lease:abc',
     replacements: [{ path:'README.md', old:'before', new_text:'after', expected_count:1 }],
@@ -117,7 +121,7 @@ test('prepares only lease-scoped repository mutation inputs through the issue in
   assert.deepEqual(result.payload, {
     command: 'github.apply_text_replacements',
     input,
-    invocation_context: { run_id: `github-issue:901:${SHA}` },
+    invocation_context: CORRELATION,
   });
   assert.throws(() => prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1',

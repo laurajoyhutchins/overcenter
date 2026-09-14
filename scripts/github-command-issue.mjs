@@ -129,6 +129,11 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
     input.expected_revision = authorityRevision;
     input.amendment = body.amendment;
   }
+  const durableRunId = command === 'orchestration.diagnose'
+    ? String(body.run_id)
+    : command === 'project.advance' && hasRunId
+      ? String(body.run_id)
+      : null;
   return {
     schema:'overcenter-github-command-prepared-v1',
     request_id:requestId,
@@ -137,7 +142,11 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
     payload:{
       command,
       input,
-      invocation_context:{ run_id:command === 'project.advance' && hasRunId ? body.run_id : requestId },
+      invocation_context:{
+        origin:'operator',
+        reasoning_boundary_id:requestId,
+        ...(durableRunId ? { run_id:durableRunId } : {}),
+      },
     },
   };
 }
