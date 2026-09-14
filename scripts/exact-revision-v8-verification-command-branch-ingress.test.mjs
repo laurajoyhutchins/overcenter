@@ -13,7 +13,9 @@ async function readOptional(url) {
 
 test('command branch ingress relays exact-revision commands through trusted dev workflow without issues or branch OIDC', async () => {
   const workflow = await readOptional(new URL('../.github/workflows/gcp-semantic-command-branch.yml', import.meta.url));
+  const legacyIssueIngress = await readOptional(new URL('../.github/workflows/gcp-semantic-command-issue.yml', import.meta.url));
 
+  assert.equal(legacyIssueIngress, '');
   assert.match(workflow, /push:/);
   assert.match(workflow, /overcenter-command\/\*/);
   assert.match(workflow, /contents: write/);
