@@ -11,9 +11,9 @@ test('authoritative deployment fences the exact dev revision without requiring m
   assert.doesNotMatch(workflow, /promoted to both dev and main/);
 });
 
-test('authoritative deployment can self-bootstrap from a verified dev push when its workflow changes', () => {
-  assert.match(workflow, /push:\n\s+branches: \[dev\]/);
-  assert.match(workflow, /paths:\n\s+- \.github\/workflows\/gcp-authoritative-deploy\.yml/);
-  assert.match(workflow, /inputs\.exact_revision \|\| github\.sha/);
-  assert.match(workflow, /Wait for exact-revision verification/);
+test('authoritative deployment remains explicit workflow dispatch with an exact revision input', () => {
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /ref: \$\{\{ inputs\.exact_revision \}\}/);
+  assert.doesNotMatch(workflow, /\n\s+push:/);
+  assert.doesNotMatch(workflow, /inputs\.exact_revision \|\| github\.sha/);
 });
