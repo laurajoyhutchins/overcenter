@@ -115,7 +115,6 @@ test('post-cutover GCP deployment path cannot demote authoritative runtime to sh
 
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /\n\s*push:/);
-  assert.match(workflow, /refs\/heads\/main/);
   assert.match(workflow, /deploy-authoritative\.sh/);
 
   assert.match(deploy, /BEFORE_MODE/);

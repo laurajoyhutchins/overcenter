@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       exact_revision:
-        description: Exact revision already promoted to both dev and main
+        description: Exact verified dev revision to deploy to authoritative GCP runtime
         required: true
         type: string
 
@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Prove exact revision is production authority
+      - name: Prove exact revision is authoritative development source
         shell: bash
         env:
           EXACT_REVISION: ${{ inputs.exact_revision }}
@@ -46,7 +46,6 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXACT_REVISION"
           test "$GITHUB_SHA" = "$EXACT_REVISION"
           test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXACT_REVISION"
-          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXACT_REVISION"
 
       - name: Authenticate to Google Cloud with GitHub OIDC
         id: auth

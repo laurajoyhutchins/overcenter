@@ -30,6 +30,7 @@ const maintainedTests = [
   'codex-gcp-live-smoke-workflow.test.mjs',
   'codex-project-agent-execution.integration.test.mjs',
   'gcp-activation-cnb-launcher.test.mjs',
+  'gcp-authoritative-deploy-workflow.test.mjs',
   'gcp-command-forwarder.test.mjs',
   'gcp-command-ingress-deploy.test.mjs',
   'gcp-production-promote-dispatch.test.mjs',
