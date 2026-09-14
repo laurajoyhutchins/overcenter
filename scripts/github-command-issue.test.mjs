@@ -84,6 +84,26 @@ test('prepares owner-issued project.amend with exact authority supplied by the t
   });
 });
 
+test('prepares owner-issued orchestration.diagnose for a prescribed recovery target', () => {
+  const targetRunId = 'github-issue:824:cde5114c1ea5920e05b5d3944f06abb6e6aee8c4';
+  const result = prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1',
+    expected_head: SHA,
+    command: 'orchestration.diagnose',
+    project_ref: 'github:laurajoyhutchins/overcenter',
+    run_id: targetRunId,
+    work_ref: 'project.amend:824',
+  }), SHA);
+  assert.deepEqual(result.payload, {
+    command: 'orchestration.diagnose',
+    input: {
+      run_id: targetRunId,
+      work_ref: 'project.amend:824',
+    },
+    invocation_context: { run_id: `github-issue:901:${SHA}` },
+  });
+});
+
 test('rejects non-owner, stale-revision, unknown-field, and oversized amendment requests before dispatch', () => {
   assert.throws(() => prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter',
@@ -109,6 +129,9 @@ test('rejects command-specific fields outside their command boundary', () => {
   assert.throws(() => prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.amend', project_ref: 'github:laurajoyhutchins/overcenter', amendment: {}, transition_id: 'x',
   }), SHA), /project.amend does not accept continuation fields/);
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose', project_ref: 'github:laurajoyhutchins/overcenter',
+  }), SHA), /orchestration.diagnose requires run_id/);
 });
 
 test('trusted default-branch workflow invokes GCP directly and emits a sanitized issue receipt', async () => {
