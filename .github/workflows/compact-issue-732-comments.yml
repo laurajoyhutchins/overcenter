@@ -1,0 +1,71 @@
+name: compact-issue-732-comments
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - .github/workflows/compact-issue-732-comments.yml
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  compact:
+    if: github.repository == 'laurajoyhutchins/overcenter'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Remove owner and automation chatter from issue 732
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = 732;
+
+            const isRemovable = (comment) =>
+              comment.author_association === 'OWNER' || comment.user?.type === 'Bot';
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const targets = comments.filter(isRemovable);
+            const preserved = comments.filter((comment) => !isRemovable(comment));
+            core.notice(`Compacting ${targets.length} owner/bot comments; preserving ${preserved.length} third-party human comments.`);
+
+            let deleted = 0;
+            for (let offset = 0; offset < targets.length; offset += 5) {
+              const batch = targets.slice(offset, offset + 5);
+              await Promise.all(batch.map(async (comment) => {
+                try {
+                  await github.rest.issues.deleteComment({
+                    owner,
+                    repo,
+                    comment_id: comment.id,
+                  });
+                  deleted += 1;
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                }
+              }));
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+
+            const remaining = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const remainingTargets = remaining.filter(isRemovable);
+
+            core.notice(`Deleted ${deleted} comments. ${remaining.length} comments remain.`);
+            if (remainingTargets.length > 0) {
+              core.setFailed(`${remainingTargets.length} removable comments remain after compaction.`);
+            }
