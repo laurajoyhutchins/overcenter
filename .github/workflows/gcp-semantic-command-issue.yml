@@ -1,0 +1,124 @@
+name: GCP semantic command issue ingress
+run-name: GCP semantic issue #${{ github.event.issue.number }}
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+
+jobs:
+  invoke:
+    if: github.event.issue.title == '[overcenter-command]' && github.event.issue.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - name: Check out trusted default-branch ingress
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Verify exact authoritative ingress revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/dev"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$GITHUB_SHA"
+
+      - name: Prepare bounded semantic request
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/github-command-issue.mjs "$GITHUB_EVENT_PATH" "$GITHUB_SHA" > "$RUNNER_TEMP/prepared-command.json"
+          jq -e '.schema == "overcenter-github-command-prepared-v1" and (.payload | type == "object")' "$RUNNER_TEMP/prepared-command.json" >/dev/null
+          jq -c '.payload' "$RUNNER_TEMP/prepared-command.json" > "$RUNNER_TEMP/worker-command.json"
+
+      - name: Authenticate to authoritative GCP runtime
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
+          id_token_include_email: true
+          request_reason: Overcenter GitHub issue semantic command ${{ github.event.issue.number }}
+
+      - name: Invoke authoritative semantic command
+        id: invoke
+        shell: bash
+        env:
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+        run: |
+          set -euo pipefail
+          set +e
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/semantic-response.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $ID_TOKEN" \
+            -H 'content-type: application/json' \
+            -H 'x-overcenter-authority-mode: authoritative' \
+            -H "x-overcenter-request-id: github-issue:${ISSUE_NUMBER}:${GITHUB_SHA}" \
+            -X POST \
+            --data-binary @"$RUNNER_TEMP/worker-command.json" \
+            "$SERVICE_AUDIENCE/api/worker-command")"
+          curl_exit=$?
+          set -e
+          if [ "$curl_exit" -ne 0 ]; then
+            jq -n --arg message "GCP semantic command transport failed after dispatch; execution outcome is indeterminate" \
+              '{ok:false,error:"GITHUB_ISSUE_GCP_TRANSPORT_INDETERMINATE",message:$message,error_class:"transport",retryable:false,may_have_mutated:true,automatic_recovery_allowed:false,escalation_required:true}' \
+              > "$RUNNER_TEMP/semantic-response.json"
+            status=0
+          fi
+          echo "http_status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Publish sanitized command receipt
+        if: always() && steps.auth.outcome == 'success' && steps.invoke.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HTTP_STATUS: ${{ steps.invoke.outputs.http_status }}
+        run: |
+          set -euo pipefail
+          jq -c 'walk(if type == "object" then del(.lease_token,.token,.authorization,.id_token) else . end)' \
+            "$RUNNER_TEMP/semantic-response.json" > "$RUNNER_TEMP/sanitized-response.json"
+          jq -n \
+            --arg schema "overcenter-github-command-response-v1" \
+            --arg expected_head "$GITHUB_SHA" \
+            --arg request_id "github-issue:${ISSUE_NUMBER}:${GITHUB_SHA}" \
+            --arg http_status "$HTTP_STATUS" \
+            --slurpfile response "$RUNNER_TEMP/sanitized-response.json" \
+            '{schema:$schema,request_id:$request_id,expected_head:$expected_head,http_status:($http_status|tonumber),response:$response[0]}' \
+            > "$RUNNER_TEMP/receipt.json"
+          {
+            echo '<!-- overcenter-github-command-response-v1 -->'
+            echo '```json'
+            cat "$RUNNER_TEMP/receipt.json"
+            echo '```'
+          } > "$RUNNER_TEMP/comment.md"
+          jq -Rs '{body:.}' < "$RUNNER_TEMP/comment.md" > "$RUNNER_TEMP/comment.json"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            -H 'content-type: application/json' \
+            -X POST \
+            --data-binary @"$RUNNER_TEMP/comment.json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments" >/dev/null
+          jq -n '{state:"closed",state_reason:"completed"}' > "$RUNNER_TEMP/close.json"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            -H 'content-type: application/json' \
+            -X PATCH \
+            --data-binary @"$RUNNER_TEMP/close.json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER" >/dev/null
