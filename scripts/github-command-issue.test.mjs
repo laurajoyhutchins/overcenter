@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { prepareIssueCommand } from './github-command-issue.mjs';
 
 const SHA = 'a'.repeat(40);
+const TARGET_SHA = 'b'.repeat(40);
 const REQUEST_ID = `github-issue:901:${SHA}`;
 const CORRELATION = { origin:'operator', reasoning_boundary_id:REQUEST_ID };
 
@@ -59,7 +60,7 @@ test('preserves bounded project.advance continuation fields and uses only a real
   assert.deepEqual(result.payload.invocation_context, { ...CORRELATION, run_id:'run:abc' });
 });
 
-test('prepares owner-issued project.amend with exact authority and correlation but no synthetic run identity', () => {
+test('prepares owner-issued project.amend with independent target authority and correlation but no synthetic run identity', () => {
   const amendment = {
     upsert_transitions: [{
       id: 'single-execution-transaction-authority',
@@ -75,13 +76,14 @@ test('prepares owner-issued project.amend with exact authority and correlation b
     expected_head: SHA,
     command: 'project.amend',
     project_ref: 'github:laurajoyhutchins/overcenter',
+    expected_revision: TARGET_SHA,
     amendment,
   }), SHA);
   assert.deepEqual(result.payload, {
     command: 'project.amend',
     input: {
       project_ref: 'github:laurajoyhutchins/overcenter',
-      expected_revision: SHA,
+      expected_revision: TARGET_SHA,
       amendment,
     },
     invocation_context: CORRELATION,
