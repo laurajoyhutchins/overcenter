@@ -17,6 +17,7 @@ const ALLOWED_FIELDS = new Set([
   'expected_head',
   'command',
   'project_ref',
+  'expected_revision',
   'transition_id',
   'resume_ref',
   'execution_result',
@@ -72,6 +73,7 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   const projectRef = String(body.project_ref || '').trim();
   if (!isLeaseMutation && !isWorkflowDispatch && !['orchestration.diagnose', 'orchestration.maintain'].includes(command) && !PROJECT_REF.test(projectRef)) invalid('project_ref must be a canonical github:owner/repo reference');
 
+  const targetExpectedRevision = body.expected_revision === undefined ? '' : String(body.expected_revision).trim().toLowerCase();
   const transitionId = body.transition_id === undefined ? '' : String(body.transition_id).trim();
   const resumeRef = body.resume_ref === undefined ? '' : String(body.resume_ref).trim();
   const hasExecutionResult = body.execution_result !== undefined && body.execution_result !== null;
@@ -87,13 +89,13 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (JSON.stringify(body.amendment ?? {}).length > MAX_AMENDMENT_CHARS) invalid('amendment is too large');
 
   if (isLeaseMutation) {
-    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid(`${command} accepts only its bounded input envelope`);
+    if (body.project_ref !== undefined || body.expected_revision !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid(`${command} accepts only its bounded input envelope`);
     if (!hasInput) invalid(`${command} requires input`);
     const input = object(body.input, 'input');
     if (JSON.stringify(input).length > MAX_BOUNDED_INPUT_CHARS) invalid('lease mutation input is too large');
     if (typeof input.lease_ref !== 'string' || input.lease_ref.length < 1 || input.lease_ref.length > 128) invalid('lease mutation input requires a bounded lease_ref');
   } else if (isWorkflowDispatch) {
-    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid(`${command} accepts only its bounded input envelope`);
+    if (body.project_ref !== undefined || body.expected_revision !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid(`${command} accepts only its bounded input envelope`);
     if (!hasInput) invalid(`${command} requires input`);
     const input = object(body.input, 'input');
     if (JSON.stringify(input).length > MAX_BOUNDED_INPUT_CHARS) invalid('workflow dispatch input is too large');
@@ -107,6 +109,7 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   }
 
   if (!isLeaseMutation && !isWorkflowDispatch && !['orchestration.diagnose', 'project.advance'].includes(command) && (hasRunId || hasWorkRef)) invalid(`${command} does not accept diagnose fields`);
+  if (command !== 'project.amend' && body.expected_revision !== undefined) invalid(`${command} does not accept expected_revision`);
   if (command === 'project.inspect' && (transitionId || resumeRef || hasExecutionResult || hasAmendment)) invalid('project.inspect does not accept continuation or amendment fields');
   if (command === 'project.advance') {
     if (hasExecutionResult && !resumeRef) invalid('execution_result requires resume_ref');
@@ -119,14 +122,15 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (command === 'project.amend') {
     if (!hasAmendment) invalid('project.amend requires amendment');
     if (transitionId || resumeRef || hasExecutionResult) invalid('project.amend does not accept continuation fields');
+    if (!SHA40.test(targetExpectedRevision)) invalid('project.amend expected_revision must be a full Git SHA');
   }
   if (command === 'orchestration.diagnose') {
-    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment) invalid('orchestration.diagnose does not accept project or continuation fields');
+    if (body.project_ref !== undefined || body.expected_revision !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment) invalid('orchestration.diagnose does not accept project or continuation fields');
     if (typeof body.run_id !== 'string' || body.run_id.length < 1 || body.run_id.length > 512) invalid('orchestration.diagnose run_id must be a string between 1 and 512 characters');
     if (hasWorkRef && (typeof body.work_ref !== 'string' || body.work_ref.length < 1 || body.work_ref.length > 128)) invalid('orchestration.diagnose work_ref must be a string between 1 and 128 characters');
   }
   if (command === 'orchestration.maintain') {
-    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid('orchestration.maintain does not accept project, continuation, or diagnose fields');
+    if (body.project_ref !== undefined || body.expected_revision !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid('orchestration.maintain does not accept project, continuation, or diagnose fields');
   }
 
   const issueNumber = Number(issue.number);
@@ -146,7 +150,7 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
     if (hasExecutionResult) input.execution_result = body.execution_result;
   }
   if (command === 'project.amend') {
-    input.expected_revision = authorityRevision;
+    input.expected_revision = targetExpectedRevision;
     input.amendment = body.amendment;
   }
   const durableRunId = command === 'orchestration.diagnose'
