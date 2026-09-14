@@ -91,3 +91,14 @@ test('trusted default-branch workflow invokes GCP directly and emits a sanitized
   assert.match(workflow, /issues\/\$ISSUE_NUMBER\/comments/);
   assert.match(workflow, /state_reason.*completed/);
 });
+
+test('required exact-revision gate verifies the portable GCP boundary without Hatchable', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/exact-revision-v8.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /TARGET_REVISION/);
+  assert.match(workflow, /git rev-parse HEAD/);
+  assert.match(workflow, /npm run build:portable/);
+  assert.match(workflow, /cloud-run-command-ingress-host\.test\.mjs/);
+  assert.match(workflow, /cloud-run-target-authority\.test\.mjs/);
+  assert.match(workflow, /github-command-issue\.test\.mjs/);
+  assert.doesNotMatch(workflow, /HATCHABLE_TOKEN|HATCHABLE_VERIFICATION_PROJECT|exact-revision-v8-dist-verification-http|Hatchable V8 runtime/);
+});
