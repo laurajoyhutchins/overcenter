@@ -8,7 +8,9 @@ The migration rule is:
 
 This document is the repository-owned disposition doctrine for the current Hatchable PostgreSQL state surface. It defines what must survive in the hot GCP authority store, what may be compiled into a canonical representation, what belongs only in a sealed historical archive, and what carries no migration obligation.
 
-The current application-state census is the 22-table Hatchable schema observed at migration planning time. `__hatchable_migrations` is source schema-history metadata and is handled separately from the 22 application-state tables.
+The current application-state census is the 22-table Hatchable schema observed at migration planning time. `__hatchable_migrations` is source schema-history metadata and `overcenter_authority_freeze` is cutover-control state; both are handled separately from the 22 application-state tables.
+
+The executable `migration-state-contract-v2` cutover contract is authoritative when this doctrine and migration code differ. It defines a fresh runtime epoch: GitHub plus an empty canonical Cloud SQL target must recover current project truth. Consequently the current census uses `TRANSFORM` only for bounded GitHub recovery-seed inputs and `DISCARD` for source-epoch runtime/projection state. `PRESERVE` and `ARCHIVE` remain valid disposition categories for future state classes, but no current application table is assigned either category. A complete immutable source backup may retain bytes without making those bytes a semantic `ARCHIVE` input.
 
 ## Four dispositions
 
@@ -43,6 +45,9 @@ The semantic manifest uses stable reason codes rather than free-form prose as th
 | `CANONICAL_EFFECT_EVIDENCE` | Legacy provider-effect or idempotency records are compiled into canonical durable effect evidence. |
 | `CANONICAL_PROOF_EVIDENCE` | Legacy verification evidence is compiled into canonical proof state. |
 | `CANONICAL_RECOVERY_EVIDENCE` | Historical mutation/recovery facts are retained in the canonical recovery/evidence model. |
+| `GITHUB_RECOVERY_SEED` | The source row contributes only bounded inputs needed to reconstruct current project truth from GitHub in an empty canonical target. |
+| `GITHUB_RECOVERABLE_EFFECT` | The consequential effect is authoritatively recoverable from exact GitHub state; the source receipt does not cross the runtime epoch. |
+| `GITHUB_RECOVERABLE_PROOF` | The proof can be freshly reconstructed from exact GitHub authority and current verification, so source proof rows do not migrate. |
 | `RUNTIME_EPOCH_RESET` | The semantic capability exists in GCP, but source-era live authority is not transferable and must be freshly issued. |
 | `PROVIDER_NEUTRALIZATION` | Durable meaning survives after provider-specific identity or projection fields are removed from the core model. |
 | `LEGACY_HISTORY_ONLY` | Historical evidence is retained only in the sealed archive. |
@@ -52,6 +57,8 @@ The semantic manifest uses stable reason codes rather than free-form prose as th
 | `NONTRANSFERABLE_CAPABILITY` | Capability-bearing material is never migrated as authority. |
 | `SYNTHETIC_OR_INVALID_EVIDENCE` | Known synthetic, orphaned, or invalid evidence must not become target authority. |
 | `PROVIDER_IMPLEMENTATION_STATE` | Hosting/platform implementation state is not an Overcenter semantic fact. |
+| `PROVIDER_PROJECTION_STATE` | Provider/projection bookkeeping is not current provider-neutral authority and is rebuilt from authoritative sources when needed. |
+| `CUTOVER_CONTROL_STATE` | State exists only to fence and prove the one-time source freeze; it is not target runtime authority. |
 
 A manifest entry may name a primary reason plus field- or row-level overrides. An override may only move state to an equally or more conservative disposition. For example, a TRANSFORM table may contain fields that are DISCARD.
 
@@ -61,17 +68,17 @@ This is the required baseline classification. The migration manifest expands it 
 
 | Source table | Primary disposition | Reason | Required treatment |
 | --- | --- | --- | --- |
-| `execution_state` | TRANSFORM | `RUNTIME_EPOCH_RESET` | Preserve the provider-neutral execution-state model, but do not carry source-era live execution authority into GCP. Recreate current execution state only from valid post-cutover authority. |
-| `github_changeset_receipts` | TRANSFORM | `CANONICAL_EFFECT_EVIDENCE` | Preserve exact consequential effect and idempotency truth in canonical effect evidence. Provider/request representation need not remain hot. |
-| `github_production_promotion_receipts` | TRANSFORM | `CANONICAL_EFFECT_EVIDENCE` | Preserve exact promotion effect, idempotency, mutation certainty, and authoritative result identity. |
-| `github_release_receipts` | TRANSFORM | `CANONICAL_EFFECT_EVIDENCE` | Preserve exact release effect, idempotency, mutation certainty, and authoritative provider coordinates needed for replay protection. |
+| `execution_state` | DISCARD | `RUNTIME_EPOCH_RESET` | Source-era execution authority is non-transferable. Recreate execution state only inside the new GCP runtime epoch from current GitHub/canonical authority. |
+| `github_changeset_receipts` | DISCARD | `GITHUB_RECOVERABLE_EFFECT` | Exact GitHub state is the recovery authority for the effect; source-era receipt rows are not imported into the new runtime epoch. |
+| `github_production_promotion_receipts` | DISCARD | `GITHUB_RECOVERABLE_EFFECT` | Recover promotion outcome from exact GitHub authority; do not transplant source receipt/idempotency state across epochs. |
+| `github_release_receipts` | DISCARD | `GITHUB_RECOVERABLE_EFFECT` | Recover release outcome from exact GitHub authority; the source receipt is not target execution authority. |
 | `github_required_check_observations` | DISCARD | `DERIVED_STATE` | Re-observe required checks against exact current GitHub authority after cutover. Historical observations do not authorize new effects. |
-| `operation_state` | PRESERVE | `CURRENT_KERNEL_TRUTH` | Preserve current effect identity, idempotency, mutation certainty, recovery state, and resolution truth. Final cutover requires no unresolved potentially mutating operation. |
-| `orchestration_command_invocations` | TRANSFORM | `CANONICAL_RECOVERY_EVIDENCE` | Compile valid durable command/effect facts into canonical execution evidence; retain raw historical rows only where required by the archive. Synthetic/invalid rows are never target authority. |
+| `operation_state` | DISCARD | `RUNTIME_EPOCH_RESET` | Final freeze requires zero unresolved non-GitHub effects; source operation authority then ends and fresh target operation state starts empty. |
+| `orchestration_command_invocations` | DISCARD | `RUNTIME_EPOCH_RESET` | Invocation bookkeeping is source-runtime execution state. Current work is reconstructed after cutover rather than replaying source invocation authority. |
 | `orchestration_horizons` | DISCARD | `DERIVED_STATE` | Recompute frontier/horizon projections from current graph and evidence. |
-| `orchestration_invocation_resolutions` | TRANSFORM | `CANONICAL_RECOVERY_EVIDENCE` | Preserve definitive resolution facts and their evidence without requiring the legacy invocation-resolution table as hot authority. |
-| `orchestration_runs` | TRANSFORM | `RUNTIME_EPOCH_RESET` | Preserve terminal execution/effect/evidence provenance where irreducible; archive historical run detail; issue no source-era active run authority in GCP. |
-| `orchestration_skill_activations` | ARCHIVE | `LEGACY_HISTORY_ONLY` | Retain historical execution context when useful for audit; do not make skill-activation history current execution authority. |
+| `orchestration_invocation_resolutions` | DISCARD | `RUNTIME_EPOCH_RESET` | Resolution bookkeeping belongs to the source orchestration epoch; target recovery re-derives current truth from GitHub and canonical state. |
+| `orchestration_runs` | DISCARD | `RUNTIME_EPOCH_RESET` | No source run identity crosses hosting epochs. GCP starts a fresh run epoch after quiescence and recovery verification. |
+| `orchestration_skill_activations` | DISCARD | `RUNTIME_EPOCH_RESET` | Skill activation is source-runtime execution bookkeeping and has no target authority or irreducible recovery obligation. |
 | `portfolio_reconcile_receipts` | ARCHIVE | `LEGACY_PROJECTION_ONLY` | Retain legacy projection reconciliation history if needed for forensics. It is not part of the provider-neutral kernel. |
 | `portfolio_repository_branch_roles` | PRESERVE | `REPOSITORY_POLICY_TRUTH` | Preserve current repository branch-role policy as durable Overcenter-owned configuration. |
 | `portfolio_repository_disposition` | PRESERVE | `REPOSITORY_POLICY_TRUTH` | Preserve repository lifecycle/disposition policy and immutable provider identity where applicable. |
