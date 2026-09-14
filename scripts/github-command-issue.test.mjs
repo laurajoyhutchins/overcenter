@@ -84,6 +84,42 @@ test('prepares owner-issued project.amend with exact authority supplied by the t
   });
 });
 
+test('prepares bounded owner-issued orchestration.diagnose without project context', () => {
+  const result = prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1',
+    expected_head: SHA,
+    command: 'orchestration.diagnose',
+    run_id: 'run:833',
+    work_ref: 'project-authoring:833',
+  }), SHA);
+  assert.deepEqual(result.payload, {
+    command: 'orchestration.diagnose',
+    input: {
+      run_id: 'run:833',
+      work_ref: 'project-authoring:833',
+    },
+    invocation_context: { run_id: `github-issue:901:${SHA}` },
+  });
+});
+
+test('rejects malformed or cross-command orchestration.diagnose fields before dispatch', () => {
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose',
+  }), SHA), /run_id/);
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose', run_id: 'x'.repeat(513),
+  }), SHA), /run_id/);
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose', run_id: 'run:833', work_ref: 'x'.repeat(129),
+  }), SHA), /work_ref/);
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'orchestration.diagnose', run_id: 'run:833', project_ref: 'github:laurajoyhutchins/overcenter',
+  }), SHA), /does not accept project/);
+  assert.throws(() => prepareIssueCommand(event({
+    schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter', run_id: 'run:833',
+  }), SHA), /does not accept diagnose/);
+});
+
 test('rejects non-owner, stale-revision, unknown-field, and oversized amendment requests before dispatch', () => {
   assert.throws(() => prepareIssueCommand(event({
     schema: 'overcenter-github-command-v1', expected_head: SHA, command: 'project.inspect', project_ref: 'github:laurajoyhutchins/overcenter',
