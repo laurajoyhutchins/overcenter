@@ -203,6 +203,18 @@
       "semver_kind": "semantic-command-contract",
       "lifecycle": "current"
     },
+    "semantic-command:github.issue.close#input": {
+      "logical_contract": "github.issue.close.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract",
+      "lifecycle": "current"
+    },
+    "semantic-command:github.pull_request.close#input": {
+      "logical_contract": "github.pull_request.close.input",
+      "significance": "public",
+      "semver_kind": "semantic-command-contract",
+      "lifecycle": "current"
+    },
     "semantic-command:github.release.create#input": {
       "logical_contract": "github.release.create.input",
       "significance": "public",
