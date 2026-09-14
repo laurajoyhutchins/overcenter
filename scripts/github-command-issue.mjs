@@ -62,14 +62,10 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
 
   const command = String(body.command || '').trim();
   const admitted = new Set(['project.inspect', 'project.advance', 'project.amend', 'orchestration.diagnose', ...LEASE_MUTATION_COMMANDS]);
-  if (!admitted.has(command)) {
-    invalid('command is not admitted by the bounded GitHub issue ingress');
-  }
+  if (!admitted.has(command)) invalid('command is not admitted by the bounded GitHub issue ingress');
   const isLeaseMutation = LEASE_MUTATION_COMMANDS.has(command);
   const projectRef = String(body.project_ref || '').trim();
-  if (!isLeaseMutation && command !== 'orchestration.diagnose' && !PROJECT_REF.test(projectRef)) {
-    invalid('project_ref must be a canonical github:owner/repo reference');
-  }
+  if (!isLeaseMutation && command !== 'orchestration.diagnose' && !PROJECT_REF.test(projectRef)) invalid('project_ref must be a canonical github:owner/repo reference');
 
   const transitionId = body.transition_id === undefined ? '' : String(body.transition_id).trim();
   const resumeRef = body.resume_ref === undefined ? '' : String(body.resume_ref).trim();
@@ -86,43 +82,33 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (JSON.stringify(body.amendment ?? {}).length > MAX_AMENDMENT_CHARS) invalid('amendment is too large');
 
   if (isLeaseMutation) {
-    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) {
-      invalid(`${command} accepts only its bounded input envelope`);
-    }
+    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid(`${command} accepts only its bounded input envelope`);
     if (!hasInput) invalid(`${command} requires input`);
     const input = object(body.input, 'input');
     if (JSON.stringify(input).length > MAX_LEASE_MUTATION_INPUT_CHARS) invalid('lease mutation input is too large');
-    if (typeof input.lease_ref !== 'string' || input.lease_ref.length < 1 || input.lease_ref.length > 128) {
-      invalid('lease mutation input requires a bounded lease_ref');
-    }
+    if (typeof input.lease_ref !== 'string' || input.lease_ref.length < 1 || input.lease_ref.length > 128) invalid('lease mutation input requires a bounded lease_ref');
   } else if (hasInput) {
     invalid(`${command} does not accept input`);
   }
 
-  if (!isLeaseMutation && command !== 'orchestration.diagnose' && (hasRunId || hasWorkRef)) {
-    invalid(`${command} does not accept diagnose fields`);
-  }
-  if (command === 'project.inspect' && (transitionId || resumeRef || hasExecutionResult || hasAmendment)) {
-    invalid('project.inspect does not accept continuation or amendment fields');
-  }
+  if (!isLeaseMutation && !['orchestration.diagnose', 'project.advance'].includes(command) && (hasRunId || hasWorkRef)) invalid(`${command} does not accept diagnose fields`);
+  if (command === 'project.inspect' && (transitionId || resumeRef || hasExecutionResult || hasAmendment)) invalid('project.inspect does not accept continuation or amendment fields');
   if (command === 'project.advance') {
     if (hasExecutionResult && !resumeRef) invalid('execution_result requires resume_ref');
-    if (hasAmendment) invalid('project.advance does not accept amendment');
+    if (hasAmendment || hasWorkRef) invalid('project.advance does not accept amendment or work_ref');
+    if (hasRunId) {
+      if (!resumeRef) invalid('project.advance run_id is accepted only for a continuation with resume_ref');
+      if (typeof body.run_id !== 'string' || body.run_id.length < 1 || body.run_id.length > 512) invalid('project.advance run_id must be a string between 1 and 512 characters');
+    }
   }
   if (command === 'project.amend') {
     if (!hasAmendment) invalid('project.amend requires amendment');
     if (transitionId || resumeRef || hasExecutionResult) invalid('project.amend does not accept continuation fields');
   }
   if (command === 'orchestration.diagnose') {
-    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment) {
-      invalid('orchestration.diagnose does not accept project or continuation fields');
-    }
-    if (typeof body.run_id !== 'string' || body.run_id.length < 1 || body.run_id.length > 512) {
-      invalid('orchestration.diagnose run_id must be a string between 1 and 512 characters');
-    }
-    if (hasWorkRef && (typeof body.work_ref !== 'string' || body.work_ref.length < 1 || body.work_ref.length > 128)) {
-      invalid('orchestration.diagnose work_ref must be a string between 1 and 128 characters');
-    }
+    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment) invalid('orchestration.diagnose does not accept project or continuation fields');
+    if (typeof body.run_id !== 'string' || body.run_id.length < 1 || body.run_id.length > 512) invalid('orchestration.diagnose run_id must be a string between 1 and 512 characters');
+    if (hasWorkRef && (typeof body.work_ref !== 'string' || body.work_ref.length < 1 || body.work_ref.length > 128)) invalid('orchestration.diagnose work_ref must be a string between 1 and 128 characters');
   }
 
   const issueNumber = Number(issue.number);
@@ -151,7 +137,7 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
     payload:{
       command,
       input,
-      invocation_context:{ run_id:requestId },
+      invocation_context:{ run_id:command === 'project.advance' && hasRunId ? body.run_id : requestId },
     },
   };
 }
