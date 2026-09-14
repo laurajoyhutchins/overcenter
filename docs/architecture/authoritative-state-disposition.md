@@ -8,7 +8,9 @@ The migration rule is:
 
 This document is the repository-owned disposition doctrine for the current Hatchable PostgreSQL state surface. It defines what must survive in the hot GCP authority store, what may be compiled into a canonical representation, what belongs only in a sealed historical archive, and what carries no migration obligation.
 
-The current application-state census is the 22-table Hatchable schema observed at migration planning time. `__hatchable_migrations` is source schema-history metadata and is handled separately from the 22 application-state tables.
+The current application-state census is the 22-table Hatchable schema observed at migration planning time. `__hatchable_migrations` is source schema-history metadata and `overcenter_authority_freeze` is cutover-control state; both are handled separately from the 22 application-state tables.
+
+The executable `migration-state-contract-v2` cutover contract is authoritative when this doctrine and migration code differ. It defines a fresh runtime epoch: GitHub plus an empty canonical Cloud SQL target must recover current project truth. Consequently the current census uses `TRANSFORM` only for bounded GitHub recovery-seed inputs and `DISCARD` for source-epoch runtime/projection state. `PRESERVE` and `ARCHIVE` remain valid disposition categories for future state classes, but no current application table is assigned either category. A complete immutable source backup may retain bytes without making those bytes a semantic `ARCHIVE` input.
 
 ## Four dispositions
 
@@ -43,6 +45,9 @@ The semantic manifest uses stable reason codes rather than free-form prose as th
 | `CANONICAL_EFFECT_EVIDENCE` | Legacy provider-effect or idempotency records are compiled into canonical durable effect evidence. |
 | `CANONICAL_PROOF_EVIDENCE` | Legacy verification evidence is compiled into canonical proof state. |
 | `CANONICAL_RECOVERY_EVIDENCE` | Historical mutation/recovery facts are retained in the canonical recovery/evidence model. |
+| `GITHUB_RECOVERY_SEED` | The source row contributes only bounded inputs needed to reconstruct current project truth from GitHub in an empty canonical target. |
+| `GITHUB_RECOVERABLE_EFFECT` | The consequential effect is authoritatively recoverable from exact GitHub state; the source receipt does not cross the runtime epoch. |
+| `GITHUB_RECOVERABLE_PROOF` | The proof can be freshly reconstructed from exact GitHub authority and current verification, so source proof rows do not migrate. |
 | `RUNTIME_EPOCH_RESET` | The semantic capability exists in GCP, but source-era live authority is not transferable and must be freshly issued. |
 | `PROVIDER_NEUTRALIZATION` | Durable meaning survives after provider-specific identity or projection fields are removed from the core model. |
 | `LEGACY_HISTORY_ONLY` | Historical evidence is retained only in the sealed archive. |
@@ -52,6 +57,8 @@ The semantic manifest uses stable reason codes rather than free-form prose as th
 | `NONTRANSFERABLE_CAPABILITY` | Capability-bearing material is never migrated as authority. |
 | `SYNTHETIC_OR_INVALID_EVIDENCE` | Known synthetic, orphaned, or invalid evidence must not become target authority. |
 | `PROVIDER_IMPLEMENTATION_STATE` | Hosting/platform implementation state is not an Overcenter semantic fact. |
+| `PROVIDER_PROJECTION_STATE` | Provider/projection bookkeeping is not current provider-neutral authority and is rebuilt from authoritative sources when needed. |
+| `CUTOVER_CONTROL_STATE` | State exists only to fence and prove the one-time source freeze; it is not target runtime authority. |
 
 A manifest entry may name a primary reason plus field- or row-level overrides. An override may only move state to an equally or more conservative disposition. For example, a TRANSFORM table may contain fields that are DISCARD.
 
@@ -61,28 +68,28 @@ This is the required baseline classification. The migration manifest expands it 
 
 | Source table | Primary disposition | Reason | Required treatment |
 | --- | --- | --- | --- |
-| `execution_state` | TRANSFORM | `RUNTIME_EPOCH_RESET` | Preserve the provider-neutral execution-state model, but do not carry source-era live execution authority into GCP. Recreate current execution state only from valid post-cutover authority. |
-| `github_changeset_receipts` | TRANSFORM | `CANONICAL_EFFECT_EVIDENCE` | Preserve exact consequential effect and idempotency truth in canonical effect evidence. Provider/request representation need not remain hot. |
-| `github_production_promotion_receipts` | TRANSFORM | `CANONICAL_EFFECT_EVIDENCE` | Preserve exact promotion effect, idempotency, mutation certainty, and authoritative result identity. |
-| `github_release_receipts` | TRANSFORM | `CANONICAL_EFFECT_EVIDENCE` | Preserve exact release effect, idempotency, mutation certainty, and authoritative provider coordinates needed for replay protection. |
+| `execution_state` | DISCARD | `RUNTIME_EPOCH_RESET` | Source-era execution authority is non-transferable. Recreate execution state only inside the new GCP runtime epoch from current GitHub/canonical authority. |
+| `github_changeset_receipts` | DISCARD | `GITHUB_RECOVERABLE_EFFECT` | Exact GitHub state is the recovery authority for the effect; source-era receipt rows are not imported into the new runtime epoch. |
+| `github_production_promotion_receipts` | DISCARD | `GITHUB_RECOVERABLE_EFFECT` | Recover promotion outcome from exact GitHub authority; do not transplant source receipt/idempotency state across epochs. |
+| `github_release_receipts` | DISCARD | `GITHUB_RECOVERABLE_EFFECT` | Recover release outcome from exact GitHub authority; the source receipt is not target execution authority. |
 | `github_required_check_observations` | DISCARD | `DERIVED_STATE` | Re-observe required checks against exact current GitHub authority after cutover. Historical observations do not authorize new effects. |
-| `operation_state` | PRESERVE | `CURRENT_KERNEL_TRUTH` | Preserve current effect identity, idempotency, mutation certainty, recovery state, and resolution truth. Final cutover requires no unresolved potentially mutating operation. |
-| `orchestration_command_invocations` | TRANSFORM | `CANONICAL_RECOVERY_EVIDENCE` | Compile valid durable command/effect facts into canonical execution evidence; retain raw historical rows only where required by the archive. Synthetic/invalid rows are never target authority. |
+| `operation_state` | DISCARD | `RUNTIME_EPOCH_RESET` | Final freeze requires zero unresolved non-GitHub effects; source operation authority then ends and fresh target operation state starts empty. |
+| `orchestration_command_invocations` | DISCARD | `RUNTIME_EPOCH_RESET` | Invocation bookkeeping is source-runtime execution state. Current work is reconstructed after cutover rather than replaying source invocation authority. |
 | `orchestration_horizons` | DISCARD | `DERIVED_STATE` | Recompute frontier/horizon projections from current graph and evidence. |
-| `orchestration_invocation_resolutions` | TRANSFORM | `CANONICAL_RECOVERY_EVIDENCE` | Preserve definitive resolution facts and their evidence without requiring the legacy invocation-resolution table as hot authority. |
-| `orchestration_runs` | TRANSFORM | `RUNTIME_EPOCH_RESET` | Preserve terminal execution/effect/evidence provenance where irreducible; archive historical run detail; issue no source-era active run authority in GCP. |
-| `orchestration_skill_activations` | ARCHIVE | `LEGACY_HISTORY_ONLY` | Retain historical execution context when useful for audit; do not make skill-activation history current execution authority. |
-| `portfolio_reconcile_receipts` | ARCHIVE | `LEGACY_PROJECTION_ONLY` | Retain legacy projection reconciliation history if needed for forensics. It is not part of the provider-neutral kernel. |
-| `portfolio_repository_branch_roles` | PRESERVE | `REPOSITORY_POLICY_TRUTH` | Preserve current repository branch-role policy as durable Overcenter-owned configuration. |
-| `portfolio_repository_disposition` | PRESERVE | `REPOSITORY_POLICY_TRUTH` | Preserve repository lifecycle/disposition policy and immutable provider identity where applicable. |
-| `portfolio_verification_receipts` | TRANSFORM | `CANONICAL_PROOF_EVIDENCE` | Compile still-valid proof facts into `proof_state` or its canonical successor; do not maintain two proof models. |
-| `portfolio_work_identity` | TRANSFORM | `PROVIDER_NEUTRALIZATION` | Preserve source work identity only where still semantically required; remove legacy projection identifiers from core authority and archive them if historically useful. |
-| `proof_state` | PRESERVE | `CURRENT_KERNEL_TRUTH` | Preserve exact subject, predicate, authority revision, evidence identity, satisfaction, and consumption truth. |
-| `scheduled_cycle_events` | ARCHIVE | `LEGACY_HISTORY_ONLY` | Seal legacy scheduler history for audit if retained. Never use it to reconstruct current scheduler or execution authority. |
-| `work_lease_checkpoints` | ARCHIVE | `LEGACY_HISTORY_ONLY` | Retain historical checkpoint evidence where useful. No checkpoint grants authority after the hosting epoch changes. |
-| `work_lease_heartbeats` | DISCARD | `EPHEMERAL_COORDINATION` | Heartbeats are source-runtime liveness coordination. They are neither proof nor transferable authority. |
-| `work_lease_slots` | DISCARD | `EPHEMERAL_COORDINATION` | Source-era slot occupancy must be empty/effectively dead at freeze and is recreated only by new GCP authority. |
-| `work_leases` | TRANSFORM | `RUNTIME_EPOCH_RESET` | Preserve terminal settlement/effect evidence where required, but never migrate live lease authority. GCP issues fresh leases after cutover. |
+| `orchestration_invocation_resolutions` | DISCARD | `RUNTIME_EPOCH_RESET` | Resolution bookkeeping belongs to the source orchestration epoch; target recovery re-derives current truth from GitHub and canonical state. |
+| `orchestration_runs` | DISCARD | `RUNTIME_EPOCH_RESET` | No source run identity crosses hosting epochs. GCP starts a fresh run epoch after quiescence and recovery verification. |
+| `orchestration_skill_activations` | DISCARD | `RUNTIME_EPOCH_RESET` | Skill activation is source-runtime execution bookkeeping and has no target authority or irreducible recovery obligation. |
+| `portfolio_reconcile_receipts` | DISCARD | `LEGACY_PROJECTION_ONLY` | Legacy projection reconciliation history is not current authority and is omitted from the canonical target. |
+| `portfolio_repository_branch_roles` | TRANSFORM | `GITHUB_RECOVERY_SEED` | Convert current branch-role policy into the bounded GitHub recovery seed used to reconstruct canonical target truth. |
+| `portfolio_repository_disposition` | TRANSFORM | `GITHUB_RECOVERY_SEED` | Convert repository lifecycle/disposition facts into the bounded GitHub recovery seed; do not transplant the legacy table shape. |
+| `portfolio_verification_receipts` | DISCARD | `GITHUB_RECOVERABLE_PROOF` | Re-run verification against exact GitHub authority in the target epoch rather than importing source proof receipts. |
+| `portfolio_work_identity` | DISCARD | `PROVIDER_PROJECTION_STATE` | Legacy provider/projection work identity is rebuilt from current canonical project and GitHub state when needed. |
+| `proof_state` | DISCARD | `GITHUB_RECOVERABLE_PROOF` | Source proof rows do not cross the epoch. Fresh target proof state is produced from exact GitHub authority and current verification. |
+| `scheduled_cycle_events` | DISCARD | `RUNTIME_EPOCH_RESET` | Legacy scheduler events are source-epoch runtime state and have no target authority. |
+| `work_lease_checkpoints` | DISCARD | `RUNTIME_EPOCH_RESET` | Source checkpoints cannot grant or reconstruct target authority; the new runtime starts from current GitHub/canonical truth. |
+| `work_lease_heartbeats` | DISCARD | `RUNTIME_EPOCH_RESET` | Heartbeats are source-runtime liveness state and are abandoned with the old runtime epoch. |
+| `work_lease_slots` | DISCARD | `RUNTIME_EPOCH_RESET` | Source slot authority must be quiescent at freeze and is recreated only by fresh GCP execution authority. |
+| `work_leases` | TRANSFORM | `GITHUB_RECOVERY_SEED` | Extract only the bounded recovery seed needed to reconstruct current project truth; no source lease, token, run, or expiry authority survives the cutover. |
 
 ## Mandatory field and row overrides
 
@@ -99,7 +106,8 @@ Table-level classification is intentionally insufficient for mixed-purpose rows.
 - Attempt tokens are source-operation coordination and do not survive merely because a terminal receipt stores them.
 - Linear identifiers and legacy lifecycle/lane fields are projection/compatibility data, not graph authority. Preserve only provider-neutral semantic identity required by the current runtime; archive historical projection relationships where useful.
 - Known synthetic, test-fixture, orphaned, or invalid historical evidence is never promoted into canonical target truth. It is either `ARCHIVE / SYNTHETIC_OR_INVALID_EVIDENCE` for forensics or `DISCARD / SYNTHETIC_OR_INVALID_EVIDENCE` when it has no irreducible value.
-- `__hatchable_migrations` is `ARCHIVE / PROVIDER_IMPLEMENTATION_STATE`. Cloud SQL starts from one squashed canonical baseline rather than replaying the Hatchable migration chain.
+- `__hatchable_migrations` is `DISCARD / PROVIDER_IMPLEMENTATION_STATE`. Cloud SQL starts from one squashed canonical baseline rather than replaying the Hatchable migration chain.
+- `overcenter_authority_freeze` is `DISCARD / CUTOVER_CONTROL_STATE`. It proves and fences the one-time source freeze but never becomes target runtime authority.
 - Source sequence values are preserved only when required to interpret retained archive ordering or canonical identities. A sequence does not become target authority merely because the source used it.
 
 ## Target conceptual schema
@@ -132,9 +140,9 @@ GitHub authority
 
 The historical archive is not a shadow database. It cannot answer "who owns this lease?", "is this transition ready?", "did this effect settle?", or any other current execution-authority question.
 
-## `migration-semantic-manifest-v1`
+## `migration-semantic-manifest-v2`
 
-The migration verifier accounts for semantic truth rather than demanding source/target table equality.
+The migration verifier accounts for semantic truth rather than demanding source/target table equality. The executable v2 invariant is `github-plus-empty-canonical-cloud-sql-recovers-current-project-truth`: source runtime state is not transplanted merely because it exists.
 
 At minimum the manifest records:
 
@@ -142,8 +150,8 @@ At minimum the manifest records:
 - source schema/census version and the complete set of discovered tables, fields, sequences, and migration metadata;
 - one disposition and reason code for every source state class;
 - source row counts and deterministic content digests for preserved, transformed, and archived inputs;
-- target semantic identities/digests for PRESERVE and TRANSFORM outputs;
-- archive object identity, count, digest, and source provenance for ARCHIVE state;
+- target semantic identities/digests for any PRESERVE outputs and the bounded GitHub recovery seed produced by TRANSFORM inputs;
+- archive object identity, count, digest, and source provenance for any ARCHIVE state;
 - explicit recomputation/abandonment proof for DISCARD state;
 - exceptional row classifications, including synthetic/invalid evidence;
 - quiescence evidence for runs, leases, slots, operations, and indeterminate effects;
@@ -178,10 +186,10 @@ Before any freeze, the migration MUST be rehearsed end to end while Hatchable re
 1. capture a deterministic source snapshot or export suitable for rehearsal;
 2. classify every discovered source state class;
 3. build the squashed target schema in a disposable/staging target;
-4. transform/import PRESERVE and TRANSFORM state;
-5. produce and verify the sealed archive for ARCHIVE state;
+4. derive the bounded TRANSFORM recovery seed and reconstruct an empty canonical target from GitHub plus that seed; the current census has no PRESERVE table;
+5. if a future state class is ARCHIVE, produce and verify its sealed archive; the current census has no ARCHIVE application table;
 6. prove DISCARD state has no current authority or irreducible evidence obligation;
-7. generate `migration-semantic-manifest-v1` and fail on any unclassified or unmatched fact;
+7. generate `migration-semantic-manifest-v2` and fail on any unclassified or unmatched fact;
 8. run recovery and evidence-integrity checks against the target;
 9. exercise provider-neutral read semantics and safe non-consequential runtime probes against the rehearsal target;
 10. destroy/recreate the rehearsal target and prove deterministic replay.
