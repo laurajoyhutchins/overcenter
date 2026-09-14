@@ -27,6 +27,7 @@ const maintainedTests = [
   'cloud-run-target-activation-exit.test.mjs',
   'cloud-run-target-authority.test.mjs',
   'codex-agent-execution-workflow.test.mjs',
+  'codex-gcp-live-smoke-workflow.test.mjs',
   'codex-project-agent-execution.integration.test.mjs',
   'gcp-activation-cnb-launcher.test.mjs',
   'gcp-command-forwarder.test.mjs',
