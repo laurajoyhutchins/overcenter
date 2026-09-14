@@ -34,8 +34,15 @@ function memoryOperations() {
       if (row.request_sha256 !== input.request_sha256) return { outcome:'conflict', recovered:false, operation:publicRow() };
       if (terminal.has(row.state)) return { outcome:'terminal', recovered:false, operation:publicRow() };
       if (row.state === 'indeterminate') return { outcome:'indeterminate', recovered:false, operation:publicRow() };
+      return { outcome:'in_progress', recovered:false, operation:publicRow() };
+    },
+    async claimPending(input) {
+      calls.push({ op:'claimPending', input:clone(input) });
+      if (!row || row.command !== input.command || row.idempotency_scope !== input.scope || row.idempotency_key !== input.idempotency_key) return null;
+      if (row.request_sha256 !== input.request_sha256 || row.state !== 'prepared') return null;
+      if (row.recovery_payload?.phase !== input.phase || row.recovery_payload?.attempt_token !== input.prior_attempt_token) return null;
       row.recovery_payload = { ...row.recovery_payload, attempt_token:input.attempt_token };
-      return { outcome:'claimed', recovered:true, operation:publicRow() };
+      return publicRow();
     },
     async updateRecovery(input) {
       calls.push({ op:'updateRecovery', input:clone(input) });
@@ -123,6 +130,11 @@ test('integration intent refreshes its own accepted head, waits, submits merge, 
   assert.equal(observed[3].expected_head, UPDATED_HEAD);
   assert.equal(observed[3].merge_request_uuid, 'merge-uuid');
   assert.equal(observed[3].apply, true);
+
+  const handoffs = operations.calls.filter((call) => call.op === 'claimPending');
+  assert.equal(handoffs.length, 3);
+  assert.equal(handoffs[0].input.prior_attempt_token, 'attempt-1');
+  assert.equal(handoffs[0].input.attempt_token, 'attempt-2');
 });
 
 test('failed verification becomes requires_judgment instead of an automatic retry', async () => {
@@ -178,10 +190,13 @@ test('uncertain mutation is parked indeterminate and never reissued blindly', as
   assert.equal(calls, 1);
 });
 
-test('compact operation store exposes a terminal token-fenced rejection path', async () => {
+test('compact operation store exposes token-fenced terminal rejection and pending handoff paths', async () => {
   const source = await readFile(new URL('../lib/compact-provider-operation-store.js', import.meta.url), 'utf8');
   assert.match(source, /async function reject\(input = \{\}\)/);
   assert.match(source, /SET state='rejected'/);
   assert.match(source, /recovery_payload->>'attempt_token'=\$4/);
-  assert.match(source, /return Object\.freeze\(\{[^}]*reject/s);
+  assert.match(source, /async function claimPending\(input = \{\}\)/);
+  assert.match(source, /recovery_payload->>'phase'=\$8/);
+  assert.match(source, /recovery_payload->>'attempt_token'=\$5/);
+  assert.match(source, /return Object\.freeze\(\{[^}]*claimPending[^}]*reject/s);
 });
