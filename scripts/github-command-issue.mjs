@@ -10,6 +10,8 @@ const LEASE_MUTATION_COMMANDS = new Set([
   'github.coalesce_changeset',
   'github.apply_text_replacements',
 ]);
+const WORKFLOW_DISPATCH_COMMAND = 'github.workflow.dispatch';
+const WORKFLOW_DISPATCH_FIELDS = new Set(['repo', 'workflow', 'ref', 'expected_head', 'inputs']);
 const ALLOWED_FIELDS = new Set([
   'schema',
   'expected_head',
@@ -25,7 +27,7 @@ const ALLOWED_FIELDS = new Set([
 ]);
 const MAX_BODY_CHARS = 16_384;
 const MAX_AMENDMENT_CHARS = 12_000;
-const MAX_LEASE_MUTATION_INPUT_CHARS = 14_000;
+const MAX_BOUNDED_INPUT_CHARS = 14_000;
 
 function invalid(message) {
   throw Object.assign(new Error(message), { code:'GITHUB_COMMAND_ISSUE_INVALID' });
@@ -42,6 +44,8 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   const issue = object(event.issue, 'issue');
   const repository = object(event.repository, 'repository');
   const owner = String(repository.owner?.login || '').trim();
+  const repositoryName = String(repository.name || '').trim();
+  const repositoryFullName = String(repository.full_name || (owner && repositoryName ? `${owner}/${repositoryName}` : '')).trim();
   const issueUser = String(issue.user?.login || '').trim();
   if (!owner || issueUser !== owner) invalid('command issue must be authored by the repository owner');
   if (String(issue.title || '') !== '[overcenter-command]') invalid('command issue title is invalid');
@@ -61,11 +65,12 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (expectedHead !== authorityRevision) invalid('command issue is stale relative to the trusted dev revision');
 
   const command = String(body.command || '').trim();
-  const admitted = new Set(['project.inspect', 'project.advance', 'project.amend', 'orchestration.diagnose', 'orchestration.maintain', ...LEASE_MUTATION_COMMANDS]);
+  const admitted = new Set(['project.inspect', 'project.advance', 'project.amend', 'orchestration.diagnose', 'orchestration.maintain', WORKFLOW_DISPATCH_COMMAND, ...LEASE_MUTATION_COMMANDS]);
   if (!admitted.has(command)) invalid('command is not admitted by the bounded GitHub issue ingress');
   const isLeaseMutation = LEASE_MUTATION_COMMANDS.has(command);
+  const isWorkflowDispatch = command === WORKFLOW_DISPATCH_COMMAND;
   const projectRef = String(body.project_ref || '').trim();
-  if (!isLeaseMutation && !['orchestration.diagnose', 'orchestration.maintain'].includes(command) && !PROJECT_REF.test(projectRef)) invalid('project_ref must be a canonical github:owner/repo reference');
+  if (!isLeaseMutation && !isWorkflowDispatch && !['orchestration.diagnose', 'orchestration.maintain'].includes(command) && !PROJECT_REF.test(projectRef)) invalid('project_ref must be a canonical github:owner/repo reference');
 
   const transitionId = body.transition_id === undefined ? '' : String(body.transition_id).trim();
   const resumeRef = body.resume_ref === undefined ? '' : String(body.resume_ref).trim();
@@ -85,13 +90,23 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
     if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid(`${command} accepts only its bounded input envelope`);
     if (!hasInput) invalid(`${command} requires input`);
     const input = object(body.input, 'input');
-    if (JSON.stringify(input).length > MAX_LEASE_MUTATION_INPUT_CHARS) invalid('lease mutation input is too large');
+    if (JSON.stringify(input).length > MAX_BOUNDED_INPUT_CHARS) invalid('lease mutation input is too large');
     if (typeof input.lease_ref !== 'string' || input.lease_ref.length < 1 || input.lease_ref.length > 128) invalid('lease mutation input requires a bounded lease_ref');
+  } else if (isWorkflowDispatch) {
+    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid(`${command} accepts only its bounded input envelope`);
+    if (!hasInput) invalid(`${command} requires input`);
+    const input = object(body.input, 'input');
+    if (JSON.stringify(input).length > MAX_BOUNDED_INPUT_CHARS) invalid('workflow dispatch input is too large');
+    const unknownInput = Object.keys(input).filter((key) => !WORKFLOW_DISPATCH_FIELDS.has(key));
+    if (unknownInput.length) invalid(`workflow dispatch input contains unknown fields: ${unknownInput.sort().join(', ')}`);
+    if (!repositoryFullName || String(input.repo || '').trim() !== repositoryFullName) invalid('workflow dispatch must target the same repository as the command issue');
+    if (String(input.ref || '').trim() !== 'dev') invalid('workflow dispatch must target the trusted dev branch');
+    if (String(input.expected_head || '').trim().toLowerCase() !== authorityRevision) invalid('workflow dispatch expected_head must match exact authority');
   } else if (hasInput) {
     invalid(`${command} does not accept input`);
   }
 
-  if (!isLeaseMutation && !['orchestration.diagnose', 'project.advance'].includes(command) && (hasRunId || hasWorkRef)) invalid(`${command} does not accept diagnose fields`);
+  if (!isLeaseMutation && !isWorkflowDispatch && !['orchestration.diagnose', 'project.advance'].includes(command) && (hasRunId || hasWorkRef)) invalid(`${command} does not accept diagnose fields`);
   if (command === 'project.inspect' && (transitionId || resumeRef || hasExecutionResult || hasAmendment)) invalid('project.inspect does not accept continuation or amendment fields');
   if (command === 'project.advance') {
     if (hasExecutionResult && !resumeRef) invalid('execution_result requires resume_ref');
@@ -117,7 +132,7 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   const issueNumber = Number(issue.number);
   if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) invalid('issue number is invalid');
   const requestId = `github-issue:${issueNumber}:${authorityRevision}`;
-  const input = isLeaseMutation
+  const input = isLeaseMutation || isWorkflowDispatch
     ? body.input
     : command === 'orchestration.diagnose'
       ? { run_id:body.run_id }
