@@ -112,20 +112,10 @@ test('authoritative-effect confirmation proves an already-integrated exact candi
   assert.ok(calls.some(([kind, input]) => kind === 'compareCommits' && input.base === SHA.merge && input.head === SHA.development));
 });
 
-test('authoritative-effect confirmation proves squash-merged exact candidate by tree identity when provider omits merge commit SHA', async () => {
-  const tree = 'a'.repeat(40);
+test('authoritative-effect confirmation rejects merged PR evidence without immutable merge commit identity', async () => {
   const { service, calls } = fixture({
     async readPullRequests() {
       return [{ number:599, state:'closed', merged_at:'2026-09-06T00:49:52Z', merge_commit_sha:null, head:{ sha:SHA.candidate, ref:'work/transition-1-abc' }, base:{ ref:'dev' } }];
-    },
-    async compareCommits(input) {
-      calls.push(['compareCommits', input]);
-      return {
-        status:'diverged',
-        behind_by:3,
-        base_commit:{ commit:{ tree:{ sha:tree } } },
-        commits:[{ sha:SHA.development, commit:{ tree:{ sha:tree } } }],
-      };
     },
   });
   const result = await service.confirm({
@@ -134,12 +124,8 @@ test('authoritative-effect confirmation proves squash-merged exact candidate by 
     execution_result:executionResult,
   });
 
-  assert.equal(result.confirmed, true);
-  assert.deepEqual(result.evidence, [
-    { kind:'authoritative_effect', ref:`github:laurajoyhutchins/overcenter#599@${SHA.development}` },
-    { kind:'authority_readback', ref:`github:laurajoyhutchins/overcenter@${SHA.development}` },
-  ]);
-  assert.ok(calls.some(([kind, input]) => kind === 'compareCommits' && input.base === SHA.candidate && input.head === SHA.development));
+  assert.deepEqual(result, { confirmed:false, reason:'authoritative_effect_not_observed' });
+  assert.equal(calls.some(([kind]) => kind === 'compareCommits'), false);
 });
 
 test('authoritative-effect confirmation remains unconfirmed while only the exact candidate exists', async () => {
