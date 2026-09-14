@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { appendFile, chmod, lstat, readFile, writeFile } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { connectHatchableRemoteMcp } from './exact-revision-v8-verification-http.mjs';
+import { runGcpSemanticCommand } from './gcp-semantic-command-client.mjs';
 
 const SHA40 = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -83,7 +83,7 @@ function promptFor(packet) {
   const requirements = packet.execution_intent.acceptance_evidence
     .map((entry, index) => `${index + 1}. [${entry.kind}] ${entry.requirement}`)
     .join('\n');
-  return `You are a disposable implementation agent executing one authority-bound Overcenter packet.\n\nRepository: ${packet.repository}\nExact source revision: ${packet.authority.revision}\nTransition: ${packet.transition_id}\n\nDesired outcome:\n${packet.execution_intent.desired_outcome}\n\nAcceptance evidence required:\n${requirements}\n\nExecution rules:\n- Treat this packet and the checked-out repository as the complete task context. Do not reconstruct intent from prior conversations.\n- Work only inside the provided checkout. Do not commit, push, open pull requests, settle work, or mutate remote services.\n- Do not use GitHub, Hatchable, or OpenAI API credentials. Deterministic software owns external mutation and settlement.\n- Inspect the repository, make the smallest safe changes needed, and run relevant verification.\n- If the desired outcome cannot be completed from this packet and checkout alone, return status \"blocked\" and explain the missing authority or information.\n- Your final response must conform exactly to the supplied JSON schema. Evidence entries should name concrete tests, checks, or blocking facts.\n`;
+  return `You are a disposable implementation agent executing one authority-bound Overcenter packet.\n\nRepository: ${packet.repository}\nExact source revision: ${packet.authority.revision}\nTransition: ${packet.transition_id}\n\nDesired outcome:\n${packet.execution_intent.desired_outcome}\n\nAcceptance evidence required:\n${requirements}\n\nExecution rules:\n- Treat this packet and the checked-out repository as the complete task context. Do not reconstruct intent from prior conversations.\n- Work only inside the provided checkout. Do not commit, push, open pull requests, settle work, or mutate remote services.\n- Do not use GitHub, GCP, or OpenAI API credentials. Deterministic software owns external mutation and settlement.\n- Inspect the repository, make the smallest safe changes needed, and run relevant verification.\n- If the desired outcome cannot be completed from this packet and checkout alone, return status \"blocked\" and explain the missing authority or information.\n- Your final response must conform exactly to the supplied JSON schema. Evidence entries should name concrete tests, checks, or blocking facts.\n`;
 }
 
 async function appendGithubOutput(entries) {
@@ -92,19 +92,12 @@ async function appendGithubOutput(entries) {
   await appendFile(output, Object.entries(entries).map(([key, value]) => `${key}=${String(value)}\n`).join(''));
 }
 
-async function runOvercenter(connection, projectId, command, input) {
-  const response = await connection.callTool('run_function', {
-    project_id: projectId,
-    path: '/api/worker-command',
-    method: 'POST',
-    body: { command, input },
-  });
-  const status = Number(response?.status ?? response?.result?.status ?? 0);
-  const body = response?.body ?? response?.result?.body ?? response;
-  if (status !== 200 || body?.ok !== true) {
-    reject('OVERCENTER_COMMAND_FAILED', `${command} failed`, { status, body });
-  }
-  return body;
+function gcpCommandOptions(env) {
+  return {
+    serviceUrl: required(env.OVERCENTER_SERVICE_URL, 'OVERCENTER_SERVICE_URL'),
+    idToken: required(env.OVERCENTER_ID_TOKEN, 'OVERCENTER_ID_TOKEN'),
+    requestId: required(env.OVERCENTER_REQUEST_ID, 'OVERCENTER_REQUEST_ID'),
+  };
 }
 
 function codexChildEnvironment() {
@@ -120,9 +113,12 @@ function codexChildEnvironment() {
   childEnv.CI = 'true';
   delete childEnv.OPENAI_API_KEY;
   delete childEnv.CODEX_API_KEY;
-  delete childEnv.HATCHABLE_TOKEN;
+  delete childEnv.OVERCENTER_ID_TOKEN;
   delete childEnv.GITHUB_TOKEN;
   delete childEnv.GH_TOKEN;
+  delete childEnv.GOOGLE_GHA_CREDS_PATH;
+  delete childEnv.GOOGLE_APPLICATION_CREDENTIALS;
+  delete childEnv.CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE;
   return childEnv;
 }
 
@@ -235,24 +231,21 @@ async function collectChanges(workspace) {
 }
 
 async function prepare(env = process.env) {
-  const token = required(env.HATCHABLE_TOKEN, 'HATCHABLE_TOKEN');
-  const projectId = required(env.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT, 'OVERCENTER_HATCHABLE_PRODUCTION_PROJECT');
   const repository = required(env.GITHUB_REPOSITORY, 'GITHUB_REPOSITORY');
   const transitionId = required(env.CODEX_TRANSITION_ID, 'CODEX_TRANSITION_ID');
   const packetPath = required(env.CODEX_PACKET_PATH, 'CODEX_PACKET_PATH');
   const promptPath = required(env.CODEX_PROMPT_PATH, 'CODEX_PROMPT_PATH');
-  const connection = await connectHatchableRemoteMcp({ token });
-  try {
-    const body = await runOvercenter(connection, projectId, 'project.advance', { project_ref: `github:${repository}`, transition_id: transitionId });
-    const packet = normalizePacket(body, repository, transitionId);
-    await writeFile(packetPath, `${JSON.stringify(packet, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
-    await writeFile(promptPath, promptFor(packet), { encoding: 'utf8', mode: 0o600 });
-    try { await chmod(packetPath, 0o600); await chmod(promptPath, 0o600); } catch {}
-    await appendGithubOutput({ repository: packet.repository, revision: packet.authority.revision });
-    process.stdout.write(`${JSON.stringify({ ok: true, outcome: body.outcome, transition_id: packet.transition_id, revision: packet.authority.revision, expires_at: packet.expires_at })}\n`);
-  } finally {
-    await connection.close();
-  }
+  const body = await runGcpSemanticCommand({
+    ...gcpCommandOptions(env),
+    command: 'project.advance',
+    input: { project_ref: `github:${repository}`, transition_id: transitionId },
+  });
+  const packet = normalizePacket(body, repository, transitionId);
+  await writeFile(packetPath, `${JSON.stringify(packet, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  await writeFile(promptPath, promptFor(packet), { encoding: 'utf8', mode: 0o600 });
+  try { await chmod(packetPath, 0o600); await chmod(promptPath, 0o600); } catch {}
+  await appendGithubOutput({ repository: packet.repository, revision: packet.authority.revision });
+  process.stdout.write(`${JSON.stringify({ ok: true, outcome: body.outcome, transition_id: packet.transition_id, revision: packet.authority.revision, expires_at: packet.expires_at })}\n`);
 }
 
 async function execute(env = process.env) {
@@ -302,8 +295,6 @@ async function execute(env = process.env) {
 }
 
 async function apply(env = process.env) {
-  const token = required(env.HATCHABLE_TOKEN, 'HATCHABLE_TOKEN');
-  const projectId = required(env.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT, 'OVERCENTER_HATCHABLE_PRODUCTION_PROJECT');
   const packetPath = required(env.CODEX_PACKET_PATH, 'CODEX_PACKET_PATH');
   const resultPath = required(env.CODEX_RESULT_PATH, 'CODEX_RESULT_PATH');
   const receiptPath = required(env.CODEX_APPLY_RECEIPT_PATH, 'CODEX_APPLY_RECEIPT_PATH');
@@ -316,33 +307,32 @@ async function apply(env = process.env) {
   if (Date.parse(packet.expires_at) <= Date.now() + EXPIRY_RESERVE_MS) reject('CODEX_LEASE_WINDOW_EXPIRED', 'execution lease no longer has a safe mutation window');
   const changes = await collectChanges(workspace);
 
-  const connection = await connectHatchableRemoteMcp({ token });
-  try {
-    const receipt = await runOvercenter(connection, projectId, 'github.apply_changeset', {
+  const receipt = await runGcpSemanticCommand({
+    ...gcpCommandOptions(env),
+    command: 'github.apply_changeset',
+    input: {
       lease_ref: packet.lease_ref,
       changes,
       commit_message: `codex: ${packet.transition_id}`,
-    });
-    if (receipt?.execution_authority?.lease_ref !== packet.lease_ref || receipt?.execution_authority?.run_id !== packet.run_id) {
-      reject('CODEX_APPLY_AUTHORITY_MISMATCH', 'Overcenter changeset receipt is not bound to the packet execution authority');
-    }
-    const boundedReceipt = {
-      schema: 'overcenter-codex-apply-receipt-v1',
-      run_id: packet.run_id,
-      transition_id: packet.transition_id,
-      authority_revision: packet.authority.revision,
-      branch: receipt.branch,
-      commit_sha: receipt.commit_sha,
-      changed_paths: Array.isArray(receipt.changed_paths) ? receipt.changed_paths : [],
-      codex_result: result,
-    };
-    await writeFile(receiptPath, `${JSON.stringify(boundedReceipt, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
-    try { await chmod(receiptPath, 0o600); } catch {}
-    await appendGithubOutput({ branch: receipt.branch, commit_sha: receipt.commit_sha });
-    process.stdout.write(`${JSON.stringify({ ok: true, branch: receipt.branch, commit_sha: receipt.commit_sha, changed_paths: boundedReceipt.changed_paths.length })}\n`);
-  } finally {
-    await connection.close();
+    },
+  });
+  if (receipt?.execution_authority?.lease_ref !== packet.lease_ref || receipt?.execution_authority?.run_id !== packet.run_id) {
+    reject('CODEX_APPLY_AUTHORITY_MISMATCH', 'Overcenter changeset receipt is not bound to the packet execution authority');
   }
+  const boundedReceipt = {
+    schema: 'overcenter-codex-apply-receipt-v1',
+    run_id: packet.run_id,
+    transition_id: packet.transition_id,
+    authority_revision: packet.authority.revision,
+    branch: receipt.branch,
+    commit_sha: receipt.commit_sha,
+    changed_paths: Array.isArray(receipt.changed_paths) ? receipt.changed_paths : [],
+    codex_result: result,
+  };
+  await writeFile(receiptPath, `${JSON.stringify(boundedReceipt, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  try { await chmod(receiptPath, 0o600); } catch {}
+  await appendGithubOutput({ branch: receipt.branch, commit_sha: receipt.commit_sha });
+  process.stdout.write(`${JSON.stringify({ ok: true, branch: receipt.branch, commit_sha: receipt.commit_sha, changed_paths: boundedReceipt.changed_paths.length })}\n`);
 }
 
 export { apply, collectChanges, execute, normalizePacket, prepare, validateCodexResult };
