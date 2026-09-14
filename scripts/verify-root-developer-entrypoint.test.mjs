@@ -69,7 +69,7 @@ test('CI consumes the root package contract instead of ad hoc dependency recipes
   assert.ok(semantic.includes('npm run typecheck'));
   assert.ok(semantic.includes('npm run build'));
   assert.ok(semantic.includes('npm run test:integration'));
-  assert.ok(exact.includes('npm run build:runtime'));
+  assert.ok(exact.includes('npm run build:portable'));
   assert.ok(production.includes('npm run build:runtime'));
 });
 
