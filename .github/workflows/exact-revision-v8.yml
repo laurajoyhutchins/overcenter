@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: overcenter-hatchable-mcp
+  group: overcenter-exact-revision-runtime
   cancel-in-progress: false
 
 jobs:
@@ -34,17 +34,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Prove exact revision checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_REVISION"
       - name: Install canonical dependencies
         run: npm ci
-      - name: Build runtime artifact
-        run: npm run build:runtime
+      - name: Build portable GCP runtime artifact
+        run: npm run build:portable
+      - name: Verify portable GCP runtime and ingress contracts
+        run: >-
+          node --test
+          scripts/cloud-run-command-ingress-host.test.mjs
+          scripts/cloud-run-host.test.mjs
+          scripts/cloud-run-target-authority.test.mjs
+          scripts/cloud-run-target-activation-exit.test.mjs
+          scripts/github-command-issue.test.mjs
       - name: Verify project authoring authority contracts
         run: node --test scripts/verify-project-authoring-readback-contract.test.mjs scripts/verify-project-authoring-github-adapter.test.mjs
-      - name: Verify exact revision in isolated Hatchable V8 runtime
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          EXACT_REVISION: ${{ env.TARGET_REVISION }}
-          HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
-          OVERCENTER_HATCHABLE_VERIFICATION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_VERIFICATION_PROJECT }}
-          OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ vars.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
-        run: node scripts/exact-revision-v8-dist-verification-http.mjs
