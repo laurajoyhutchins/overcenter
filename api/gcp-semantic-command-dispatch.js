@@ -19,7 +19,7 @@ const PROJECT_AUTHORING_COMMANDS = new Set(['project.amend']);
 const CONTROL_COMMANDS = new Set(['orchestration.maintain']);
 const DIAGNOSIS_COMMANDS = new Set(['orchestration.diagnose']);
 const PRODUCTION_COMMANDS = new Set(['production.reconcile']);
-const GITHUB_INTEGRATION_COMMANDS = new Set(['github.pull_request.mark_ready']);
+const GITHUB_INTEGRATION_COMMANDS = new Set(['github.pull_request.mark_ready', 'github.integration.reconcile']);
 const WORKFLOW_DISPATCH_COMMANDS = new Set(['github.workflow.dispatch']);
 const LEASE_MUTATION_COMMANDS = new Set(['github.apply_changeset', 'github.coalesce_changeset', 'github.apply_text_replacements']);
 const ALLOWED_COMMANDS = new Set([...PROJECT_COMMANDS, ...PROJECT_AUTHORING_COMMANDS, ...CONTROL_COMMANDS, ...DIAGNOSIS_COMMANDS, ...PRODUCTION_COMMANDS, ...GITHUB_INTEGRATION_COMMANDS, ...WORKFLOW_DISPATCH_COMMANDS, ...LEASE_MUTATION_COMMANDS]);
@@ -28,6 +28,7 @@ const PROJECT_AMEND_INPUT_FIELDS = new Set(['project_ref', 'expected_revision', 
 const ORCHESTRATION_DIAGNOSE_INPUT_FIELDS = new Set(['run_id', 'work_ref']);
 const PRODUCTION_RECONCILE_INPUT_FIELDS = new Set(['repo']);
 const GITHUB_PR_READY_INPUT_FIELDS = new Set(['repo', 'pull_request', 'expected_head', 'run_id']);
+const GITHUB_INTEGRATION_RECONCILE_INPUT_FIELDS = new Set(['repo', 'pull_request', 'expected_head', 'run_id']);
 const GITHUB_WORKFLOW_DISPATCH_INPUT_FIELDS = new Set(['repo', 'workflow', 'ref', 'expected_head', 'inputs']);
 const COMMAND_INPUT_CHUNK_SIZE = 4000;
 const MAX_COMMAND_INPUT_CHUNKS = 6;
@@ -91,19 +92,24 @@ function normalizeProductionReconcileInput(value) {
 }
 
 function normalizeGitHubIntegrationInput(command, value) {
-  if (command !== 'github.pull_request.mark_ready') throw invalid('unsupported GitHub integration command');
+  const allowed = command === 'github.integration.reconcile'
+    ? GITHUB_INTEGRATION_RECONCILE_INPUT_FIELDS
+    : command === 'github.pull_request.mark_ready'
+      ? GITHUB_PR_READY_INPUT_FIELDS
+      : null;
+  if (!allowed) throw invalid('unsupported GitHub integration command');
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid('input must be an object for GitHub integration commands');
   const input = value;
-  const unknown = Object.keys(input).filter((key) => !GITHUB_PR_READY_INPUT_FIELDS.has(key));
-  if (unknown.length) throw invalid('github.pull_request.mark_ready input contains unknown fields', { fields: unknown.sort() });
+  const unknown = Object.keys(input).filter((key) => !allowed.has(key));
+  if (unknown.length) throw invalid(`${command} input contains unknown fields`, { fields: unknown.sort() });
   const repo = String(input.repo || '').trim();
   const pullRequest = Number(input.pull_request);
   const expectedHead = String(input.expected_head || '').trim().toLowerCase();
   const runId = input.run_id === undefined ? '' : String(input.run_id).trim();
-  if (!REPOSITORY.test(repo)) throw invalid('github.pull_request.mark_ready repo must be owner/repo');
-  if (!Number.isInteger(pullRequest) || pullRequest < 1) throw invalid('github.pull_request.mark_ready pull_request must be a positive integer');
-  if (!SHA40.test(expectedHead)) throw invalid('github.pull_request.mark_ready expected_head must be an exact 40-character Git SHA');
-  if (runId && runId.length > 512) throw invalid('github.pull_request.mark_ready run_id is too large');
+  if (!REPOSITORY.test(repo)) throw invalid(`${command} repo must be owner/repo`);
+  if (!Number.isInteger(pullRequest) || pullRequest < 1) throw invalid(`${command} pull_request must be a positive integer`);
+  if (!SHA40.test(expectedHead)) throw invalid(`${command} expected_head must be an exact 40-character Git SHA`);
+  if (runId && runId.length > 512) throw invalid(`${command} run_id is too large`);
   const normalized = { repo, pull_request: pullRequest, expected_head: expectedHead };
   if (runId) normalized.run_id = runId;
   const encoded = JSON.stringify(normalized);
