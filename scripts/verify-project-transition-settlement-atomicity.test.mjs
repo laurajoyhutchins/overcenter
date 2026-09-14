@@ -82,6 +82,7 @@ test('project transition settlement delegates the lease and slot state change to
     lease_ref:lease.lease_ref,
     run_id:'run-1',
     disposition:'completed',
+    evidence:[{ kind:'authority', ref:`github:laurajoyhutchins/overcenter@${'1'.repeat(40)}` }],
     idempotency_key:'settle-atomic-settlement',
   });
   assert.equal(settled.status, 'settled');
