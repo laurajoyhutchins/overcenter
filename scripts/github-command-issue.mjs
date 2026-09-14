@@ -84,7 +84,7 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
     payload:{
       command,
       input,
-      invocation_context:{ run_id:requestId, expected_head:authorityRevision },
+      invocation_context:{ run_id:requestId },
     },
   };
 }
