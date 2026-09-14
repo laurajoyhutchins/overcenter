@@ -61,11 +61,11 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (expectedHead !== authorityRevision) invalid('command issue is stale relative to the trusted dev revision');
 
   const command = String(body.command || '').trim();
-  const admitted = new Set(['project.inspect', 'project.advance', 'project.amend', 'orchestration.diagnose', ...LEASE_MUTATION_COMMANDS]);
+  const admitted = new Set(['project.inspect', 'project.advance', 'project.amend', 'orchestration.diagnose', 'orchestration.maintain', ...LEASE_MUTATION_COMMANDS]);
   if (!admitted.has(command)) invalid('command is not admitted by the bounded GitHub issue ingress');
   const isLeaseMutation = LEASE_MUTATION_COMMANDS.has(command);
   const projectRef = String(body.project_ref || '').trim();
-  if (!isLeaseMutation && command !== 'orchestration.diagnose' && !PROJECT_REF.test(projectRef)) invalid('project_ref must be a canonical github:owner/repo reference');
+  if (!isLeaseMutation && !['orchestration.diagnose', 'orchestration.maintain'].includes(command) && !PROJECT_REF.test(projectRef)) invalid('project_ref must be a canonical github:owner/repo reference');
 
   const transitionId = body.transition_id === undefined ? '' : String(body.transition_id).trim();
   const resumeRef = body.resume_ref === undefined ? '' : String(body.resume_ref).trim();
@@ -110,6 +110,9 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
     if (typeof body.run_id !== 'string' || body.run_id.length < 1 || body.run_id.length > 512) invalid('orchestration.diagnose run_id must be a string between 1 and 512 characters');
     if (hasWorkRef && (typeof body.work_ref !== 'string' || body.work_ref.length < 1 || body.work_ref.length > 128)) invalid('orchestration.diagnose work_ref must be a string between 1 and 128 characters');
   }
+  if (command === 'orchestration.maintain') {
+    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid('orchestration.maintain does not accept project, continuation, or diagnose fields');
+  }
 
   const issueNumber = Number(issue.number);
   if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) invalid('issue number is invalid');
@@ -118,7 +121,9 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
     ? body.input
     : command === 'orchestration.diagnose'
       ? { run_id:body.run_id }
-      : { project_ref:projectRef };
+      : command === 'orchestration.maintain'
+        ? {}
+        : { project_ref:projectRef };
   if (command === 'orchestration.diagnose' && hasWorkRef) input.work_ref = body.work_ref;
   if (command === 'project.advance') {
     if (transitionId) input.transition_id = transitionId;
