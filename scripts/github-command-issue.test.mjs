@@ -230,3 +230,10 @@ test('required exact-revision gate verifies the portable GCP boundary without Ha
   assert.match(workflow, /github-command-issue\.test\.mjs/);
   assert.doesNotMatch(workflow, /HATCHABLE_TOKEN|HATCHABLE_VERIFICATION_PROJECT|exact-revision-v8-dist-verification-http|Hatchable V8 runtime/);
 });
+
+test('project.amend delegates through the generic authoritative semantic ingress', async () => {
+  const source = await readFile(new URL('../mcp/project.amend.js', import.meta.url), 'utf8');
+  assert.match(source, /authoritative-semantic-command-ingress/);
+  assert.doesNotMatch(source, /gcp-semantic-project-amend-relay/);
+  assert.doesNotMatch(source, /hatchable-runtime-providers/);
+});
