@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProjectAuthoringProductionRuntime } from '../lib/project-authoring-production-runtime.js';
+import { classifyOrchestrationFailure } from '../lib/orchestration-failures.js';
+import { sanitizeWorkerBoundaryError } from '../lib/worker-boundary-errors.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const stagedRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -88,4 +90,57 @@ test('indeterminate project authoring integration acquires durable recovery owne
   assert.equal(recoveries[0].staged_revision, stagedRevision);
   assert.equal(recoveries[0].pull_request, null);
   assert.deepEqual(recoveries[0].waiting_on, ['github_integration']);
+});
+
+test('indeterminate project.amend prescribes authoritative project readback, never orchestration.diagnose', () => {
+  const failure = classifyOrchestrationFailure({
+    command:'project.amend',
+    error_code:'PROJECT_AMEND_ERROR',
+    error_class:'internal',
+    may_have_mutated:true,
+  });
+  assert.equal(failure.failure_state, 'INDETERMINATE_EXTERNAL_EFFECT');
+  assert.equal(failure.recovery_operation?.command, 'project.inspect');
+  assert.equal(failure.recovery_operation?.mode, 'reconcile_authoritative_project_definition');
+  assert.equal(failure.automatic_recovery_allowed, false);
+  assert.equal(failure.escalation_required, true);
+});
+
+test('orchestration.diagnose is prescribed only with an actual durable orchestration run identity', () => {
+  const withoutRun = classifyOrchestrationFailure({
+    command:'orchestration.advance',
+    error_code:'GITHUB_INTEGRATION_INDETERMINATE',
+    error_class:'upstream',
+    may_have_mutated:true,
+  });
+  assert.equal(withoutRun.recovery_operation, null);
+
+  const withRun = classifyOrchestrationFailure({
+    command:'orchestration.advance',
+    error_code:'GITHUB_INTEGRATION_INDETERMINATE',
+    error_class:'upstream',
+    may_have_mutated:true,
+    details:{ run_id:'run:durable-1' },
+  });
+  assert.equal(withRun.recovery_operation?.command, 'orchestration.diagnose');
+  assert.deepEqual(withRun.recovery_operation?.input, { run_id:'run:durable-1' });
+});
+
+test('worker boundary preserves bounded nested provider diagnostics across project.amend wrapping', () => {
+  const error = new Error('GitHub project definition mutation did not return a confirmed exact revision');
+  error.code = 'PROJECT_AUTHORING_MUTATION_UNCONFIRMED';
+  error.may_have_mutated = true;
+  error.details = {
+    result:{ error:'GITHUB_APP_PERMISSION_DENIED', phase:'preflight.auth', may_have_mutated:false },
+    may_have_mutated:true,
+  };
+  const sanitized = sanitizeWorkerBoundaryError('project.amend', error, {
+    defaultError:'PROJECT_AMEND_ERROR',
+    defaultMessage:'project.amend failed',
+    logger:{ error() {} },
+  });
+  assert.equal(sanitized.code, 'PROJECT_AMEND_ERROR');
+  assert.equal(sanitized.details?.diagnostic_error_code, 'GITHUB_APP_PERMISSION_DENIED');
+  assert.equal(sanitized.details?.phase, 'preflight.auth');
+  assert.equal(sanitized.may_have_mutated, true);
 });
