@@ -29,4 +29,6 @@ test('command branch ingress is bounded, exact-revision, artifact-backed, and is
   assert.match(workflow, /actions\/upload-artifact/);
   assert.match(workflow, /overcenter-github-command-branch-response-v1/);
   assert.match(workflow, /git\/refs\/heads\/\$GITHUB_REF_NAME/);
+  assert.match(workflow, /Assert semantic command succeeded/);
+  assert.match(workflow, /jq -e '\.ok == true'/);
 });
