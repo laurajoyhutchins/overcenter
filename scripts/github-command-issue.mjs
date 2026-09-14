@@ -5,6 +5,8 @@ const SHA40 = /^[0-9a-f]{40}$/;
 const PROJECT_REF = /^github:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const TRANSITION = /^\S{1,256}$/;
 const RESUME = /^\S{1,512}$/;
+const RUN_ID = /^\S{1,512}$/;
+const WORK_REF = /^\S{1,128}$/;
 const ALLOWED_FIELDS = new Set([
   'schema',
   'expected_head',
@@ -14,6 +16,8 @@ const ALLOWED_FIELDS = new Set([
   'resume_ref',
   'execution_result',
   'amendment',
+  'run_id',
+  'work_ref',
 ]);
 const MAX_BODY_CHARS = 16_384;
 const MAX_AMENDMENT_CHARS = 12_000;
@@ -52,8 +56,8 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (expectedHead !== authorityRevision) invalid('command issue is stale relative to the trusted dev revision');
 
   const command = String(body.command || '').trim();
-  if (!['project.inspect', 'project.advance', 'project.amend'].includes(command)) {
-    invalid('only project.inspect, project.advance, and project.amend are admitted');
+  if (!['project.inspect', 'project.advance', 'project.amend', 'orchestration.diagnose'].includes(command)) {
+    invalid('only project.inspect, project.advance, project.amend, and orchestration.diagnose are admitted');
   }
   const projectRef = String(body.project_ref || '').trim();
   if (!PROJECT_REF.test(projectRef)) invalid('project_ref must be a canonical github:owner/repo reference');
@@ -62,29 +66,43 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   const resumeRef = body.resume_ref === undefined ? '' : String(body.resume_ref).trim();
   const hasExecutionResult = body.execution_result !== undefined && body.execution_result !== null;
   const hasAmendment = body.amendment !== undefined && body.amendment !== null;
+  const targetRunId = body.run_id === undefined ? '' : String(body.run_id).trim();
+  const workRef = body.work_ref === undefined ? '' : String(body.work_ref).trim();
   if (transitionId && !TRANSITION.test(transitionId)) invalid('transition_id is invalid');
   if (resumeRef && !RESUME.test(resumeRef)) invalid('resume_ref is invalid');
+  if (targetRunId && !RUN_ID.test(targetRunId)) invalid('run_id is invalid');
+  if (workRef && !WORK_REF.test(workRef)) invalid('work_ref is invalid');
   if (hasExecutionResult) object(body.execution_result, 'execution_result');
   if (JSON.stringify(body.execution_result ?? {}).length > 4096) invalid('execution_result is too large');
   if (hasAmendment) object(body.amendment, 'amendment');
   if (JSON.stringify(body.amendment ?? {}).length > MAX_AMENDMENT_CHARS) invalid('amendment is too large');
 
-  if (command === 'project.inspect' && (transitionId || resumeRef || hasExecutionResult || hasAmendment)) {
-    invalid('project.inspect does not accept continuation or amendment fields');
+  if (command === 'project.inspect' && (transitionId || resumeRef || hasExecutionResult || hasAmendment || targetRunId || workRef)) {
+    invalid('project.inspect does not accept continuation, amendment, or recovery fields');
   }
   if (command === 'project.advance') {
     if (hasExecutionResult && !resumeRef) invalid('execution_result requires resume_ref');
     if (hasAmendment) invalid('project.advance does not accept amendment');
+    if (targetRunId || workRef) invalid('project.advance does not accept recovery fields');
   }
   if (command === 'project.amend') {
     if (!hasAmendment) invalid('project.amend requires amendment');
     if (transitionId || resumeRef || hasExecutionResult) invalid('project.amend does not accept continuation fields');
+    if (targetRunId || workRef) invalid('project.amend does not accept recovery fields');
+  }
+  if (command === 'orchestration.diagnose') {
+    if (!targetRunId) invalid('orchestration.diagnose requires run_id');
+    if (transitionId || resumeRef || hasExecutionResult || hasAmendment) {
+      invalid('orchestration.diagnose does not accept project continuation or amendment fields');
+    }
   }
 
   const issueNumber = Number(issue.number);
   if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) invalid('issue number is invalid');
   const requestId = `github-issue:${issueNumber}:${authorityRevision}`;
-  const input = { project_ref:projectRef };
+  const input = command === 'orchestration.diagnose'
+    ? { run_id:targetRunId, ...(workRef ? { work_ref:workRef } : {}) }
+    : { project_ref:projectRef };
   if (command === 'project.advance') {
     if (transitionId) input.transition_id = transitionId;
     if (resumeRef) input.resume_ref = resumeRef;
