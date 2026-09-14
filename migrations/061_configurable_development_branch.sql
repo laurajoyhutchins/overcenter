@@ -1,0 +1,2 @@
+ALTER TABLE portfolio_repository_branch_roles
+  DROP CONSTRAINT IF EXISTS portfolio_repository_branch_roles_development_branch_check
