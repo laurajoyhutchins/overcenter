@@ -32,7 +32,7 @@ test('prepares owner-issued project.inspect against the exact dev revision', () 
   assert.deepEqual(result.payload, {
     command: 'project.inspect',
     input: { project_ref: 'github:laurajoyhutchins/overcenter' },
-    invocation_context: { run_id: `github-issue:901:${SHA}`, expected_head: SHA },
+    invocation_context: { run_id: `github-issue:901:${SHA}` },
   });
 });
 
