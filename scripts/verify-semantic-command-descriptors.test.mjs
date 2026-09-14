@@ -9,11 +9,13 @@ import {
 } from '../lib/semantic-command-descriptors.js';
 import { renderSemanticCommandReference } from './render-semantic-command-reference.mjs';
 
-const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.coalesce_changeset', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'orchestration.maintain', 'production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
+const expected = ['github.apply_changeset', 'github.apply_text_replacements', 'github.coalesce_changeset', 'github.issue.close', 'github.pull_request.close', 'github.pull_request.mark_ready', 'github.release.create', 'orchestration.diagnose', 'orchestration.maintain', 'production.promote', 'production.reconcile', 'project.advance', 'project.amend', 'project.define', 'project.inspect', 'release.publish', 'work.settle'];
 const expectedSurface = new Map([
   ['github.apply_changeset', 'advanced'],
   ['github.apply_text_replacements', 'advanced'],
   ['github.coalesce_changeset', 'advanced'],
+  ['github.issue.close', 'advanced'],
+  ['github.pull_request.close', 'advanced'],
   ['github.pull_request.mark_ready', 'advanced'],
   ['github.release.create', 'advanced'],
   ['orchestration.diagnose', 'operator'],
@@ -31,6 +33,8 @@ const expectedExposure = new Map([
   ['github.apply_changeset', { worker:true, mcp:false }],
   ['github.apply_text_replacements', { worker:true, mcp:false }],
   ['github.coalesce_changeset', { worker:true, mcp:false }],
+  ['github.issue.close', { worker:true, mcp:false }],
+  ['github.pull_request.close', { worker:true, mcp:false }],
   ['github.pull_request.mark_ready', { worker:true, mcp:false }],
   ['github.release.create', { worker:true, mcp:false }],
   ['orchestration.diagnose', { worker:true, mcp:false }],
@@ -127,7 +131,9 @@ test('release publish intent consumes a plan without exposing GitHub release boo
   assert.deepEqual(descriptor.required_fields, ['plan', 'body']);
   assert.deepEqual(descriptor.exposure, { worker:true, mcp:true });
   const mechanical = ['repo','target_sha','tag_name','name','draft','prerelease','expected_state','idempotency_key','run_id'];
-  for (const field of mechanical) assert.equal(descriptor.semantic_fields.includes(field), false, `${field} leaked through release.publish intent`);
+  for (const field of mechanical) {
+    assert.equal(descriptor.semantic_fields.includes(field), false, `${field} leaked through release.publish intent`);
+  }
 });
 
 test('migrated worker validation remains descriptor-derived for worker capabilities', async () => {
