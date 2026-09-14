@@ -2,3 +2,6 @@ dist/
 .semantic-build/
 .portable-build/
 node_modules/
+/generated/contracts/catalog.json
+/docs/generated/data-contracts.md
+/docs/generated/data-contract-authority-atlas.md
