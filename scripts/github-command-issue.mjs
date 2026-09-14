@@ -5,6 +5,11 @@ const SHA40 = /^[0-9a-f]{40}$/;
 const PROJECT_REF = /^github:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const TRANSITION = /^\S{1,256}$/;
 const RESUME = /^\S{1,512}$/;
+const LEASE_MUTATION_COMMANDS = new Set([
+  'github.apply_changeset',
+  'github.coalesce_changeset',
+  'github.apply_text_replacements',
+]);
 const ALLOWED_FIELDS = new Set([
   'schema',
   'expected_head',
@@ -16,9 +21,11 @@ const ALLOWED_FIELDS = new Set([
   'amendment',
   'run_id',
   'work_ref',
+  'input',
 ]);
 const MAX_BODY_CHARS = 16_384;
 const MAX_AMENDMENT_CHARS = 12_000;
+const MAX_LEASE_MUTATION_INPUT_CHARS = 14_000;
 
 function invalid(message) {
   throw Object.assign(new Error(message), { code:'GITHUB_COMMAND_ISSUE_INVALID' });
@@ -54,11 +61,13 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (expectedHead !== authorityRevision) invalid('command issue is stale relative to the trusted dev revision');
 
   const command = String(body.command || '').trim();
-  if (!['project.inspect', 'project.advance', 'project.amend', 'orchestration.diagnose'].includes(command)) {
-    invalid('only project.inspect, project.advance, project.amend, and orchestration.diagnose are admitted');
+  const admitted = new Set(['project.inspect', 'project.advance', 'project.amend', 'orchestration.diagnose', ...LEASE_MUTATION_COMMANDS]);
+  if (!admitted.has(command)) {
+    invalid('command is not admitted by the bounded GitHub issue ingress');
   }
+  const isLeaseMutation = LEASE_MUTATION_COMMANDS.has(command);
   const projectRef = String(body.project_ref || '').trim();
-  if (command !== 'orchestration.diagnose' && !PROJECT_REF.test(projectRef)) {
+  if (!isLeaseMutation && command !== 'orchestration.diagnose' && !PROJECT_REF.test(projectRef)) {
     invalid('project_ref must be a canonical github:owner/repo reference');
   }
 
@@ -68,6 +77,7 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   const hasAmendment = body.amendment !== undefined && body.amendment !== null;
   const hasRunId = body.run_id !== undefined;
   const hasWorkRef = body.work_ref !== undefined;
+  const hasInput = body.input !== undefined && body.input !== null;
   if (transitionId && !TRANSITION.test(transitionId)) invalid('transition_id is invalid');
   if (resumeRef && !RESUME.test(resumeRef)) invalid('resume_ref is invalid');
   if (hasExecutionResult) object(body.execution_result, 'execution_result');
@@ -75,7 +85,21 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (hasAmendment) object(body.amendment, 'amendment');
   if (JSON.stringify(body.amendment ?? {}).length > MAX_AMENDMENT_CHARS) invalid('amendment is too large');
 
-  if (command !== 'orchestration.diagnose' && (hasRunId || hasWorkRef)) {
+  if (isLeaseMutation) {
+    if (body.project_ref !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) {
+      invalid(`${command} accepts only its bounded input envelope`);
+    }
+    if (!hasInput) invalid(`${command} requires input`);
+    const input = object(body.input, 'input');
+    if (JSON.stringify(input).length > MAX_LEASE_MUTATION_INPUT_CHARS) invalid('lease mutation input is too large');
+    if (typeof input.lease_ref !== 'string' || input.lease_ref.length < 1 || input.lease_ref.length > 128) {
+      invalid('lease mutation input requires a bounded lease_ref');
+    }
+  } else if (hasInput) {
+    invalid(`${command} does not accept input`);
+  }
+
+  if (!isLeaseMutation && command !== 'orchestration.diagnose' && (hasRunId || hasWorkRef)) {
     invalid(`${command} does not accept diagnose fields`);
   }
   if (command === 'project.inspect' && (transitionId || resumeRef || hasExecutionResult || hasAmendment)) {
@@ -104,9 +128,11 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   const issueNumber = Number(issue.number);
   if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) invalid('issue number is invalid');
   const requestId = `github-issue:${issueNumber}:${authorityRevision}`;
-  const input = command === 'orchestration.diagnose'
-    ? { run_id:body.run_id }
-    : { project_ref:projectRef };
+  const input = isLeaseMutation
+    ? body.input
+    : command === 'orchestration.diagnose'
+      ? { run_id:body.run_id }
+      : { project_ref:projectRef };
   if (command === 'orchestration.diagnose' && hasWorkRef) input.work_ref = body.work_ref;
   if (command === 'project.advance') {
     if (transitionId) input.transition_id = transitionId;
