@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: codex-agent-${{ github.repository }}-${{ inputs.transition_id }}
@@ -19,12 +20,25 @@ jobs:
   execute:
     runs-on: [self-hosted, codex]
     timeout-minutes: 28
+    env:
+      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
     steps:
       - name: Check out executor control code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
           path: control
+          fetch-depth: 1
           persist-credentials: false
+
+      - name: Verify trusted executor control revision
+        shell: bash
+        working-directory: control
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/dev"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$GITHUB_SHA"
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -36,12 +50,27 @@ jobs:
       - name: Install executor dependencies
         run: npm ci --prefix control
 
+      - name: Authenticate prepare to authoritative GCP runtime
+        id: auth_prepare
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
+          id_token_include_email: true
+          create_credentials_file: false
+          export_environment_variables: false
+          request_reason: Codex prepare ${{ inputs.transition_id }} at ${{ github.sha }}
+
       - name: Acquire exact Overcenter execution packet
         id: prepare
         run: node control/scripts/codex-project-agent-execution.mjs prepare
         env:
-          HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
-          OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ secrets.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
+          OVERCENTER_SERVICE_URL: ${{ env.SERVICE_AUDIENCE }}
+          OVERCENTER_ID_TOKEN: ${{ steps.auth_prepare.outputs.id_token }}
+          OVERCENTER_REQUEST_ID: codex:${{ github.run_id }}:${{ github.run_attempt }}:prepare:${{ inputs.transition_id }}
           CODEX_TRANSITION_ID: ${{ inputs.transition_id }}
           CODEX_PACKET_PATH: ${{ runner.temp }}/overcenter-codex-packet.json
           CODEX_PROMPT_PATH: ${{ runner.temp }}/overcenter-codex-prompt.txt
@@ -65,12 +94,27 @@ jobs:
           CODEX_RESULT_SCHEMA: ${{ github.workspace }}/control/schemas/codex-agent-execution-result.schema.json
           CODEX_WORKSPACE: ${{ github.workspace }}/workspace
 
+      - name: Authenticate apply to authoritative GCP runtime
+        id: auth_apply
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
+          id_token_include_email: true
+          create_credentials_file: false
+          export_environment_variables: false
+          request_reason: Codex apply ${{ inputs.transition_id }} at ${{ github.sha }}
+
       - name: Apply Codex changes through Overcenter authority
         id: apply
         run: node control/scripts/codex-project-agent-execution.mjs apply
         env:
-          HATCHABLE_TOKEN: ${{ secrets.HATCHABLE_TOKEN }}
-          OVERCENTER_HATCHABLE_PRODUCTION_PROJECT: ${{ secrets.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT }}
+          OVERCENTER_SERVICE_URL: ${{ env.SERVICE_AUDIENCE }}
+          OVERCENTER_ID_TOKEN: ${{ steps.auth_apply.outputs.id_token }}
+          OVERCENTER_REQUEST_ID: codex:${{ github.run_id }}:${{ github.run_attempt }}:apply:${{ inputs.transition_id }}
           CODEX_PACKET_PATH: ${{ runner.temp }}/overcenter-codex-packet.json
           CODEX_RESULT_PATH: ${{ runner.temp }}/overcenter-codex-result.json
           CODEX_APPLY_RECEIPT_PATH: ${{ runner.temp }}/overcenter-codex-apply-receipt.json
