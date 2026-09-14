@@ -200,3 +200,11 @@ test('compact operation store exposes token-fenced terminal rejection and pendin
   assert.match(source, /recovery_payload->>'attempt_token'=\$5/);
   assert.match(source, /return Object\.freeze\(\{[^}]*claimPending[^}]*reject/s);
 });
+
+test('orchestration maintenance owns pending integration convergence without selecting semantic work', async () => {
+  const source = await readFile(new URL('../lib/orchestration-maintenance-subjects.js', import.meta.url), 'utf8');
+  assert.match(source, /createGithubIntegrationConvergenceForRuntime/);
+  assert.match(source, /kind:'github_integration'/);
+  assert.match(source, /createGithubIntegrationConvergenceForRuntime\(\{/);
+  assert.match(source, /\.reconcilePending\(request\)/);
+});
