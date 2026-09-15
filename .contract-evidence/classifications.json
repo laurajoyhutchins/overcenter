@@ -161,6 +161,12 @@
       "semver_kind": "database-layout",
       "lifecycle": "compatibility"
     },
+    "postgres:public.semantic_command_receipts#table": {
+      "logical_contract": "semantic-command.receipt.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
     "postgres:public.work_lease_checkpoints#table": {
       "logical_contract": "compatibility.work-lease-checkpoint.persistence",
       "significance": "durable-internal",
