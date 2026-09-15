@@ -79,7 +79,7 @@ jobs:
                 execution_result_json="$(jq -c '.execution_result' <<<"$input")"
               fi
               ;;
-            project.define|project.amend)
+            project.define|project.amend|project.artifact.bind)
               project_ref="$(jq -r '.project_ref' <<<"$input")"
               command_input_0="$input"
               ;;

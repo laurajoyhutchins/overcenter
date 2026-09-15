@@ -22,6 +22,9 @@ const ALLOWED_FIELDS = new Set([
   'resume_ref',
   'execution_result',
   'amendment',
+  'provider',
+  'relationship',
+  'satisfaction_condition',
   'run_id',
   'work_ref',
   'input',
@@ -66,7 +69,7 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (expectedHead !== authorityRevision) invalid('command issue is stale relative to the trusted dev revision');
 
   const command = String(body.command || '').trim();
-  const admitted = new Set(['project.inspect', 'project.advance', 'project.amend', 'orchestration.diagnose', 'orchestration.maintain', WORKFLOW_DISPATCH_COMMAND, ...LEASE_MUTATION_COMMANDS]);
+  const admitted = new Set(['project.inspect', 'project.advance', 'project.amend', 'project.artifact.bind', 'orchestration.diagnose', 'orchestration.maintain', WORKFLOW_DISPATCH_COMMAND, ...LEASE_MUTATION_COMMANDS]);
   if (!admitted.has(command)) invalid('command is not admitted by the bounded GitHub issue ingress');
   const isLeaseMutation = LEASE_MUTATION_COMMANDS.has(command);
   const isWorkflowDispatch = command === WORKFLOW_DISPATCH_COMMAND;
@@ -109,7 +112,7 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   }
 
   if (!isLeaseMutation && !isWorkflowDispatch && !['orchestration.diagnose', 'project.advance'].includes(command) && (hasRunId || hasWorkRef)) invalid(`${command} does not accept diagnose fields`);
-  if (command !== 'project.amend' && body.expected_revision !== undefined) invalid(`${command} does not accept expected_revision`);
+  if (!['project.amend', 'project.artifact.bind'].includes(command) && body.expected_revision !== undefined) invalid(`${command} does not accept expected_revision`);
   if (command === 'project.inspect' && (transitionId || resumeRef || hasExecutionResult || hasAmendment)) invalid('project.inspect does not accept continuation or amendment fields');
   if (command === 'project.advance') {
     if (hasExecutionResult && !resumeRef) invalid('execution_result requires resume_ref');
@@ -123,6 +126,17 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
     if (!hasAmendment) invalid('project.amend requires amendment');
     if (transitionId || resumeRef || hasExecutionResult) invalid('project.amend does not accept continuation fields');
     if (!SHA40.test(targetExpectedRevision)) invalid('project.amend expected_revision must be a full Git SHA');
+  }
+  if (command === 'project.artifact.bind') {
+    if (!transitionId) invalid('project.artifact.bind requires transition_id');
+    if (resumeRef || hasExecutionResult || hasAmendment || hasRunId || hasWorkRef) invalid('project.artifact.bind does not accept continuation, amendment, or diagnose fields');
+    if (!SHA40.test(targetExpectedRevision)) invalid('project.artifact.bind expected_revision must be a full Git SHA');
+    const provider = object(body.provider, 'provider');
+    if (!['issue', 'pull_request'].includes(provider.kind)) invalid('project.artifact.bind provider.kind is invalid');
+    if (!Number.isSafeInteger(provider.number) || provider.number < 1) invalid('project.artifact.bind provider.number must be a positive integer');
+    if (body.relationship !== 'full_coverage_equivalence') invalid('project.artifact.bind relationship is invalid');
+    if (!['closed', 'merged'].includes(body.satisfaction_condition)) invalid('project.artifact.bind satisfaction_condition is invalid');
+    if ((provider.kind === 'issue') !== (body.satisfaction_condition === 'closed')) invalid('project.artifact.bind satisfaction condition does not match provider kind');
   }
   if (command === 'orchestration.diagnose') {
     if (body.project_ref !== undefined || body.expected_revision !== undefined || transitionId || resumeRef || hasExecutionResult || hasAmendment) invalid('orchestration.diagnose does not accept project or continuation fields');
@@ -152,6 +166,13 @@ export function prepareIssueCommand(eventInput, authorityRevisionInput) {
   if (command === 'project.amend') {
     input.expected_revision = targetExpectedRevision;
     input.amendment = body.amendment;
+  }
+  if (command === 'project.artifact.bind') {
+    input.expected_revision = targetExpectedRevision;
+    input.transition_id = transitionId;
+    input.provider = body.provider;
+    input.relationship = body.relationship;
+    input.satisfaction_condition = body.satisfaction_condition;
   }
   const durableRunId = command === 'orchestration.diagnose'
     ? String(body.run_id)
