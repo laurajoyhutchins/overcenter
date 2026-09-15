@@ -40,6 +40,7 @@ const maintainedTests = [
   'github-command-issue.test.mjs',
   'postgres-state-manifest.test.mjs',
   'source-authority-fence.test.mjs',
+  'verify-gcp-exact-revision-orchestration-maintenance-dedupe.test.mjs',
   'verify-github-workflow-dispatch.test.mjs',
   'verify-root-developer-entrypoint.test.mjs',
   'verify-legacy-lane-isolation.test.mjs',

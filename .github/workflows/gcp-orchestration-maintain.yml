@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   maintain:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -54,12 +55,21 @@ jobs:
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
         run: |
           set -euo pipefail
-          payload="$(jq -n --arg command 'orchestration.maintain' '{command:$command,input:{}}')"
+          authoritative_revision="$(git rev-parse HEAD)"
+          test "$authoritative_revision" = "$(git ls-remote origin refs/heads/dev | cut -f1)"
+          timed_maintenance_epoch="$(date -u +'%Y-%m-%dT%H:00:00Z')"
+          request_id="maintenance:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}"
+          payload="$(jq -n \
+            --arg command 'orchestration.maintain' \
+            --arg request_id "$request_id" \
+            --arg authoritative_revision "$authoritative_revision" \
+            --arg timed_maintenance_epoch "$timed_maintenance_epoch" \
+            '{command:$command,input:{},invocation_context:{run_id:$request_id,maintenance_identity:{authoritative_revision:$authoritative_revision,timed_maintenance_epoch:$timed_maintenance_epoch}}}')"
           status="$(curl --silent --show-error -o "$RUNNER_TEMP/maintenance-response.json" -w '%{http_code}' \
             -H "Authorization: Bearer $ID_TOKEN" \
             -H 'content-type: application/json' \
             -H 'x-overcenter-authority-mode: authoritative' \
-            -H "x-overcenter-request-id: maintenance:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" \
+            -H "x-overcenter-request-id: $request_id" \
             -X POST \
             -d "$payload" \
             "$SERVICE_AUDIENCE/api/worker-command")"
