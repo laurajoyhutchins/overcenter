@@ -6,6 +6,7 @@ import {
 } from '../lib/project-authoring-github-runtime.js';
 import { normalizeProjectDefinitionFacts } from '../lib/project-definition-facts.js';
 import { createProjectDefinitionFactsReader } from '../lib/project-definition-facts-reader.js';
+import { applyGithubChangesetWithGitHubApp } from '../lib/github-apply-changeset.js';
 
 const initialRevision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const stagedRevision = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -230,5 +231,20 @@ test('GitHub-backed authoring preserves stable provider failure code and certain
   await assert.rejects(
     () => adapter.amend({ project_ref:projectRef, expected_revision:initialRevision, amendment:{ upsert_transitions:[{ id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] } }),
     (error) => error?.code === 'GITHUB_CHANGESET_UNEXPECTED_ERROR' && error?.may_have_mutated === false && error?.details?.result?.phase === 'preflight.resolve_base',
+  );
+});
+
+test('GitHub-backed authoring preserves an explicitly missing injected provider as a safe typed preflight failure', async () => {
+  const adapter = createProjectAuthoringGithubAdapter({
+    resolveAuthority:async () => ({ project_ref:projectRef, kind:'github', repository:'example/project', revision:initialRevision, derivation:'overcenter-project-graph-v1' }),
+    readDefinitionFacts:async ({ revision }) => facts(revision),
+    applyChangeset:(request) => applyGithubChangesetWithGitHubApp(request),
+    deriveProjectGraph:async () => { throw new Error('missing provider failure must not derive'); },
+  });
+  await assert.rejects(
+    () => adapter.amend({ project_ref:projectRef, expected_revision:initialRevision, amendment:{ upsert_transitions:[{ id:'second', priority:5, requires:['foundation'], executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' } }] } }),
+    (error) => error?.code === 'RUNTIME_PROVIDER_MISSING'
+      && error?.may_have_mutated === false
+      && error?.details?.result?.phase === 'preflight.provider',
   );
 });
