@@ -1,6 +1,9 @@
 name: One-shot publish orchestration drive
 
 on:
+  pull_request:
+    branches:
+      - dev
   push:
     branches:
       - codex/publish-orchestration-drive
@@ -10,7 +13,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.actor == github.repository_owner && contains(github.event.head_commit.message, 'one-shot orchestration drive patch')
+    if: github.repository_owner == 'laurajoyhutchins' && github.head_ref == 'codex/publish-orchestration-drive'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
