@@ -1,0 +1,76 @@
+name: Bounded GCP semantic command broker
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: overcenter-gcp-semantic-command-${{ github.event.comment.id }}
+  cancel-in-progress: false
+
+jobs:
+  invoke:
+    if: >-
+      github.event.issue.number == 732 &&
+      startsWith(github.event.comment.body, '/overcenter ') &&
+      (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SERVICE_AUDIENCE: https://overcenter-shadow-bwcce2cokq-uw.a.run.app
+      COMMENT_BODY: ${{ github.event.comment.body }}
+    steps:
+      - name: Parse and validate bounded semantic command
+        id: request
+        shell: bash
+        run: |
+          set -euo pipefail
+          first_line="$(printf '%s\n' "$COMMENT_BODY" | head -n 1)"
+          command="$(printf '%s\n' "$first_line" | awk '{print $2}')"
+          case "$command" in
+            project.inspect|project.advance|work.settle|orchestration.diagnose|production.reconcile) ;;
+            *) echo "command not allowed: $command" >&2; exit 2 ;;
+          esac
+          prefix="/overcenter $command "
+          input="${first_line#"$prefix"}"
+          test "$input" != "$first_line"
+          printf '%s' "$input" | jq -e 'type == "object"' >/dev/null
+          echo "command=$command" >> "$GITHUB_OUTPUT"
+          printf '%s' "$input" > "$RUNNER_TEMP/input.json"
+
+      - name: Authenticate to authoritative GCP runtime
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ env.SERVICE_AUDIENCE }}
+          id_token_include_email: true
+          request_reason: Bounded Overcenter semantic command from issue 732 comment ${{ github.event.comment.id }}
+
+      - name: Invoke semantic command
+        shell: bash
+        env:
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+          COMMAND: ${{ steps.request.outputs.command }}
+        run: |
+          set -euo pipefail
+          jq -nc --arg command "$COMMAND" --slurpfile input "$RUNNER_TEMP/input.json" \
+            --arg comment_id "${{ github.event.comment.id }}" \
+            '{command:$command,input:$input[0],invocation_context:{source:"github_issue_comment",issue:732,comment_id:$comment_id}}' \
+            > "$RUNNER_TEMP/request.json"
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/response.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $ID_TOKEN" \
+            -H 'content-type: application/json' \
+            -X POST -d @"$RUNNER_TEMP/request.json" \
+            "$SERVICE_AUDIENCE/api/worker-command")"
+          echo "http_status=$status"
+          jq . "$RUNNER_TEMP/response.json"
+          test "$status" -ge 200
+          test "$status" -lt 300
