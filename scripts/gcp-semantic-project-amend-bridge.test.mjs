@@ -6,6 +6,7 @@ const broker = await readFile(new URL('../api/gcp-semantic-command-dispatch.js',
 const workflow = await readFile(new URL('../.github/workflows/gcp-semantic-command.yml', import.meta.url), 'utf8');
 const mcpAmend = await readFile(new URL('../mcp/project.amend.js', import.meta.url), 'utf8');
 const amendRelay = await readFile(new URL('../lib/gcp-semantic-project-amend-relay.js', import.meta.url), 'utf8');
+const workflowDispatch = await readFile(new URL('../lib/github-workflow-dispatch.js', import.meta.url), 'utf8');
 
 test('bounded GCP bridge admits project.amend without conflating control-plane head and target revision', () => {
   assert.match(broker, /PROJECT_AUTHORING_COMMANDS = new Set\(\['project\.amend'\]\)/);
@@ -115,7 +116,16 @@ test('generic authoritative ingress preserves target revision independently from
     command:'project.amend',
     project_ref:projectRef,
     input:{ project_ref:projectRef, expected_revision:targetRevision, amendment:{ metadata:{ source:'test' } } },
-  }, { withGitHubAppApiClient });
+  }, {
+    withGitHubAppApiClient,
+    readGitHubWorkflowSemanticReceipt: async ({ expected_head }) => ({
+      outcome:'completed',
+      response:{ outcome:'amended' },
+      receipt:{ expected_head },
+      mutation_certainty:'confirmed',
+      may_have_mutated:true,
+    }),
+  });
   const encodedInput = Object.entries(dispatchedInputs)
     .filter(([key]) => key.startsWith('command_input_'))
     .sort(([a], [b]) => a.localeCompare(b))
@@ -124,11 +134,18 @@ test('generic authoritative ingress preserves target revision independently from
   assert.equal(result.control_plane_revision, controlRevision);
   assert.equal(JSON.parse(encodedInput).expected_revision, targetRevision);
   assert.notEqual(result.control_plane_revision, JSON.parse(encodedInput).expected_revision);
+  assert.equal(result.outcome, 'completed');
+  assert.deepEqual(result.response, { outcome:'amended' });
+  assert.ok(result.receipt);
 });
 
 test('project.amend response recording preserves authoritative invocation identity in run-local evidence', () => {
   assert.match(workflow, /response_sha256/);
+  assert.match(workflow, /response_b64/);
   assert.match(workflow, /bounded-semantic-response\.json/);
+  assert.match(workflowDispatch, /readGitHubWorkflowSemanticReceipt/);
+  assert.match(workflowDispatch, /responseEncoding:'base64'/);
+  assert.match(workflowDispatch, /GITHUB_WORKFLOW_RECEIPT_DIGEST_MISMATCH/);
   assert.match(workflow, /request_id:\$request_id/);
   assert.match(workflow, /command:\$command/);
   assert.match(workflow, /expected_head:\$expected_head/);
