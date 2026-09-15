@@ -323,19 +323,19 @@
     },
     "typescript:src/ports/compact-execution-state-store.ts#MarkOperationIndeterminateInput": {
       "significance": "projection",
-      "projection_of": "compact.operation-state.store"
+      "projection_of": "compact.execution-state.store"
     },
     "typescript:src/ports/compact-execution-state-store.ts#PrepareOperationInput": {
       "significance": "projection",
-      "projection_of": "compact.operation-state.store"
+      "projection_of": "compact.execution-state.store"
     },
     "typescript:src/ports/compact-execution-state-store.ts#PutProofInput": {
       "significance": "projection",
-      "projection_of": "compact.proof-state.store"
+      "projection_of": "compact.execution-state.store"
     },
     "typescript:src/ports/compact-execution-state-store.ts#ResolveOperationInput": {
       "significance": "projection",
-      "projection_of": "compact.operation-state.store"
+      "projection_of": "compact.execution-state.store"
     },
     "typescript:src/ports/compact-execution-state-store.ts#SettleExecutionInput": {
       "significance": "projection",
