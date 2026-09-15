@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const workflow = await readFile(new URL('../.github/workflows/gcp-authoritative-deploy.yml', import.meta.url), 'utf8');
+const runtimeProof = await readFile(new URL('./gcp/prove-authoritative-runtime-http.sh', import.meta.url), 'utf8');
 
 test('authoritative deployment fences the exact dev revision without requiring main lockstep', () => {
   assert.match(workflow, /refs\/heads\/dev/);
@@ -16,4 +17,12 @@ test('authoritative deployment remains explicit workflow dispatch with an exact 
   assert.match(workflow, /ref: \$\{\{ inputs\.exact_revision \}\}/);
   assert.doesNotMatch(workflow, /\n\s+push:/);
   assert.doesNotMatch(workflow, /inputs\.exact_revision \|\| github\.sha/);
+});
+
+test('authoritative runtime acceptance binds every semantic worker call to a unique receipt identity and exact deployed revision', () => {
+  assert.match(runtimeProof, /request_id="gcp-runtime-proof:\$\{GITHUB_RUN_ID:-local\}:\$\(basename "\$output" \.json\)"/);
+  assert.match(runtimeProof, /x-overcenter-request-id: \$request_id/);
+  assert.match(runtimeProof, /x-overcenter-expected-head: \$EXACT_REVISION/);
+  assert.match(runtimeProof, /\$AUDIENCE\/api\/worker-command/);
+  assert.doesNotMatch(runtimeProof, /post \/api\/worker-command/);
 });

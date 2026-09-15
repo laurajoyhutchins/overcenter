@@ -38,8 +38,14 @@ proof_inspect() {
 }
 
 worker() {
-  local output="$1" payload="$2" status
-  status="$(post /api/worker-command "$output" "$payload")"
+  local output="$1" payload="$2" status request_id
+  request_id="gcp-runtime-proof:${GITHUB_RUN_ID:-local}:$(basename "$output" .json)"
+  status="$(curl --silent --show-error -o "$output" -w '%{http_code}' \
+    -H "Authorization: Bearer $ID_TOKEN" \
+    -H 'content-type: application/json' \
+    -H "x-overcenter-request-id: $request_id" \
+    -H "x-overcenter-expected-head: $EXACT_REVISION" \
+    -X POST -d "$payload" "$AUDIENCE/api/worker-command")"
   test "$status" = 200 || fail_json worker-command "$status" "$output"
 }
 
