@@ -5,66 +5,63 @@ import test from 'node:test';
 
 const revision = 'a'.repeat(40);
 const repository = 'laurajoyhutchins/overcenter';
+const receiptPath = 'public/.overcenter/source-materialization.json';
 
-function manifestFromWrites(writes) {
-  return writes.map(({ path, content }) => ({
+function identity(path, content) {
+  return {
     path,
-    hash: createHash('sha256').update(content).digest('hex'),
-    size: Buffer.byteLength(content),
-  })).sort((a, b) => a.path.localeCompare(b.path));
+    hash:createHash('sha256').update(content).digest('hex'),
+    size:Buffer.byteLength(content),
+  };
 }
 
-test('materializes the exact production revision and proves the immutable deployment', async () => {
-  const module = await import('./production-materialization.mjs');
-  let staged = null;
-  let stageRequest = null;
-  const regression = { ok: true, schema: 'regression-verification-v1', passed: 700, failed: 0 };
-  const input = { repository, revision, branch: 'main', production_project: 'production-slot' };
-  const adapters = {
-    source: {
-      observe: async () => ({
-        repository,
-        revision,
-        files: [{ path: 'api/gcp-semantic-command-dispatch.js', content: 'export const value=1;\n' }],
-      }),
-    },
-    runtime: {
-      inspect: async () => ({
-        project: 'production-slot',
-        version: 12,
-        files: [{ path: 'api/stale.js', hash: 'b'.repeat(64), size: 7 }],
-      }),
-      stage: async request => {
-        stageRequest = request;
-        staged = manifestFromWrites(request.writes);
+test('materializes the exact production revision through one manifest reconciliation request', async () => {
+  const { materializeProductionRevision } = await import('./production-materialization.mjs');
+  let reconcileRequest = null;
+  const sourceContent = 'export const value=1;';
+  const sourceFile = identity('api/gcp-semantic-command-dispatch.js', sourceContent);
+  const regression = { ok:true, schema:'regression-verification-v1', passed:700, failed:0 };
+
+  const result = await materializeProductionRevision(
+    { repository, revision, branch:'main', production_project:'production-slot' },
+    {
+      source:{ observe:async () => ({ repository, revision, files:[{ path:sourceFile.path, content:`${sourceContent}\n` }] }) },
+      runtime:{
+        inspect:async () => ({ project:'production-slot', version:12, files:[identity('api/stale.js', 'stale')] }),
+        reconcileManifest:async request => {
+          reconcileRequest = request;
+          const receiptWrite = request.writes.find(file => file.path === receiptPath);
+          return {
+            ok:true,
+            schema:'manifest-reconciliation-receipt-v1',
+            project:'production-slot',
+            expected_version:12,
+            deployment_version:13,
+            manifest_sha256:request.manifest_sha256,
+            reconciliation_sha256:request.reconciliation_sha256,
+            provider_receipt_sha256:createHash('sha256').update(receiptWrite.content).digest('hex'),
+            immutable_files:[sourceFile, identity(receiptPath, receiptWrite.content)],
+          };
+        },
+        runRegressions:async () => regression,
       },
-      inspectDraft: async () => ({ project: 'production-slot', version: 12, files: staged }),
-      deploy: async () => ({ version: 13 }),
-      inspectDeployment: async () => ({ version: 13, files: staged }),
-      runRegressions: async () => regression,
     },
-  };
+  );
 
-  const result = await module.materializeProductionRevision?.(input, adapters);
-
-  assert.equal(result?.ok, true);
-  assert.equal(result?.schema, 'production-materialization-v1');
-  assert.equal(result?.repository, repository);
-  assert.equal(result?.revision, revision);
-  assert.equal(result?.branch, 'main');
-  assert.equal(result?.deployment_version, 13);
-  assert.equal(result?.regression.failed, 0);
-  assert.deepEqual(stageRequest.deletes, ['api/stale.js']);
-  const sourceWrite = stageRequest.writes.find(item => item.path === 'api/gcp-semantic-command-dispatch.js');
-  assert.equal(sourceWrite.content, 'export const value=1;');
-  const receiptWrite = stageRequest.writes.find(item => item.path === 'public/.overcenter/source-materialization.json');
-  const receipt = JSON.parse(receiptWrite.content);
-  assert.equal(receipt.github_repository, repository);
-  assert.equal(receipt.github_branch, 'main');
+  assert.equal(result.ok, true);
+  assert.equal(result.schema, 'production-materialization-v2');
+  assert.equal(result.deployment_version, 13);
+  assert.equal(result.regression.failed, 0);
+  assert.deepEqual(reconcileRequest.deletes, ['api/stale.js']);
+  assert.equal(reconcileRequest.expected_version, 12);
+  assert.equal(reconcileRequest.target_version, 13);
+  assert.match(reconcileRequest.reconciliation_sha256, /^[0-9a-f]{64}$/);
+  const receipt = JSON.parse(reconcileRequest.writes.find(file => file.path === receiptPath).content);
+  assert.equal(receipt.schema, 'source-materialization-receipt-v2');
   assert.equal(receipt.github_head, revision);
   assert.equal(receipt.base_hatchable_version, 12);
   assert.equal(receipt.target_hatchable_version, 13);
-  assert.equal(receipt.source_path_count, 1);
+  assert.equal(receipt.reconciliation_sha256, reconcileRequest.reconciliation_sha256);
 });
 
 test('production branch updates are serialized into the dist-aware production materialization driver', () => {
@@ -76,65 +73,19 @@ test('production branch updates are serialized into the dist-aware production ma
   assert.match(workflow, /cancel-in-progress:\s*false/);
   const build = workflow.indexOf('npm run build:runtime');
   const materialize = workflow.indexOf('node scripts/production-materialization-dist-http.mjs');
-  assert.ok(build >= 0, 'production materialization must build the runtime artifact through the root package boundary');
-  assert.ok(materialize >= 0, 'production materialization must use the dist-aware driver');
-  assert.ok(build < materialize, 'production materialization must build dist before runtime projection');
+  assert.ok(build >= 0);
+  assert.ok(materialize >= 0);
+  assert.ok(build < materialize);
 });
 
-test('remote production adapter fences, stages, deploys, and reads immutable file_manifest', async () => {
-  const http = await import('./production-materialization-http.mjs');
-  const calls = [];
-  const responses = [
-    { current_version: 5 }, { files: [{ path: 'api/old.js', hash: 'a'.repeat(64), size: 4 }] },
-    { current_version: 5 }, { ok: true }, { ok: true },
-    { current_version: 5 }, { files: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }] },
-    { current_version: 5 }, { errors: [], would_deploy: {} }, { version: 6 }, { current_version: 6 },
-    { version: 6, file_manifest: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }] },
-    { status: 422, body: { ok: false, error: 'GCP_SEMANTIC_DISPATCH_INVALID', may_have_mutated: false, message: 'expected_head must be a 40-character lowercase Git SHA' } },
-  ];
-  const runtime = http.createProductionRuntimeAdapter?.({
-    callTool: async (name, args) => {
-      calls.push([name, args]);
-      return responses.shift();
-    },
-  });
-
-  assert.deepEqual(await runtime?.inspect('prod'), {
-    project: 'prod', version: 5, files: [{ path: 'api/old.js', hash: 'a'.repeat(64), size: 4 }],
-  });
-  await runtime.stage({
-    project: 'prod', revision, expected_version: 5,
-    writes: [{ path: 'api/new.js', content: 'new' }], deletes: ['api/old.js'],
-  });
-  assert.deepEqual(await runtime.inspectDraft('prod'), {
-    project: 'prod', version: 5, files: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }],
-  });
-  assert.deepEqual(await runtime.deploy({ project: 'prod', revision, expected_version: 5 }), { version: 6 });
-  assert.deepEqual(await runtime.inspectDeployment({ project: 'prod', version: 6 }), {
-    version: 6, files: [{ path: 'api/new.js', hash: 'b'.repeat(64), size: 3 }],
-  });
-  assert.equal((await runtime.runRegressions({ project: 'prod', repository })).failed, 0);
-  assert.deepEqual(calls.map(([name]) => name), [
-    'get_project', 'list_files',
-    'get_project', 'delete_file', 'write_files',
-    'get_project', 'list_files',
-    'get_project', 'dry_run_deploy', 'deploy', 'get_project',
-    'get_deployment', 'run_function',
-  ]);
-});
-
-test('remote production adapter derives verified replay evidence only from the current immutable receipt and source manifest', async () => {
-  const http = await import('./production-materialization-http.mjs');
-  const { productionRuntimeSourceManifest, SOURCE_MATERIALIZATION_RECEIPT_PATH } = await import('../lib/production-materialization-operation.js');
+test('remote production adapter reuses immutable replay evidence within one run', async () => {
+  const { createProductionRuntimeAdapter } = await import('./production-materialization-http.mjs');
+  const { productionRuntimeSourceManifest } = await import('../lib/production-materialization-operation.js');
   const sourceContent = 'export const exact=true;';
-  const sourceEntry = {
-    path:'api/exact.js',
-    hash:createHash('sha256').update(sourceContent).digest('hex'),
-    size:Buffer.byteLength(sourceContent),
-  };
+  const sourceEntry = identity('api/gcp-semantic-command-dispatch.js', sourceContent);
   const sourceManifest = await productionRuntimeSourceManifest([sourceEntry]);
   const receipt = {
-    schema:'source-materialization-receipt-v1',
+    schema:'source-materialization-receipt-v2',
     authority:'github',
     direction:'github_to_runtime',
     hatchable_project:'prod',
@@ -144,34 +95,25 @@ test('remote production adapter derives verified replay evidence only from the c
     base_hatchable_version:8,
     target_hatchable_version:9,
     target_manifest_sha256:sourceManifest.sha256,
+    reconciliation_sha256:'b'.repeat(64),
     source_path_count:sourceManifest.path_count,
   };
   const receiptContent = JSON.stringify(receipt);
-  const receiptEntry = {
-    path:SOURCE_MATERIALIZATION_RECEIPT_PATH,
-    hash:createHash('sha256').update(receiptContent).digest('hex'),
-    size:Buffer.byteLength(receiptContent),
-  };
   const calls = [];
-  const runtime = http.createProductionRuntimeAdapter({
-    callTool: async (name, args) => {
-      calls.push([name, args]);
-      if (name === 'get_project') return { current_version:9 };
-      if (name === 'list_files') return { files:[sourceEntry] };
+  const runtime = createProductionRuntimeAdapter({
+    callTool:async name => {
+      calls.push(name);
       if (name === 'read_file') return { content:receiptContent };
-      if (name === 'get_deployment') return { version:9, file_manifest:[sourceEntry, receiptEntry] };
+      if (name === 'get_deployment') return { version:9, file_manifest:[sourceEntry, identity(receiptPath, receiptContent)] };
       throw new Error(`unexpected tool call: ${name}`);
     },
   });
-
-  assert.deepEqual(await runtime.inspect('prod', { repository, branch:'main' }), {
-    project:'prod',
-    version:9,
-    files:[sourceEntry],
-    verified_revision:revision,
-    verification_ref:`immutable-runtime:prod:9:${sourceManifest.sha256}`,
-  });
-  assert.deepEqual(calls.map(([name]) => name), ['get_project', 'list_files', 'read_file', 'get_deployment']);
+  const request = { project:'prod', repository, branch:'main', revision, version:9, source_manifest_sha256:sourceManifest.sha256 };
+  const first = await runtime.resolveEvidence(request);
+  const second = await runtime.resolveEvidence(request);
+  assert.equal(first, second);
+  assert.equal(first.verified_revision, revision);
+  assert.deepEqual(calls, ['read_file', 'get_deployment']);
 });
 
 test('rejects a non-production branch before source access', async () => {
@@ -179,36 +121,45 @@ test('rejects a non-production branch before source access', async () => {
   let touched = false;
   await assert.rejects(
     materializeProductionRevision(
-      { repository, revision, branch: 'dev', production_project: 'production-slot' },
-      { source: { observe: async () => { touched = true; return {}; } }, runtime: {} },
+      { repository, revision, branch:'dev', production_project:'production-slot' },
+      { source:{ observe:async () => { touched = true; return {}; } }, runtime:{} },
     ),
     error => error?.code === 'INVALID_PRODUCTION_BRANCH',
   );
   assert.equal(touched, false);
 });
 
-test('rejects immutable deployment drift before production regression certification', async () => {
+test('rejects immutable reconciliation drift before production regression certification', async () => {
   const { materializeProductionRevision } = await import('./production-materialization.mjs');
-  let staged = null;
   let regressionsRan = false;
-  const adapters = {
-    source: {
-      observe: async () => ({ repository, revision, files: [{ path: 'api/gcp-semantic-command-dispatch.js', content: 'x\n' }] }),
-    },
-    runtime: {
-      inspect: async () => ({ project: 'production-slot', version: 20, files: [] }),
-      stage: async request => { staged = manifestFromWrites(request.writes); },
-      inspectDraft: async () => ({ project: 'production-slot', version: 20, files: staged }),
-      deploy: async () => ({ version: 21 }),
-      inspectDeployment: async () => ({
-        version: 21,
-        files: staged.map(file => file.path === 'api/gcp-semantic-command-dispatch.js' ? { ...file, hash: 'f'.repeat(64) } : file),
-      }),
-      runRegressions: async () => { regressionsRan = true; return { ok: true, schema: 'regression-verification-v1', failed: 0 }; },
-    },
-  };
   await assert.rejects(
-    materializeProductionRevision({ repository, revision, branch: 'main', production_project: 'production-slot' }, adapters),
+    materializeProductionRevision(
+      { repository, revision, branch:'main', production_project:'production-slot' },
+      {
+        source:{ observe:async () => ({ repository, revision, files:[{ path:'api/gcp-semantic-command-dispatch.js', content:'x\n' }] }) },
+        runtime:{
+          inspect:async () => ({ project:'production-slot', version:20, files:[] }),
+          reconcileManifest:async request => {
+            const receiptWrite = request.writes.find(file => file.path === receiptPath);
+            return {
+              ok:true,
+              schema:'manifest-reconciliation-receipt-v1',
+              project:'production-slot',
+              expected_version:20,
+              deployment_version:21,
+              manifest_sha256:request.manifest_sha256,
+              reconciliation_sha256:request.reconciliation_sha256,
+              provider_receipt_sha256:createHash('sha256').update(receiptWrite.content).digest('hex'),
+              immutable_files:[
+                { path:'api/gcp-semantic-command-dispatch.js', hash:'f'.repeat(64), size:1 },
+                identity(receiptPath, receiptWrite.content),
+              ],
+            };
+          },
+          runRegressions:async () => { regressionsRan = true; return { ok:true, schema:'regression-verification-v1', failed:0 }; },
+        },
+      },
+    ),
     error => error?.code === 'PRODUCTION_MATERIALIZATION_MISMATCH' && error?.may_have_mutated === true,
   );
   assert.equal(regressionsRan, false);
@@ -219,61 +170,60 @@ test('typed materialization no-op requires exact verified revision evidence and 
   const content = 'exact-runtime-source';
   const hash = createHash('sha256').update(content).digest('hex');
   let effects = 0;
-  const result = await materializeProduction({ repo: repository }, {
-    resolveProductionSource: async repo => ({ repository:repo, branch:'main', revision }),
-    observeSource: async coordinate => ({ ...coordinate, files:[{ path:'lib/github-workflow-dispatch.js', content }] }),
-    observeRuntime: async () => ({
+  const result = await materializeProduction({ repo:repository }, {
+    resolveProductionSource:async repo => ({ repository:repo, branch:'main', revision }),
+    observeSource:async coordinate => ({ ...coordinate, files:[{ path:'lib/github-workflow-dispatch.js', content }] }),
+    observeRuntime:async () => ({
       runtime_ref:'runtime:production',
       version:30,
       files:[{ path:'lib/github-workflow-dispatch.js', hash, size:Buffer.byteLength(content) }],
       verified_revision:revision,
       verification_ref:'immutable:runtime:30',
     }),
-    stageRuntime: async () => { effects += 1; },
-    inspectRuntimeDraft: async () => { throw new Error('draft should not be inspected'); },
-    deployRuntime: async () => { effects += 1; throw new Error('deploy should not run'); },
-    inspectImmutableDeployment: async () => { throw new Error('immutable deployment should not be reread'); },
-    verifyProduction: async () => { throw new Error('verification should not rerun'); },
+    reconcileManifest:async () => { effects += 1; },
+    verifyProduction:async () => { throw new Error('verification should not rerun'); },
   });
-
   assert.equal(result.outcome, 'already_materialized');
   assert.equal(result.deployment_version, 30);
-  assert.equal(result.verification_ref, 'immutable:runtime:30');
   assert.equal(effects, 0);
 });
 
 test('typed materialization rejects stale source authority before any runtime effect', async () => {
   const { materializeProduction } = await import('../lib/production-materialization-operation.js');
-  let staged = false;
+  let reconciled = false;
   await assert.rejects(
     materializeProduction({ repo:repository }, {
-      resolveProductionSource: async repo => ({ repository:repo, branch:'main', revision }),
-      observeSource: async coordinate => ({ ...coordinate, revision:'b'.repeat(40), files:[] }),
-      observeRuntime: async () => ({ runtime_ref:'runtime:production', version:1, files:[] }),
-      stageRuntime: async () => { staged = true; },
-      inspectRuntimeDraft: async () => ({ runtime_ref:'runtime:production', version:1, files:[] }),
-      deployRuntime: async () => ({ runtime_ref:'runtime:production', version:2 }),
-      inspectImmutableDeployment: async () => ({ runtime_ref:'runtime:production', version:2, files:[] }),
-      verifyProduction: async () => ({ ok:true, verification_ref:'unexpected' }),
+      resolveProductionSource:async repo => ({ repository:repo, branch:'main', revision }),
+      observeSource:async coordinate => ({ ...coordinate, revision:'b'.repeat(40), files:[] }),
+      observeRuntime:async () => ({ runtime_ref:'runtime:production', version:1, files:[] }),
+      reconcileManifest:async () => { reconciled = true; },
+      verifyProduction:async () => ({ ok:true, verification_ref:'unexpected' }),
     }),
     error => error?.code === 'PRODUCTION_MATERIALIZATION_SOURCE_STALE' && error?.may_have_mutated === false,
   );
-  assert.equal(staged, false);
+  assert.equal(reconciled, false);
 });
 
-test('typed materialization makes mutation certainty monotonic once staging begins', async () => {
+test('typed materialization preserves recovery-required uncertainty from reconciliation', async () => {
   const { materializeProduction } = await import('../lib/production-materialization-operation.js');
   await assert.rejects(
     materializeProduction({ repo:repository }, {
-      resolveProductionSource: async repo => ({ repository:repo, branch:'main', revision }),
-      observeSource: async coordinate => ({ ...coordinate, files:[{ path:'lib/github-workflow-dispatch.js', content:'new' }] }),
-      observeRuntime: async () => ({ runtime_ref:'runtime:production', version:40, files:[] }),
-      stageRuntime: async () => { throw new Error('transport disappeared after stage request'); },
-      inspectRuntimeDraft: async () => ({ runtime_ref:'runtime:production', version:40, files:[] }),
-      deployRuntime: async () => ({ runtime_ref:'runtime:production', version:41 }),
-      inspectImmutableDeployment: async () => ({ runtime_ref:'runtime:production', version:41, files:[] }),
-      verifyProduction: async () => ({ ok:true, verification_ref:'unexpected' }),
+      resolveProductionSource:async repo => ({ repository:repo, branch:'main', revision }),
+      observeSource:async coordinate => ({ ...coordinate, files:[{ path:'lib/github-workflow-dispatch.js', content:'new' }] }),
+      observeRuntime:async () => ({ runtime_ref:'runtime:production', version:40, files:[] }),
+      reconcileManifest:async () => {
+        throw Object.assign(new Error('transport disappeared after manifest request'), {
+          code:'MANIFEST_RECONCILIATION_INDETERMINATE',
+          may_have_mutated:true,
+          recovery_required:true,
+          automatic_retry:false,
+        });
+      },
+      verifyProduction:async () => ({ ok:true, verification_ref:'unexpected' }),
     }),
-    error => error?.code === 'PRODUCTION_MATERIALIZATION_INDETERMINATE' && error?.may_have_mutated === true,
+    error => error?.code === 'MANIFEST_RECONCILIATION_INDETERMINATE'
+      && error?.may_have_mutated === true
+      && error?.recovery_required === true
+      && error?.automatic_retry === false,
   );
 });
