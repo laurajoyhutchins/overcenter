@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { reconcileManifest as reconcileManifestOperation } from '../lib/manifest-reconciliation-operation.js';
 import {
   productionRuntimeSourceManifest,
   SOURCE_MATERIALIZATION_RECEIPT_PATH,
@@ -8,35 +9,39 @@ import { createCheckoutSourceAdapter } from './exact-revision-v8-verification.mj
 import { connectHatchableRemoteMcp } from './exact-revision-v8-verification-http.mjs';
 import { materializeProductionRevision } from './production-materialization.mjs';
 
-export const PRODUCTION_MATERIALIZATION_HTTP_SCHEMA = 'production-materialization-http-v1';
-export const PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS = 1100;
+export const PRODUCTION_MATERIALIZATION_HTTP_SCHEMA = 'production-materialization-http-v2';
 
 const SHA40 = /^[0-9a-f]{40}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const defaultWait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 function reject(code, message) {
-  throw Object.assign(new Error(message), { code });
+  throw Object.assign(new Error(message), { code, may_have_mutated:false });
 }
-
 function observedVersion(info, field) {
   const version = Number(info?.current_version ?? info?.version);
   if (!Number.isSafeInteger(version) || version < 1) reject('PRODUCTION_RUNTIME_INVALID_VERSION', `${field} is invalid`);
   return version;
 }
-
 function sha256(content) {
   return createHash('sha256').update(content).digest('hex');
 }
-
 function immutableFiles(deployment) {
   return deployment?.file_manifest ?? deployment?.files;
 }
+function evidenceKey(project, version, manifest) {
+  return `${project}\u0000${version}\u0000${manifest}`;
+}
 
-async function verifiedProjectionEvidence(callTool, project, version, context = {}) {
-  const repository = String(context.repository || '').trim();
-  const branch = String(context.branch || '').trim();
-  if (!repository || !branch) return null;
+async function projectionEvidence(callTool, cache, request) {
+  const { project, version, source_manifest_sha256:manifest } = request;
+  const key = evidenceKey(project, version, manifest);
+  if (cache.has(key)) return cache.get(key);
+
+  const repository = String(request.repository || '').trim();
+  const branch = String(request.branch || '').trim();
+  const revision = String(request.revision || '').trim().toLowerCase();
+  if (!repository || !branch || !SHA40.test(revision) || !SHA256.test(String(manifest || ''))) return null;
 
   let receiptRead;
   let deployment;
@@ -59,14 +64,16 @@ async function verifiedProjectionEvidence(callTool, project, version, context = 
 
   const receiptRevision = String(receipt?.github_head || '').trim().toLowerCase();
   if (
-    receipt?.schema !== 'source-materialization-receipt-v1'
+    receipt?.schema !== 'source-materialization-receipt-v2'
     || receipt?.authority !== 'github'
     || receipt?.direction !== 'github_to_runtime'
     || receipt?.hatchable_project !== project
     || receipt?.github_repository !== repository
     || receipt?.github_branch !== branch
-    || !SHA40.test(receiptRevision)
+    || receiptRevision !== revision
     || Number(receipt?.target_hatchable_version) !== version
+    || String(receipt?.target_manifest_sha256 || '').trim().toLowerCase() !== manifest
+    || !SHA256.test(String(receipt?.reconciliation_sha256 || '').trim().toLowerCase())
   ) return null;
 
   if (observedVersion(deployment, 'immutable production deployment version') !== version) return null;
@@ -83,97 +90,91 @@ async function verifiedProjectionEvidence(callTool, project, version, context = 
   try { sourceManifest = await productionRuntimeSourceManifest(files); }
   catch { return null; }
   if (
-    sourceManifest.sha256 !== String(receipt?.target_manifest_sha256 || '').trim().toLowerCase()
+    sourceManifest.sha256 !== manifest
     || sourceManifest.path_count !== Number(receipt?.source_path_count)
   ) return null;
 
-  return Object.freeze({
+  const evidence = Object.freeze({
     verified_revision:receiptRevision,
-    verification_ref:`immutable-runtime:${project}:${version}:${sourceManifest.sha256}`,
+    verification_ref:`immutable-runtime:${project}:${version}:${manifest}`,
+    reconciliation_sha256:String(receipt.reconciliation_sha256).trim().toLowerCase(),
   });
+  cache.set(key, evidence);
+  return evidence;
 }
 
-export function createProductionRuntimeAdapter({
-  callTool,
-  minimumCallIntervalMs = 0,
-  wait = defaultWait,
-} = {}) {
+export function createProductionRuntimeAdapter({ callTool } = {}) {
   if (typeof callTool !== 'function') reject('PRODUCTION_RUNTIME_ADAPTER_INVALID', 'callTool is required');
-  if (typeof wait !== 'function') reject('PRODUCTION_RUNTIME_ADAPTER_INVALID', 'wait must be a function');
-  const callIntervalMs = Number(minimumCallIntervalMs);
-  if (!Number.isFinite(callIntervalMs) || callIntervalMs < 0) {
-    reject('PRODUCTION_RUNTIME_ADAPTER_INVALID', 'minimumCallIntervalMs must be a non-negative finite number');
-  }
-  let hasCalled = false;
-  const pacedCallTool = async (name, args) => {
-    if (hasCalled && callIntervalMs > 0) await wait(callIntervalMs);
-    hasCalled = true;
-    return callTool(name, args);
-  };
+  const evidenceCache = new Map();
 
   return {
-    async inspect(project, context = {}) {
-      const info = await pacedCallTool('get_project', { project_id: project });
-      const listed = await pacedCallTool('list_files', { project_id: project });
-      const version = observedVersion(info, 'production runtime version');
-      const evidence = await verifiedProjectionEvidence(pacedCallTool, project, version, context);
+    async inspect(project) {
+      const info = await callTool('get_project', { project_id:project });
+      const listed = await callTool('list_files', { project_id:project });
       return {
         project,
-        version,
+        version:observedVersion(info, 'production runtime version'),
         files:listed?.files,
-        ...(evidence || {}),
       };
     },
-    async stage({ project, revision, expected_version, writes, deletes }) {
-      const before = await pacedCallTool('get_project', { project_id: project });
-      if (observedVersion(before, 'production runtime version') !== Number(expected_version)) reject('PRODUCTION_RUNTIME_VERSION_MISMATCH', 'production runtime changed before staging');
-      for (const path of deletes) {
-        await pacedCallTool('delete_file', { project_id: project, path, reason: `Remove stale source before production materialization ${revision}` });
-      }
-      await pacedCallTool('write_files', {
-        project_id: project,
-        files: writes,
-        reason: `Materialize exact production revision ${revision}`,
+    async resolveEvidence(request) {
+      return projectionEvidence(callTool, evidenceCache, request);
+    },
+    async reconcileManifest(request) {
+      const result = await reconcileManifestOperation(request, {
+        inspectVersion:async project => observedVersion(
+          await callTool('get_project', { project_id:project }),
+          'production runtime version',
+        ),
+        deleteFile:async (project, path) => callTool('delete_file', {
+          project_id:project,
+          path,
+          reason:`Reconcile stale source for manifest ${request.manifest_sha256}`,
+        }),
+        writeFiles:async (project, writes) => callTool('write_files', {
+          project_id:project,
+          files:writes,
+          reason:`Reconcile exact production manifest ${request.manifest_sha256}`,
+        }),
+        inspectDraft:async project => ({
+          version:request.expected_version,
+          files:(await callTool('list_files', { project_id:project }))?.files,
+        }),
+        dryRun:async project => callTool('dry_run_deploy', { project_id:project }),
+        deploy:async project => callTool('deploy', {
+          project_id:project,
+          intent:`Materialize promoted Overcenter revision ${request.revision}`,
+          summary:'Reconciled the exact promoted GitHub manifest behind one exact-version-fenced semantic operation.',
+        }),
+        inspectImmutable:async (project, version) => {
+          const deployment = await callTool('get_deployment', { project_id:project, version });
+          return {
+            version:observedVersion(deployment, 'immutable deployment version'),
+            files:immutableFiles(deployment),
+          };
+        },
       });
-    },
-    async inspectDraft(project) {
-      const info = await pacedCallTool('get_project', { project_id: project });
-      const listed = await pacedCallTool('list_files', { project_id: project });
-      return { project, version: observedVersion(info, 'production draft version'), files: listed?.files };
-    },
-    async deploy({ project, revision, expected_version }) {
-      const before = await pacedCallTool('get_project', { project_id: project });
-      if (observedVersion(before, 'production runtime version') !== Number(expected_version)) reject('PRODUCTION_RUNTIME_VERSION_MISMATCH', 'production runtime changed before deploy');
-      const dryRun = await pacedCallTool('dry_run_deploy', { project_id: project });
-      if (Array.isArray(dryRun?.errors) && dryRun.errors.length) reject('PRODUCTION_DRY_RUN_FAILED', 'production Hatchable dry-run reported deploy-blocking errors');
-      await pacedCallTool('deploy', {
-        project_id: project,
-        intent: `Materialize promoted Overcenter revision ${revision}`,
-        summary: `Materialized the exact promoted GitHub revision into the production runtime, then prepared immutable source and transport-boundary verification.`,
-      });
-      const after = await pacedCallTool('get_project', { project_id: project });
-      const version = observedVersion(after, 'production deployed version');
-      if (version !== Number(expected_version) + 1) reject('PRODUCTION_DEPLOYMENT_VERSION_MISMATCH', 'production deployment was not the immediate successor');
-      return { version };
-    },
-    async inspectDeployment({ project, version }) {
-      const deployment = await pacedCallTool('get_deployment', { project_id: project, version });
-      return {
-        version: Number(deployment?.version),
-        files: immutableFiles(deployment),
-      };
+      evidenceCache.set(
+        evidenceKey(request.project, result.deployment_version, request.manifest_sha256),
+        Object.freeze({
+          verified_revision:String(request.revision || '').trim().toLowerCase(),
+          verification_ref:`immutable-runtime:${request.project}:${result.deployment_version}:${request.manifest_sha256}`,
+          reconciliation_sha256:request.reconciliation_sha256,
+        }),
+      );
+      return result;
     },
     async runRegressions({ project, repository }) {
       const repo = String(repository || '').trim();
       if (!REPOSITORY.test(repo)) reject('PRODUCTION_TRANSPORT_VERIFICATION_INVALID', 'repository must be in owner/name form');
-      const response = await pacedCallTool('run_function', {
-        project_id: project,
-        path: '/api/gcp-semantic-command-dispatch',
-        method: 'POST',
-        body: {
-          command: 'project.inspect',
-          project_ref: `github:${repo}`,
-          expected_head: 'not-a-sha',
+      const response = await callTool('run_function', {
+        project_id:project,
+        path:'/api/gcp-semantic-command-dispatch',
+        method:'POST',
+        body:{
+          command:'project.inspect',
+          project_ref:`github:${repo}`,
+          expected_head:'not-a-sha',
         },
       });
       const body = response?.body ?? response?.result?.body ?? response;
@@ -188,12 +189,12 @@ export function createProductionRuntimeAdapter({
         reject('PRODUCTION_TRANSPORT_VERIFICATION_FAILED', 'thin Hatchable to GCP transport boundary did not fail closed on an invalid exact head');
       }
       return Object.freeze({
-        ok: true,
-        schema: 'regression-verification-v1',
-        passed: 1,
-        failed: 0,
-        boundary: 'hatchable_to_gcp',
-        validation: 'exact_head_fail_closed',
+        ok:true,
+        schema:'regression-verification-v1',
+        passed:1,
+        failed:0,
+        boundary:'hatchable_to_gcp',
+        validation:'exact_head_fail_closed',
       });
     },
   };
@@ -204,11 +205,11 @@ export function productionMaterializationInputFromEnv(env = process.env) {
   if (!token) reject('HATCHABLE_TOKEN_REQUIRED', 'HATCHABLE_TOKEN is required for production materialization');
   return {
     token,
-    input: {
-      repository: String(env.GITHUB_REPOSITORY || '').trim(),
-      revision: String(env.EXACT_REVISION || env.GITHUB_SHA || '').trim().toLowerCase(),
-      branch: String(env.PRODUCTION_BRANCH || env.GITHUB_REF_NAME || '').trim(),
-      production_project: String(env.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT || '').trim(),
+    input:{
+      repository:String(env.GITHUB_REPOSITORY || '').trim(),
+      revision:String(env.EXACT_REVISION || env.GITHUB_SHA || '').trim().toLowerCase(),
+      branch:String(env.PRODUCTION_BRANCH || env.GITHUB_REF_NAME || '').trim(),
+      production_project:String(env.OVERCENTER_HATCHABLE_PRODUCTION_PROJECT || '').trim(),
     },
   };
 }
@@ -218,11 +219,8 @@ export async function runProductionMaterializationHttpCli(env = process.env) {
   const connection = await connectHatchableRemoteMcp({ token });
   try {
     const result = await materializeProductionRevision(input, {
-      source: createCheckoutSourceAdapter(),
-      runtime: createProductionRuntimeAdapter({
-        callTool: connection.callTool,
-        minimumCallIntervalMs: PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS,
-      }),
+      source:createCheckoutSourceAdapter(),
+      runtime:createProductionRuntimeAdapter({ callTool:connection.callTool }),
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return result;
@@ -235,7 +233,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   runProductionMaterializationHttpCli().then(result => {
     if (result.ok !== true) process.exitCode = 1;
   }).catch(error => {
-    process.stderr.write(`${JSON.stringify({ ok: false, error: error?.code || 'PRODUCTION_MATERIALIZATION_FAILED', message: String(error?.message || error) })}\n`);
+    process.stderr.write(`${JSON.stringify({ ok:false, error:error?.code || 'PRODUCTION_MATERIALIZATION_FAILED', message:String(error?.message || error) })}\n`);
     process.exitCode = 1;
   });
 }

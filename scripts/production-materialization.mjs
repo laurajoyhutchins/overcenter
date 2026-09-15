@@ -6,8 +6,8 @@ import {
 } from '../lib/production-materialization-operation.js';
 import { canonicalizeHatchableText } from './exact-revision-v8-verification.mjs';
 
-export const PRODUCTION_MATERIALIZATION_SCHEMA = 'production-materialization-v1';
-export const SOURCE_MATERIALIZATION_RECEIPT_SCHEMA = 'source-materialization-receipt-v1';
+export const PRODUCTION_MATERIALIZATION_SCHEMA = 'production-materialization-v2';
+export const SOURCE_MATERIALIZATION_RECEIPT_SCHEMA = 'source-materialization-receipt-v2';
 export { SOURCE_MATERIALIZATION_RECEIPT_PATH };
 
 const SHA40 = /^[0-9a-f]{40}$/;
@@ -15,25 +15,21 @@ const SHA40 = /^[0-9a-f]{40}$/;
 function reject(code, message) {
   throw Object.assign(new Error(message), { code });
 }
-
 function normalizeRevision(value) {
   const revision = String(value || '').trim().toLowerCase();
   if (!SHA40.test(revision)) reject('INVALID_PRODUCTION_REVISION', 'production revision must be a full 40-character Git commit SHA');
   return revision;
 }
-
 function normalizeRepository(value) {
   const repository = String(value || '').trim();
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) reject('INVALID_PRODUCTION_REPOSITORY', 'repository must be in owner/name form');
   return repository;
 }
-
 function normalizeVersion(value, field) {
   const version = Number(value);
   if (!Number.isSafeInteger(version) || version < 1) reject('INVALID_PRODUCTION_RUNTIME_VERSION', `${field} must be a positive integer`);
   return version;
 }
-
 function normalizeRuntimeFiles(filesInput) {
   if (!Array.isArray(filesInput)) reject('INVALID_PRODUCTION_RUNTIME_OBSERVATION', 'runtime files must be an array');
   return filesInput
@@ -45,11 +41,9 @@ function normalizeRuntimeFiles(filesInput) {
     }))
     .sort((a, b) => a.path.localeCompare(b.path));
 }
-
 function sha256(content) {
   return createHash('sha256').update(content).digest('hex');
 }
-
 function receiptForPlan(plan, project) {
   return Object.freeze({
     schema: SOURCE_MATERIALIZATION_RECEIPT_SCHEMA,
@@ -62,10 +56,10 @@ function receiptForPlan(plan, project) {
     base_hatchable_version: plan.expected_version,
     target_hatchable_version: plan.target_version,
     target_manifest_sha256: plan.source_manifest_sha256,
+    reconciliation_sha256: plan.reconciliation_sha256,
     source_path_count: plan.source_path_count,
   });
 }
-
 function receiptMatches(files, content) {
   const entry = normalizeRuntimeFiles(files).find(file => file.path === SOURCE_MATERIALIZATION_RECEIPT_PATH);
   if (!entry) return false;
@@ -79,12 +73,11 @@ export async function materializeProductionRevision(input = {}, adapters = {}) {
   const project = String(input.production_project || '').trim();
   if (branch !== 'main') reject('INVALID_PRODUCTION_BRANCH', 'Overcenter production materialization requires branch main');
   if (!project) reject('PRODUCTION_RUNTIME_REQUIRED', 'production runtime coordinate is required');
-  if (!adapters.source?.observe || !adapters.runtime?.inspect || !adapters.runtime?.stage || !adapters.runtime?.inspectDraft || !adapters.runtime?.deploy || !adapters.runtime?.inspectDeployment || !adapters.runtime?.runRegressions) {
+  if (!adapters.source?.observe || !adapters.runtime?.inspect || !adapters.runtime?.reconcileManifest || !adapters.runtime?.runRegressions) {
     reject('PRODUCTION_MATERIALIZATION_ADAPTER_INVALID', 'complete source and runtime adapters are required');
   }
 
   let receiptContent = null;
-  let immutableFiles = null;
   let regression = null;
 
   const result = await materializeProduction({ repo:repository }, {
@@ -107,35 +100,39 @@ export async function materializeProductionRevision(input = {}, adapters = {}) {
         verification_ref:before?.verification_ref ?? null,
       };
     },
-    stageRuntime: async plan => {
+    resolveRuntimeEvidence: typeof adapters.runtime.resolveEvidence === 'function'
+      ? async request => adapters.runtime.resolveEvidence({
+          project,
+          repository,
+          branch,
+          revision:request.revision,
+          version:request.version,
+          source_manifest_sha256:request.source_manifest_sha256,
+        })
+      : undefined,
+    reconcileManifest: async plan => {
       const receipt = receiptForPlan(plan, project);
       receiptContent = canonicalJson(receipt);
-      const writes = [...plan.writes, { path:SOURCE_MATERIALIZATION_RECEIPT_PATH, content:receiptContent }]
-        .sort((left, right) => left.path.localeCompare(right.path));
-      await adapters.runtime.stage({
+      return adapters.runtime.reconcileManifest({
         project,
         revision:plan.revision,
         expected_version:plan.expected_version,
-        writes,
+        target_version:plan.target_version,
+        manifest_sha256:plan.source_manifest_sha256,
+        reconciliation_sha256:plan.reconciliation_sha256,
+        desired_files:plan.desired_files.map(({ path, hash, size }) => ({ path, hash, size })),
+        writes:[...plan.writes, { path:SOURCE_MATERIALIZATION_RECEIPT_PATH, content:receiptContent }]
+          .sort((left, right) => left.path.localeCompare(right.path)),
         deletes:plan.deletes,
-        receipt,
+        receipt_content:receiptContent,
       });
     },
-    inspectRuntimeDraft: async () => {
-      const draft = await adapters.runtime.inspectDraft(project);
-      return { runtime_ref:project, version:normalizeVersion(draft?.version, 'draft version'), files:normalizeRuntimeFiles(draft?.files) };
-    },
-    deployRuntime: async plan => {
-      const deployed = await adapters.runtime.deploy({ project, revision:plan.revision, expected_version:plan.expected_version });
-      return { runtime_ref:project, version:normalizeVersion(deployed?.version, 'deployed version') };
-    },
-    inspectImmutableDeployment: async deployment => {
-      const immutable = await adapters.runtime.inspectDeployment({ project, version:deployment.version });
-      immutableFiles = immutable?.files;
-      return { runtime_ref:project, version:normalizeVersion(immutable?.version, 'immutable deployment version'), files:normalizeRuntimeFiles(immutable?.files) };
-    },
     verifyProduction: async request => {
-      if (typeof receiptContent !== 'string' || !receiptMatches(immutableFiles, receiptContent)) {
+      if (
+        typeof receiptContent !== 'string'
+        || request.reconciliation_receipt?.provider_receipt_sha256 !== sha256(receiptContent)
+        || !receiptMatches(request.reconciliation_receipt?.immutable_files, receiptContent)
+      ) {
         return { ok:false, verification_ref:'' };
       }
       regression = await adapters.runtime.runRegressions({
@@ -147,7 +144,9 @@ export async function materializeProductionRevision(input = {}, adapters = {}) {
       const ok = regression?.schema === 'regression-verification-v1' && regression?.ok === true && Number(regression?.failed || 0) === 0;
       return {
         ok,
-        verification_ref:ok ? `runtime-deployment:${request.runtime_ref}:${request.version}:${request.source_manifest_sha256}` : '',
+        verification_ref:ok
+          ? `runtime-deployment:${request.runtime_ref}:${request.version}:${request.source_manifest_sha256}:${request.reconciliation_sha256}`
+          : '',
       };
     },
   });
@@ -161,6 +160,7 @@ export async function materializeProductionRevision(input = {}, adapters = {}) {
     branch:result.branch,
     deployment_version:result.deployment_version,
     source_manifest_sha256:result.source_manifest_sha256,
+    reconciliation_sha256:result.reconciliation_sha256 ?? null,
     verification_ref:result.verification_ref,
     regression,
   });
