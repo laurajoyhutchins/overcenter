@@ -261,7 +261,7 @@ test('authoritative-effect confirmation refuses to claim completion while determ
     target:{ project_ref:'github:laurajoyhutchins/overcenter', horizon:{ kind:'transition', ref:'transition-1' } },
     execution_result:executionResult,
   });
-  assert.deepEqual(result, { confirmed:false, reason:'authoritative_effect_pending', recovery:{ mechanism:'github_integration_reconcile', merge_request_uuid:'merge-1' } });
+  assert.deepEqual(result, { confirmed:false, reason:'authoritative_effect_pending', mutation_certainty:'possible', recovery:{ mechanism:'github_integration_reconcile', merge_request_uuid:'merge-1' } });
 });
 
 test('GitHub authoritative-effect readback survives workspace drift by scanning bounded base PR history', () => {
