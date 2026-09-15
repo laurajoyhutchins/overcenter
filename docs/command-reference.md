@@ -28,9 +28,28 @@ When bounded agent execution is required, perform that judgment-heavy work and r
 
 Promote the current verified development revision by repository identity. This is a deliberate production boundary, not an ordinary implementation step.
 
+### `production.reconcile`
+
+Converge the repository's verified development revision into declared production state by repository identity only. Overcenter derives branch roles, exact revisions, verification, promotion, serialized runtime materialization, recovery, and final same-revision evidence.
+
+Use this as the terminal production convergence boundary, not as a generic retry or as permission to bypass failed verification.
+
 ### `release.publish`
 
 Publish one exact verified semantic release plan. Overcenter derives provider release bookkeeping and exact publication evidence behind the semantic boundary.
+
+## Command transport and authority
+
+The semantic command does not change meaning based on how it is reached.
+
+- MCP is the ordinary agent-facing discovery surface when available.
+- GitHub-native GCP semantic ingress provides a bounded path for exact-revision command execution when the command is not being invoked directly through MCP.
+- GitHub remains source authority for repository content and project definitions.
+- Overcenter on GCP remains authority for runs, leases, claims, settlement, receipts, recovery, release publication, and production reconciliation.
+- Cloud SQL is the authoritative runtime database.
+- Hatchable is not an execution fallback or authoritative writer.
+
+A transport failure is not evidence that a semantic effect did or did not happen. Preserve mutation uncertainty and use the command's recovery/readback contract rather than reproducing its internals manually.
 
 ## Internal advanced capabilities
 

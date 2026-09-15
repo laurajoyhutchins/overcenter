@@ -124,6 +124,8 @@ Execution-correctness failures that are mechanically recoverable belong behind `
 
 If Overcenter cannot safely determine what happened, ordinary execution must fail closed with a bounded recovery condition rather than exposing the gearbox. If `project.advance` itself is unavailable because the deployed product is broken, that is an Overcenter runtime incident, not permission to manually reproduce it from lower-level commands.
 
+A transport failure does not redefine authority. GitHub remains source authority; Overcenter on GCP remains authority for runs, leases, claims, settlement, receipts, and recovery; Cloud SQL remains the authoritative runtime database. Hatchable is not an execution fallback.
+
 ## 7. Evidence before completion claims
 
 A successful tool call is not enough to say the project transition is done.
@@ -159,6 +161,16 @@ project.advance or project.amend
 
 Runs, leases, journals, receipts, and recovery state exist so disposable sessions can resume safely. They are supporting mechanisms, not conceptual prerequisites for every agent prompt.
 
+## Production and release boundaries
+
+Production and release commands are primary semantic commands, but they are not part of the ordinary implementation loop above.
+
+- `production.promote` performs the deliberate development-to-production promotion boundary.
+- `production.reconcile` converges the verified development revision into declared production state with exact verification, serialized materialization, recovery, and final same-revision evidence.
+- `release.publish` publishes one exact verified semantic release plan.
+
+Use these commands only when the corresponding production or release intent is actually in scope. Do not treat them as generic completion shortcuts for project transitions.
+
 ## Ordinary MCP discovery
 
 Ordinary MCP discovery exposes only the primary semantic product surface:
@@ -168,6 +180,7 @@ Ordinary MCP discovery exposes only the primary semantic product surface:
 - `project.amend`
 - `project.advance`
 - `production.promote`
+- `production.reconcile`
 - `release.publish`
 
 Advanced GitHub effects, operator recovery mechanisms, compatibility commands, leases, journals, settlement primitives, and other kernel operations may still exist as internal worker/API capabilities. Their existence does not make them peer product APIs for ordinary agents.
