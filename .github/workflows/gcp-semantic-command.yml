@@ -253,13 +253,14 @@ jobs:
             "$RUNNER_TEMP/semantic-response.json" \
             > "$RUNNER_TEMP/sanitized-semantic-response.json"
           response_sha256="$(sha256sum "$RUNNER_TEMP/sanitized-semantic-response.json" | cut -d' ' -f1)"
-          response_b64="$(base64 -w 0 "$RUNNER_TEMP/sanitized-semantic-response.json")"
+          base64 -w 0 "$RUNNER_TEMP/sanitized-semantic-response.json" \
+            > "$RUNNER_TEMP/sanitized-semantic-response.b64"
           jq -n \
             --arg request_id "$REQUEST_ID" \
             --arg command "$COMMAND" \
             --arg expected_head "$EXPECTED_HEAD" \
             --arg response_sha256 "$response_sha256" \
-            --arg response_b64 "$response_b64" \
+            --rawfile response_b64 "$RUNNER_TEMP/sanitized-semantic-response.b64" \
             --slurpfile response "$RUNNER_TEMP/sanitized-semantic-response.json" \
             '{request_id:$request_id,command:$command,expected_head:$expected_head,response_sha256:$response_sha256,response_b64:$response_b64,response:$response[0]}' \
             > "$RUNNER_TEMP/bounded-semantic-response.json"
