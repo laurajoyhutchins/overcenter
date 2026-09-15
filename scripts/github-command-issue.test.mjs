@@ -267,7 +267,16 @@ test('generic authoritative ingress keeps target revision distinct from control 
     command:'project.amend',
     project_ref:projectRef,
     input:{ project_ref:projectRef, expected_revision:targetRevision, amendment:{ metadata:{ source:'test' } } },
-  }, { withGitHubAppApiClient });
+  }, {
+    withGitHubAppApiClient,
+    readGitHubWorkflowSemanticReceipt: async ({ expected_head }) => ({
+      outcome:'completed',
+      response:{ outcome:'amended' },
+      receipt:{ expected_head },
+      mutation_certainty:'confirmed',
+      may_have_mutated:true,
+    }),
+  });
   const encodedInput = Object.entries(dispatchedInputs)
     .filter(([key]) => key.startsWith('command_input_'))
     .sort(([a], [b]) => a.localeCompare(b))
