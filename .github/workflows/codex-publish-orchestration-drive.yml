@@ -1,0 +1,53 @@
+name: One-shot publish orchestration drive
+
+on:
+  pull_request:
+    branches:
+      - dev
+  push:
+    branches:
+      - codex/publish-orchestration-drive
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.repository_owner == 'laurajoyhutchins' && github.head_ref == 'codex/publish-orchestration-drive'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: codex/publish-orchestration-drive
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply exact publication patch
+        run: node scripts/codex-publish-orchestration-drive.mjs
+      - name: Regenerate tracked semantic mirror and command reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          node node_modules/typescript/bin/tsc -p tsconfig.semantic.runtime.json
+          cp dist/lib/semantic-command-descriptors.js lib/semantic-command-descriptors.js
+          node --input-type=module -e "import { writeFile } from 'node:fs/promises'; import { renderSemanticCommandReference } from './scripts/render-semantic-command-reference.mjs'; await writeFile('./public/docs/semantic-command-descriptors.md', renderSemanticCommandReference());"
+      - name: Prove focused GREEN before commit
+        run: |
+          node scripts/verify-orchestration-drive.mjs
+          node --test scripts/verify-semantic-command-descriptors.test.mjs
+      - name: Commit only durable implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm scripts/codex-publish-orchestration-drive.mjs
+          rm .github/workflows/codex-publish-orchestration-drive.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git status --short
+          git commit -m 'feat: publish bounded orchestration drive'
+          git push origin HEAD:codex/publish-orchestration-drive
