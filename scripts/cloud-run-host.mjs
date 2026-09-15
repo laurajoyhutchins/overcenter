@@ -1,4 +1,8 @@
+import { semanticCommandReceiptPointer } from '../lib/semantic-command-receipts.js';
+
 const MAX_BODY_BYTES = 1024 * 1024;
+const SHA40 = /^[0-9a-f]{40}$/;
+const RECEIPT_REQUEST_ID = /^[A-Za-z0-9._:-]{1,512}$/;
 
 function requiredText(env, name) {
   const value = typeof env?.[name] === 'string' ? env[name].trim() : '';
@@ -62,8 +66,8 @@ async function readJsonBody(request) {
   }
 }
 
-function writeJson(response, statusCode, value) {
-  response.writeHead(statusCode, { 'content-type': 'application/json; charset=utf-8' });
+function writeJson(response, statusCode, value, headers = {}) {
+  response.writeHead(statusCode, { 'content-type': 'application/json; charset=utf-8', ...headers });
   response.end(`${JSON.stringify(value)}\n`);
 }
 
@@ -79,7 +83,44 @@ function validateArtifact(input) {
   return { sourceRevision, artifactDigest };
 }
 
-export function createCloudRunHandler({ db, runtime, workerCommand = null, projectInspect = null, authorityProofInspect = null, authorityMode = 'shadow' }) {
+function requestHeader(request, name) {
+  const lower = String(name).toLowerCase();
+  const value = request?.headers?.[lower] ?? request?.headers?.[name];
+  return Array.isArray(value) ? String(value[0] || '').trim() : String(value || '').trim();
+}
+
+function receiptResponseHeaders(receipt) {
+  return {
+    'x-overcenter-receipt-ref': receipt.receipt_ref,
+    'x-overcenter-receipt-sha256': receipt.receipt_sha256,
+    'x-overcenter-response-sha256': receipt.response_sha256,
+    'x-overcenter-source-revision': receipt.source_revision,
+  };
+}
+
+function semanticReceiptUnavailable() {
+  return {
+    ok: false,
+    error: 'SEMANTIC_RECEIPT_RUNTIME_UNAVAILABLE',
+    message: 'authoritative semantic receipt runtime is unavailable',
+    may_have_mutated: false,
+  };
+}
+
+function semanticTransportBody(receipt) {
+  return { ...receipt.response, authority_receipt: semanticCommandReceiptPointer(receipt) };
+}
+
+export function createCloudRunHandler({
+  db,
+  runtime,
+  workerCommand = null,
+  projectInspect = null,
+  authorityProofInspect = null,
+  semanticReceiptStore = null,
+  sourceRevision = null,
+  authorityMode = 'shadow',
+}) {
   if (!db || typeof db.query !== 'function') throw new TypeError('db.query is required');
   if (!runtime || typeof runtime.publishAndVerify !== 'function') {
     throw new TypeError('runtime.publishAndVerify is required');
@@ -93,6 +134,17 @@ export function createCloudRunHandler({ db, runtime, workerCommand = null, proje
   if (authorityProofInspect !== null && typeof authorityProofInspect !== 'function') {
     throw new TypeError('authorityProofInspect must be a function when supplied');
   }
+  if (semanticReceiptStore !== null && (
+    !semanticReceiptStore
+    || typeof semanticReceiptStore.read !== 'function'
+    || typeof semanticReceiptStore.replay !== 'function'
+    || typeof semanticReceiptStore.record !== 'function'
+  )) {
+    throw new TypeError('semanticReceiptStore must expose read, replay, and record when supplied');
+  }
+  const normalizedSourceRevision = typeof sourceRevision === 'string'
+    ? sourceRevision.trim().toLowerCase()
+    : '';
 
   return async function handle(request, response) {
     try {
@@ -128,6 +180,13 @@ export function createCloudRunHandler({ db, runtime, workerCommand = null, proje
         return writeJson(response, 200, { ok:true, authority_mode:authorityMode, proof:result });
       }
 
+      if (request.method === 'POST' && request.url === '/api/authoritative-state/semantic-receipt') {
+        if (!semanticReceiptStore) return writeJson(response, 503, semanticReceiptUnavailable());
+        const input = await readJsonBody(request);
+        const receipt = await semanticReceiptStore.read(input);
+        return writeJson(response, 200, { ok:true, authority_mode:authorityMode, receipt });
+      }
+
       if (request.method === 'POST' && request.url === '/api/worker-command') {
         if (!workerCommand) return writeJson(response, 503, { ok:false, error:'semantic control plane unavailable' });
         const input = await readJsonBody(request);
@@ -139,15 +198,84 @@ export function createCloudRunHandler({ db, runtime, workerCommand = null, proje
             may_have_mutated:false,
           });
         }
+        if (!semanticReceiptStore && !normalizedSourceRevision) {
+          const result = await workerCommand(input);
+          return writeJson(
+            response,
+            Number(result?.status || 500),
+            result?.body ?? { ok:false, error:'semantic worker returned no body' },
+          );
+        }
+        if (!semanticReceiptStore || !SHA40.test(normalizedSourceRevision)) {
+          return writeJson(response, 503, semanticReceiptUnavailable());
+        }
+
+        const requestId = requestHeader(request, 'x-overcenter-request-id');
+        const expectedHead = requestHeader(request, 'x-overcenter-expected-head').toLowerCase();
+        if (!RECEIPT_REQUEST_ID.test(requestId)) {
+          return writeJson(response, 422, {
+            ok:false,
+            error:'SEMANTIC_RECEIPT_REQUEST_ID_REQUIRED',
+            may_have_mutated:false,
+          });
+        }
+        if (!SHA40.test(expectedHead)) {
+          return writeJson(response, 422, {
+            ok:false,
+            error:'SEMANTIC_RECEIPT_EXPECTED_HEAD_REQUIRED',
+            may_have_mutated:false,
+          });
+        }
+        if (expectedHead !== normalizedSourceRevision) {
+          return writeJson(response, 409, {
+            ok:false,
+            error:'SEMANTIC_RECEIPT_SOURCE_REVISION_MISMATCH',
+            expected_head:expectedHead,
+            source_revision:normalizedSourceRevision,
+            may_have_mutated:false,
+          });
+        }
+
+        const receiptInput = {
+          request_id:requestId,
+          command:String(input?.command || ''),
+          source_revision:normalizedSourceRevision,
+          request:input,
+        };
+        const replay = await semanticReceiptStore.replay(receiptInput);
+        if (replay?.receipt) {
+          return writeJson(
+            response,
+            replay.receipt.http_status,
+            semanticTransportBody(replay.receipt),
+            receiptResponseHeaders(replay.receipt),
+          );
+        }
+
         const result = await workerCommand(input);
-        return writeJson(response, Number(result?.status || 500), result?.body ?? { ok:false, error:'semantic worker returned no body' });
+        const recorded = await semanticReceiptStore.record({
+          ...receiptInput,
+          response:result?.body ?? { ok:false, error:'semantic worker returned no body' },
+          http_status:Number(result?.status || 500),
+        });
+        return writeJson(
+          response,
+          recorded.receipt.http_status,
+          semanticTransportBody(recorded.receipt),
+          receiptResponseHeaders(recorded.receipt),
+        );
       }
 
       return writeJson(response, 404, { ok: false, error: 'not found' });
     } catch (error) {
-      return writeJson(response, error.statusCode || 500, {
+      return writeJson(response, error.statusCode || error.httpStatus || 500, {
         ok: false,
         error: error.code || error.message || 'internal error',
+        ...(error.message && error.code ? { message:error.message } : {}),
+        ...(error.details ? { details:error.details } : {}),
+        ...(typeof error.may_have_mutated === 'boolean'
+          ? { may_have_mutated:error.may_have_mutated }
+          : {}),
       });
     }
   };

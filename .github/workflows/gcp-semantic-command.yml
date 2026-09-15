@@ -237,10 +237,67 @@ jobs:
               ;;
           esac
           payload="$(jq -n --arg command "$COMMAND" --arg request_id "$REQUEST_ID" --argjson input "$input" '{command:$command,input:$input,invocation_context:{run_id:$request_id}}')"
-          status="$(curl --silent --show-error -o "$RUNNER_TEMP/semantic-response.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -H 'x-overcenter-authority-mode: authoritative' -H "x-overcenter-request-id: $REQUEST_ID" -X POST -d "$payload" "$SERVICE_AUDIENCE/api/worker-command")"
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/semantic-response.json" -w '%{http_code}' -H "Authorization: Bearer $ID_TOKEN" -H 'content-type: application/json' -H 'x-overcenter-authority-mode: authoritative' -H "x-overcenter-request-id: $REQUEST_ID" -H "x-overcenter-expected-head: $EXPECTED_HEAD" -X POST -d "$payload" "$SERVICE_AUDIENCE/api/worker-command")"
           jq . "$RUNNER_TEMP/semantic-response.json" || cat "$RUNNER_TEMP/semantic-response.json"
           test "$status" = 200
           jq -e '.ok == true' "$RUNNER_TEMP/semantic-response.json" >/dev/null
+          jq -e \
+            --arg request_id "$REQUEST_ID" \
+            --arg command "$COMMAND" \
+            --arg expected_head "$EXPECTED_HEAD" \
+            '.authority_receipt.schema == "semantic-command-receipt-pointer-v1"
+             and .authority_receipt.request_id == $request_id
+             and .authority_receipt.command == $command
+             and .authority_receipt.source_revision == $expected_head
+             and (.authority_receipt.receipt_ref | type == "string" and length > 0)
+             and (.authority_receipt.receipt_sha256 | test("^[0-9a-f]{64}$"))
+             and (.authority_receipt.response_sha256 | test("^[0-9a-f]{64}$"))' \
+            "$RUNNER_TEMP/semantic-response.json" >/dev/null
+
+      - name: Verify authoritative GCP receipt retrieval
+        if: always()
+        shell: bash
+        env:
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+        run: |
+          set -euo pipefail
+          test -f "$RUNNER_TEMP/semantic-response.json" || exit 0
+          jq -e '.authority_receipt.receipt_ref | type == "string" and length > 0' "$RUNNER_TEMP/semantic-response.json" >/dev/null || exit 0
+          receipt_ref="$(jq -r '.authority_receipt.receipt_ref' "$RUNNER_TEMP/semantic-response.json")"
+          receipt_sha256="$(jq -r '.authority_receipt.receipt_sha256' "$RUNNER_TEMP/semantic-response.json")"
+          jq -n \
+            --arg receipt_ref "$receipt_ref" \
+            --arg expected_receipt_sha256 "$receipt_sha256" \
+            '{receipt_ref:$receipt_ref,expected_receipt_sha256:$expected_receipt_sha256}' \
+            > "$RUNNER_TEMP/semantic-receipt-request.json"
+          status="$(curl --silent --show-error \
+            -o "$RUNNER_TEMP/semantic-receipt.json" \
+            -w '%{http_code}' \
+            -H "Authorization: Bearer $ID_TOKEN" \
+            -H 'content-type: application/json' \
+            -X POST \
+            --data-binary @"$RUNNER_TEMP/semantic-receipt-request.json" \
+            "$SERVICE_AUDIENCE/api/authoritative-state/semantic-receipt")"
+          jq . "$RUNNER_TEMP/semantic-receipt.json" || cat "$RUNNER_TEMP/semantic-receipt.json"
+          test "$status" = 200
+          jq -e \
+            --arg request_id "$REQUEST_ID" \
+            --arg command "$COMMAND" \
+            --arg expected_head "$EXPECTED_HEAD" \
+            --arg receipt_ref "$receipt_ref" \
+            --arg receipt_sha256 "$receipt_sha256" \
+            '.ok == true
+             and .receipt.request_id == $request_id
+             and .receipt.command == $command
+             and .receipt.source_revision == $expected_head
+             and .receipt.receipt_ref == $receipt_ref
+             and .receipt.receipt_sha256 == $receipt_sha256' \
+            "$RUNNER_TEMP/semantic-receipt.json" >/dev/null
+          authority_response_sha256="$(jq -r '.authority_receipt.response_sha256' "$RUNNER_TEMP/semantic-response.json")"
+          jq -e --arg response_sha256 "$authority_response_sha256" '.receipt.response_sha256 == $response_sha256' "$RUNNER_TEMP/semantic-receipt.json" >/dev/null
+          jq -S -c 'del(.authority_receipt)' "$RUNNER_TEMP/semantic-response.json" > "$RUNNER_TEMP/semantic-response-body.json"
+          jq -S -c '.receipt.response' "$RUNNER_TEMP/semantic-receipt.json" > "$RUNNER_TEMP/semantic-receipt-body.json"
+          cmp "$RUNNER_TEMP/semantic-response-body.json" "$RUNNER_TEMP/semantic-receipt-body.json"
 
       - name: Prepare bounded semantic response artifact
         id: response_artifact
@@ -262,7 +319,7 @@ jobs:
             --arg response_sha256 "$response_sha256" \
             --rawfile response_b64 "$RUNNER_TEMP/sanitized-semantic-response.b64" \
             --slurpfile response "$RUNNER_TEMP/sanitized-semantic-response.json" \
-            '{request_id:$request_id,command:$command,expected_head:$expected_head,response_sha256:$response_sha256,response_b64:$response_b64,response:$response[0]}' \
+            '{request_id:$request_id,command:$command,expected_head:$expected_head,response_sha256:$response_sha256,response_b64:$response_b64,authority_receipt:$response[0].authority_receipt,response:$response[0]}' \
             > "$RUNNER_TEMP/bounded-semantic-response.json"
           echo 'artifact_ready=true' >> "$GITHUB_OUTPUT"
           {
@@ -272,6 +329,8 @@ jobs:
             echo "- command: \`$COMMAND\`"
             echo "- expected_head: \`$EXPECTED_HEAD\`"
             echo "- response_sha256: \`$response_sha256\`"
+            echo "- authority_receipt: \`$(jq -r '.authority_receipt.receipt_ref // "unavailable"' "$RUNNER_TEMP/sanitized-semantic-response.json")\`"
+            echo "- authority_receipt_sha256: \`$(jq -r '.authority_receipt.receipt_sha256 // "unavailable"' "$RUNNER_TEMP/sanitized-semantic-response.json")\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload bounded semantic response artifact

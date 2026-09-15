@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
+import { createPostgresSemanticCommandReceiptStore } from '../lib/semantic-command-receipts.js';
 import { createCloudRunHandler, resolveCloudRunConfig } from './cloud-run-host.mjs';
 import { createCloudRunAuthorityProofInspector } from './cloud-run-authority-proof-runtime.mjs';
 import { createCloudRunReadOnlyProjectInspector, createCloudRunSemanticWorker } from './cloud-run-semantic-runtime.mjs';
@@ -50,7 +51,17 @@ const runtime = createNodePostgresRuntime(pool);
 const workerCommand = createCloudRunSemanticWorker({ db:pool, env:process.env, logger:console });
 const projectInspect = createCloudRunReadOnlyProjectInspector({ db:pool, env:process.env });
 const authorityProofInspect = createCloudRunAuthorityProofInspector({ db:pool });
-const handler = createCloudRunHandler({ db: pool, runtime, workerCommand, projectInspect, authorityProofInspect, authorityMode:config.authorityMode });
+const semanticReceiptStore = createPostgresSemanticCommandReceiptStore(pool);
+const handler = createCloudRunHandler({
+  db:pool,
+  runtime,
+  workerCommand,
+  projectInspect,
+  authorityProofInspect,
+  semanticReceiptStore,
+  sourceRevision:process.env.OVERCENTER_SOURCE_REVISION,
+  authorityMode:config.authorityMode,
+});
 const server = createServer(handler);
 
 server.listen(config.port, config.listenHost, () => {
