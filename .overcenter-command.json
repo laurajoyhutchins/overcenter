@@ -1,0 +1,7 @@
+{
+  "schema": "overcenter-github-command-v1",
+  "command": "project.inspect",
+  "input": {
+    "project_ref": "github:laurajoyhutchins/overcenter"
+  }
+}
