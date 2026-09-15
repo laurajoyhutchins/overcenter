@@ -7,9 +7,10 @@ This document describes the current authority and exposure boundaries of Overcen
 Overcenter keeps authority deliberately narrow:
 
 - **GitHub repositories** are authoritative for repository content, repository identity, exact revisions, pull requests, checks, and other repository facts.
-- **Overcenter** owns execution semantics and durable execution evidence: orchestration runs, work leases, claim/settlement, idempotency, deterministic recovery, command journaling, exact-revision mutation contracts, and receipts.
+- **Overcenter on GCP** owns execution semantics and durable execution truth: orchestration runs, work leases, claim/settlement, idempotency, deterministic recovery, command journaling, exact-revision mutation contracts, compact receipts, and recovery decisions.
+- **Cloud SQL** is the authoritative runtime database for Overcenter state.
 - **Linear** is a thin projection of currently executable work. It may reflect readiness, dependencies, acceptance boundaries, and current execution stage, but it is not repository authority and it is not a second execution/evidence store.
-- **Hatchable** is the current hosting/runtime layer. Runtime source and runtime deployment metadata are derived state, not repository authority.
+- **Hatchable** is legacy transport/integration and derived-projection context. It is not an authoritative writer, execution fallback, or source of Overcenter orchestration truth.
 
 No compatibility or fallback control plane is part of the current architecture.
 
@@ -32,6 +33,12 @@ The operator dashboard and mutation surfaces are privileged.
 ## Privileged execution surfaces
 
 Overcenter's privileged runtime is organized around semantic operations rather than arbitrary provider access.
+
+### Semantic command ingress
+
+Ordinary callers use the primary MCP commands. When a first-class MCP invocation is unavailable, the GitHub-native bounded semantic ingress authenticates through GitHub and GCP, verifies the exact source revision, and reaches the same authoritative GCP command boundary.
+
+Transport does not change semantic ownership. A failed transport is not permission to reconstruct leases, settlement, retries, or recovery in the caller.
 
 ### Orchestration
 
@@ -59,19 +66,19 @@ Each retained GitHub App capability has a fixed command-owned permission profile
 
 ### Verification
 
-`POST /api/verification/regressions` is the admin-only runtime regression entry point. It returns machine-readable suite and case results. Repository-static checks live under `scripts/` and do not replace runtime verification.
+`POST /api/verification/regressions` is the admin-only runtime regression entry point. Repository-static checks live under `scripts/` and do not replace runtime verification.
 
 ## Internal transport surfaces
 
-Low-level HTTP work routes remain internal transport for callers that cannot use the semantic MCP/worker boundary directly. They are not a second orchestration authority. Canonical semantics remain owned by the same work and orchestration services underneath them.
+Low-level HTTP routes and provider adapters are transport or implementation seams for callers and workflows that cannot use the primary semantic MCP surface directly. They are not a second orchestration authority.
 
-Transport adapters may authenticate to GitHub, Linear, or Hatchable, but credentials remain adapter/runtime concerns. Core deterministic policy modules should consume verified facts rather than credentials.
+Current authoritative execution terminates in the GCP runtime. Legacy Hatchable adapters and source-projection machinery may remain for compatibility or derived deployment projections; their presence does not restore Hatchable authority and must not be treated as an execution fallback.
 
-## Source materialization
+## Source and runtime materialization
 
-GitHub-authoritative source materialization is one-way. Deployment coordinates are supplied by the installation adapter. Overcenter source does not hard-code a production Hatchable project identifier.
+GitHub-authoritative source materialization is one-way: repository source flows from an exact GitHub revision into derived runtime artifacts. The authoritative Overcenter service is deployed to GCP through exact-revision GitHub Actions workflows authenticated with GCP Workload Identity/OIDC.
 
-See [`source-sync.md`](source-sync.md).
+Some retained compatibility workflows still materialize a non-authoritative Hatchable projection. Those workflows are derived-state compatibility machinery, not the authority for runs, leases, settlement, receipts, or recovery. See [`source-sync.md`](source-sync.md) for the legacy projection contract and [`production-reconciliation.md`](production-reconciliation.md) for the current command boundary.
 
 ## Repository publication boundary
 

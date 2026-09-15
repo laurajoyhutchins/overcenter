@@ -18,7 +18,7 @@ npm test
 npm run dev
 ```
 
-`npm run dev` starts PostgreSQL with Docker Compose, builds the host-independent portable runtime, and starts a local development server on `http://127.0.0.1:8787`. `GET /health` verifies the Node/PostgreSQL substrate. `POST /runtime/publish` exercises portable runtime publication and verification without requiring Hatchable.
+`npm run dev` starts PostgreSQL with Docker Compose, builds the host-independent portable runtime, and starts a local development server on `http://127.0.0.1:8787`. `GET /health` verifies the Node/PostgreSQL substrate. `POST /runtime/publish` exercises portable runtime publication and verification without requiring hosted infrastructure.
 
 The other canonical repository commands are intentionally mundane:
 
@@ -83,6 +83,8 @@ The primary semantic surface is intentionally small:
 - `project.advance` advances the project until agent judgment is required or deterministic work is confirmed.
 - `project.define` and `project.amend` create or revise repository-owned project definitions.
 - `production.promote` performs the production promotion workflow behind one semantic boundary.
+- `production.reconcile` converges the verified development revision into declared production state with exact verification and same-revision evidence.
+- `release.publish` publishes an exact verified semantic release plan.
 
 Lower-level work, orchestration, GitHub, verification, and recovery commands remain available as supporting mechanisms and evidence surfaces.
 
@@ -91,9 +93,10 @@ Lower-level work, orchestration, GitHub, verification, and recovery commands rem
 Overcenter keeps each system in a narrow role:
 
 - **GitHub** is authoritative for repository content and repository-owned project definitions.
-- **Overcenter** is authoritative for current run/execution state, unresolved operations, settlement, compact receipts and proofs, and deterministic recovery decisions.
+- **Overcenter on GCP** is authoritative for current run/execution state, leases, claims, unresolved operations, settlement, compact receipts and proofs, and deterministic recovery decisions.
+- **Cloud SQL** is the authoritative runtime database.
 - **Linear** can project executable work, but it is not source authority or an evidence archive.
-- **Hatchable** is the current reference runtime and hosting layer, not project authority.
+- **Hatchable** is legacy transport/integration context only. It is not an authoritative runtime, execution fallback, or state writer.
 
 This separation is deliberate. Hosting, task tracking, and agent sessions should be replaceable without changing what the project says is true.
 
@@ -108,22 +111,25 @@ This separation is deliberate. Hosting, task tracking, and agent sessions should
 - `docs/` contains architecture and design documentation.
 - `public/docs/` contains runtime-facing command and operator documentation.
 - `scripts/` contains repository-owned build, test, development, verification, and release checks.
+- `.github/workflows/` contains the GCP deployment, semantic-command ingress, verification, and reconciliation workflows.
 - `dist/` is generated build output and is not committed.
-- `hatchable.toml` declares the current reference deployment configuration.
+- `hatchable.toml` remains for legacy/transport integration context; it is not the authoritative production deployment configuration.
 
 ## Project status
 
-Overcenter is under active development. The execution model and safety boundaries are implemented and exercised, while the agent-facing surface and portable deployment path are still being simplified.
+Overcenter is under active development. The execution model and safety boundaries are implemented and exercised. The authoritative GCP deployment and terminal semantic-command ingress are live, while the public agent surface and remaining compatibility code are still being simplified.
 
 The command contracts in `mcp/` and the repository-owned project definitions in `.overcenter/` are the best references for current behavior.
 
 ## Deployment
 
-The current reference deployment runs on Hatchable with PostgreSQL, an installed GitHub App, and a Linear API connection. Deployment coordinates and credentials are installation-owned and must not be committed to repository source.
+The authoritative deployment runs on GCP. Cloud Run hosts the production service, Cloud SQL stores authoritative runtime state, and GitHub Actions authenticates to GCP through Workload Identity/OIDC for deployment and bounded semantic-command ingress.
 
-See [`hatchable.toml`](hatchable.toml) for required runtime configuration and [`SECURITY.md`](SECURITY.md) before deploying an instance.
+The current deployment paths live under `.github/workflows/`, including `gcp-authoritative-deploy.yml` for the production service, `gcp-semantic-command.yml` for generic GitHub-native semantic ingress, and the production promotion/reconciliation workflows. Deployment coordinates and credentials are installation-owned and must not be committed to repository source.
 
-Overcenter's source-of-truth model is intentionally host-independent: the runtime may host execution, but it does not become authority merely by hosting the service.
+The old Hatchable authoritative writer is frozen and its execution endpoints are disabled. Hatchable must not be used as a fallback when GCP command ingress is unavailable.
+
+See [`SECURITY.md`](SECURITY.md) before deploying an instance. Overcenter's source-of-truth model is intentionally host-independent: the runtime may host execution, but it does not become source authority merely by hosting the service.
 
 ## Verification
 
