@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - 'overcenter-command/*'
+    paths:
+      - '.overcenter-command.json'
 
 permissions:
   actions: write
