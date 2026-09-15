@@ -50,6 +50,7 @@ jobs:
           scripts/cloud-run-host.test.mjs
           scripts/cloud-run-target-authority.test.mjs
           scripts/cloud-run-target-activation-exit.test.mjs
+          scripts/gcp-semantic-project-amend-bridge.test.mjs
           scripts/github-command-issue.test.mjs
       - name: Verify project authoring authority contracts
         run: node --test scripts/verify-project-authoring-readback-contract.test.mjs scripts/verify-project-authoring-github-adapter.test.mjs
