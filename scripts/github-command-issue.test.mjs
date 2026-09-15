@@ -237,3 +237,43 @@ test('project.amend delegates through the generic authoritative semantic ingress
   assert.doesNotMatch(source, /gcp-semantic-project-amend-relay/);
   assert.doesNotMatch(source, /hatchable-runtime-providers/);
 });
+
+test('generic authoritative ingress keeps target revision distinct from control revision', async () => {
+  const { invokeAuthoritativeSemanticCommand } = await import('../lib/authoritative-semantic-command-ingress.js');
+  const controlRevision = 'a'.repeat(40);
+  const targetRevision = 'b'.repeat(40);
+  let dispatchedInputs = null;
+  const withGitHubAppApiClient = async (repo, callback) => {
+    assert.equal(repo, 'laurajoyhutchins/overcenter');
+    return callback({
+      async call(service, request) {
+        assert.equal(service, 'github');
+        if (request.path.endsWith('/git/ref/heads/dev')) {
+          return { status:200, body:{ object:{ sha:controlRevision } } };
+        }
+        if (request.path.endsWith('/dispatches')) {
+          dispatchedInputs = request.body.inputs;
+          return { status:204, body:null };
+        }
+        if (request.path.endsWith('/runs')) {
+          return { status:200, body:{ workflow_runs:[{ id:71, head_sha:controlRevision, event:'workflow_dispatch', display_title:`semantic ${dispatchedInputs.request_id}`, created_at:new Date().toISOString(), status:'queued' }] } };
+        }
+        throw new Error(`unexpected GitHub call ${request.method} ${request.path}`);
+      },
+    });
+  };
+  const projectRef = 'github:example/target';
+  const result = await invokeAuthoritativeSemanticCommand({
+    command:'project.amend',
+    project_ref:projectRef,
+    input:{ project_ref:projectRef, expected_revision:targetRevision, amendment:{ metadata:{ source:'test' } } },
+  }, { withGitHubAppApiClient });
+  const encodedInput = Object.entries(dispatchedInputs)
+    .filter(([key]) => key.startsWith('command_input_'))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, value]) => value)
+    .join('');
+  assert.equal(result.control_plane_revision, controlRevision);
+  assert.equal(JSON.parse(encodedInput).expected_revision, targetRevision);
+  assert.notEqual(result.control_plane_revision, JSON.parse(encodedInput).expected_revision);
+});
