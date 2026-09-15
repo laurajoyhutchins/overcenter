@@ -17,6 +17,7 @@ on:
           - project.advance
           - project.define
           - project.amend
+          - project.artifact.bind
           - orchestration.maintain
           - orchestration.diagnose
           - production.reconcile
@@ -121,7 +122,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$EXPECTED_HEAD"
           case "$COMMAND" in
-            project.inspect|project.advance|project.define|project.amend|orchestration.maintain|orchestration.diagnose|production.reconcile|github.pull_request.mark_ready|github.workflow.dispatch|github.apply_changeset|github.coalesce_changeset|github.apply_text_replacements) ;;
+            project.inspect|project.advance|project.define|project.amend|project.artifact.bind|orchestration.maintain|orchestration.diagnose|production.reconcile|github.pull_request.mark_ready|github.workflow.dispatch|github.apply_changeset|github.coalesce_changeset|github.apply_text_replacements) ;;
             *) echo "unsupported semantic command: $COMMAND" >&2; exit 2 ;;
           esac
           case "$COMMAND" in
@@ -155,6 +156,14 @@ jobs:
               test -z "$EXECUTION_RESULT_JSON"
               test -n "$command_input_json"
               jq -e --arg project_ref "$PROJECT_REF" 'type == "object" and (keys == ["amendment","expected_revision","project_ref"]) and (.project_ref == $project_ref) and (.expected_revision | type == "string" and test("^[0-9a-f]{40}$")) and ((.amendment | type) == "object")' <<<"$command_input_json" >/dev/null
+              ;;
+            project.artifact.bind)
+              [[ "$PROJECT_REF" =~ ^github:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+              test -z "$TRANSITION_ID"
+              test -z "$RESUME_REF"
+              test -z "$EXECUTION_RESULT_JSON"
+              test -n "$command_input_json"
+              jq -e --arg project_ref "$PROJECT_REF" 'type == "object" and (keys == ["expected_revision","project_ref","provider","relationship","satisfaction_condition","transition_id"]) and (.project_ref == $project_ref) and (.expected_revision | type == "string" and test("^[0-9a-f]{40}$")) and (.transition_id | type == "string" and test("^\\S{1,256}$")) and (.provider | type == "object" and (keys == ["kind","number"]) and (.kind == "issue" or .kind == "pull_request") and (.number | type == "number" and . >= 1 and . == floor)) and (.relationship == "full_coverage_equivalence") and ((.provider.kind == "issue" and .satisfaction_condition == "closed") or (.provider.kind == "pull_request" and .satisfaction_condition == "merged"))' <<<"$command_input_json" >/dev/null
               ;;
             orchestration.maintain)
               test -z "$PROJECT_REF"
@@ -225,7 +234,7 @@ jobs:
           set -euo pipefail
           command_input_json="${COMMAND_INPUT_0}${COMMAND_INPUT_1}${COMMAND_INPUT_2}${COMMAND_INPUT_3}${COMMAND_INPUT_4}${COMMAND_INPUT_5}"
           case "$COMMAND" in
-            orchestration.diagnose|production.reconcile|project.define|project.amend|github.pull_request.mark_ready|github.workflow.dispatch|github.apply_changeset|github.coalesce_changeset|github.apply_text_replacements) input="$command_input_json" ;;
+            orchestration.diagnose|production.reconcile|project.define|project.amend|project.artifact.bind|github.pull_request.mark_ready|github.workflow.dispatch|github.apply_changeset|github.coalesce_changeset|github.apply_text_replacements) input="$command_input_json" ;;
             orchestration.maintain) input='{}' ;;
             *)
               input="$(jq -n --arg project_ref "$PROJECT_REF" '{project_ref:$project_ref}')"
