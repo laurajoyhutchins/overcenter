@@ -13,9 +13,11 @@ test('authoritative deployment fences the exact dev revision without requiring m
   assert.doesNotMatch(workflow, /promoted to both dev and main/);
 });
 
-test('authoritative deployment remains explicit workflow dispatch with an exact revision input', () => {
+test('authoritative deployment remains explicit workflow dispatch with exact revision and optional correlation identity', () => {
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /ref: \$\{\{ inputs\.exact_revision \}\}/);
+  assert.match(workflow, /request_id:/);
+  assert.match(workflow, /run-name: "GCP authoritative deployment \$\{\{ inputs\.request_id \|\| inputs\.exact_revision \}\}"/);
   assert.doesNotMatch(workflow, /\n\s+push:/);
   assert.doesNotMatch(workflow, /inputs\.exact_revision \|\| github\.sha/);
 });
@@ -37,8 +39,12 @@ test('deployment bootstrap ingress is one-commit one-file exact-dev transport an
   assert.match(bootstrapWorkflow, /test "\$changed" = "\$COMMAND_FILE"/);
   assert.match(bootstrapWorkflow, /overcenter-gcp-deploy-command-v1/);
   assert.match(bootstrapWorkflow, /gcp-authoritative-deploy\.yml\/dispatches/);
-  assert.match(bootstrapWorkflow, /exact_revision:\$exact_revision/);
+  assert.match(bootstrapWorkflow, /exact_revision:\$exact_revision,request_id:\$request_id/);
+  assert.match(bootstrapWorkflow, /http_status" != 200.*http_status" != 204/s);
+  assert.match(bootstrapWorkflow, /actions\/runs\?event=workflow_dispatch&branch=dev&per_page=50/);
   assert.match(bootstrapWorkflow, /\.head_sha == \$expected_head/);
+  assert.match(bootstrapWorkflow, /\.display_title == \("GCP authoritative deployment "\+\$request_id\)/);
+  assert.match(bootstrapWorkflow, /match_count" = 1/);
   assert.match(bootstrapWorkflow, /Retire deploy branch/);
   assert.doesNotMatch(bootstrapWorkflow, /api\/worker-command/);
   assert.doesNotMatch(bootstrapWorkflow, /Hatchable|hatchable/);

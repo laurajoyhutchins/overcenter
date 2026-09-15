@@ -49,21 +49,26 @@ jobs:
             (.expected_head | test("^[0-9a-f]{40}$"))
           ' "$COMMAND_FILE" >/dev/null
 
+          request_id="github-deploy-branch-${GITHUB_SHA}"
           jq -n \
             --arg ref "dev" \
             --arg exact_revision "$dev_head" \
-            '{ref:$ref,return_run_details:true,inputs:{exact_revision:$exact_revision}}' \
+            --arg request_id "$request_id" \
+            '{ref:$ref,inputs:{exact_revision:$exact_revision,request_id:$request_id}}' \
             > "$RUNNER_TEMP/workflow-dispatch.json"
           echo "expected_head=$dev_head" >> "$GITHUB_OUTPUT"
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
 
-      - name: Dispatch exact authoritative deployment
+      - name: Dispatch and reconcile exact authoritative deployment
         id: dispatch
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_HEAD: ${{ steps.prepare.outputs.expected_head }}
+          REQUEST_ID: ${{ steps.prepare.outputs.request_id }}
         run: |
           set -euo pipefail
+          echo 'dispatch_state=indeterminate' >> "$GITHUB_OUTPUT"
           set +e
           http_status="$(curl --silent --show-error \
             -o "$RUNNER_TEMP/dispatch-response.json" \
@@ -77,25 +82,63 @@ jobs:
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/gcp-authoritative-deploy.yml/dispatches")"
           curl_exit=$?
           set -e
+          echo "http_status=$http_status" >> "$GITHUB_OUTPUT"
 
-          if [ "$curl_exit" -eq 0 ] && [ "$http_status" = 200 ] && \
-             jq -e --arg expected_head "$EXPECTED_HEAD" \
-               '(.workflow_run_id | type == "number") and (.workflow_run_id > 0) and (.head_sha == $expected_head) and (.html_url | type == "string" and length > 0)' \
-               "$RUNNER_TEMP/dispatch-response.json" >/dev/null; then
+          if [ "$curl_exit" -ne 0 ] || { [ "$http_status" != 200 ] && [ "$http_status" != 204 ]; }; then
+            exit 0
+          fi
+
+          if [ "$http_status" = 200 ] && \
+             jq -e --arg expected_head "$EXPECTED_HEAD" --arg request_id "$REQUEST_ID" \
+               '(.workflow_run_id | type == "number") and (.workflow_run_id > 0) and (.head_sha == $expected_head) and (.display_title == ("GCP authoritative deployment "+$request_id)) and (.html_url | type == "string" and length > 0)' \
+               "$RUNNER_TEMP/dispatch-response.json" >/dev/null 2>&1; then
             echo 'dispatch_state=confirmed' >> "$GITHUB_OUTPUT"
             echo "run_id=$(jq -r '.workflow_run_id' "$RUNNER_TEMP/dispatch-response.json")" >> "$GITHUB_OUTPUT"
             echo "run_url=$(jq -r '.html_url' "$RUNNER_TEMP/dispatch-response.json")" >> "$GITHUB_OUTPUT"
-          else
-            echo 'dispatch_state=indeterminate' >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          echo "http_status=$http_status" >> "$GITHUB_OUTPUT"
+
+          for attempt in $(seq 1 20); do
+            runs_status="$(curl --silent --show-error \
+              -o "$RUNNER_TEMP/deployment-runs.json" \
+              -w '%{http_code}' \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2026-03-10' \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs?event=workflow_dispatch&branch=dev&per_page=50")"
+            if [ "$runs_status" = 200 ]; then
+              jq -c \
+                --arg expected_head "$EXPECTED_HEAD" \
+                --arg request_id "$REQUEST_ID" \
+                '[.workflow_runs[] | select(
+                  .event == "workflow_dispatch" and
+                  .head_sha == $expected_head and
+                  .path == ".github/workflows/gcp-authoritative-deploy.yml" and
+                  .display_title == ("GCP authoritative deployment "+$request_id)
+                )]' \
+                "$RUNNER_TEMP/deployment-runs.json" > "$RUNNER_TEMP/matching-deployment-runs.json"
+              match_count="$(jq 'length' "$RUNNER_TEMP/matching-deployment-runs.json")"
+              if [ "$match_count" = 1 ]; then
+                echo 'dispatch_state=confirmed' >> "$GITHUB_OUTPUT"
+                echo "run_id=$(jq -r '.[0].id' "$RUNNER_TEMP/matching-deployment-runs.json")" >> "$GITHUB_OUTPUT"
+                echo "run_url=$(jq -r '.[0].html_url' "$RUNNER_TEMP/matching-deployment-runs.json")" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              if [ "$match_count" -gt 1 ]; then
+                exit 0
+              fi
+            fi
+            sleep 0.25
+          done
 
       - name: Record deployment dispatch
         if: always() && steps.prepare.outcome == 'success'
         shell: bash
         env:
           EXPECTED_HEAD: ${{ steps.prepare.outputs.expected_head }}
+          REQUEST_ID: ${{ steps.prepare.outputs.request_id }}
           DISPATCH_STATE: ${{ steps.dispatch.outputs.dispatch_state }}
+          DISPATCH_HTTP_STATUS: ${{ steps.dispatch.outputs.http_status }}
           CANONICAL_RUN_ID: ${{ steps.dispatch.outputs.run_id }}
           CANONICAL_RUN_URL: ${{ steps.dispatch.outputs.run_url }}
         run: |
@@ -104,6 +147,8 @@ jobs:
             echo '### GCP authoritative deployment bootstrap'
             echo
             echo "- expected_head: \`$EXPECTED_HEAD\`"
+            echo "- request_id: \`$REQUEST_ID\`"
+            echo "- dispatch_http_status: \`${DISPATCH_HTTP_STATUS:-unknown}\`"
             echo "- dispatch_state: \`${DISPATCH_STATE:-indeterminate}\`"
             echo "- canonical_run_id: \`${CANONICAL_RUN_ID:-unresolved}\`"
             echo "- canonical_run_url: ${CANONICAL_RUN_URL:-unresolved}"
