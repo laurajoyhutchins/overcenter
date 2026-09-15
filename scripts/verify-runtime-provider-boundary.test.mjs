@@ -31,3 +31,12 @@ test('provider-neutral GitHub auth does not resolve Hatchable config', async () 
   assert.equal(HATCHABLE_IMPORT.test(text), false, 'GitHub auth imports Hatchable directly');
   assert.equal(text.includes('config.get('), false, 'GitHub auth reads ambient Hatchable config');
 });
+
+test('GitHub changeset auth is an explicit composition-root dependency', async () => {
+  const text = await source('lib/github-apply-changeset.js');
+  assert.equal(text.includes("githubAppChangesetPermissionProfile, withGitHubAppApiClient"), false, 'changeset helper imports an ambient GitHub App provider');
+  assert.equal(text.includes('options.withGitHubAppApiClient || withGitHubAppApiClient'), false, 'changeset helper retains an ambient provider fallback');
+  assert.equal(text.includes('const withApp = options.withGitHubAppApiClient;'), true, 'changeset helper does not consume the injected provider explicitly');
+  assert.equal(text.includes("code:'RUNTIME_PROVIDER_MISSING'"), true, 'missing changeset provider does not fail explicitly');
+  assert.equal(text.includes('withGitHubAppApiClient:withApp'), true, 'execution authority construction does not retain the injected provider');
+});
