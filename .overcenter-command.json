@@ -1,0 +1,8 @@
+{
+  "schema": "overcenter-github-command-v1",
+  "command": "project.advance",
+  "expected_head": "a02247c20c7d79c804b45f7d1c4c92afe97b5c87",
+  "input": {
+    "project_ref": "github:laurajoyhutchins/overcenter"
+  }
+}
