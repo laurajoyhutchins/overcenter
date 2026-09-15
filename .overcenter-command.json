@@ -1,0 +1,44 @@
+{
+  "schema": "overcenter-github-command-v1",
+  "expected_head": "fe5e162682daf85d2c7b4850a4b2f40b6f9cc16f",
+  "command": "project.amend",
+  "project_ref": "github:laurajoyhutchins/overcenter",
+  "expected_revision": "fe5e162682daf85d2c7b4850a4b2f40b6f9cc16f",
+  "amendment": {
+    "upsert_transitions": [
+      {
+        "id": "publish-bounded-orchestration-drive-semantic-command",
+        "priority": 0,
+        "requires": [],
+        "executor": {
+          "kind": "agent",
+          "role": "implementation",
+          "skill": "test-driven-development"
+        },
+        "execution_intent": {
+          "schema": "project-execution-intent-v1",
+          "desired_outcome": "Publish the existing bounded orchestration drive primitive as orchestration.drive through the authoritative semantic command registry, worker transport, GitHub-native bounded command ingress, and trusted GCP semantic workflow without duplicating the drive loop. Preserve exact revision fencing, run and lease ownership, mutation certainty, settlement, receipt/evidence, recovery, bounded execution, and deterministic stop reasons. Keep project.advance as the one-step primitive. Verify RED-to-GREEN tests, live authoritative receipt/readback, then update the five scheduled Overcenter workers to use orchestration.drive for deterministic advancement.",
+          "acceptance_evidence": [
+            {
+              "kind": "tdd",
+              "requirement": "Focused publication and bounded-drive tests demonstrate an intentional RED state before implementation and pass after the patch."
+            },
+            {
+              "kind": "architecture",
+              "requirement": "The published command reuses createOrchestrationDriveService/createPostgresOrchestrationDriveService and introduces no second advance loop."
+            },
+            {
+              "kind": "live",
+              "requirement": "A GitHub-native bounded semantic command invocation produces authoritative GCP receipt/readback evidence showing bounded drive behavior and its stop reason at an exact development revision."
+            },
+            {
+              "kind": "workers",
+              "requirement": "All five hourly staggered workers prefer orchestration.drive for deterministic advancement while preserving repair behavior and silence settings."
+            }
+          ],
+          "source_ref": "github:laurajoyhutchins/overcenter#1040"
+        }
+      }
+    ]
+  }
+}
