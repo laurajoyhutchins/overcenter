@@ -134,3 +134,38 @@ test('project.amend response recording preserves authoritative invocation identi
   assert.match(workflow, /expected_head:\$expected_head/);
   assert.match(workflow, /response:\$response/);
 });
+
+test('generic authoritative ingress returns a terminal semantic result rather than transport acceptance', async () => {
+  const { invokeAuthoritativeSemanticCommand } = await import('../lib/authoritative-semantic-command-ingress.js');
+  const controlRevision = 'c'.repeat(40);
+  let requestId = null;
+  const withGitHubAppApiClient = async (_repo, callback) => callback({
+    async call(_service, request) {
+      if (request.path.endsWith('/git/ref/heads/dev')) return { status:200, body:{ object:{ sha:controlRevision } } };
+      if (request.path.endsWith('/dispatches')) {
+        requestId = request.body.inputs.request_id;
+        return { status:204, body:null };
+      }
+      if (request.path.endsWith('/runs')) return { status:200, body:{ workflow_runs:[{
+        id:91,
+        head_sha:controlRevision,
+        event:'workflow_dispatch',
+        display_title:`semantic ${requestId}`,
+        created_at:new Date().toISOString(),
+        status:'completed',
+        conclusion:'success',
+      }] } };
+      throw new Error(`unexpected GitHub call ${request.method} ${request.path}`);
+    },
+  });
+  const projectRef = 'github:example/target';
+  const result = await invokeAuthoritativeSemanticCommand({
+    command:'project.amend',
+    project_ref:projectRef,
+    input:{ project_ref:projectRef, expected_revision:'d'.repeat(40), amendment:{ metadata:{ source:'test' } } },
+  }, { withGitHubAppApiClient });
+  assert.notEqual(result.outcome, 'accepted');
+  assert.equal(result.outcome, 'completed');
+  assert.ok(result.receipt);
+  assert.deepEqual(result.response, { outcome:'amended' });
+});
