@@ -1,0 +1,21 @@
+{
+  "schema": "overcenter-github-command-v1",
+  "command": "project.advance",
+  "expected_head": "cfec95ee1c4425439fe1fd8ecb298430828e51df",
+  "project_ref": "github:laurajoyhutchins/overcenter",
+  "input": {
+    "resume_ref": "project-advance-d0093ba2cc98d1bd2521e9dcf5c4256a",
+    "execution_result": {
+      "disposition": "requeue",
+      "requeue_class": "stale_candidate",
+      "reason": "A compatible exact candidate was produced under a prior lease epoch and requires authoritative base reconciliation and verification before completion.",
+      "evidence": [
+        {"kind": "candidate", "ref": "github:laurajoyhutchins/overcenter@d0e904e221fafed9a39a87cfd2cedc1b725b77b6"}
+      ],
+      "continuation": {
+        "candidate_revision": "d0e904e221fafed9a39a87cfd2cedc1b725b77b6",
+        "workspace_branch": "work/repair-cross-epoch-authoritative-effect-confirmation-c8952c10505ddc392436d6dc"
+      }
+    }
+  }
+}
