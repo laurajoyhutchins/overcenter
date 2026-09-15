@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { projectInspectFor } from '../lib/project-inspect-overcenter-host.js';
+import { projectInspectForGitHub } from '../lib/project-inspect-github-runtime.js';
+import { PRODUCTIVE_STAGES } from '../lib/work-lifecycle.js';
 
 const REVISION = 'a'.repeat(40);
 
@@ -16,6 +18,11 @@ function graph() {
       { id:'free-ready', state:'READY', priority:8, requires:[] },
     ],
   };
+}
+
+function responsibilitiesFor(target) {
+  const index = PRODUCTIVE_STAGES.indexOf(target);
+  return Object.fromEntries(PRODUCTIVE_STAGES.map((stage, stageIndex) => [stage, { applicable:true, satisfied:stageIndex < index }]));
 }
 
 test('project.inspect reports blocked-settlement suspension as waiting with durable recovery evidence', async () => {
@@ -101,6 +108,66 @@ test('project.inspect resolves occupancy for every frontier item beyond the form
     suspended:false,
     wait_reason:null,
   });
+});
+
+test('project.inspect binds active occupancy and blocked settlement reads to one observation instant', async () => {
+  let activeObservedAt = null;
+  let settledObservedAt = null;
+  const store = {
+    async getRun() { return null; },
+    async getLease() { return null; },
+    async getLeaseByAcquireIdempotency() { return null; },
+    async getSlot() { return null; },
+    async acquireLeaseAtomically() { throw new Error('not called'); },
+    async updateLease() { throw new Error('not called'); },
+    async deleteSlot() { throw new Error('not called'); },
+    async getActiveLeasesForTransition(projectRef, transitionId, observedAt) {
+      assert.equal(projectRef, 'github:example/project');
+      assert.equal(transitionId, 'ready-work');
+      activeObservedAt = observedAt;
+      return [];
+    },
+    async getLatestSettledLeaseForTransition(projectRef, transitionId, observedAt) {
+      assert.equal(projectRef, 'github:example/project');
+      assert.equal(transitionId, 'ready-work');
+      settledObservedAt = observedAt ?? null;
+      return null;
+    },
+  };
+  const operationStore = {
+    async get() { return null; },
+    async claim() { throw new Error('not called'); },
+    async succeed() { throw new Error('not called'); },
+    async listByScope() { return []; },
+  };
+  const lifecycle = { current_stage:'ENABLE', responsibilities:responsibilitiesFor('ENABLE') };
+  const runtime = {
+    async resolveProjectAuthority() {
+      return { kind:'github', repository:'example/project', revision:REVISION, derivation:'test-project-graph-v1' };
+    },
+    async readProjectFacts() {
+      return { schema:'project-authority-facts-v1', repository:'example/project', revision:REVISION, facts:{} };
+    },
+    async readProjectObservations() { return []; },
+    projectGraphDerivers:{
+      'test-project-graph-v1':async () => ({
+        nodes:[{ id:'ready-work', priority:1, requires:[], lifecycle, executor:{ kind:'agent', role:'implementation', skill:'test-driven-development' }, phase_bindings:{} }],
+        horizons:[],
+      }),
+    },
+  };
+  const inspect = projectInspectForGitHub({
+    db:{},
+    withGitHubAppApiClient:async () => {},
+    createGitHubProjectGraphRuntime:() => runtime,
+    createProjectTransitionLeaseStore:() => store,
+    createProviderOperationStore:() => operationStore,
+  });
+
+  const result = await inspect.inspect({ project_ref:'github:example/project' });
+  assert.equal(result.frontier_details[0]?.availability, 'available');
+  assert.ok(activeObservedAt, 'active occupancy must be read at a fixed observation instant');
+  assert.equal(settledObservedAt, activeObservedAt, 'blocked settlement state must be read at the same observation instant as active occupancy');
 });
 
 test('project.inspect projects durable authoring state into a bounded next-action view', async () => {
