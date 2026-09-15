@@ -474,6 +474,12 @@
       "logical_contract": "project.transition.states",
       "significance": "authority",
       "semver_kind": "lifecycle-semantics"
+    },
+    "typescript:src/semantic/work-settle-contract.ts#AuthoritativeEffectConfirmation": {
+      "logical_contract": "work.settle.authoritative-effect-confirmation",
+      "significance": "boundary-internal",
+      "semver_kind": "internal-module-layout",
+      "lifecycle": "current"
     }
   }
 }
