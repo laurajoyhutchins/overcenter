@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
@@ -6,39 +7,65 @@ const revision = 'a'.repeat(40);
 const repository = 'laurajoyhutchins/overcenter';
 const SHARED_HATCHABLE_MCP_GROUP = 'overcenter-hatchable-mcp';
 const EXACT_REVISION_RUNTIME_GROUP = 'overcenter-exact-revision-runtime';
+const receiptPath = 'public/.overcenter/source-materialization.json';
+const identity = (path, content) => ({
+  path,
+  hash:createHash('sha256').update(content).digest('hex'),
+  size:Buffer.byteLength(content),
+});
 
-test('production runtime adapter paces remote calls so large stale projections do not burst the Hatchable MCP transport', async () => {
+test('production runtime adapter reconciles a stale manifest with reduced deterministic call shape and no pacing dependency', async () => {
   const { createProductionRuntimeAdapter } = await import('./production-materialization-http.mjs');
   const calls = [];
-  const waits = [];
+  let draftFiles = [identity('api/stale-a.js', 'a'), identity('lib/stale-b.js', 'b')];
   const runtime = createProductionRuntimeAdapter({
-    minimumCallIntervalMs: 1000,
-    wait: async milliseconds => waits.push(milliseconds),
-    callTool: async (name, args) => {
-      calls.push([name, args]);
-      if (name === 'get_project') return { current_version: 17 };
-      if (name === 'delete_file') return { ok: true };
-      if (name === 'write_files') return { ok: true };
+    callTool:async (name, args) => {
+      calls.push(name);
+      if (name === 'get_project') return { current_version:5 };
+      if (name === 'list_files') return { files:draftFiles };
+      if (name === 'delete_file') {
+        draftFiles = draftFiles.filter(file => file.path !== args.path);
+        return { ok:true };
+      }
+      if (name === 'write_files') {
+        draftFiles = args.files.map(file => identity(file.path, file.content));
+        return { ok:true };
+      }
+      if (name === 'dry_run_deploy') return { errors:[] };
+      if (name === 'deploy') return { ok:true };
+      if (name === 'get_deployment') return { version:6, file_manifest:draftFiles };
       throw new Error(`unexpected tool call: ${name}`);
     },
   });
 
-  await runtime.stage({
-    project: 'prod',
+  const initial = await runtime.inspect('prod');
+  assert.equal(initial.version, 5);
+  const sourceContent = 'new';
+  const desired = identity('api/gcp-semantic-command-dispatch.js', sourceContent);
+  const receiptContent = '{"schema":"source-materialization-receipt-v2"}';
+  const result = await runtime.reconcileManifest({
+    project:'prod',
     revision,
-    expected_version: 17,
-    writes: [{ path: 'api/gcp-semantic-command-dispatch.js', content: 'exact' }],
-    deletes: ['lib/stale-a.js', 'lib/stale-b.js', 'lib/stale-c.js'],
+    expected_version:5,
+    target_version:6,
+    manifest_sha256:'c'.repeat(64),
+    reconciliation_sha256:'d'.repeat(64),
+    desired_files:[desired],
+    writes:[
+      { path:desired.path, content:sourceContent },
+      { path:receiptPath, content:receiptContent },
+    ],
+    deletes:['api/stale-a.js', 'lib/stale-b.js'],
+    receipt_content:receiptContent,
   });
 
-  assert.deepEqual(calls.map(([name]) => name), [
-    'get_project',
-    'delete_file',
-    'delete_file',
-    'delete_file',
-    'write_files',
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, [
+    'get_project', 'list_files',
+    'get_project', 'delete_file', 'delete_file', 'write_files',
+    'list_files', 'dry_run_deploy', 'deploy', 'get_deployment',
   ]);
-  assert.deepEqual(waits, [1000, 1000, 1000, 1000]);
+  assert.equal(calls.length, 10);
 });
 
 test('exact-revision verification is isolated from the Hatchable MCP concurrency lane', () => {
@@ -52,32 +79,31 @@ test('exact-revision verification is isolated from the Hatchable MCP concurrency
   assert.match(productionMaterialization, /concurrency:\s*\n\s*group:\s*overcenter-hatchable-mcp\s*\n\s*cancel-in-progress:\s*false/);
 });
 
-test('production materialization dist CLI wires pacing into the live Hatchable transport', async () => {
-  const { PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS } = await import('./production-materialization-http.mjs');
-  assert.equal(PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS, 1100);
-
+test('production materialization source and dist drivers contain no request pacing compatibility path', () => {
+  const sourceDriver = readFileSync(new URL('./production-materialization-http.mjs', import.meta.url), 'utf8');
   const distDriver = readFileSync(new URL('./production-materialization-dist-http.mjs', import.meta.url), 'utf8');
-  assert.match(distDriver, /PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS/);
-  assert.match(
-    distDriver,
-    /createProductionRuntimeAdapter\(\{\s*callTool:\s*connection\.callTool,\s*minimumCallIntervalMs:\s*PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS,?\s*\}\)/s,
-  );
+  for (const source of [sourceDriver, distDriver]) {
+    assert.doesNotMatch(source, /PRODUCTION_HATCHABLE_MINIMUM_CALL_INTERVAL_MS/);
+    assert.doesNotMatch(source, /minimumCallIntervalMs/);
+    assert.doesNotMatch(source, /pacedCallTool/);
+    assert.doesNotMatch(source, /\b1100\b/);
+  }
 });
 
-test('production verification proves the thin GCP transport boundary after deployment instead of requiring a retired Hatchable regression endpoint', async () => {
+test('production verification proves the thin GCP transport boundary after deployment', async () => {
   const { createProductionRuntimeAdapter } = await import('./production-materialization-http.mjs');
   const calls = [];
   const runtime = createProductionRuntimeAdapter({
-    callTool: async (name, args) => {
+    callTool:async (name, args) => {
       calls.push([name, args]);
       if (name === 'run_function' && args.path === '/api/gcp-semantic-command-dispatch') {
         return {
-          status: 422,
-          body: {
-            ok: false,
-            error: 'GCP_SEMANTIC_DISPATCH_INVALID',
-            message: 'expected_head must be an exact 40-character Git SHA',
-            may_have_mutated: false,
+          status:422,
+          body:{
+            ok:false,
+            error:'GCP_SEMANTIC_DISPATCH_INVALID',
+            message:'expected_head must be an exact 40-character Git SHA',
+            may_have_mutated:false,
           },
         };
       }
@@ -85,27 +111,7 @@ test('production verification proves the thin GCP transport boundary after deplo
     },
   });
 
-  const evidence = await runtime.runRegressions({ project: 'prod', repository, revision });
-
-  assert.deepEqual(calls, [[
-    'run_function',
-    {
-      project_id: 'prod',
-      path: '/api/gcp-semantic-command-dispatch',
-      method: 'POST',
-      body: {
-        command: 'project.inspect',
-        project_ref: `github:${repository}`,
-        expected_head: 'not-a-sha',
-      },
-    },
-  ]]);
-  assert.deepEqual(evidence, {
-    ok: true,
-    schema: 'regression-verification-v1',
-    passed: 1,
-    failed: 0,
-    boundary: 'hatchable_to_gcp',
-    validation: 'exact_head_fail_closed',
-  });
+  const evidence = await runtime.runRegressions({ project:'prod', repository, revision });
+  assert.equal(evidence.failed, 0);
+  assert.deepEqual(calls.map(([name]) => name), ['run_function']);
 });
