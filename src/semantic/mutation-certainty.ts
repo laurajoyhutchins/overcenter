@@ -53,6 +53,10 @@ export function mutationCertaintyFromEvidence(
   return certainty;
 }
 
+export function mutationRequiresReconciliation(certainty: MutationCertainty): boolean {
+  return certainty === 'possible';
+}
+
 export function mayHaveMutated(certainty: MutationCertainty): boolean {
   return certainty !== 'none';
 }
