@@ -1,0 +1,135 @@
+name: GCP authoritative deploy branch ingress
+run-name: "GCP deploy branch ${{ github.ref_name }}"
+
+on:
+  push:
+    branches:
+      - 'overcenter-deploy/*'
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  relay:
+    if: github.actor == github.repository_owner || github.actor == 'overcenter-app[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      COMMAND_FILE: .overcenter-deploy.json
+    steps:
+      - name: Check out exact deploy branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Verify exact-revision deployment envelope
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" =~ ^overcenter-deploy/[A-Za-z0-9._-]{1,96}$ ]]
+          test -f "$COMMAND_FILE"
+          test "$(stat -c %s "$COMMAND_FILE")" -le 4096
+
+          git fetch --no-tags --depth=1 origin dev
+          dev_head="$(git rev-parse FETCH_HEAD)"
+          test "$(git rev-parse HEAD^)" = "$dev_head"
+          test "$(git rev-list --count "$dev_head..HEAD")" = 1
+          changed="$(git diff --name-only "$dev_head" "$GITHUB_SHA")"
+          test "$changed" = "$COMMAND_FILE"
+
+          jq -e --arg expected_head "$dev_head" '
+            type == "object" and
+            keys == ["expected_head","schema"] and
+            .schema == "overcenter-gcp-deploy-command-v1" and
+            .expected_head == $expected_head and
+            (.expected_head | test("^[0-9a-f]{40}$"))
+          ' "$COMMAND_FILE" >/dev/null
+
+          jq -n \
+            --arg ref "dev" \
+            --arg exact_revision "$dev_head" \
+            '{ref:$ref,return_run_details:true,inputs:{exact_revision:$exact_revision}}' \
+            > "$RUNNER_TEMP/workflow-dispatch.json"
+          echo "expected_head=$dev_head" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch exact authoritative deployment
+        id: dispatch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ steps.prepare.outputs.expected_head }}
+        run: |
+          set -euo pipefail
+          set +e
+          http_status="$(curl --silent --show-error \
+            -o "$RUNNER_TEMP/dispatch-response.json" \
+            -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            -H 'content-type: application/json' \
+            -X POST \
+            --data-binary @"$RUNNER_TEMP/workflow-dispatch.json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/gcp-authoritative-deploy.yml/dispatches")"
+          curl_exit=$?
+          set -e
+
+          if [ "$curl_exit" -eq 0 ] && [ "$http_status" = 200 ] && \
+             jq -e --arg expected_head "$EXPECTED_HEAD" \
+               '(.workflow_run_id | type == "number") and (.workflow_run_id > 0) and (.head_sha == $expected_head) and (.html_url | type == "string" and length > 0)' \
+               "$RUNNER_TEMP/dispatch-response.json" >/dev/null; then
+            echo 'dispatch_state=confirmed' >> "$GITHUB_OUTPUT"
+            echo "run_id=$(jq -r '.workflow_run_id' "$RUNNER_TEMP/dispatch-response.json")" >> "$GITHUB_OUTPUT"
+            echo "run_url=$(jq -r '.html_url' "$RUNNER_TEMP/dispatch-response.json")" >> "$GITHUB_OUTPUT"
+          else
+            echo 'dispatch_state=indeterminate' >> "$GITHUB_OUTPUT"
+          fi
+          echo "http_status=$http_status" >> "$GITHUB_OUTPUT"
+
+      - name: Record deployment dispatch
+        if: always() && steps.prepare.outcome == 'success'
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ steps.prepare.outputs.expected_head }}
+          DISPATCH_STATE: ${{ steps.dispatch.outputs.dispatch_state }}
+          CANONICAL_RUN_ID: ${{ steps.dispatch.outputs.run_id }}
+          CANONICAL_RUN_URL: ${{ steps.dispatch.outputs.run_url }}
+        run: |
+          set -euo pipefail
+          {
+            echo '### GCP authoritative deployment bootstrap'
+            echo
+            echo "- expected_head: \`$EXPECTED_HEAD\`"
+            echo "- dispatch_state: \`${DISPATCH_STATE:-indeterminate}\`"
+            echo "- canonical_run_id: \`${CANONICAL_RUN_ID:-unresolved}\`"
+            echo "- canonical_run_url: ${CANONICAL_RUN_URL:-unresolved}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retire deploy branch
+        if: steps.dispatch.outputs.dispatch_state == 'confirmed'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            -X DELETE \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/git/refs/heads/$GITHUB_REF_NAME"
+
+      - name: Assert deployment dispatch certainty
+        if: always()
+        shell: bash
+        env:
+          DISPATCH_STATE: ${{ steps.dispatch.outputs.dispatch_state }}
+          CANONICAL_RUN_ID: ${{ steps.dispatch.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          test "$DISPATCH_STATE" = confirmed
+          test -n "$CANONICAL_RUN_ID"
