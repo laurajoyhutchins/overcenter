@@ -104,6 +104,12 @@
       "semver_kind": "database-layout",
       "lifecycle": "current"
     },
+    "postgres:public.orchestration_maintenance_high_water#table": {
+      "logical_contract": "orchestration.maintenance-high-water.persistence",
+      "significance": "durable-internal",
+      "semver_kind": "database-layout",
+      "lifecycle": "current"
+    },
     "postgres:public.orchestration_invocation_resolutions#table": {
       "logical_contract": "orchestration.invocation-resolution.persistence",
       "significance": "durable-internal",
