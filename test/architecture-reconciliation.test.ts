@@ -359,7 +359,6 @@ test('GitHub Actions write policy stays unknown when workflow scan evidence is a
   assert.deepEqual(resolution.missing_evidence, ['github-actions-workflow-scan']);
 });
 
-
 test('GitHub Actions effect observer recognizes direct provider mutations only', () => {
   const source = `
 steps:
