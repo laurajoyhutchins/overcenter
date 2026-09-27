@@ -607,36 +607,36 @@ test('function-level effect reachability binds called semantic mutation terminal
   try {
     const effects = probe('test/fixtures/function-effect-called.ts');
     assert.deepEqual(
-    effects.map((fact) => ({
-      effect: fact.effect,
-      terminal: `${fact.terminal_path}#${fact.terminal_symbol}`,
-      root: fact.call_chain[0],
-      leaf: fact.call_chain.at(-1),
-      digest_length: fact.terminal_statement_sha256.length,
-    })),
-    [
-      {
-        effect: 'git-remote-ref/mutate',
-        terminal: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
-        root: 'test/fixtures/function-effect-called.ts#<module>',
-        leaf: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
-        digest_length: 64,
-      },
-      {
-        effect: 'github-commit-status/create',
-        terminal: 'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
-        root: 'test/fixtures/function-effect-called.ts#<module>',
-        leaf: 'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
-        digest_length: 64,
-      },
-      {
-        effect: 'github-pull-request/update-branch',
-        terminal:
-          'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
-        root: 'test/fixtures/function-effect-called.ts#<module>',
-        leaf: 'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
-        digest_length: 64,
-      },
+      effects.map((fact) => ({
+        effect: fact.effect,
+        terminal: `${fact.terminal_path}#${fact.terminal_symbol}`,
+        root: fact.call_chain[0],
+        leaf: fact.call_chain.at(-1),
+        digest_length: fact.terminal_statement_sha256.length,
+      })),
+      [
+        {
+          effect: 'git-remote-ref/mutate',
+          terminal: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
+          root: 'test/fixtures/function-effect-called.ts#<module>',
+          leaf: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
+          digest_length: 64,
+        },
+        {
+          effect: 'github-commit-status/create',
+          terminal: 'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
+          root: 'test/fixtures/function-effect-called.ts#<module>',
+          leaf: 'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
+          digest_length: 64,
+        },
+        {
+          effect: 'github-pull-request/update-branch',
+          terminal:
+            'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
+          root: 'test/fixtures/function-effect-called.ts#<module>',
+          leaf: 'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
+          digest_length: 64,
+        },
       ],
     );
   } finally {
