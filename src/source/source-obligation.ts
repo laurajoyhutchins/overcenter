@@ -16,6 +16,7 @@ export interface SourceTaskPacket extends Record<string, unknown> {
   kind: 'source-change';
   objective: string;
   writable_paths: string[];
+  writable_trees?: string[];
   effect_contract: typeof GITHUB_SOURCE_INTEGRATION_EFFECT;
   acceptance?: SourceTaskAcceptance;
   context?: Record<string, unknown>;
@@ -107,7 +108,7 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   assertExactKeys(
     value,
     ['schema', 'kind', 'objective', 'writable_paths'],
-    ['effect_contract', 'acceptance', 'context'],
+    ['writable_trees', 'effect_contract', 'acceptance', 'context'],
     'SOURCE_TASK_INVALID',
   );
   if (value.schema !== SOURCE_TASK_SCHEMA) throw new Error('SOURCE_TASK_SCHEMA_MISMATCH');
@@ -120,7 +121,7 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
     throw new Error('SOURCE_TASK_EFFECT_CONTRACT_INVALID');
   }
 
-  if (!Array.isArray(value.writable_paths) || value.writable_paths.length === 0) {
+  if (!Array.isArray(value.writable_paths)) {
     throw new Error('SOURCE_TASK_WRITABLE_PATHS_INVALID');
   }
   if (!value.writable_paths.every(validSourceWritablePath)) {
@@ -128,6 +129,26 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   }
   if (new Set(value.writable_paths).size !== value.writable_paths.length) {
     throw new Error('SOURCE_TASK_WRITABLE_PATH_DUPLICATE');
+  }
+
+  const writableTrees = value.writable_trees;
+  if (
+    writableTrees !== undefined &&
+    (!Array.isArray(writableTrees) || writableTrees.length === 0)
+  ) {
+    throw new Error('SOURCE_TASK_WRITABLE_TREES_INVALID');
+  }
+  if (Array.isArray(writableTrees) && !writableTrees.every(validSourceWritablePath)) {
+    throw new Error('SOURCE_TASK_WRITABLE_TREE_INVALID');
+  }
+  if (
+    Array.isArray(writableTrees) &&
+    new Set(writableTrees).size !== writableTrees.length
+  ) {
+    throw new Error('SOURCE_TASK_WRITABLE_TREE_DUPLICATE');
+  }
+  if (value.writable_paths.length === 0 && !Array.isArray(writableTrees)) {
+    throw new Error('SOURCE_TASK_WRITABLE_SCOPE_EMPTY');
   }
 
   let acceptance: SourceTaskAcceptance | undefined;
@@ -160,10 +181,20 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
     kind: 'source-change',
     objective: value.objective,
     writable_paths: [...value.writable_paths].sort(),
+    ...(Array.isArray(writableTrees) ? { writable_trees: [...writableTrees].sort() } : {}),
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
     ...(acceptance ? { acceptance } : {}),
     ...(value.context === undefined ? {} : { context: structuredClone(value.context) }),
   };
+}
+
+export function sourceTaskAllowsPath(taskValue: unknown, path: string): boolean {
+  const task = validateSourceTaskPacket(taskValue);
+  if (!validSourceWritablePath(path)) return false;
+  if (task.writable_paths.includes(path)) return true;
+  return (task.writable_trees ?? []).some(
+    (tree) => path === tree || path.startsWith(`${tree}/`),
+  );
 }
 
 export function bindSourceClaim(
@@ -282,7 +313,7 @@ export function validateSourceProposal(
     if (!validSourceWritablePath(candidate.path)) {
       throw new Error(`SOURCE_PROPOSAL_PATH_INVALID:${index}`);
     }
-    if (!task.writable_paths.includes(candidate.path)) {
+    if (!sourceTaskAllowsPath(task, candidate.path)) {
       throw new Error(`SOURCE_PROPOSAL_SCOPE_VIOLATION:${candidate.path}`);
     }
     if (candidate.content_base64 !== null && !canonicalBase64(candidate.content_base64)) {
