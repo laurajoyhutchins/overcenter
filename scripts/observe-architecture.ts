@@ -12,6 +12,7 @@ import {
 import { observeGitHubActionsSources } from '../src/observation/github-actions-capabilities.ts';
 import { observeGitHubActionsProviderEffects } from '../src/observation/github-actions-effects.ts';
 import { observeWorkflowTransitiveEffects } from '../src/observation/workflow-transitive-effects.ts';
+import { createTypeScriptFunctionEffectProbe } from './typescript-effect-reachability.ts';
 
 export type ProductionReferenceProbe = (fromPath: string, toPath: string) => boolean;
 
@@ -144,7 +145,14 @@ export function observeArchitectureIntent(
     }
     observations.push(...observeGitHubActionsSources(sources, sourceRevision));
     observations.push(...observeGitHubActionsProviderEffects(sources, sourceRevision));
-    observations.push(...observeWorkflowTransitiveEffects(sources, sourceRevision));
+    const functionEffects = createTypeScriptFunctionEffectProbe(process.cwd());
+    try {
+      observations.push(
+        ...observeWorkflowTransitiveEffects(sources, sourceRevision, functionEffects),
+      );
+    } finally {
+      functionEffects.dispose?.();
+    }
   }
 
   return sortFacts(observations);

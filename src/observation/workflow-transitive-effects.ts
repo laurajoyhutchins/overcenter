@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 
-export type WorkflowReachableProductionEffect = 'git-remote-ref/mutate';
+export type WorkflowReachableProductionEffect =
+  | 'git-remote-ref/mutate'
+  | 'github-commit-status/create'
+  | 'github-pull-request/update-branch';
 
 export interface WorkflowEntrypointFact {
   kind: 'github-actions-typescript-entrypoint';
@@ -12,6 +15,20 @@ export interface WorkflowEntrypointFact {
   line_number: number;
 }
 
+export interface WorkflowFunctionEffectReachability {
+  effect: WorkflowReachableProductionEffect;
+  terminal_path: string;
+  terminal_symbol: string;
+  import_chain: string[];
+  call_chain: string[];
+  terminal_statement_sha256: string;
+}
+
+export interface WorkflowFunctionEffectProbe {
+  (entrypoint: string): WorkflowFunctionEffectReachability[];
+  dispose?: () => void;
+}
+
 export interface WorkflowTransitiveEffectFact {
   kind: 'github-actions-transitive-effect-reachability';
   source_revision: string;
@@ -19,7 +36,9 @@ export interface WorkflowTransitiveEffectFact {
   entrypoint: string;
   effect: WorkflowReachableProductionEffect;
   terminal_path: string;
+  terminal_symbol?: string;
   import_chain: string[];
+  call_chain?: string[];
   terminal_statement_sha256: string;
 }
 
@@ -123,6 +142,7 @@ function shortestReachability(entrypoint: string): Map<string, string[]> {
 export function observeWorkflowTransitiveEffects(
   workflowSources: Readonly<Record<string, string>>,
   sourceRevision: string,
+  functionEffects?: WorkflowFunctionEffectProbe,
 ): WorkflowTransitiveEffectObservedFact[] {
   if (!sourceRevision) throw new Error('ARCHITECTURE_SOURCE_REVISION_INVALID');
   const facts: WorkflowTransitiveEffectObservedFact[] = [];
@@ -138,6 +158,19 @@ export function observeWorkflowTransitiveEffects(
         line_number,
       });
       if (!existsSync(entrypoint)) continue;
+
+      if (functionEffects) {
+        for (const terminal of functionEffects(entrypoint)) {
+          facts.push({
+            kind: 'github-actions-transitive-effect-reachability',
+            source_revision: sourceRevision,
+            workflow_path: workflowPath,
+            entrypoint,
+            ...terminal,
+          });
+        }
+        continue;
+      }
 
       const reachability = shortestReachability(entrypoint);
       for (const [terminalPath, chain] of reachability) {
