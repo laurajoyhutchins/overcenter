@@ -125,6 +125,52 @@
           ]
         }
       ]
+    },
+    {
+      "kind": "github-actions-provider-effect-authority",
+      "concept": "github-actions-direct-provider-effects",
+      "allowed": [
+        {
+          "workflow": ".github/workflows/codex-closed-loop.yml",
+          "effects": [
+            "github-git-ref/update",
+            "github-pull-request/create"
+          ]
+        },
+        {
+          "workflow": ".github/workflows/distributed-authority-chaos.yml",
+          "effects": [
+            "github-git-ref/delete"
+          ]
+        },
+        {
+          "workflow": ".github/workflows/distributed-authority-handoff.yml",
+          "effects": [
+            "github-git-ref/delete"
+          ]
+        },
+        {
+          "workflow": ".github/workflows/github-object-transport-proof.yml",
+          "effects": [
+            "github-git-blob/create",
+            "github-git-tree/create",
+            "github-git-commit/create",
+            "github-git-ref/create"
+          ]
+        },
+        {
+          "workflow": ".github/workflows/promote-criticality-mutation-evidence.yml",
+          "effects": [
+            "github-git-ref/update"
+          ]
+        },
+        {
+          "workflow": ".github/workflows/substrate-capability-admission-treatment.yml",
+          "effects": [
+            "github-commit-status/create"
+          ]
+        }
+      ]
     }
   ]
 }
