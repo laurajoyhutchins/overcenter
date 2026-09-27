@@ -11,6 +11,7 @@ import {
 } from '../src/authority/architecture-reconciliation.ts';
 import { observeGitHubActionsSources } from '../src/observation/github-actions-capabilities.ts';
 import { observeGitHubActionsProviderEffects } from '../src/observation/github-actions-effects.ts';
+import { observeWorkflowTransitiveEffects } from '../src/observation/workflow-transitive-effects.ts';
 
 export type ProductionReferenceProbe = (fromPath: string, toPath: string) => boolean;
 
@@ -128,7 +129,8 @@ export function observeArchitectureIntent(
     intent.claims.some(
       (claim) =>
         claim.kind === 'github-actions-explicit-write-authority' ||
-        claim.kind === 'github-actions-provider-effect-authority',
+        claim.kind === 'github-actions-provider-effect-authority' ||
+        claim.kind === 'workflow-transitive-effect-authority',
     )
   ) {
     const directory = resolve('.github/workflows');
@@ -142,6 +144,7 @@ export function observeArchitectureIntent(
     }
     observations.push(...observeGitHubActionsSources(sources, sourceRevision));
     observations.push(...observeGitHubActionsProviderEffects(sources, sourceRevision));
+    observations.push(...observeWorkflowTransitiveEffects(sources, sourceRevision));
   }
 
   return sortFacts(observations);
