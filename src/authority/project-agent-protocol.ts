@@ -359,7 +359,7 @@ export function advanceProjectForAgent(
     githubToken,
     observationContext,
   });
-  if (!kernel.head()) throw new Error('PROJECT_ADVANCE_AUTHORITY_MISSING');
+  kernel.initialize();
   const projectSourceRevision = projectSourceSha(context);
   const snapshot = repositorySnapshot(repo, projectSourceRevision);
   const desired = compileProjectGraph(snapshot, context, graphProducers);
