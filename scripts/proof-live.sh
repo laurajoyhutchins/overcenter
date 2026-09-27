@@ -56,7 +56,6 @@ EXPECTED_SHA="$(gh api "repos/$REPO/commits/$REF" --jq '.sha')"
 
 WORKFLOWS=(
   disposable-agent-proof.yml
-  github-observation-grammar.yml
   github-object-transport-proof.yml
 )
 
