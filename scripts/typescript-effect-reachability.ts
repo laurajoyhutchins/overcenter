@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { relative, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
 
 import { API, type Project } from 'typescript/unstable/sync';
 import {
@@ -18,6 +19,7 @@ import {
   isVariableDeclaration,
 } from 'typescript/unstable/ast';
 
+import { runtimeLocalImportSpecifiers } from '../src/observation/workflow-transitive-effects.ts';
 import type {
   WorkflowFunctionEffectProbe,
   WorkflowFunctionEffectReachability,
@@ -56,6 +58,18 @@ const EFFECT_TERMINALS: readonly EffectTerminal[] = [
 
 function normalized(root: string, path: string): string {
   return relative(root, resolve(path)).replaceAll('\\', '/');
+}
+
+function resolveLocalModule(root: string, fromPath: string, specifier: string): string | null {
+  const base = resolve(root, dirname(fromPath), specifier);
+  const candidates = [
+    base,
+    base.endsWith('.js') ? `${base.slice(0, -3)}.ts` : '',
+    base.endsWith('.ts') ? base : `${base}.ts`,
+    resolve(base, 'index.ts'),
+  ].filter(Boolean);
+  const found = candidates.find((candidate) => existsSync(candidate));
+  return found ? normalized(root, found) : null;
 }
 
 function declarationName(declaration: Node): string | null {
@@ -162,12 +176,49 @@ function projectForRoot(
   return { snapshot, project };
 }
 
+function candidateEffectsFromModule(
+  root: string,
+  project: Project,
+  startPath: string,
+): WorkflowReachableProductionEffect[] {
+  const effects = new Set<WorkflowReachableProductionEffect>();
+  const seen = new Set<string>();
+  const pending = [startPath];
+
+  while (pending.length > 0) {
+    const current = pending.shift()!;
+    if (seen.has(current)) continue;
+    seen.add(current);
+
+    for (const terminal of EFFECT_TERMINALS) {
+      if (terminal.path === current) effects.add(terminal.effect);
+    }
+
+    const source = project.program.getSourceFile(resolve(root, current));
+    if (!source) continue;
+    for (const specifier of runtimeLocalImportSpecifiers(source.text)) {
+      const target = resolveLocalModule(root, current, specifier);
+      if (target && !seen.has(target)) pending.push(target);
+    }
+  }
+
+  return [...effects].sort();
+}
+
 export function createTypeScriptFunctionEffectProbe(
   root = process.cwd(),
 ): WorkflowFunctionEffectProbe {
   const api = new API({ cwd: root });
   const { snapshot, project } = projectForRoot(api, root);
   const checker = project.checker;
+  const candidateEffectsCache = new Map<string, WorkflowReachableProductionEffect[]>();
+  const candidateEffects = (path: string): WorkflowReachableProductionEffect[] => {
+    const cached = candidateEffectsCache.get(path);
+    if (cached) return cached;
+    const computed = candidateEffectsFromModule(root, project, path);
+    candidateEffectsCache.set(path, computed);
+    return computed;
+  };
 
   const probe: WorkflowFunctionEffectProbe = (entrypoint: string) => {
     const absolute = resolve(root, entrypoint);
@@ -215,6 +266,7 @@ export function createTypeScriptFunctionEffectProbe(
       if (!body) {
         const callSource = call.getSourceFile();
         const position = callSource.getLineAndCharacterOfPosition(call.getStart(callSource));
+        const symbol = declarationName(declaration) ?? call.expression.getText(callSource);
         unresolvedCalls.push({
           call_site_path: normalized(root, callSource.fileName),
           call_site_line: position.line + 1,
@@ -222,8 +274,9 @@ export function createTypeScriptFunctionEffectProbe(
             .update(call.getText(callSource))
             .digest('hex'),
           declaration_path: path,
-          declaration_symbol: declarationName(declaration) ?? '<callable>',
-          call_chain: nextChain,
+          declaration_symbol: symbol,
+          call_chain: [...callChain, `${path}#${symbol}`],
+          candidate_effects: candidateEffects(path),
         });
         return;
       }
@@ -259,6 +312,7 @@ export function createTypeScriptFunctionEffectProbe(
         unresolved.declaration_path,
         unresolved.declaration_symbol,
         unresolved.call_chain.join('>'),
+        unresolved.candidate_effects.join(','),
       ].join('\0');
       uniqueUnresolved.set(key, unresolved);
     }
