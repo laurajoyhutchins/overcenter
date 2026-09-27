@@ -760,7 +760,8 @@ test('source broker rejects a proposal revision that is not based on the claimed
       authorityRef: AUTHORITY_REF,
       remote: 'origin',
     });
-    assert.ok(acquired.run_id);
+    const runId = acquired.run_id;
+    assert.ok(runId);
 
     execFileSync('git', ['-C', f.work, 'checkout', '--orphan', 'hostile-proposal'], {
       stdio: 'ignore',
@@ -773,7 +774,7 @@ test('source broker rejects a proposal revision that is not based on the claimed
 
     assert.throws(
       () =>
-        brokerSourceProposalRevision(f.work, acquired.run_id, proposalSha, {
+        brokerSourceProposalRevision(f.work, runId, proposalSha, {
           authorityRef: AUTHORITY_REF,
           remote: 'origin',
         }),
