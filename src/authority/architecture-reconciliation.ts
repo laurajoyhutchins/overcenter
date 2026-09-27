@@ -8,6 +8,11 @@ import type {
   GitHubActionsProviderEffect,
   GitHubActionsProviderEffectInvocationFact,
 } from '../observation/github-actions-effects.ts';
+import type {
+  WorkflowReachableProductionEffect,
+  WorkflowEntrypointFact,
+  WorkflowTransitiveEffectFact,
+} from '../observation/workflow-transitive-effects.ts';
 import type { ObligationInput } from './facts.ts';
 
 export const ARCHITECTURE_INTENT_SCHEMA = 'overcenter-architecture-intent/v1' as const;
@@ -46,10 +51,22 @@ export interface GitHubActionsProviderEffectAuthorityIntentClaim {
   allowed: GitHubActionsProviderEffectGrant[];
 }
 
+export interface WorkflowTransitiveEffectGrant {
+  workflow: string;
+  effects: WorkflowReachableProductionEffect[];
+}
+
+export interface WorkflowTransitiveEffectAuthorityIntentClaim {
+  kind: 'workflow-transitive-effect-authority';
+  concept: string;
+  allowed: WorkflowTransitiveEffectGrant[];
+}
+
 export type ArchitectureIntentClaim =
   | AuthorityRoleIntentClaim
   | GitHubActionsExplicitWriteAuthorityIntentClaim
-  | GitHubActionsProviderEffectAuthorityIntentClaim;
+  | GitHubActionsProviderEffectAuthorityIntentClaim
+  | WorkflowTransitiveEffectAuthorityIntentClaim;
 
 export interface ArchitectureIntent {
   schema: typeof ARCHITECTURE_INTENT_SCHEMA;
@@ -77,7 +94,9 @@ export type ArchitectureObservedFact =
   | GitHubActionsWorkflowScanFact
   | GitHubActionsExplicitWriteCapabilityFact
   | GitHubActionsInheritedPermissionsFact
-  | GitHubActionsProviderEffectInvocationFact;
+  | GitHubActionsProviderEffectInvocationFact
+  | WorkflowEntrypointFact
+  | WorkflowTransitiveEffectFact;
 
 export type ArchitectureConflictReasonCode =
   | 'DUPLICATE_CONCEPT'
@@ -88,7 +107,8 @@ export type ArchitectureConflictReasonCode =
   | 'AUTHORITY_ALSO_PROJECTION'
   | 'DECLARED_PROJECTION_FLOW_MISSING'
   | 'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY'
-  | 'UNDECLARED_GITHUB_ACTIONS_PROVIDER_EFFECT';
+  | 'UNDECLARED_GITHUB_ACTIONS_PROVIDER_EFFECT'
+  | 'UNDECLARED_WORKFLOW_TRANSITIVE_EFFECT';
 
 export interface EstablishedArchitectureResolution {
   state: 'established';
@@ -226,6 +246,34 @@ export function validateArchitectureIntent(value: unknown): ArchitectureIntent {
       };
     }
 
+    if (claim.kind === 'workflow-transitive-effect-authority') {
+      if (!Array.isArray(claim.allowed)) throw new Error('ARCHITECTURE_INTENT_ALLOWED_INVALID');
+      const allowed = claim.allowed.map((candidateGrant) => {
+        if (
+          !candidateGrant ||
+          typeof candidateGrant !== 'object' ||
+          Array.isArray(candidateGrant)
+        ) {
+          throw new Error('ARCHITECTURE_INTENT_TRANSITIVE_EFFECT_GRANT_INVALID');
+        }
+        const grant = candidateGrant as Record<string, unknown>;
+        nonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
+        stringArray(grant.effects, 'ARCHITECTURE_INTENT_EFFECTS_INVALID');
+        if (grant.effects.length === 0) {
+          throw new Error('ARCHITECTURE_INTENT_EFFECTS_EMPTY');
+        }
+        return {
+          workflow: grant.workflow,
+          effects: [...new Set(grant.effects)].sort() as WorkflowReachableProductionEffect[],
+        };
+      });
+      return {
+        kind: 'workflow-transitive-effect-authority',
+        concept: claim.concept,
+        allowed: allowed.sort((left, right) => left.workflow.localeCompare(right.workflow)),
+      };
+    }
+
     throw new Error('ARCHITECTURE_INTENT_KIND_UNSUPPORTED');
   });
 
@@ -246,6 +294,10 @@ function factKey(fact: ArchitectureObservedFact): string {
       return `github-actions-inherited:${fact.workflow_path}`;
     case 'github-actions-provider-effect-invocation':
       return `github-actions-effect:${fact.workflow_path}:${fact.effect}:${fact.line_number}:${fact.statement_sha256}`;
+    case 'github-actions-typescript-entrypoint':
+      return `workflow-entrypoint:${fact.workflow_path}:${fact.entrypoint}:${fact.line_number}`;
+    case 'github-actions-transitive-effect-reachability':
+      return `workflow-transitive-effect:${fact.workflow_path}:${fact.entrypoint}:${fact.effect}:${fact.terminal_path}:${fact.terminal_statement_sha256}`;
   }
 }
 
@@ -469,6 +521,53 @@ function reconcileGitHubActionsProviderEffectClaim(
   };
 }
 
+function reconcileWorkflowTransitiveEffectClaim(
+  claim: WorkflowTransitiveEffectAuthorityIntentClaim,
+  observations: ArchitectureObservedFact[],
+): ArchitectureResolution {
+  const scan = observations.find(
+    (fact): fact is GitHubActionsWorkflowScanFact => fact.kind === 'github-actions-workflow-scan',
+  );
+  if (!scan) {
+    return {
+      state: 'unknown',
+      claim: structuredClone(claim),
+      missing_evidence: ['github-actions-workflow-scan'],
+      supporting_facts: [],
+    };
+  }
+
+  const entrypoints = observations.filter(
+    (fact): fact is WorkflowEntrypointFact => fact.kind === 'github-actions-typescript-entrypoint',
+  );
+  const effects = observations.filter(
+    (fact): fact is WorkflowTransitiveEffectFact =>
+      fact.kind === 'github-actions-transitive-effect-reachability',
+  );
+  const allowed = new Map(
+    claim.allowed.map((grant) => [grant.workflow, new Set(grant.effects)] as const),
+  );
+  const undeclared = effects.filter((fact) => {
+    const workflowEffects = allowed.get(fact.workflow_path);
+    return !workflowEffects || !workflowEffects.has(fact.effect);
+  });
+
+  if (undeclared.length > 0) {
+    return conflict(
+      claim,
+      'UNDECLARED_WORKFLOW_TRANSITIVE_EFFECT',
+      [scan, ...entrypoints, ...effects.filter((fact) => !undeclared.includes(fact))],
+      undeclared,
+    );
+  }
+
+  return {
+    state: 'established',
+    claim: structuredClone(claim),
+    supporting_facts: sortFacts([scan, ...entrypoints, ...effects]),
+  };
+}
+
 export function reconcileArchitecture({
   intent: rawIntent,
   source_revision: sourceRevision,
@@ -520,7 +619,9 @@ export function reconcileArchitecture({
         ? reconcileAuthorityRoleClaim(claim, observations)
         : claim.kind === 'github-actions-explicit-write-authority'
           ? reconcileGitHubActionsExplicitWriteClaim(claim, observations)
-          : reconcileGitHubActionsProviderEffectClaim(claim, observations),
+          : claim.kind === 'github-actions-provider-effect-authority'
+            ? reconcileGitHubActionsProviderEffectClaim(claim, observations)
+            : reconcileWorkflowTransitiveEffectClaim(claim, observations),
     );
   }
 
