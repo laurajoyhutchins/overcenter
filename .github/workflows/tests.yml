@@ -60,18 +60,36 @@ jobs:
         run: npm run check:adapter-diagnosability
       - name: Check experiment statistics contract
         run: npm run check:experiment-statistics
-      - name: Run deterministic regression
-        run: npm run test:unit
-
       - name: Install Java for candidate formal proof
         if: ${{ inputs.expensive }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: '21'
-      - name: Run TLA+ proof
-        if: ${{ inputs.expensive }}
-        run: npm run proof:formal
+      - name: Run deterministic regression and candidate formal proof
+        env:
+          EXPENSIVE: ${{ inputs.expensive }}
+        run: |
+          set -euo pipefail
+
+          npm run test:unit &
+          unit_pid=$!
+
+          formal_pid=
+          if [ "$EXPENSIVE" = true ]; then
+            npm run proof:formal &
+            formal_pid=$!
+          fi
+
+          unit_status=0
+          formal_status=0
+          wait "$unit_pid" || unit_status=$?
+          if [ -n "$formal_pid" ]; then
+            wait "$formal_pid" || formal_status=$?
+          fi
+
+          test "$unit_status" -eq 0
+          test "$formal_status" -eq 0
 
       - name: Prove production computation boundary
         if: ${{ inputs.expensive }}
