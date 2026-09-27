@@ -157,6 +157,32 @@ function parameterKey(root: string, parameter: Node): string {
   );
 }
 
+function parameterName(parameter: Node): string | null {
+  const source = parameter.getSourceFile();
+  const match = parameter
+    .getText(source)
+    .match(/^(?:\.\.\.)?([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:\?|:|=|$)/);
+  return match?.[1] ?? null;
+}
+
+function scopedBindingKey(scope: string, name: string): string {
+  return `scope:${scope}:${name}`;
+}
+
+function lexicalBinding(
+  bindings: CallableBindings,
+  callChain: readonly string[],
+  name: string,
+): CallableBinding | undefined {
+  for (let index = callChain.length - 1; index >= 0; index -= 1) {
+    const binding = bindings.get(scopedBindingKey(callChain[index]!, name));
+    if (binding !== undefined || bindings.has(scopedBindingKey(callChain[index]!, name))) {
+      return binding;
+    }
+  }
+  return undefined;
+}
+
 function callableParameters(declaration: Node): readonly Node[] {
   if (
     isFunctionDeclaration(declaration) ||
@@ -179,8 +205,12 @@ function bindingsForCall(
   inherited: CallableBindings,
 ): CallableBindings {
   const bindings = new Map(inherited);
+  const scope = callLabel(root, declaration);
   for (const [index, parameter] of callableParameters(declaration).entries()) {
-    bindings.set(parameterKey(root, parameter), call.arguments[index] ?? null);
+    const binding = call.arguments[index] ?? null;
+    bindings.set(parameterKey(root, parameter), binding);
+    const name = parameterName(parameter);
+    if (name) bindings.set(scopedBindingKey(scope, name), binding);
   }
   return bindings;
 }
@@ -328,17 +358,30 @@ export function createTypeScriptFunctionEffectProbe(
 
       const body = declarationBody(declaration);
       if (!body) {
-        if (declaration.kind === SyntaxKind.Parameter) {
-          const binding = bindings.get(parameterKey(root, declaration));
+        const callSource = call.getSourceFile();
+        const symbol = declarationName(declaration) ?? call.expression.getText(callSource);
+        const positionalBinding =
+          declaration.kind === SyntaxKind.Parameter
+            ? bindings.get(parameterKey(root, declaration))
+            : undefined;
+        const binding =
+          positionalBinding !== undefined
+            ? positionalBinding
+            : lexicalBinding(bindings, callChain, symbol);
+        const bindingKnown =
+          positionalBinding !== undefined ||
+          (declaration.kind === SyntaxKind.Parameter &&
+            bindings.has(parameterKey(root, declaration))) ||
+          callChain.some((scope) => bindings.has(scopedBindingKey(scope, symbol)));
+
+        if (bindingKnown) {
           if (binding === null) return;
           if (binding !== undefined && functionLike(binding) && declarationBody(binding)) {
             enqueue(binding, [...callChain, callLabel(root, binding)], bindings);
             return;
           }
           if (binding !== undefined) {
-            const callSource = call.getSourceFile();
             const position = callSource.getLineAndCharacterOfPosition(call.getStart(callSource));
-            const symbol = declarationName(declaration) ?? call.expression.getText(callSource);
             const bindingPath = normalized(root, binding.getSourceFile().fileName);
             unresolvedCalls.push({
               call_site_path: normalized(root, callSource.fileName),
@@ -355,7 +398,7 @@ export function createTypeScriptFunctionEffectProbe(
           }
         }
 
-        const callSource = call.getSourceFile();
+
         const position = callSource.getLineAndCharacterOfPosition(call.getStart(callSource));
         const symbol = declarationName(declaration) ?? call.expression.getText(callSource);
         unresolvedCalls.push({
