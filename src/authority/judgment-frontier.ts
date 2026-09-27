@@ -24,6 +24,7 @@ export type JudgmentFrontierReasonCode =
   | 'RECOVERY_RECEIPT_PRESENT'
   | 'CURRENT_REALIZATION_INDETERMINATE'
   | 'DECLARED_JUDGMENT_REQUIRED'
+  | 'ARCHITECTURE_RECONCILIATION_REQUIRED'
   | 'STALE_EXACT_REVISION_EVIDENCE'
   | 'DERIVABLE_SYSTEM_EVIDENCE'
   | 'DERIVABLE_HOSTILE_EVIDENCE_DEBT'
@@ -150,12 +151,16 @@ export function classifyJudgmentFrontier({
 
   if (work.status === 'BLOCKED') {
     if (explanation.reason.kind === 'judgment-required') {
+      const architectureReconciliation = work.packet.kind === 'architecture-reconciliation';
       return decision(
         'reasoning-required',
-        'DECLARED_JUDGMENT_REQUIRED',
+        architectureReconciliation
+          ? 'ARCHITECTURE_RECONCILIATION_REQUIRED'
+          : 'DECLARED_JUDGMENT_REQUIRED',
         'work.status=BLOCKED',
         'explanation.reason.kind=judgment-required',
         'postcondition.verifier=operator-judgment/v1',
+        ...(architectureReconciliation ? ['packet.kind=architecture-reconciliation'] : []),
       );
     }
     if (explanation.reason.kind === 'current-realization-indeterminate') {
