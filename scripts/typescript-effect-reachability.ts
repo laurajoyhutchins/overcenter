@@ -152,11 +152,9 @@ type CallableBindings = Map<string, CallableBinding>;
 
 function parameterKey(root: string, parameter: Node): string {
   const source = parameter.getSourceFile();
-  return [
-    normalized(root, source.fileName),
-    parameter.getStart(source),
-    parameter.getEnd(),
-  ].join(':');
+  return [normalized(root, source.fileName), parameter.getStart(source), parameter.getEnd()].join(
+    ':',
+  );
 }
 
 function callableParameters(declaration: Node): readonly Node[] {
@@ -291,11 +289,7 @@ export function createTypeScriptFunctionEffectProbe(
       bindings: CallableBindings;
     }> = [];
 
-    const enqueue = (
-      declaration: Node,
-      callChain: string[],
-      bindings: CallableBindings,
-    ): void => {
+    const enqueue = (declaration: Node, callChain: string[], bindings: CallableBindings): void => {
       const body = declarationBody(declaration);
       if (!body) return;
       const label = callLabel(root, declaration);
