@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
 import {
   SOURCE_CANDIDATE_SCHEMA,
+  sourceTaskAllowsPath,
   validateSourceCandidate,
   validateSourceProposal,
   validateSourceTaskPacket,
@@ -366,7 +367,7 @@ export function inspectSourceCandidate(
   if (changedPaths.some(sourceControlPath)) {
     throw new Error('SOURCE_CONTROL_PLANE_MUTATION_FORBIDDEN');
   }
-  if (changedPaths.some((path) => !task.writable_paths.includes(path))) {
+  if (changedPaths.some((path) => !sourceTaskAllowsPath(task, path))) {
     throw new Error('SOURCE_SCOPE_VIOLATION');
   }
 
