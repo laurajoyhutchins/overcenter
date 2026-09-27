@@ -24,9 +24,10 @@ export interface WorkflowFunctionEffectReachability {
   terminal_statement_sha256: string;
 }
 
-export type WorkflowFunctionEffectProbe = (
-  entrypoint: string,
-) => WorkflowFunctionEffectReachability[];
+export interface WorkflowFunctionEffectProbe {
+  (entrypoint: string): WorkflowFunctionEffectReachability[];
+  dispose?: () => void;
+}
 
 export interface WorkflowTransitiveEffectFact {
   kind: 'github-actions-transitive-effect-reachability';
