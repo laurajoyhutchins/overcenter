@@ -398,9 +398,7 @@ export function createTypeScriptFunctionEffectProbe(
           }
         }
 
-
         const position = callSource.getLineAndCharacterOfPosition(call.getStart(callSource));
-        const symbol = declarationName(declaration) ?? call.expression.getText(callSource);
         unresolvedCalls.push({
           call_site_path: normalized(root, callSource.fileName),
           call_site_line: position.line + 1,
