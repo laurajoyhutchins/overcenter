@@ -13,7 +13,7 @@ import {
 export type ProductionReferenceProbe = (fromPath: string, toPath: string) => boolean;
 
 function normalizedRepoPath(path: string): string {
-  return relative(process.cwd(), resolve(path)).replaceAll('\\\\', '/');
+  return relative(process.cwd(), resolve(path)).replaceAll('\\', '/');
 }
 
 function resolveLocalReference(fromPath: string, specifier: string): string | null {
