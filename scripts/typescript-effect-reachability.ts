@@ -14,6 +14,7 @@ import {
   isGetAccessorDeclaration,
   isIdentifier,
   isMethodDeclaration,
+  isParameter,
   isPropertyAssignment,
   isSetAccessorDeclaration,
   isVariableDeclaration,
@@ -146,6 +147,46 @@ function functionLike(node: Node): boolean {
   );
 }
 
+type CallableBinding = Node | null;
+type CallableBindings = Map<string, CallableBinding>;
+
+function parameterKey(root: string, parameter: Node): string {
+  const source = parameter.getSourceFile();
+  return [
+    normalized(root, source.fileName),
+    parameter.getStart(source),
+    parameter.getEnd(),
+  ].join(':');
+}
+
+function callableParameters(declaration: Node): readonly Node[] {
+  if (
+    isFunctionDeclaration(declaration) ||
+    isMethodDeclaration(declaration) ||
+    isConstructorDeclaration(declaration) ||
+    isGetAccessorDeclaration(declaration) ||
+    isSetAccessorDeclaration(declaration) ||
+    isFunctionExpression(declaration) ||
+    isArrowFunction(declaration)
+  ) {
+    return declaration.parameters;
+  }
+  return [];
+}
+
+function bindingsForCall(
+  root: string,
+  declaration: Node,
+  call: CallExpression,
+  inherited: CallableBindings,
+): CallableBindings {
+  const bindings = new Map(inherited);
+  for (const [index, parameter] of callableParameters(declaration).entries()) {
+    bindings.set(parameterKey(root, parameter), call.arguments[index] ?? null);
+  }
+  return bindings;
+}
+
 function directCalls(rootNode: Node): CallExpression[] {
   const calls: CallExpression[] = [];
   const visit = (node: Node): void => {
@@ -228,9 +269,17 @@ export function createTypeScriptFunctionEffectProbe(
     const results: WorkflowFunctionEffectReachability[] = [];
     const unresolvedCalls: WorkflowUnresolvedFunctionCall[] = [];
     const visitedAtDepth = new Map<string, number>();
-    const pending: Array<{ declaration: Node; call_chain: string[] }> = [];
+    const pending: Array<{
+      declaration: Node;
+      call_chain: string[];
+      bindings: CallableBindings;
+    }> = [];
 
-    const enqueue = (declaration: Node, callChain: string[]): void => {
+    const enqueue = (
+      declaration: Node,
+      callChain: string[],
+      bindings: CallableBindings,
+    ): void => {
       const body = declarationBody(declaration);
       if (!body) return;
       const label = callLabel(root, declaration);
@@ -238,10 +287,14 @@ export function createTypeScriptFunctionEffectProbe(
       const seenDepth = visitedAtDepth.get(label);
       if (seenDepth !== undefined && seenDepth <= depth) return;
       visitedAtDepth.set(label, depth);
-      pending.push({ declaration, call_chain: callChain });
+      pending.push({ declaration, call_chain: callChain, bindings });
     };
 
-    const inspectCall = (call: CallExpression, callChain: string[]): void => {
+    const inspectCall = (
+      call: CallExpression,
+      callChain: string[],
+      bindings: CallableBindings,
+    ): void => {
       const declaration = checker.getResolvedSignature(call)?.declaration?.resolve(project);
       if (!declaration) return;
       const sourceFile = declaration.getSourceFile();
@@ -264,6 +317,33 @@ export function createTypeScriptFunctionEffectProbe(
 
       const body = declarationBody(declaration);
       if (!body) {
+        if (isParameter(declaration)) {
+          const binding = bindings.get(parameterKey(root, declaration));
+          if (binding === null) return;
+          if (binding !== undefined && functionLike(binding) && declarationBody(binding)) {
+            enqueue(binding, [...callChain, callLabel(root, binding)], bindings);
+            return;
+          }
+          if (binding !== undefined) {
+            const callSource = call.getSourceFile();
+            const position = callSource.getLineAndCharacterOfPosition(call.getStart(callSource));
+            const symbol = declarationName(declaration) ?? call.expression.getText(callSource);
+            const bindingPath = normalized(root, binding.getSourceFile().fileName);
+            unresolvedCalls.push({
+              call_site_path: normalized(root, callSource.fileName),
+              call_site_line: position.line + 1,
+              call_expression_sha256: createHash('sha256')
+                .update(call.getText(callSource))
+                .digest('hex'),
+              declaration_path: path,
+              declaration_symbol: symbol,
+              call_chain: [...callChain, `${path}#${symbol}`],
+              candidate_effects: candidateEffects(bindingPath),
+            });
+            return;
+          }
+        }
+
         const callSource = call.getSourceFile();
         const position = callSource.getLineAndCharacterOfPosition(call.getStart(callSource));
         const symbol = declarationName(declaration) ?? call.expression.getText(callSource);
@@ -280,17 +360,20 @@ export function createTypeScriptFunctionEffectProbe(
         });
         return;
       }
-      enqueue(declaration, nextChain);
+      enqueue(declaration, nextChain, bindingsForCall(root, declaration, call, bindings));
     };
 
     const rootChain = [`${normalized(root, absolute)}#<module>`];
-    for (const call of directCalls(source)) inspectCall(call, rootChain);
+    const rootBindings: CallableBindings = new Map();
+    for (const call of directCalls(source)) inspectCall(call, rootChain, rootBindings);
 
     while (pending.length > 0) {
       const current = pending.shift()!;
       const body = declarationBody(current.declaration);
       if (!body) continue;
-      for (const call of directCalls(body)) inspectCall(call, current.call_chain);
+      for (const call of directCalls(body)) {
+        inspectCall(call, current.call_chain, current.bindings);
+      }
     }
 
     const unique = new Map<string, WorkflowFunctionEffectReachability>();
