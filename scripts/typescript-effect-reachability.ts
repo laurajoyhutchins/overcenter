@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 
 import ts from 'typescript';
@@ -75,14 +74,14 @@ function declarationBody(declaration: ts.Declaration): ts.Node | null {
   return null;
 }
 
-function terminalFor(
-  root: string,
-  declaration: ts.Declaration,
-): EffectTerminal | null {
+function terminalFor(root: string, declaration: ts.Declaration): EffectTerminal | null {
   const name = declarationName(declaration);
   if (!name) return null;
   const path = normalized(root, declaration.getSourceFile().fileName);
-  return EFFECT_TERMINALS.find((candidate) => candidate.path === path && candidate.symbol === name) ?? null;
+  return (
+    EFFECT_TERMINALS.find((candidate) => candidate.path === path && candidate.symbol === name) ??
+    null
+  );
 }
 
 function declarationDigest(declaration: ts.Declaration): string {
