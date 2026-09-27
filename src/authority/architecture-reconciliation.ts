@@ -127,8 +127,8 @@ export function validateArchitectureIntent(value: unknown): ArchitectureIntent {
 
 function factKey(fact: ArchitectureObservedFact): string {
   return fact.kind === 'path-state'
-    ? `path:\${fact.path}`
-    : `reference:\${fact.from_path}->\${fact.to_path}`;
+    ? `path:${fact.path}`
+    : `reference:${fact.from_path}->${fact.to_path}`;
 }
 
 function sortFacts(facts: ArchitectureObservedFact[]): ArchitectureObservedFact[] {
@@ -191,7 +191,7 @@ function reconcileClaim(
 
   const authority = pathFact(observations, claim.authority);
   if (!authority) {
-    missingEvidence.push(`path-state:\${claim.authority}`);
+    missingEvidence.push(`path-state:${claim.authority}`);
   } else if (!authority.present) {
     return conflict(claim, 'AUTHORITY_PATH_MISSING', [], [authority]);
   } else {
@@ -204,7 +204,7 @@ function reconcileClaim(
     }
     const projectionPath = pathFact(observations, projection);
     if (!projectionPath) {
-      missingEvidence.push(`path-state:\${projection}`);
+      missingEvidence.push(`path-state:${projection}`);
       continue;
     }
     if (!projectionPath.present) {
@@ -224,17 +224,17 @@ function reconcileClaim(
       return conflict(claim, 'DECLARED_PROJECTION_FLOW_MISSING', supporting, [forward, reverse]);
     }
     if (!forward) {
-      missingEvidence.push(`typescript-reference-state:\${claim.authority}->\${projection}`);
+      missingEvidence.push(`typescript-reference-state:${claim.authority}->${projection}`);
     }
     if (!reverse) {
-      missingEvidence.push(`typescript-reference-state:\${projection}->\${claim.authority}`);
+      missingEvidence.push(`typescript-reference-state:${projection}->${claim.authority}`);
     }
   }
 
   for (const verifier of [...claim.verifiers].sort()) {
     const verifierPath = pathFact(observations, verifier);
     if (!verifierPath) {
-      missingEvidence.push(`path-state:\${verifier}`);
+      missingEvidence.push(`path-state:${verifier}`);
     } else if (!verifierPath.present) {
       return conflict(claim, 'VERIFIER_PATH_MISSING', supporting, [verifierPath]);
     } else {
@@ -333,7 +333,7 @@ export function architectureReconciliationWork(
     contradicting_facts: structuredClone(resolution.contradicting_facts),
   };
   return {
-    id: `architecture-reconciliation:\${identity}`,
+    id: `architecture-reconciliation:${identity}`,
     packet: structuredClone(subject),
     postcondition: {
       verifier: 'operator-judgment/v1',
