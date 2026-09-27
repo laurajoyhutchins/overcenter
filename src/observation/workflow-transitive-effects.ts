@@ -24,8 +24,22 @@ export interface WorkflowFunctionEffectReachability {
   terminal_statement_sha256: string;
 }
 
+export interface WorkflowUnresolvedFunctionCall {
+  call_site_path: string;
+  call_site_line: number;
+  call_expression_sha256: string;
+  declaration_path: string;
+  declaration_symbol: string;
+  call_chain: string[];
+}
+
+export interface WorkflowFunctionEffectAnalysis {
+  effects: WorkflowFunctionEffectReachability[];
+  unresolved_calls: WorkflowUnresolvedFunctionCall[];
+}
+
 export interface WorkflowFunctionEffectProbe {
-  (entrypoint: string): WorkflowFunctionEffectReachability[];
+  (entrypoint: string): WorkflowFunctionEffectAnalysis;
   dispose?: () => void;
 }
 
@@ -42,9 +56,23 @@ export interface WorkflowTransitiveEffectFact {
   terminal_statement_sha256: string;
 }
 
+export interface WorkflowUnresolvedDynamicCallFact {
+  kind: 'github-actions-unresolved-dynamic-call-target';
+  source_revision: string;
+  workflow_path: string;
+  entrypoint: string;
+  call_site_path: string;
+  call_site_line: number;
+  call_expression_sha256: string;
+  declaration_path: string;
+  declaration_symbol: string;
+  call_chain: string[];
+}
+
 export type WorkflowTransitiveEffectObservedFact =
   | WorkflowEntrypointFact
-  | WorkflowTransitiveEffectFact;
+  | WorkflowTransitiveEffectFact
+  | WorkflowUnresolvedDynamicCallFact;
 
 interface ProductionEffectTerminal {
   effect: WorkflowReachableProductionEffect;
@@ -160,13 +188,23 @@ export function observeWorkflowTransitiveEffects(
       if (!existsSync(entrypoint)) continue;
 
       if (functionEffects) {
-        for (const terminal of functionEffects(entrypoint)) {
+        const analysis = functionEffects(entrypoint);
+        for (const terminal of analysis.effects) {
           facts.push({
             kind: 'github-actions-transitive-effect-reachability',
             source_revision: sourceRevision,
             workflow_path: workflowPath,
             entrypoint,
             ...terminal,
+          });
+        }
+        for (const unresolved of analysis.unresolved_calls) {
+          facts.push({
+            kind: 'github-actions-unresolved-dynamic-call-target',
+            source_revision: sourceRevision,
+            workflow_path: workflowPath,
+            entrypoint,
+            ...unresolved,
           });
         }
         continue;
