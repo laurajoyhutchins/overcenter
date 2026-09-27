@@ -51,13 +51,22 @@ function resolveLocalModule(fromPath: string, specifier: string): string | null 
   return found ? normalized(found) : null;
 }
 
-function localImports(path: string): string[] {
-  const source = readFileSync(path, 'utf8');
+export function runtimeLocalImportSpecifiers(source: string): string[] {
+  const runtimeSource = source
+    .replace(/\bimport\s+type\b[\s\S]*?\bfrom\s*['"][^'"]+['"]\s*;?/g, '')
+    .replace(/\bexport\s+type\b[\s\S]*?\bfrom\s*['"][^'"]+['"]\s*;?/g, '');
   const imports = new Set<string>();
   const pattern = /(?:from\s*|import\s*)['"]([^'"]+)['"]/g;
-  for (const match of source.matchAll(pattern)) {
+  for (const match of runtimeSource.matchAll(pattern)) {
     const specifier = match[1]!;
-    if (!specifier.startsWith('.')) continue;
+    if (specifier.startsWith('.')) imports.add(specifier);
+  }
+  return [...imports].sort();
+}
+
+function localImports(path: string): string[] {
+  const imports = new Set<string>();
+  for (const specifier of runtimeLocalImportSpecifiers(readFileSync(path, 'utf8'))) {
     const target = resolveLocalModule(path, specifier);
     if (target) imports.add(target);
   }
