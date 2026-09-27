@@ -31,6 +31,7 @@ export interface WorkflowUnresolvedFunctionCall {
   declaration_path: string;
   declaration_symbol: string;
   call_chain: string[];
+  candidate_effects: WorkflowReachableProductionEffect[];
 }
 
 export interface WorkflowFunctionEffectAnalysis {
@@ -67,6 +68,7 @@ export interface WorkflowUnresolvedDynamicCallFact {
   declaration_path: string;
   declaration_symbol: string;
   call_chain: string[];
+  candidate_effects: WorkflowReachableProductionEffect[];
 }
 
 export type WorkflowTransitiveEffectObservedFact =
