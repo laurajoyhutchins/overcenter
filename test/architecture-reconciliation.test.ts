@@ -24,6 +24,7 @@ import {
 } from '../src/observation/github-actions-effects.ts';
 import {
   observeWorkflowTransitiveEffects,
+  runtimeLocalImportSpecifiers,
   workflowTypeScriptEntrypoints,
 } from '../src/observation/workflow-transitive-effects.ts';
 
@@ -576,4 +577,18 @@ test('undeclared transitive effect reachability becomes bounded architecture rec
   const work = architectureReconciliationWork(resolution, revision);
   assert.equal(work.packet?.kind, 'architecture-reconciliation');
   assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
+});
+
+
+test('type-only imports do not widen runtime effect reachability', () => {
+  const source = `
+import type { Witness } from './type-only-effect.ts';
+import { execute } from './runtime-effect.ts';
+export type { Receipt } from './type-only-export.ts';
+export { observe } from './runtime-export.ts';
+`;
+  assert.deepEqual(runtimeLocalImportSpecifiers(source), [
+    './runtime-effect.ts',
+    './runtime-export.ts',
+  ]);
 });
