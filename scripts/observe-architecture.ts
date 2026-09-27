@@ -10,6 +10,7 @@ import {
   validateArchitectureIntent,
 } from '../src/authority/architecture-reconciliation.ts';
 import { observeGitHubActionsSources } from '../src/observation/github-actions-capabilities.ts';
+import { observeGitHubActionsProviderEffects } from '../src/observation/github-actions-effects.ts';
 
 export type ProductionReferenceProbe = (fromPath: string, toPath: string) => boolean;
 
@@ -123,7 +124,13 @@ export function observeArchitectureIntent(
     }
   }
 
-  if (intent.claims.some((claim) => claim.kind === 'github-actions-explicit-write-authority')) {
+  if (
+    intent.claims.some(
+      (claim) =>
+        claim.kind === 'github-actions-explicit-write-authority' ||
+        claim.kind === 'github-actions-provider-effect-authority',
+    )
+  ) {
     const directory = resolve('.github/workflows');
     const sources: Record<string, string> = {};
     if (existsSync(directory)) {
@@ -134,6 +141,7 @@ export function observeArchitectureIntent(
       }
     }
     observations.push(...observeGitHubActionsSources(sources, sourceRevision));
+    observations.push(...observeGitHubActionsProviderEffects(sources, sourceRevision));
   }
 
   return sortFacts(observations);

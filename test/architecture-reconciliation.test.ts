@@ -18,6 +18,10 @@ import {
   explicitGitHubActionsWritePermissions,
   observeGitHubActionsSources,
 } from '../src/observation/github-actions-capabilities.ts';
+import {
+  observeGitHubActionsProviderEffects,
+  recognizedGitHubActionsProviderEffects,
+} from '../src/observation/github-actions-effects.ts';
 
 const revision = 'a'.repeat(40);
 
@@ -353,4 +357,135 @@ test('GitHub Actions write policy stays unknown when workflow scan evidence is a
   assert.equal(resolution.state, 'unknown');
   if (resolution.state !== 'unknown') return;
   assert.deepEqual(resolution.missing_evidence, ['github-actions-workflow-scan']);
+});
+
+test('GitHub Actions effect observer recognizes direct provider mutations only', () => {
+  const source = `
+steps:
+  - run: git push origin HEAD:refs/heads/topic
+  - run: git push --quiet origin ":refs/heads/obsolete"
+  - run: api_post "/repos/\${REPOSITORY}/git/blobs" "{}"
+  - run: api_post "/repos/\${REPOSITORY}/git/trees" "{}"
+  - run: api_post "/repos/\${REPOSITORY}/git/commits" "{}"
+  - run: api_post "/repos/\${REPOSITORY}/git/refs" "{}"
+  - run: |
+      curl --request POST \
+        "https://api.github.com/repos/$REPOSITORY/statuses/$SOURCE_SHA"
+  - run: |
+      curl -X POST \
+        "https://api.github.com/repos/$REPOSITORY/pulls"
+  - run: curl "https://api.github.com/repos/$REPOSITORY/pulls/123"
+`;
+  assert.deepEqual(
+    recognizedGitHubActionsProviderEffects(source).map((fact) => fact.effect),
+    [
+      'github-git-ref/update',
+      'github-git-ref/delete',
+      'github-git-blob/create',
+      'github-git-tree/create',
+      'github-git-commit/create',
+      'github-git-ref/create',
+      'github-commit-status/create',
+      'github-pull-request/create',
+    ],
+  );
+});
+
+test('provider effect observations are exact-source facts with statement digests', () => {
+  const observed = observeGitHubActionsProviderEffects(
+    {
+      '.github/workflows/publish.yml': `jobs:
+  publish:
+    steps:
+      - run: git push origin HEAD:main
+`,
+    },
+    revision,
+  );
+  assert.equal(observed.length, 1);
+  assert.deepEqual(
+    {
+      kind: observed[0]?.kind,
+      revision: observed[0]?.source_revision,
+      workflow: observed[0]?.workflow_path,
+      effect: observed[0]?.effect,
+      line: observed[0]?.line_number,
+      digest_length: observed[0]?.statement_sha256.length,
+    },
+    {
+      kind: 'github-actions-provider-effect-invocation',
+      revision,
+      workflow: '.github/workflows/publish.yml',
+      effect: 'github-git-ref/update',
+      line: 4,
+      digest_length: 64,
+    },
+  );
+});
+
+test('undeclared direct provider effect becomes architecture reconciliation work', () => {
+  const policy: ArchitectureIntent = {
+    schema: ARCHITECTURE_INTENT_SCHEMA,
+    claims: [
+      {
+        kind: 'github-actions-provider-effect-authority',
+        concept: 'workflow-provider-effects',
+        allowed: [
+          {
+            workflow: '.github/workflows/allowed.yml',
+            effects: ['github-git-ref/update'],
+          },
+        ],
+      },
+    ],
+  };
+  const sources = {
+    '.github/workflows/allowed.yml': `steps:
+  - run: git push origin HEAD:main
+`,
+    '.github/workflows/rogue.yml': `steps:
+  - run: |
+      curl -X POST "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls"
+`,
+  };
+  const observed: ArchitectureObservedFact[] = [
+    ...observeGitHubActionsSources(sources, revision),
+    ...observeGitHubActionsProviderEffects(sources, revision),
+  ];
+  const result = reconcileArchitecture({
+    intent: policy,
+    source_revision: revision,
+    observations: observed,
+  });
+  const resolution = result.resolutions[0]!;
+  assert.equal(resolution.state, 'conflict');
+  if (resolution.state !== 'conflict') return;
+  assert.equal(resolution.reason_code, 'UNDECLARED_GITHUB_ACTIONS_PROVIDER_EFFECT');
+  assert.deepEqual(
+    resolution.contradicting_facts.map((fact) =>
+      fact.kind === 'github-actions-provider-effect-invocation'
+        ? `${fact.workflow_path}:${fact.effect}`
+        : fact.kind,
+    ),
+    ['.github/workflows/rogue.yml:github-pull-request/create'],
+  );
+
+  const work = architectureReconciliationWork(resolution, revision);
+  assert.equal(work.packet?.kind, 'architecture-reconciliation');
+  assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
+});
+
+test('effect invocation is observed even when write capability is absent', () => {
+  const source = `permissions:
+  contents: read
+steps:
+  - run: |
+      curl --request POST \
+        "https://api.github.com/repos/$REPOSITORY/statuses/$SOURCE_SHA"
+`;
+  assert.deepEqual(explicitGitHubActionsWritePermissions(source), []);
+  assert.deepEqual(
+    recognizedGitHubActionsProviderEffects(source).map((fact) => fact.effect),
+    ['github-commit-status/create'],
+  );
 });
