@@ -177,6 +177,36 @@
           ]
         }
       ]
+    },
+    {
+      "kind": "workflow-transitive-effect-authority",
+      "concept": "workflow-transitive-provider-effects",
+      "allowed": [
+        {
+          "workflow": ".github/workflows/operator-project-advance.yml",
+          "effects": [
+            "git-remote-ref/mutate"
+          ]
+        },
+        {
+          "workflow": ".github/workflows/operator-project-submit.yml",
+          "effects": [
+            "git-remote-ref/mutate"
+          ]
+        },
+        {
+          "workflow": ".github/workflows/production-criticality-mutation-probe.yml",
+          "effects": [
+            "git-remote-ref/mutate"
+          ]
+        },
+        {
+          "workflow": ".github/workflows/promote-criticality-mutation-evidence.yml",
+          "effects": [
+            "git-remote-ref/mutate"
+          ]
+        }
+      ]
     }
   ]
 }
