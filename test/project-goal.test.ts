@@ -11,8 +11,7 @@ const goal = {
   schema: PROJECT_GOAL_SCHEMA,
   id: 'project-goal:strength',
   objective: 'Improve the project until external strength evidence satisfies the goal.',
-  writable_paths: ['README.md'],
-  writable_trees: ['src', 'test'],
+  writable_paths: ['README.md', 'src/feature.ts', 'test/feature.test.ts'],
 } as const;
 
 test('project goal emits one source obligation bound to the exact project revision', () => {
@@ -32,7 +31,11 @@ test('project goal emits one source obligation bound to the exact project revisi
   assert.equal(firstGoal.id, goal.id);
   assert.equal(firstGoal.packet.kind, 'source-change');
   assert.equal(firstGoal.postcondition.verifier, 'source-integration/v1');
-  assert.deepEqual(firstGoal.packet.writable_trees, ['src', 'test']);
+  assert.deepEqual(firstGoal.packet.writable_paths, [
+    'README.md',
+    'src/feature.ts',
+    'test/feature.test.ts',
+  ]);
   assert.deepEqual(firstGoal.packet.context, {
     schema: 'overcenter-project-goal-iteration/v1',
     project_source_sha: firstSha,
@@ -78,16 +81,16 @@ test('project goal fails closed on mismatched or empty satisfaction evidence', (
   );
 });
 
-test('project goal rejects control-plane writable trees', () => {
+test('project goal rejects control-plane writable paths', () => {
   assert.throws(
     () =>
       compileProjectGoal(
         {
           ...goal,
-          writable_trees: ['.github'],
+          writable_paths: ['.github/workflows/evil.yml'],
         },
         'a'.repeat(40),
       ),
-    /SOURCE_TASK_WRITABLE_TREE_INVALID/,
+    /SOURCE_TASK_WRITABLE_PATH_INVALID/,
   );
 });
