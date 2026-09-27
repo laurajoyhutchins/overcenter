@@ -573,9 +573,7 @@ function reconcileWorkflowTransitiveEffectClaim(
   const effectRelevantUnresolved = unresolvedCalls.filter(
     (fact) => fact.candidate_effects.length > 0,
   );
-  const resolvedUncertainty = unresolvedCalls.filter(
-    (fact) => fact.candidate_effects.length === 0,
-  );
+  const resolvedUncertainty = unresolvedCalls.filter((fact) => fact.candidate_effects.length === 0);
   if (effectRelevantUnresolved.length > 0) {
     return conflict(
       claim,
