@@ -24,7 +24,7 @@ function goalTask(value: unknown) {
   assertExactKeys(
     value,
     ['schema', 'id', 'objective', 'writable_paths'],
-    ['writable_trees'],
+    [],
     'PROJECT_GOAL_INVALID',
   );
   if (value.schema !== PROJECT_GOAL_SCHEMA) throw new Error('PROJECT_GOAL_SCHEMA_MISMATCH');
@@ -39,7 +39,6 @@ function goalTask(value: unknown) {
       kind: 'source-change',
       objective: value.objective,
       writable_paths: value.writable_paths,
-      ...(value.writable_trees === undefined ? {} : { writable_trees: value.writable_trees }),
     }),
   };
 }
