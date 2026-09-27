@@ -167,6 +167,47 @@ test('checked-in project intent is source-agnostic until trusted compilation', (
   assert.equal(JSON.stringify(compiled.packet).includes('source_sha'), false);
 });
 
+test('project.advance separates pinned command implementation from project source revision', () => {
+  const f = fixture();
+  try {
+    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    kernel.initialize();
+
+    const projectSourceSha = commitProjectIntent(f.work, [
+      agentIntent('external-project-work', f.postconditionPath),
+    ]);
+    const commandSourceSha = 'f'.repeat(40);
+    const outputDir = join(f.root, 'external-project-packet');
+    const receipt = advanceProjectForAgent(
+      f.work,
+      {
+        ...commandContext(commandSourceSha),
+        project_source_sha: projectSourceSha,
+      },
+      {
+        outputDir,
+        workerClientPath: workerClientFixture(f.root),
+        authorityRef: AUTHORITY_REF,
+        remote: 'origin',
+      },
+    );
+
+    assert.equal(receipt.command_source_sha, commandSourceSha);
+    assert.equal(receipt.candidate_branch_base_sha, projectSourceSha);
+    assert.equal(receipt.obligation_id, 'external-project-work');
+    assert.equal(
+      new GitOvercenterKernel(f.work, {
+        remote: 'origin',
+        ref: AUTHORITY_REF,
+      }).claimedSourceRevision(receipt.run_id!),
+      projectSourceSha,
+    );
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+    rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
 test('project.advance reconciles trusted project intent before frontier selection', () => {
   const f = fixture();
   try {
