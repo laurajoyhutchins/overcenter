@@ -100,7 +100,9 @@ function terminalFor(root: string, declaration: Node): EffectTerminal | null {
 }
 
 function declarationDigest(declaration: Node): string {
-  return createHash('sha256').update(declaration.getText(declaration.getSourceFile())).digest('hex');
+  return createHash('sha256')
+    .update(declaration.getText(declaration.getSourceFile()))
+    .digest('hex');
 }
 
 function callLabel(root: string, declaration: Node): string {
@@ -142,7 +144,10 @@ function directCalls(rootNode: Node): CallExpression[] {
   return calls;
 }
 
-function projectForRoot(api: API, root: string): {
+function projectForRoot(
+  api: API,
+  root: string,
+): {
   snapshot: ReturnType<API['updateSnapshot']>;
   project: Project;
 } {
