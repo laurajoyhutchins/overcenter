@@ -670,15 +670,20 @@ test('real operator entrypoints do not inherit uncalled GitHub HTTP effects', ()
   }
 });
 
-
 test('higher-order callback calls become explicit unresolved dynamic targets', () => {
   const probe = createTypeScriptFunctionEffectProbe(process.cwd());
   try {
     const analysis = probe('test/fixtures/function-effect-callback.ts');
     assert.deepEqual(analysis.effects, []);
     assert.equal(analysis.unresolved_calls.length, 1);
-    assert.equal(analysis.unresolved_calls[0]?.call_site_path, 'test/fixtures/function-effect-callback.ts');
-    assert.equal(analysis.unresolved_calls[0]?.declaration_path, 'test/fixtures/function-effect-callback.ts');
+    assert.equal(
+      analysis.unresolved_calls[0]?.call_site_path,
+      'test/fixtures/function-effect-callback.ts',
+    );
+    assert.equal(
+      analysis.unresolved_calls[0]?.declaration_path,
+      'test/fixtures/function-effect-callback.ts',
+    );
     assert.equal(analysis.unresolved_calls[0]?.call_chain.at(-1)?.includes('#<callable>'), true);
   } finally {
     probe.dispose?.();
@@ -691,7 +696,10 @@ test('interface dispatch becomes explicit unresolved dynamic target', () => {
     const analysis = probe('test/fixtures/function-effect-interface.ts');
     assert.deepEqual(analysis.effects, []);
     assert.equal(analysis.unresolved_calls.length, 1);
-    assert.equal(analysis.unresolved_calls[0]?.call_site_path, 'test/fixtures/function-effect-interface.ts');
+    assert.equal(
+      analysis.unresolved_calls[0]?.call_site_path,
+      'test/fixtures/function-effect-interface.ts',
+    );
     assert.equal(analysis.unresolved_calls[0]?.declaration_symbol, 'run');
   } finally {
     probe.dispose?.();
@@ -743,7 +751,10 @@ test('unresolved dynamic target becomes bounded architecture reconciliation work
   assert.equal(resolution.state, 'conflict');
   if (resolution.state !== 'conflict') return;
   assert.equal(resolution.reason_code, 'UNKNOWN_DYNAMIC_CALL_TARGET');
-  assert.equal(resolution.contradicting_facts[0]?.kind, 'github-actions-unresolved-dynamic-call-target');
+  assert.equal(
+    resolution.contradicting_facts[0]?.kind,
+    'github-actions-unresolved-dynamic-call-target',
+  );
   const work = architectureReconciliationWork(resolution, revision);
   assert.equal(work.packet?.kind, 'architecture-reconciliation');
   assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
