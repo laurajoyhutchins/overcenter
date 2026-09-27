@@ -14,6 +14,7 @@ import { classifyJudgmentFrontier } from '../src/authority/judgment-frontier.ts'
 import type { ProjectExplanation } from '../src/authority/project-state.ts';
 import type { Work } from '../src/model.ts';
 import { observeArchitectureIntent } from '../scripts/observe-architecture.ts';
+import { createTypeScriptFunctionEffectProbe } from '../scripts/typescript-effect-reachability.ts';
 import {
   explicitGitHubActionsWritePermissions,
   observeGitHubActionsSources,
@@ -590,4 +591,64 @@ export { observe } from './runtime-export.ts';
     './runtime-effect.ts',
     './runtime-export.ts',
   ]);
+});
+
+
+test('function-level effect reachability ignores imported but uncalled mutation APIs', () => {
+  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+  assert.deepEqual(probe('test/fixtures/function-effect-import-only.ts'), []);
+});
+
+test('function-level effect reachability binds called semantic mutation terminals', () => {
+  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+  const effects = probe('test/fixtures/function-effect-called.ts');
+  assert.deepEqual(
+    effects.map((fact) => ({
+      effect: fact.effect,
+      terminal: `${fact.terminal_path}#${fact.terminal_symbol}`,
+      root: fact.call_chain[0],
+      leaf: fact.call_chain.at(-1),
+      digest_length: fact.terminal_statement_sha256.length,
+    })),
+    [
+      {
+        effect: 'git-remote-ref/mutate',
+        terminal: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
+        root: 'test/fixtures/function-effect-called.ts#<module>',
+        leaf: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
+        digest_length: 64,
+      },
+      {
+        effect: 'github-commit-status/create',
+        terminal: 'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
+        root: 'test/fixtures/function-effect-called.ts#<module>',
+        leaf: 'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
+        digest_length: 64,
+      },
+      {
+        effect: 'github-pull-request/update-branch',
+        terminal:
+          'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
+        root: 'test/fixtures/function-effect-called.ts#<module>',
+        leaf:
+          'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
+        digest_length: 64,
+      },
+    ],
+  );
+});
+
+test('real operator entrypoints do not inherit uncalled GitHub HTTP effects', () => {
+  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+  for (const entrypoint of ['src/cli/project-advance.ts', 'src/cli/project-submit.ts']) {
+    const effects = probe(entrypoint);
+    assert.equal(
+      effects.some(
+        (fact) =>
+          fact.effect === 'github-commit-status/create' ||
+          fact.effect === 'github-pull-request/update-branch',
+      ),
+      false,
+    );
+  }
 });
