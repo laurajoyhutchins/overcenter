@@ -27,6 +27,8 @@ test('project goal emits one source obligation bound to the exact project revisi
   const secondGoal = second[0];
   assert.ok(firstGoal);
   assert.ok(secondGoal);
+  assert.ok(firstGoal.packet);
+  assert.ok(secondGoal.packet);
   assert.equal(firstGoal.id, goal.id);
   assert.equal(firstGoal.packet.kind, 'source-change');
   assert.equal(firstGoal.postcondition.verifier, 'source-integration/v1');
