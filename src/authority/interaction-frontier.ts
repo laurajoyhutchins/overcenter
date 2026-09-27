@@ -49,8 +49,6 @@ export function interactionFrontier(state: State): InteractionFrontier {
     components.push(component.sort());
   }
 
-  components.sort(
-    (left, right) => right.length - left.length || left[0]!.localeCompare(right[0]!),
-  );
+  components.sort((left, right) => right.length - left.length || left[0]!.localeCompare(right[0]!));
   return { components, causalEdges, conflictEdges };
 }
