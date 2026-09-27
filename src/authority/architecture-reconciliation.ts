@@ -302,7 +302,7 @@ function factKey(fact: ArchitectureObservedFact): string {
     case 'github-actions-transitive-effect-reachability':
       return `workflow-transitive-effect:${fact.workflow_path}:${fact.entrypoint}:${fact.effect}:${fact.terminal_path}:${fact.terminal_statement_sha256}`;
     case 'github-actions-unresolved-dynamic-call-target':
-      return `workflow-unresolved-call:${fact.workflow_path}:${fact.entrypoint}:${fact.call_site_path}:${fact.call_site_line}:${fact.call_expression_sha256}`;
+      return `workflow-unresolved-call:${fact.workflow_path}:${fact.entrypoint}:${fact.call_site_path}:${fact.call_site_line}:${fact.call_expression_sha256}:${fact.candidate_effects.join(',')}`;
   }
 }
 
@@ -570,19 +570,25 @@ function reconcileWorkflowTransitiveEffectClaim(
     );
   }
 
-  if (unresolvedCalls.length > 0) {
+  const effectRelevantUnresolved = unresolvedCalls.filter(
+    (fact) => fact.candidate_effects.length > 0,
+  );
+  const resolvedUncertainty = unresolvedCalls.filter(
+    (fact) => fact.candidate_effects.length === 0,
+  );
+  if (effectRelevantUnresolved.length > 0) {
     return conflict(
       claim,
       'UNKNOWN_DYNAMIC_CALL_TARGET',
-      [scan, ...entrypoints, ...effects],
-      unresolvedCalls,
+      [scan, ...entrypoints, ...effects, ...resolvedUncertainty],
+      effectRelevantUnresolved,
     );
   }
 
   return {
     state: 'established',
     claim: structuredClone(claim),
-    supporting_facts: sortFacts([scan, ...entrypoints, ...effects]),
+    supporting_facts: sortFacts([scan, ...entrypoints, ...effects, ...unresolvedCalls]),
   };
 }
 
