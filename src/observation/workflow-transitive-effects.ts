@@ -79,14 +79,9 @@ function productionEffectTerminals(path: string): ProductionEffectTerminal[] {
     }
   }
 
-  if (
-    source.includes('GITHUB_STATUS_PROVIDER_ORIGIN') &&
-    /method:\s*['"]POST['"]/.test(source)
-  ) {
+  if (source.includes('GITHUB_STATUS_PROVIDER_ORIGIN') && /method:\s*['"]POST['"]/.test(source)) {
     const statement =
-      source
-        .split(/\r?\n/)
-        .find((line) => /method:\s*['"]POST['"]/.test(line)) ?? "method: 'POST'";
+      source.split(/\r?\n/).find((line) => /method:\s*['"]POST['"]/.test(line)) ?? "method: 'POST'";
     terminals.push({ effect: 'github-commit-status/create', statement });
   }
 
@@ -96,9 +91,7 @@ function productionEffectTerminals(path: string): ProductionEffectTerminal[] {
     source.includes('api.github.com')
   ) {
     const statement =
-      source
-        .split(/\r?\n/)
-        .find((line) => line.includes('/update-branch')) ?? '/update-branch';
+      source.split(/\r?\n/).find((line) => line.includes('/update-branch')) ?? '/update-branch';
     terminals.push({ effect: 'github-pull-request/update-branch', statement });
   }
 
@@ -111,9 +104,7 @@ export function workflowTypeScriptEntrypoints(source: string): Array<{
 }> {
   const entrypoints: Array<{ entrypoint: string; line_number: number }> = [];
   for (const [index, line] of source.split(/\r?\n/).entries()) {
-    const matches = line.matchAll(
-      /\bnode\b[^\n]*?\b((?:src|scripts)\/[A-Za-z0-9_./-]+\.ts)\b/g,
-    );
+    const matches = line.matchAll(/\bnode\b[^\n]*?\b((?:src|scripts)\/[A-Za-z0-9_./-]+\.ts)\b/g);
     for (const match of matches) {
       entrypoints.push({ entrypoint: match[1]!, line_number: index + 1 });
     }
