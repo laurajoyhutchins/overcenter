@@ -475,7 +475,6 @@ test('undeclared direct provider effect becomes architecture reconciliation work
   assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
 });
 
-
 test('effect invocation is observed even when write capability is absent', () => {
   const source = `permissions:
   contents: read
