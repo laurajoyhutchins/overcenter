@@ -766,7 +766,6 @@ test('unresolved dynamic target becomes bounded architecture reconciliation work
   assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
 });
 
-
 test('effect-bearing dynamic dispatch carries candidate effect families', () => {
   const probe = createTypeScriptFunctionEffectProbe(process.cwd());
   try {
