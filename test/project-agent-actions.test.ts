@@ -14,10 +14,7 @@ const submit = readFileSync(
   new URL('../.github/workflows/operator-project-submit.yml', import.meta.url),
   'utf8',
 );
-const advanceCli = readFileSync(
-  new URL('../src/cli/project-advance.ts', import.meta.url),
-  'utf8',
-);
+const advanceCli = readFileSync(new URL('../src/cli/project-advance.ts', import.meta.url), 'utf8');
 
 test('reasoning-agent interface exposes semantic project commands', () => {
   assert.match(advance, /^name: Overcenter command · project\.advance/m);
@@ -57,10 +54,7 @@ test('project.advance is a project-scoped trusted rerun command', () => {
 
 test('project.advance does not require a worker client for source-only work', () => {
   assert.match(advanceCli, /workerClientPath: process\.env\.OVERCENTER_WORKER_CLIENT/);
-  assert.doesNotMatch(
-    advanceCli,
-    /workerClientPath: requiredEnv\('OVERCENTER_WORKER_CLIENT'\)/,
-  );
+  assert.doesNotMatch(advanceCli, /workerClientPath: requiredEnv\('OVERCENTER_WORKER_CLIENT'\)/);
 });
 
 test('candidate transport stays internal and inert until project.submit is invoked', () => {
