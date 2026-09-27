@@ -596,7 +596,10 @@ export { observe } from './runtime-export.ts';
 test('function-level effect reachability ignores imported but uncalled mutation APIs', () => {
   const probe = createTypeScriptFunctionEffectProbe(process.cwd());
   try {
-    assert.deepEqual(probe('test/fixtures/function-effect-import-only.ts'), []);
+    assert.deepEqual(probe('test/fixtures/function-effect-import-only.ts'), {
+      effects: [],
+      unresolved_calls: [],
+    });
   } finally {
     probe.dispose?.();
   }
@@ -605,7 +608,9 @@ test('function-level effect reachability ignores imported but uncalled mutation 
 test('function-level effect reachability binds called semantic mutation terminals', () => {
   const probe = createTypeScriptFunctionEffectProbe(process.cwd());
   try {
-    const effects = probe('test/fixtures/function-effect-called.ts');
+    const analysis = probe('test/fixtures/function-effect-called.ts');
+    const effects = analysis.effects;
+    assert.deepEqual(analysis.unresolved_calls, []);
     assert.deepEqual(
       effects.map((fact) => ({
         effect: fact.effect,
@@ -648,7 +653,12 @@ test('real operator entrypoints do not inherit uncalled GitHub HTTP effects', ()
   const probe = createTypeScriptFunctionEffectProbe(process.cwd());
   try {
     for (const entrypoint of ['src/cli/project-advance.ts', 'src/cli/project-submit.ts']) {
-      const effects = probe(entrypoint);
+      const analysis = probe(entrypoint);
+      const effects = analysis.effects;
+      assert.equal(
+        analysis.unresolved_calls.some((fact) => fact.candidate_effects.length > 0),
+        false,
+      );
       assert.equal(
         effects.some(
           (fact) =>
@@ -661,4 +671,168 @@ test('real operator entrypoints do not inherit uncalled GitHub HTTP effects', ()
   } finally {
     probe.dispose?.();
   }
+});
+
+test('inline higher-order callbacks resolve through actual argument bindings', () => {
+  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+  try {
+    assert.deepEqual(probe('test/fixtures/function-effect-callback.ts'), {
+      effects: [],
+      unresolved_calls: [],
+    });
+  } finally {
+    probe.dispose?.();
+  }
+});
+
+test('effect calls inside inline callbacks remain reachable', () => {
+  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+  try {
+    const analysis = probe('test/fixtures/function-effect-callback-effect.ts');
+    assert.deepEqual(analysis.unresolved_calls, []);
+    assert.deepEqual(
+      analysis.effects.map((fact) => fact.effect),
+      ['github-commit-status/create'],
+    );
+    assert.equal(
+      analysis.effects[0]?.call_chain.some((entry) =>
+        entry.includes('function-effect-callback-effect.ts#<anonymous>'),
+      ),
+      true,
+    );
+  } finally {
+    probe.dispose?.();
+  }
+});
+
+test('interface dispatch becomes explicit unresolved dynamic target', () => {
+  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+  try {
+    const analysis = probe('test/fixtures/function-effect-interface.ts');
+    assert.deepEqual(analysis.effects, []);
+    assert.equal(analysis.unresolved_calls.length, 1);
+    assert.equal(
+      analysis.unresolved_calls[0]?.call_site_path,
+      'test/fixtures/function-effect-interface.ts',
+    );
+    assert.equal(analysis.unresolved_calls[0]?.declaration_symbol, 'plugin.run');
+    assert.deepEqual(analysis.unresolved_calls[0]?.candidate_effects, []);
+  } finally {
+    probe.dispose?.();
+  }
+});
+
+test('unresolved dynamic target becomes bounded architecture reconciliation work', () => {
+  const policy: ArchitectureIntent = {
+    schema: ARCHITECTURE_INTENT_SCHEMA,
+    claims: [
+      {
+        kind: 'workflow-transitive-effect-authority',
+        concept: 'workflow-transitive-effects',
+        allowed: [],
+      },
+    ],
+  };
+  const result = reconcileArchitecture({
+    intent: policy,
+    source_revision: revision,
+    observations: [
+      {
+        kind: 'github-actions-workflow-scan',
+        source_revision: revision,
+        workflow_paths: ['.github/workflows/dynamic.yml'],
+      },
+      {
+        kind: 'github-actions-typescript-entrypoint',
+        source_revision: revision,
+        workflow_path: '.github/workflows/dynamic.yml',
+        entrypoint: 'src/cli/dynamic.ts',
+        line_number: 1,
+      },
+      {
+        kind: 'github-actions-unresolved-dynamic-call-target',
+        source_revision: revision,
+        workflow_path: '.github/workflows/dynamic.yml',
+        entrypoint: 'src/cli/dynamic.ts',
+        call_site_path: 'src/cli/dynamic.ts',
+        call_site_line: 7,
+        call_expression_sha256: 'c'.repeat(64),
+        declaration_path: 'src/plugin.ts',
+        declaration_symbol: 'run',
+        call_chain: ['src/cli/dynamic.ts#<module>', 'src/plugin.ts#run'],
+        candidate_effects: ['github-commit-status/create'],
+      },
+    ],
+  });
+  const resolution = result.resolutions[0]!;
+  assert.equal(resolution.state, 'conflict');
+  if (resolution.state !== 'conflict') return;
+  assert.equal(resolution.reason_code, 'UNKNOWN_DYNAMIC_CALL_TARGET');
+  assert.equal(
+    resolution.contradicting_facts[0]?.kind,
+    'github-actions-unresolved-dynamic-call-target',
+  );
+  const work = architectureReconciliationWork(resolution, revision);
+  assert.equal(work.packet?.kind, 'architecture-reconciliation');
+  assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
+});
+
+test('effect-bearing dynamic dispatch carries candidate effect families', () => {
+  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+  try {
+    const analysis = probe('test/fixtures/function-effect-dynamic-effect.ts');
+    assert.deepEqual(analysis.effects, []);
+    assert.equal(analysis.unresolved_calls.length, 1);
+    assert.deepEqual(analysis.unresolved_calls[0]?.candidate_effects, [
+      'github-commit-status/create',
+    ]);
+  } finally {
+    probe.dispose?.();
+  }
+});
+
+test('unresolved dynamic calls without an effect-bearing module remain supporting evidence', () => {
+  const policy: ArchitectureIntent = {
+    schema: ARCHITECTURE_INTENT_SCHEMA,
+    claims: [
+      {
+        kind: 'workflow-transitive-effect-authority',
+        concept: 'workflow-transitive-effects',
+        allowed: [],
+      },
+    ],
+  };
+  const result = reconcileArchitecture({
+    intent: policy,
+    source_revision: revision,
+    observations: [
+      {
+        kind: 'github-actions-workflow-scan',
+        source_revision: revision,
+        workflow_paths: ['.github/workflows/dynamic.yml'],
+      },
+      {
+        kind: 'github-actions-unresolved-dynamic-call-target',
+        source_revision: revision,
+        workflow_path: '.github/workflows/dynamic.yml',
+        entrypoint: 'src/cli/dynamic.ts',
+        call_site_path: 'src/cli/dynamic.ts',
+        call_site_line: 7,
+        call_expression_sha256: 'd'.repeat(64),
+        declaration_path: 'src/store.ts',
+        declaration_symbol: 'store.read',
+        call_chain: ['src/cli/dynamic.ts#<module>', 'src/store.ts#store.read'],
+        candidate_effects: [],
+      },
+    ],
+  });
+  const resolution = result.resolutions[0]!;
+  assert.equal(resolution.state, 'established');
+  if (resolution.state !== 'established') return;
+  assert.equal(
+    resolution.supporting_facts.some(
+      (fact) => fact.kind === 'github-actions-unresolved-dynamic-call-target',
+    ),
+    true,
+  );
 });
