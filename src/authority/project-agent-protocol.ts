@@ -590,7 +590,7 @@ export function advanceProjectForAgent(
         transport: 'github-actions-job-rerun' as const,
         repository_id: context.repository_id,
         repository_full_name: context.repository_full_name,
-        command_source_sha: sourceRevision,
+        command_source_sha: context.command_source_sha.toLowerCase(),
         command_run_id: context.command_run_id,
         command_run_attempt: context.command_run_attempt,
         authority_ref: authorityRef,
