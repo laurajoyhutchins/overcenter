@@ -58,6 +58,10 @@ A trusted `.overcenter/project-goal-satisfaction.json` record retires the goal. 
 
 The first `project.advance` also initializes an absent Overcenter authority ref using the same compare-and-swap fact store. Existing authorities are unchanged.
 
+### Untrusted proposal refs
+
+A reasoning worker may prepare changes on an untrusted revision descended from the claimed project source. The `source-broker-ref` command reads that revision, derives its final changed file bytes, validates them against the current source task and claim, and publishes a new single-parent canonical candidate through the source broker. The worker therefore does not need candidate-branch publication authority and does not need to reproduce Overcenter commit trailers.
+
 ## `project.submit`
 
 Return the candidate produced from a work packet.
