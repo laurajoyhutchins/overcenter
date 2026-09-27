@@ -85,7 +85,6 @@ export function brokerAssignedSourceProposal(
   };
 }
 
-
 function exactSha(value: string, error: string): string {
   const sha = value.toLowerCase();
   if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(error);
