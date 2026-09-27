@@ -145,13 +145,12 @@ export function observeArchitectureIntent(
     }
     observations.push(...observeGitHubActionsSources(sources, sourceRevision));
     observations.push(...observeGitHubActionsProviderEffects(sources, sourceRevision));
-    observations.push(
-      ...observeWorkflowTransitiveEffects(
-        sources,
-        sourceRevision,
-        createTypeScriptFunctionEffectProbe(process.cwd()),
-      ),
-    );
+    const functionEffects = createTypeScriptFunctionEffectProbe(process.cwd());
+    try {
+      observations.push(...observeWorkflowTransitiveEffects(sources, sourceRevision, functionEffects));
+    } finally {
+      functionEffects.dispose?.();
+    }
   }
 
   return sortFacts(observations);
