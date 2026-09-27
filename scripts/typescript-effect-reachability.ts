@@ -1,7 +1,22 @@
 import { createHash } from 'node:crypto';
 import { relative, resolve } from 'node:path';
 
-import ts from 'typescript';
+import { API, type Project } from 'typescript/unstable/sync';
+import {
+  type CallExpression,
+  type Node,
+  isArrowFunction,
+  isCallExpression,
+  isConstructorDeclaration,
+  isFunctionDeclaration,
+  isFunctionExpression,
+  isGetAccessorDeclaration,
+  isIdentifier,
+  isMethodDeclaration,
+  isPropertyAssignment,
+  isSetAccessorDeclaration,
+  isVariableDeclaration,
+} from 'typescript/unstable/ast';
 
 import type {
   WorkflowFunctionEffectProbe,
@@ -42,39 +57,39 @@ function normalized(root: string, path: string): string {
   return relative(root, resolve(path)).replaceAll('\\', '/');
 }
 
-function declarationName(declaration: ts.Declaration): string | null {
-  if (ts.isFunctionDeclaration(declaration)) return declaration.name?.text ?? null;
+function declarationName(declaration: Node): string | null {
+  if (isFunctionDeclaration(declaration)) return declaration.name?.text ?? null;
   if (
-    ts.isMethodDeclaration(declaration) ||
-    ts.isGetAccessorDeclaration(declaration) ||
-    ts.isSetAccessorDeclaration(declaration)
+    isMethodDeclaration(declaration) ||
+    isGetAccessorDeclaration(declaration) ||
+    isSetAccessorDeclaration(declaration)
   ) {
     return declaration.name.getText(declaration.getSourceFile());
   }
-  if (ts.isFunctionExpression(declaration) || ts.isArrowFunction(declaration)) {
+  if (isFunctionExpression(declaration) || isArrowFunction(declaration)) {
     const parent = declaration.parent;
-    if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) return parent.name.text;
-    if (ts.isPropertyAssignment(parent) && ts.isIdentifier(parent.name)) return parent.name.text;
+    if (isVariableDeclaration(parent) && isIdentifier(parent.name)) return parent.name.text;
+    if (isPropertyAssignment(parent) && isIdentifier(parent.name)) return parent.name.text;
   }
   return null;
 }
 
-function declarationBody(declaration: ts.Declaration): ts.Node | null {
+function declarationBody(declaration: Node): Node | null {
   if (
-    ts.isFunctionDeclaration(declaration) ||
-    ts.isMethodDeclaration(declaration) ||
-    ts.isConstructorDeclaration(declaration) ||
-    ts.isGetAccessorDeclaration(declaration) ||
-    ts.isSetAccessorDeclaration(declaration) ||
-    ts.isFunctionExpression(declaration) ||
-    ts.isArrowFunction(declaration)
+    isFunctionDeclaration(declaration) ||
+    isMethodDeclaration(declaration) ||
+    isConstructorDeclaration(declaration) ||
+    isGetAccessorDeclaration(declaration) ||
+    isSetAccessorDeclaration(declaration) ||
+    isFunctionExpression(declaration) ||
+    isArrowFunction(declaration)
   ) {
     return declaration.body ?? null;
   }
   return null;
 }
 
-function terminalFor(root: string, declaration: ts.Declaration): EffectTerminal | null {
+function terminalFor(root: string, declaration: Node): EffectTerminal | null {
   const name = declarationName(declaration);
   if (!name) return null;
   const path = normalized(root, declaration.getSourceFile().fileName);
@@ -84,13 +99,11 @@ function terminalFor(root: string, declaration: ts.Declaration): EffectTerminal 
   );
 }
 
-function declarationDigest(declaration: ts.Declaration): string {
-  const source = declaration.getSourceFile();
-  const text = source.text.slice(declaration.getStart(source), declaration.getEnd());
-  return createHash('sha256').update(text).digest('hex');
+function declarationDigest(declaration: Node): string {
+  return createHash('sha256').update(declaration.getText(declaration.getSourceFile())).digest('hex');
 }
 
-function callLabel(root: string, declaration: ts.Declaration): string {
+function callLabel(root: string, declaration: Node): string {
   const path = normalized(root, declaration.getSourceFile().fileName);
   return `${path}#${declarationName(declaration) ?? '<anonymous>'}`;
 }
@@ -104,61 +117,64 @@ function moduleChain(callChain: readonly string[]): string[] {
   return paths;
 }
 
-function functionLike(node: ts.Node): boolean {
+function functionLike(node: Node): boolean {
   return (
-    ts.isFunctionDeclaration(node) ||
-    ts.isMethodDeclaration(node) ||
-    ts.isConstructorDeclaration(node) ||
-    ts.isGetAccessorDeclaration(node) ||
-    ts.isSetAccessorDeclaration(node) ||
-    ts.isFunctionExpression(node) ||
-    ts.isArrowFunction(node)
+    isFunctionDeclaration(node) ||
+    isMethodDeclaration(node) ||
+    isConstructorDeclaration(node) ||
+    isGetAccessorDeclaration(node) ||
+    isSetAccessorDeclaration(node) ||
+    isFunctionExpression(node) ||
+    isArrowFunction(node)
   );
 }
 
-function directCalls(rootNode: ts.Node): ts.CallExpression[] {
-  const calls: ts.CallExpression[] = [];
-  const visit = (node: ts.Node): void => {
+function directCalls(rootNode: Node): CallExpression[] {
+  const calls: CallExpression[] = [];
+  const visit = (node: Node): void => {
     if (node !== rootNode && functionLike(node)) return;
-    if (ts.isCallExpression(node)) calls.push(node);
-    ts.forEachChild(node, visit);
+    if (isCallExpression(node)) calls.push(node);
+    node.forEachChild((child) => {
+      visit(child);
+    });
   };
   visit(rootNode);
   return calls;
 }
 
-function config(root: string): ts.ParsedCommandLine {
-  const configPath = ts.findConfigFile(root, ts.sys.fileExists, 'tsconfig.json');
-  if (!configPath) throw new Error('TYPESCRIPT_EFFECT_REACHABILITY_TSCONFIG_MISSING');
-  const read = ts.readConfigFile(configPath, ts.sys.readFile);
-  if (read.error) {
-    throw new Error(
-      `TYPESCRIPT_EFFECT_REACHABILITY_TSCONFIG_INVALID:${ts.flattenDiagnosticMessageText(read.error.messageText, '\n')}`,
-    );
+function projectForRoot(api: API, root: string): {
+  snapshot: ReturnType<API['updateSnapshot']>;
+  project: Project;
+} {
+  const configPath = resolve(root, 'tsconfig.json');
+  const snapshot = api.updateSnapshot({ openProjects: [configPath] });
+  const project = snapshot.getProject(configPath) ?? snapshot.getProjects()[0];
+  if (!project) {
+    snapshot.dispose();
+    throw new Error('TYPESCRIPT_EFFECT_REACHABILITY_PROJECT_MISSING');
   }
-  return ts.parseJsonConfigFileContent(read.config, ts.sys, root, undefined, configPath);
+  return { snapshot, project };
 }
 
 export function createTypeScriptFunctionEffectProbe(
   root = process.cwd(),
 ): WorkflowFunctionEffectProbe {
-  const parsed = config(root);
-  const program = ts.createProgram({
-    rootNames: parsed.fileNames,
-    options: parsed.options,
-  });
-  const checker = program.getTypeChecker();
+  const api = new API({ cwd: root });
+  const { snapshot, project } = projectForRoot(api, root);
+  const checker = project.checker;
 
-  return (entrypoint: string): WorkflowFunctionEffectReachability[] => {
+  const probe: WorkflowFunctionEffectProbe = (
+    entrypoint: string,
+  ): WorkflowFunctionEffectReachability[] => {
     const absolute = resolve(root, entrypoint);
-    const source = program.getSourceFile(absolute);
+    const source = project.program.getSourceFile(absolute);
     if (!source) return [];
 
     const results: WorkflowFunctionEffectReachability[] = [];
     const visitedAtDepth = new Map<string, number>();
-    const pending: Array<{ declaration: ts.Declaration; call_chain: string[] }> = [];
+    const pending: Array<{ declaration: Node; call_chain: string[] }> = [];
 
-    const enqueue = (declaration: ts.Declaration, callChain: string[]): void => {
+    const enqueue = (declaration: Node, callChain: string[]): void => {
       const body = declarationBody(declaration);
       if (!body) return;
       const label = callLabel(root, declaration);
@@ -169,11 +185,12 @@ export function createTypeScriptFunctionEffectProbe(
       pending.push({ declaration, call_chain: callChain });
     };
 
-    const inspectCall = (call: ts.CallExpression, callChain: string[]): void => {
-      const declaration = checker.getResolvedSignature(call)?.getDeclaration();
+    const inspectCall = (call: CallExpression, callChain: string[]): void => {
+      const declaration = checker.getResolvedSignature(call)?.declaration?.resolve(project);
       if (!declaration) return;
-      const path = normalized(root, declaration.getSourceFile().fileName);
-      if (path.startsWith('..') || declaration.getSourceFile().isDeclarationFile) return;
+      const sourceFile = declaration.getSourceFile();
+      const path = normalized(root, sourceFile.fileName);
+      if (path.startsWith('..') || sourceFile.isDeclarationFile) return;
 
       const nextChain = [...callChain, callLabel(root, declaration)];
       const terminal = terminalFor(root, declaration);
@@ -215,4 +232,10 @@ export function createTypeScriptFunctionEffectProbe(
       JSON.stringify(left).localeCompare(JSON.stringify(right)),
     );
   };
+
+  probe.dispose = () => {
+    snapshot.dispose();
+    api.close();
+  };
+  return probe;
 }
