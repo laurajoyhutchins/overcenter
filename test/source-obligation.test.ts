@@ -87,6 +87,63 @@ test('source task rejects duplicate and unsafe repository paths', () => {
   }
 });
 
+test('source task permits bounded writable trees without widening control-plane authority', () => {
+  const treePacket = validateSourceTaskPacket({
+    schema: SOURCE_TASK_SCHEMA,
+    kind: 'source-change',
+    objective: 'Improve the bounded implementation tree.',
+    writable_paths: [],
+    writable_trees: ['src/feature'],
+  });
+
+  const claim = bindSourceClaim('tree-key', 'run-tree', 'authority-head', 'c'.repeat(40));
+  const proposal = {
+    schema: SOURCE_PROPOSAL_SCHEMA,
+    run_id: claim.run_id,
+    claimed_revision: claim.claimed_revision,
+    claimed_source_sha: claim.source_sha,
+    files: [
+      {
+        path: 'src/feature/new.ts',
+        content_base64: Buffer.from('export const value = 1;\n').toString('base64'),
+      },
+    ],
+  };
+
+  assert.deepEqual(validateSourceProposal(proposal, treePacket, claim), proposal);
+  assert.throws(
+    () =>
+      validateSourceProposal(
+        {
+          ...proposal,
+          files: [
+            {
+              path: 'src/other/new.ts',
+              content_base64: Buffer.from('nope\n').toString('base64'),
+            },
+          ],
+        },
+        treePacket,
+        claim,
+      ),
+    /SOURCE_PROPOSAL_SCOPE_VIOLATION:src\/other\/new\.ts/,
+  );
+
+  for (const writableTrees of [['.overcenter'], ['.github/workflows'], ['../escape']]) {
+    assert.throws(
+      () =>
+        validateSourceTaskPacket({
+          schema: SOURCE_TASK_SCHEMA,
+          kind: 'source-change',
+          objective: 'Invalid tree scope.',
+          writable_paths: [],
+          writable_trees: writableTrees,
+        }),
+      /SOURCE_TASK_WRITABLE_TREE_INVALID/,
+    );
+  }
+});
+
 test('source proposal is claim-bound and cannot widen writable scope', () => {
   const claim = bindSourceClaim('kernel-semantic-key', 'run-7', 'authority-head', 'c'.repeat(40));
   const proposal = {
