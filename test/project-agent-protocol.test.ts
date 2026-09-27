@@ -208,6 +208,67 @@ test('project.advance separates pinned command implementation from project sourc
   }
 });
 
+test('project.advance bootstraps authority and claims a long horizon project goal', () => {
+  const f = fixture();
+  try {
+    mkdirSync(join(f.work, '.overcenter'), { recursive: true });
+    writeFileSync(
+      join(f.work, '.overcenter', 'project-goal.json'),
+      `${JSON.stringify(
+        {
+          schema: 'overcenter-project-goal/v1',
+          id: 'project-goal:strength',
+          objective: 'Improve the managed project toward externally measured strength.',
+          writable_paths: ['README.md'],
+          writable_trees: ['src'],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    execFileSync('git', ['-C', f.work, 'add', '.overcenter/project-goal.json'], {
+      stdio: 'ignore',
+    });
+    execFileSync('git', ['-C', f.work, 'commit', '-m', 'declare long horizon goal'], {
+      stdio: 'ignore',
+    });
+    execFileSync('git', ['-C', f.work, 'push', 'origin', 'main'], { stdio: 'ignore' });
+    const projectSourceSha = git(f.work, ['rev-parse', 'HEAD']);
+
+    const outputDir = join(f.root, 'goal-packet');
+    const receipt = advanceProjectForAgent(
+      f.work,
+      {
+        ...commandContext('f'.repeat(40)),
+        project_source_sha: projectSourceSha,
+      },
+      {
+        outputDir,
+        authorityRef: AUTHORITY_REF,
+        remote: 'origin',
+      },
+    );
+
+    assert.equal(receipt.state, 'AGENT_EXECUTION_REQUIRED');
+    assert.equal(receipt.obligation_id, 'project-goal:strength');
+    assert.equal(receipt.candidate_branch_base_sha, projectSourceSha);
+    assert.equal(receipt.dispatch?.reason_code, 'OPEN_ENDED_SOURCE_REMEDIATION');
+    const assignment = JSON.parse(readFileSync(join(outputDir, 'assignment.json'), 'utf8'));
+    assert.equal(assignment.task.kind, 'source-change');
+    assert.equal(assignment.task.context.project_source_sha, projectSourceSha);
+
+    const authoritative = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    assert.ok(authoritative.head());
+    assert.equal(authoritative.claimedSourceRevision(receipt.run_id!), projectSourceSha);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+    rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
 test('project.advance reconciles trusted project intent before frontier selection', () => {
   const f = fixture();
   try {
