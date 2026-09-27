@@ -814,7 +814,7 @@ test('project.advance requires native client bytes before claiming reasoning wor
   }
 });
 
-test('unsupported READY work fails before authority is claimed', () => {
+test('unsupported READY work reports a blocked frontier without claiming authority', () => {
   const f = fixture();
   try {
     const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
@@ -830,19 +830,21 @@ test('unsupported READY work fails before authority is claimed', () => {
     });
     const before = kernel.head();
 
-    assert.throws(
-      () =>
-        advanceProjectForAgent(f.work, commandContext(f.sourceSha), {
-          outputDir: join(f.root, 'packet'),
-          authorityRef: AUTHORITY_REF,
-          remote: 'origin',
-        }),
-      /PROJECT_ADVANCE_AGENT_PACKET_UNSUPPORTED/,
-    );
+    const receipt = advanceProjectForAgent(f.work, commandContext(f.sourceSha), {
+      outputDir: join(f.root, 'packet'),
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+    assert.equal(receipt.state, 'BLOCKED');
+    assert.equal(receipt.obligation_id, 'deterministic-effect');
+    assert.equal(receipt.run_id, undefined);
+    assert.equal(receipt.dispatch?.route, 'unsupported');
+    assert.equal(receipt.dispatch?.reason_code, 'PACKET_UNSUPPORTED');
 
     const after = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     assert.equal(after.head(), before);
     assert.equal(after.inspect()[0].status, 'READY');
+    assert.equal(after.inspect()[0].run_id, undefined);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
@@ -940,5 +942,139 @@ test('project.advance reports DONE for an empty authoritative graph', () => {
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
+test('project.advance keeps mechanically derivable hostile-evidence debt out of agent packets', () => {
+  const fixtureState = fixture();
+  try {
+    const kernel = new GitOvercenterKernel(fixtureState.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    kernel.initialize();
+    const obligationId = 'tcb:hostile-evidence-stale:fixture:probe';
+    const sourceSha = commitProjectIntent(fixtureState.work, [
+      {
+        id: obligationId,
+        task: {
+          schema: 'overcenter-source-task/v1',
+          kind: 'source-change',
+          objective: 'Refresh hostile mutation evidence from the exact current source.',
+          writable_paths: [
+            'experiments/production-criticality-ranking/mutation-evidence.json',
+            'src/feature.txt',
+          ],
+          acceptance: {
+            verifier: 'tcb-finding-absent/v1',
+            finding_id: obligationId,
+          },
+          context: {
+            schema: 'overcenter-tcb-finding/v1',
+            finding_kind: 'hostile-evidence-stale',
+            scope: 'fixture',
+            evidence: {
+              probe_id: 'fixture-probe',
+              stale_sources: [
+                {
+                  path: 'src/feature.txt',
+                  expected_blob_sha1: 'a'.repeat(40),
+                  current_blob_sha1: 'b'.repeat(40),
+                  current: false,
+                },
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const outputDir = join(fixtureState.root, 'derivable-source-packet');
+    const receipt = advanceProjectForAgent(fixtureState.work, commandContext(sourceSha, 9300), {
+      outputDir,
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+
+    assert.equal(receipt.state, 'READY');
+    assert.equal(receipt.obligation_id, obligationId);
+    assert.equal(receipt.run_id, undefined);
+    assert.equal(receipt.dispatch?.route, 'deterministic-software-action');
+    assert.equal(receipt.dispatch?.reason_code, 'DERIVABLE_HOSTILE_EVIDENCE_DEBT');
+    assert.equal(existsSync(outputDir), false);
+
+    const current = new GitOvercenterKernel(fixtureState.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    }).inspect();
+    assert.equal(current[0]?.status, 'READY');
+    assert.equal(current[0]?.run_id, undefined);
+  } finally {
+    rmSync(fixtureState.root, { recursive: true, force: true });
+    rmSync(fixtureState.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
+test('ambiguous reserved source mutation blocks otherwise READY agent work', () => {
+  const fixtureState = fixture();
+  try {
+    const kernel = new GitOvercenterKernel(fixtureState.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    kernel.initialize();
+    const sourceSha = commitProjectIntent(fixtureState.work, [
+      sourceIntent('a-source-work'),
+      agentIntent('z-agent-work', fixtureState.postconditionPath),
+    ]);
+
+    const first = advanceProjectForAgent(fixtureState.work, commandContext(sourceSha, 9400), {
+      outputDir: join(fixtureState.root, 'first-source-packet'),
+      workerClientPath: workerClientFixture(fixtureState.root),
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+    assert.equal(first.state, 'AGENT_EXECUTION_REQUIRED');
+    assert.equal(first.obligation_id, 'a-source-work');
+    assert.ok(first.run_id);
+
+    const interruptedKernel = new GitOvercenterKernel(fixtureState.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    const permit = interruptedKernel.acquireExecution(first.run_id);
+    interruptedKernel.beginEffect(permit);
+    const interrupted = interruptedKernel.recoverInterrupted(permit, {
+      failure: 'simulated-ambiguous-source-push',
+    });
+    assert.equal(interrupted.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(interruptedKernel.hasUnresolvedEffect(first.run_id), true);
+
+    const secondOutput = join(fixtureState.root, 'second-agent-packet');
+    const second = advanceProjectForAgent(fixtureState.work, commandContext(sourceSha, 9401), {
+      outputDir: secondOutput,
+      workerClientPath: workerClientFixture(fixtureState.root),
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+
+    assert.equal(second.state, 'RECOVERY_REQUIRED');
+    assert.equal(second.obligation_id, 'a-source-work');
+    assert.equal(second.run_id, first.run_id);
+    assert.equal(second.dispatch?.route, 'recovery-required');
+    assert.equal(second.dispatch?.reason_code, 'AMBIGUOUS_RESERVED_MUTATION');
+    assert.ok(second.dispatch?.evidence_predicates.includes('effect_reservation=unresolved'));
+    assert.equal(existsSync(secondOutput), false);
+
+    const current = new GitOvercenterKernel(fixtureState.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    }).inspect();
+    assert.equal(current.find((work) => work.id === 'a-source-work')?.status, 'RECOVERY_REQUIRED');
+    assert.equal(current.find((work) => work.id === 'z-agent-work')?.status, 'READY');
+    assert.equal(current.find((work) => work.id === 'z-agent-work')?.run_id, undefined);
+  } finally {
+    rmSync(fixtureState.root, { recursive: true, force: true });
+    rmSync(fixtureState.postconditionRoot, { recursive: true, force: true });
   }
 });
