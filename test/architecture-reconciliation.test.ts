@@ -95,9 +95,9 @@ test('maintained architecture intent reconciles against observed production flow
     source_revision: revision,
     observations: observed,
   });
-  assert.equal(
-    result.resolutions.every((resolution) => resolution.state === 'established'),
-    true,
+  assert.deepEqual(
+    result.resolutions.filter((resolution) => resolution.state !== 'established'),
+    [],
   );
 });
 
