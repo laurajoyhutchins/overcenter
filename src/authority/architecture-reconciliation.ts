@@ -1,4 +1,9 @@
 import { canonicalDigest } from '../digest.ts';
+import type {
+  GitHubActionsExplicitWriteCapabilityFact,
+  GitHubActionsInheritedPermissionsFact,
+  GitHubActionsWorkflowScanFact,
+} from '../observation/github-actions-capabilities.ts';
 import type { ObligationInput } from './facts.ts';
 
 export const ARCHITECTURE_INTENT_SCHEMA = 'overcenter-architecture-intent/v1' as const;
@@ -15,9 +20,24 @@ export interface AuthorityRoleIntentClaim {
   verifiers: string[];
 }
 
+export interface GitHubActionsExplicitWriteGrant {
+  workflow: string;
+  permissions: string[];
+}
+
+export interface GitHubActionsExplicitWriteAuthorityIntentClaim {
+  kind: 'github-actions-explicit-write-authority';
+  concept: string;
+  allowed: GitHubActionsExplicitWriteGrant[];
+}
+
+export type ArchitectureIntentClaim =
+  | AuthorityRoleIntentClaim
+  | GitHubActionsExplicitWriteAuthorityIntentClaim;
+
 export interface ArchitectureIntent {
   schema: typeof ARCHITECTURE_INTENT_SCHEMA;
-  claims: AuthorityRoleIntentClaim[];
+  claims: ArchitectureIntentClaim[];
 }
 
 export interface PathStateFact {
@@ -35,7 +55,12 @@ export interface TypeScriptReferenceStateFact {
   present: boolean;
 }
 
-export type ArchitectureObservedFact = PathStateFact | TypeScriptReferenceStateFact;
+export type ArchitectureObservedFact =
+  | PathStateFact
+  | TypeScriptReferenceStateFact
+  | GitHubActionsWorkflowScanFact
+  | GitHubActionsExplicitWriteCapabilityFact
+  | GitHubActionsInheritedPermissionsFact;
 
 export type ArchitectureConflictReasonCode =
   | 'DUPLICATE_CONCEPT'
@@ -44,17 +69,18 @@ export type ArchitectureConflictReasonCode =
   | 'PROJECTION_PATH_MISSING'
   | 'VERIFIER_PATH_MISSING'
   | 'AUTHORITY_ALSO_PROJECTION'
-  | 'DECLARED_PROJECTION_FLOW_MISSING';
+  | 'DECLARED_PROJECTION_FLOW_MISSING'
+  | 'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY';
 
 export interface EstablishedArchitectureResolution {
   state: 'established';
-  claim: AuthorityRoleIntentClaim;
+  claim: ArchitectureIntentClaim;
   supporting_facts: ArchitectureObservedFact[];
 }
 
 export interface ConflictedArchitectureResolution {
   state: 'conflict';
-  claim: AuthorityRoleIntentClaim;
+  claim: ArchitectureIntentClaim;
   reason_code: ArchitectureConflictReasonCode;
   supporting_facts: ArchitectureObservedFact[];
   contradicting_facts: ArchitectureObservedFact[];
@@ -62,7 +88,7 @@ export interface ConflictedArchitectureResolution {
 
 export interface UnknownArchitectureResolution {
   state: 'unknown';
-  claim: AuthorityRoleIntentClaim;
+  claim: ArchitectureIntentClaim;
   missing_evidence: string[];
   supporting_facts: ArchitectureObservedFact[];
 }
@@ -106,32 +132,69 @@ export function validateArchitectureIntent(value: unknown): ArchitectureIntent {
     throw new Error('ARCHITECTURE_INTENT_SCHEMA_UNSUPPORTED');
   }
 
-  const claims = record.claims.map((candidate) => {
+  const claims = record.claims.map((candidate): ArchitectureIntentClaim => {
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
       throw new Error('ARCHITECTURE_INTENT_CLAIM_INVALID');
     }
     const claim = candidate as Record<string, unknown>;
-    if (claim.kind !== 'authority-role') throw new Error('ARCHITECTURE_INTENT_KIND_UNSUPPORTED');
     nonEmptyString(claim.concept, 'ARCHITECTURE_INTENT_CONCEPT_INVALID');
-    nonEmptyString(claim.authority, 'ARCHITECTURE_INTENT_AUTHORITY_INVALID');
-    stringArray(claim.projections, 'ARCHITECTURE_INTENT_PROJECTIONS_INVALID');
-    stringArray(claim.verifiers, 'ARCHITECTURE_INTENT_VERIFIERS_INVALID');
-    return {
-      kind: 'authority-role' as const,
-      concept: claim.concept,
-      authority: claim.authority,
-      projections: [...claim.projections],
-      verifiers: [...claim.verifiers],
-    };
+
+    if (claim.kind === 'authority-role') {
+      nonEmptyString(claim.authority, 'ARCHITECTURE_INTENT_AUTHORITY_INVALID');
+      stringArray(claim.projections, 'ARCHITECTURE_INTENT_PROJECTIONS_INVALID');
+      stringArray(claim.verifiers, 'ARCHITECTURE_INTENT_VERIFIERS_INVALID');
+      return {
+        kind: 'authority-role',
+        concept: claim.concept,
+        authority: claim.authority,
+        projections: [...claim.projections],
+        verifiers: [...claim.verifiers],
+      };
+    }
+
+    if (claim.kind === 'github-actions-explicit-write-authority') {
+      if (!Array.isArray(claim.allowed)) throw new Error('ARCHITECTURE_INTENT_ALLOWED_INVALID');
+      const allowed = claim.allowed.map((candidateGrant) => {
+        if (!candidateGrant || typeof candidateGrant !== 'object' || Array.isArray(candidateGrant)) {
+          throw new Error('ARCHITECTURE_INTENT_WRITE_GRANT_INVALID');
+        }
+        const grant = candidateGrant as Record<string, unknown>;
+        nonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
+        stringArray(grant.permissions, 'ARCHITECTURE_INTENT_PERMISSIONS_INVALID');
+        if (grant.permissions.length === 0) {
+          throw new Error('ARCHITECTURE_INTENT_PERMISSIONS_EMPTY');
+        }
+        return {
+          workflow: grant.workflow,
+          permissions: [...new Set(grant.permissions)].sort(),
+        };
+      });
+      return {
+        kind: 'github-actions-explicit-write-authority',
+        concept: claim.concept,
+        allowed: allowed.sort((left, right) => left.workflow.localeCompare(right.workflow)),
+      };
+    }
+
+    throw new Error('ARCHITECTURE_INTENT_KIND_UNSUPPORTED');
   });
 
   return { schema: ARCHITECTURE_INTENT_SCHEMA, claims };
 }
 
 function factKey(fact: ArchitectureObservedFact): string {
-  return fact.kind === 'path-state'
-    ? `path:${fact.path}`
-    : `reference:${fact.from_path}->${fact.to_path}`;
+  switch (fact.kind) {
+    case 'path-state':
+      return `path:${fact.path}`;
+    case 'typescript-reference-state':
+      return `reference:${fact.from_path}->${fact.to_path}`;
+    case 'github-actions-workflow-scan':
+      return `github-actions-scan:${fact.workflow_paths.join(',')}`;
+    case 'github-actions-explicit-write-capability':
+      return `github-actions-write:${fact.workflow_path}:${fact.permission}`;
+    case 'github-actions-inherited-permissions':
+      return `github-actions-inherited:${fact.workflow_path}`;
+  }
 }
 
 function sortFacts(facts: ArchitectureObservedFact[]): ArchitectureObservedFact[] {
@@ -171,7 +234,7 @@ function referenceFact(
 }
 
 function conflict(
-  claim: AuthorityRoleIntentClaim,
+  claim: ArchitectureIntentClaim,
   reasonCode: ArchitectureConflictReasonCode,
   supportingFacts: ArchitectureObservedFact[] = [],
   contradictingFacts: ArchitectureObservedFact[] = [],
@@ -185,7 +248,7 @@ function conflict(
   };
 }
 
-function reconcileClaim(
+function reconcileAuthorityRoleClaim(
   claim: AuthorityRoleIntentClaim,
   observations: ArchitectureObservedFact[],
 ): ArchitectureResolution {
@@ -261,6 +324,59 @@ function reconcileClaim(
   };
 }
 
+function reconcileGitHubActionsExplicitWriteClaim(
+  claim: GitHubActionsExplicitWriteAuthorityIntentClaim,
+  observations: ArchitectureObservedFact[],
+): ArchitectureResolution {
+  const scan = observations.find(
+    (fact): fact is GitHubActionsWorkflowScanFact => fact.kind === 'github-actions-workflow-scan',
+  );
+  if (!scan) {
+    return {
+      state: 'unknown',
+      claim: structuredClone(claim),
+      missing_evidence: ['github-actions-workflow-scan'],
+      supporting_facts: [],
+    };
+  }
+
+  const writes = observations.filter(
+    (fact): fact is GitHubActionsExplicitWriteCapabilityFact =>
+      fact.kind === 'github-actions-explicit-write-capability',
+  );
+  const inherited = observations.filter(
+    (fact): fact is GitHubActionsInheritedPermissionsFact =>
+      fact.kind === 'github-actions-inherited-permissions',
+  );
+  const allowed = new Map(
+    claim.allowed.map((grant) => [grant.workflow, new Set(grant.permissions)] as const),
+  );
+  const undeclared = writes.filter((fact) => {
+    const permissions = allowed.get(fact.workflow_path);
+    return !permissions || (!permissions.has(fact.permission) && !permissions.has('*'));
+  });
+
+  const supporting = [
+    scan,
+    ...writes.filter((fact) => !undeclared.includes(fact)),
+    ...inherited,
+  ];
+  if (undeclared.length > 0) {
+    return conflict(
+      claim,
+      'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY',
+      supporting,
+      undeclared,
+    );
+  }
+
+  return {
+    state: 'established',
+    claim: structuredClone(claim),
+    supporting_facts: sortFacts(supporting),
+  };
+}
+
 export function reconcileArchitecture({
   intent: rawIntent,
   source_revision: sourceRevision,
@@ -275,18 +391,20 @@ export function reconcileArchitecture({
   }
 
   const resolutions: ArchitectureResolution[] = [];
-  const concepts = new Map<string, AuthorityRoleIntentClaim[]>();
+  const concepts = new Map<string, ArchitectureIntentClaim[]>();
   const owners = new Map<string, AuthorityRoleIntentClaim[]>();
   for (const claim of intent.claims) {
     const byConcept = concepts.get(claim.concept) ?? [];
     byConcept.push(claim);
     concepts.set(claim.concept, byConcept);
-    const byOwner = owners.get(claim.authority) ?? [];
-    byOwner.push(claim);
-    owners.set(claim.authority, byOwner);
+    if (claim.kind === 'authority-role') {
+      const byOwner = owners.get(claim.authority) ?? [];
+      byOwner.push(claim);
+      owners.set(claim.authority, byOwner);
+    }
   }
 
-  const conflicted = new Set<AuthorityRoleIntentClaim>();
+  const conflicted = new Set<ArchitectureIntentClaim>();
   for (const claims of concepts.values()) {
     if (claims.length < 2) continue;
     for (const claim of claims) {
@@ -304,7 +422,12 @@ export function reconcileArchitecture({
   }
 
   for (const claim of intent.claims) {
-    if (!conflicted.has(claim)) resolutions.push(reconcileClaim(claim, observations));
+    if (conflicted.has(claim)) continue;
+    resolutions.push(
+      claim.kind === 'authority-role'
+        ? reconcileAuthorityRoleClaim(claim, observations)
+        : reconcileGitHubActionsExplicitWriteClaim(claim, observations),
+    );
   }
 
   return {
