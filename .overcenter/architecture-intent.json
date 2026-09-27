@@ -169,6 +169,12 @@
           "effects": [
             "github-commit-status/create"
           ]
+        },
+        {
+          "workflow": ".github/workflows/substrate-capability-admission.yml",
+          "effects": [
+            "github-commit-status/create"
+          ]
         }
       ]
     }
