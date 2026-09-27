@@ -595,13 +595,18 @@ export { observe } from './runtime-export.ts';
 
 test('function-level effect reachability ignores imported but uncalled mutation APIs', () => {
   const probe = createTypeScriptFunctionEffectProbe(process.cwd());
-  assert.deepEqual(probe('test/fixtures/function-effect-import-only.ts'), []);
+  try {
+    assert.deepEqual(probe('test/fixtures/function-effect-import-only.ts'), []);
+  } finally {
+    probe.dispose?.();
+  }
 });
 
 test('function-level effect reachability binds called semantic mutation terminals', () => {
   const probe = createTypeScriptFunctionEffectProbe(process.cwd());
-  const effects = probe('test/fixtures/function-effect-called.ts');
-  assert.deepEqual(
+  try {
+    const effects = probe('test/fixtures/function-effect-called.ts');
+    assert.deepEqual(
     effects.map((fact) => ({
       effect: fact.effect,
       terminal: `${fact.terminal_path}#${fact.terminal_symbol}`,
@@ -632,21 +637,28 @@ test('function-level effect reachability binds called semantic mutation terminal
         leaf: 'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
         digest_length: 64,
       },
-    ],
-  );
+      ],
+    );
+  } finally {
+    probe.dispose?.();
+  }
 });
 
 test('real operator entrypoints do not inherit uncalled GitHub HTTP effects', () => {
   const probe = createTypeScriptFunctionEffectProbe(process.cwd());
-  for (const entrypoint of ['src/cli/project-advance.ts', 'src/cli/project-submit.ts']) {
-    const effects = probe(entrypoint);
-    assert.equal(
-      effects.some(
-        (fact) =>
-          fact.effect === 'github-commit-status/create' ||
-          fact.effect === 'github-pull-request/update-branch',
-      ),
-      false,
-    );
+  try {
+    for (const entrypoint of ['src/cli/project-advance.ts', 'src/cli/project-submit.ts']) {
+      const effects = probe(entrypoint);
+      assert.equal(
+        effects.some(
+          (fact) =>
+            fact.effect === 'github-commit-status/create' ||
+            fact.effect === 'github-pull-request/update-branch',
+        ),
+        false,
+      );
+    }
+  } finally {
+    probe.dispose?.();
   }
 });
