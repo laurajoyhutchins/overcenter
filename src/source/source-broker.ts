@@ -92,10 +92,6 @@ function exactSha(value: string, error: string): string {
   return sha;
 }
 
-function git(repo: string, args: string[]): string {
-  return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
-}
-
 function proposalFromRevision(
   repo: string,
   runId: string,
@@ -111,16 +107,17 @@ function proposalFromRevision(
     throw new Error('SOURCE_PROPOSAL_REVISION_NOT_DESCENDANT');
   }
 
-  const changed = execFileSync(
-    'git',
-    ['-C', repo, 'diff', '--name-only', '--no-renames', '-z', sourceSha, proposalSha],
-    { encoding: 'buffer' },
-  );
-  const paths = changed
-    .toString('utf8')
-    .split('\0')
-    .filter(Boolean)
-    .sort();
+  const changed = execFileSync('git', [
+    '-C',
+    repo,
+    'diff',
+    '--name-only',
+    '--no-renames',
+    '-z',
+    sourceSha,
+    proposalSha,
+  ]);
+  const paths = changed.toString('utf8').split('\0').filter(Boolean).sort();
   if (paths.length === 0) throw new Error('SOURCE_PROPOSAL_REVISION_EMPTY');
 
   return {
@@ -136,9 +133,7 @@ function proposalFromRevision(
       return {
         path,
         content_base64: exists
-          ? execFileSync('git', ['-C', repo, 'show', `${proposalSha}:${path}`]).toString(
-              'base64',
-            )
+          ? execFileSync('git', ['-C', repo, 'show', `${proposalSha}:${path}`]).toString('base64')
           : null,
       };
     }),
