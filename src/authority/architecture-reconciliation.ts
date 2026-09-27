@@ -12,6 +12,7 @@ import type {
   WorkflowReachableProductionEffect,
   WorkflowEntrypointFact,
   WorkflowTransitiveEffectFact,
+  WorkflowUnresolvedDynamicCallFact,
 } from '../observation/workflow-transitive-effects.ts';
 import type { ObligationInput } from './facts.ts';
 
@@ -96,7 +97,8 @@ export type ArchitectureObservedFact =
   | GitHubActionsInheritedPermissionsFact
   | GitHubActionsProviderEffectInvocationFact
   | WorkflowEntrypointFact
-  | WorkflowTransitiveEffectFact;
+  | WorkflowTransitiveEffectFact
+  | WorkflowUnresolvedDynamicCallFact;
 
 export type ArchitectureConflictReasonCode =
   | 'DUPLICATE_CONCEPT'
@@ -108,7 +110,8 @@ export type ArchitectureConflictReasonCode =
   | 'DECLARED_PROJECTION_FLOW_MISSING'
   | 'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY'
   | 'UNDECLARED_GITHUB_ACTIONS_PROVIDER_EFFECT'
-  | 'UNDECLARED_WORKFLOW_TRANSITIVE_EFFECT';
+  | 'UNDECLARED_WORKFLOW_TRANSITIVE_EFFECT'
+  | 'UNKNOWN_DYNAMIC_CALL_TARGET';
 
 export interface EstablishedArchitectureResolution {
   state: 'established';
@@ -298,6 +301,8 @@ function factKey(fact: ArchitectureObservedFact): string {
       return `workflow-entrypoint:${fact.workflow_path}:${fact.entrypoint}:${fact.line_number}`;
     case 'github-actions-transitive-effect-reachability':
       return `workflow-transitive-effect:${fact.workflow_path}:${fact.entrypoint}:${fact.effect}:${fact.terminal_path}:${fact.terminal_statement_sha256}`;
+    case 'github-actions-unresolved-dynamic-call-target':
+      return `workflow-unresolved-call:${fact.workflow_path}:${fact.entrypoint}:${fact.call_site_path}:${fact.call_site_line}:${fact.call_expression_sha256}`;
   }
 }
 
@@ -544,6 +549,10 @@ function reconcileWorkflowTransitiveEffectClaim(
     (fact): fact is WorkflowTransitiveEffectFact =>
       fact.kind === 'github-actions-transitive-effect-reachability',
   );
+  const unresolvedCalls = observations.filter(
+    (fact): fact is WorkflowUnresolvedDynamicCallFact =>
+      fact.kind === 'github-actions-unresolved-dynamic-call-target',
+  );
   const allowed = new Map(
     claim.allowed.map((grant) => [grant.workflow, new Set(grant.effects)] as const),
   );
@@ -558,6 +567,15 @@ function reconcileWorkflowTransitiveEffectClaim(
       'UNDECLARED_WORKFLOW_TRANSITIVE_EFFECT',
       [scan, ...entrypoints, ...effects.filter((fact) => !undeclared.includes(fact))],
       undeclared,
+    );
+  }
+
+  if (unresolvedCalls.length > 0) {
+    return conflict(
+      claim,
+      'UNKNOWN_DYNAMIC_CALL_TARGET',
+      [scan, ...entrypoints, ...effects],
+      unresolvedCalls,
     );
   }
 
