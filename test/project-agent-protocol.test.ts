@@ -814,7 +814,7 @@ test('project.advance requires native client bytes before claiming reasoning wor
   }
 });
 
-test('unsupported READY work fails before authority is claimed', () => {
+test('unsupported READY work reports a blocked frontier without claiming authority', () => {
   const f = fixture();
   try {
     const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
@@ -830,19 +830,21 @@ test('unsupported READY work fails before authority is claimed', () => {
     });
     const before = kernel.head();
 
-    assert.throws(
-      () =>
-        advanceProjectForAgent(f.work, commandContext(f.sourceSha), {
-          outputDir: join(f.root, 'packet'),
-          authorityRef: AUTHORITY_REF,
-          remote: 'origin',
-        }),
-      /PROJECT_ADVANCE_AGENT_PACKET_UNSUPPORTED/,
-    );
+    const receipt = advanceProjectForAgent(f.work, commandContext(f.sourceSha), {
+      outputDir: join(f.root, 'packet'),
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+    assert.equal(receipt.state, 'BLOCKED');
+    assert.equal(receipt.obligation_id, 'deterministic-effect');
+    assert.equal(receipt.run_id, undefined);
+    assert.equal(receipt.dispatch?.route, 'unsupported');
+    assert.equal(receipt.dispatch?.reason_code, 'PACKET_UNSUPPORTED');
 
     const after = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     assert.equal(after.head(), before);
     assert.equal(after.inspect()[0].status, 'READY');
+    assert.equal(after.inspect()[0].run_id, undefined);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
