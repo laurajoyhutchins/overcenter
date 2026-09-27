@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 
 import { API } from 'typescript/unstable/sync';
 import { isExportDeclaration, isImportDeclaration, isStringLiteral } from 'typescript/unstable/ast';
@@ -9,6 +9,7 @@ import {
   type ArchitectureObservedFact,
   validateArchitectureIntent,
 } from '../src/authority/architecture-reconciliation.ts';
+import { observeGitHubActionsSources } from '../src/observation/github-actions-capabilities.ts';
 
 export type ProductionReferenceProbe = (fromPath: string, toPath: string) => boolean;
 
@@ -32,7 +33,9 @@ function productionReferenceProbe(intent: ArchitectureIntent): ProductionReferen
   const paths = [
     ...new Set(
       intent.claims.flatMap((claim) =>
-        claim.projections.length > 0 ? [claim.authority, ...claim.projections] : [],
+        claim.kind === 'authority-role' && claim.projections.length > 0
+          ? [claim.authority, ...claim.projections]
+          : [],
       ),
     ),
   ].filter((path) => existsSync(path));
@@ -84,6 +87,7 @@ export function observeArchitectureIntent(
   const observations: ArchitectureObservedFact[] = [];
   const paths = new Set<string>();
   for (const claim of intent.claims) {
+    if (claim.kind !== 'authority-role') continue;
     paths.add(claim.authority);
     for (const path of claim.projections) paths.add(path);
     for (const path of claim.verifiers) paths.add(path);
@@ -99,7 +103,7 @@ export function observeArchitectureIntent(
 
   const references = hasProductionReference ?? productionReferenceProbe(intent);
   for (const claim of intent.claims) {
-    if (!pathExists(claim.authority)) continue;
+    if (claim.kind !== 'authority-role' || !pathExists(claim.authority)) continue;
     for (const projection of [...claim.projections].sort()) {
       if (projection === claim.authority || !pathExists(projection)) continue;
       observations.push({
@@ -117,6 +121,19 @@ export function observeArchitectureIntent(
         present: references(projection, claim.authority),
       });
     }
+  }
+
+  if (intent.claims.some((claim) => claim.kind === 'github-actions-explicit-write-authority')) {
+    const directory = resolve('.github/workflows');
+    const sources: Record<string, string> = {};
+    if (existsSync(directory)) {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        if (!entry.isFile() || !/\.ya?ml$/.test(entry.name)) continue;
+        const path = join(directory, entry.name);
+        sources[normalizedRepoPath(path)] = readFileSync(path, 'utf8');
+      }
+    }
+    observations.push(...observeGitHubActionsSources(sources, sourceRevision));
   }
 
   return sortFacts(observations);
