@@ -147,7 +147,9 @@ export function observeArchitectureIntent(
     observations.push(...observeGitHubActionsProviderEffects(sources, sourceRevision));
     const functionEffects = createTypeScriptFunctionEffectProbe(process.cwd());
     try {
-      observations.push(...observeWorkflowTransitiveEffects(sources, sourceRevision, functionEffects));
+      observations.push(
+        ...observeWorkflowTransitiveEffects(sources, sourceRevision, functionEffects),
+      );
     } finally {
       functionEffects.dispose?.();
     }
