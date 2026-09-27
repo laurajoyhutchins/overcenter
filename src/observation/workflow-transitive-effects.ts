@@ -2,10 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 
-export type WorkflowReachableProductionEffect =
-  | 'git-remote-ref/mutate'
-  | 'github-commit-status/create'
-  | 'github-pull-request/update-branch';
+export type WorkflowReachableProductionEffect = 'git-remote-ref/mutate';
 
 export interface WorkflowEntrypointFact {
   kind: 'github-actions-typescript-entrypoint';
@@ -86,22 +83,6 @@ function productionEffectTerminals(path: string): ProductionEffectTerminal[] {
     if (/\[\s*['"]push['"]/.test(line)) {
       terminals.push({ effect: 'git-remote-ref/mutate', statement: line });
     }
-  }
-
-  if (source.includes('GITHUB_STATUS_PROVIDER_ORIGIN') && /method:\s*['"]POST['"]/.test(source)) {
-    const statement =
-      source.split(/\r?\n/).find((line) => /method:\s*['"]POST['"]/.test(line)) ?? "method: 'POST'";
-    terminals.push({ effect: 'github-commit-status/create', statement });
-  }
-
-  if (
-    source.includes('/update-branch') &&
-    /method:\s*['"]PUT['"]/.test(source) &&
-    source.includes('api.github.com')
-  ) {
-    const statement =
-      source.split(/\r?\n/).find((line) => line.includes('/update-branch')) ?? '/update-branch';
-    terminals.push({ effect: 'github-pull-request/update-branch', statement });
   }
 
   return terminals;
