@@ -474,3 +474,19 @@ test('undeclared direct provider effect becomes architecture reconciliation work
   assert.equal(work.packet?.kind, 'architecture-reconciliation');
   assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
 });
+
+
+test('effect invocation is observed even when write capability is absent', () => {
+  const source = `permissions:
+  contents: read
+steps:
+  - run: |
+      curl --request POST \
+        "https://api.github.com/repos/$REPOSITORY/statuses/$SOURCE_SHA"
+`;
+  assert.deepEqual(explicitGitHubActionsWritePermissions(source), []);
+  assert.deepEqual(
+    recognizedGitHubActionsProviderEffects(source).map((fact) => fact.effect),
+    ['github-commit-status/create'],
+  );
+});
