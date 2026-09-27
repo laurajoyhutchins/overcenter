@@ -237,7 +237,6 @@ test('duplicate authority ownership is a conflict rather than silently accepted 
   );
 });
 
-
 test('GitHub Actions observer finds explicit write grants without inferring inherited writes', () => {
   const source = `
 permissions:
@@ -318,10 +317,7 @@ test('undeclared GitHub Actions write capability becomes an architecture conflic
   const resolution = result.resolutions[0]!;
   assert.equal(resolution.state, 'conflict');
   if (resolution.state !== 'conflict') return;
-  assert.equal(
-    resolution.reason_code,
-    'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY',
-  );
+  assert.equal(resolution.reason_code, 'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY');
   assert.deepEqual(
     resolution.contradicting_facts.map((fact) =>
       fact.kind === 'github-actions-explicit-write-capability'
