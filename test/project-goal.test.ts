@@ -23,15 +23,19 @@ test('project goal emits one source obligation bound to the exact project revisi
 
   assert.equal(first.length, 1);
   assert.equal(second.length, 1);
-  assert.equal(first[0]?.id, goal.id);
-  assert.equal(first[0]?.packet.kind, 'source-change');
-  assert.equal(first[0]?.postcondition.verifier, 'source-integration/v1');
-  assert.deepEqual(first[0]?.packet.writable_trees, ['src', 'test']);
-  assert.deepEqual(first[0]?.packet.context, {
+  const firstGoal = first[0];
+  const secondGoal = second[0];
+  assert.ok(firstGoal);
+  assert.ok(secondGoal);
+  assert.equal(firstGoal.id, goal.id);
+  assert.equal(firstGoal.packet.kind, 'source-change');
+  assert.equal(firstGoal.postcondition.verifier, 'source-integration/v1');
+  assert.deepEqual(firstGoal.packet.writable_trees, ['src', 'test']);
+  assert.deepEqual(firstGoal.packet.context, {
     schema: 'overcenter-project-goal-iteration/v1',
     project_source_sha: firstSha,
   });
-  assert.notDeepEqual(first[0]?.packet.context, second[0]?.packet.context);
+  assert.notDeepEqual(firstGoal.packet.context, secondGoal.packet.context);
 });
 
 test('trusted satisfaction retires the long horizon goal', () => {
