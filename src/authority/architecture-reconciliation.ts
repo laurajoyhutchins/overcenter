@@ -155,7 +155,11 @@ export function validateArchitectureIntent(value: unknown): ArchitectureIntent {
     if (claim.kind === 'github-actions-explicit-write-authority') {
       if (!Array.isArray(claim.allowed)) throw new Error('ARCHITECTURE_INTENT_ALLOWED_INVALID');
       const allowed = claim.allowed.map((candidateGrant) => {
-        if (!candidateGrant || typeof candidateGrant !== 'object' || Array.isArray(candidateGrant)) {
+        if (
+          !candidateGrant ||
+          typeof candidateGrant !== 'object' ||
+          Array.isArray(candidateGrant)
+        ) {
           throw new Error('ARCHITECTURE_INTENT_WRITE_GRANT_INVALID');
         }
         const grant = candidateGrant as Record<string, unknown>;
@@ -356,11 +360,7 @@ function reconcileGitHubActionsExplicitWriteClaim(
     return !permissions || (!permissions.has(fact.permission) && !permissions.has('*'));
   });
 
-  const supporting = [
-    scan,
-    ...writes.filter((fact) => !undeclared.includes(fact)),
-    ...inherited,
-  ];
+  const supporting = [scan, ...writes.filter((fact) => !undeclared.includes(fact)), ...inherited];
   if (undeclared.length > 0) {
     return conflict(
       claim,
