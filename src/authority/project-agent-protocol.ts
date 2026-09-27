@@ -52,6 +52,7 @@ export interface ProjectCommandContext {
   repository_id: number;
   repository_full_name: string;
   command_source_sha: string;
+  project_source_sha?: string;
   command_run_id: number;
   command_run_attempt: number;
 }
@@ -149,6 +150,16 @@ function validateCommandContext(context: ProjectCommandContext): void {
   if (!/^[0-9a-f]{40}$/i.test(context.command_source_sha)) {
     throw new Error('PROJECT_AGENT_COMMAND_SOURCE_INVALID');
   }
+  if (
+    context.project_source_sha !== undefined &&
+    !/^[0-9a-f]{40}$/i.test(context.project_source_sha)
+  ) {
+    throw new Error('PROJECT_AGENT_PROJECT_SOURCE_INVALID');
+  }
+}
+
+function projectSourceSha(context: ProjectCommandContext): string {
+  return (context.project_source_sha ?? context.command_source_sha).toLowerCase();
 }
 
 function gitBytes(repo: string, commit: string, path: string): Buffer {
@@ -349,7 +360,8 @@ export function advanceProjectForAgent(
     observationContext,
   });
   if (!kernel.head()) throw new Error('PROJECT_ADVANCE_AUTHORITY_MISSING');
-  const snapshot = repositorySnapshot(repo, context.command_source_sha.toLowerCase());
+  const projectSourceRevision = projectSourceSha(context);
+  const snapshot = repositorySnapshot(repo, projectSourceRevision);
   const desired = compileProjectGraph(snapshot, context, graphProducers);
   const managedPrefixes = managedProjectGraphPrefixes(snapshot, graphProducers);
 
@@ -525,7 +537,7 @@ export function advanceProjectForAgent(
       });
     }
 
-    const sourceRevision = context.command_source_sha.toLowerCase();
+    const sourceRevision = projectSourceRevision;
     let preparedAgent: ReturnType<typeof prepareAgentPacket> | null = null;
     let workerClient: Buffer | null = null;
     if (
