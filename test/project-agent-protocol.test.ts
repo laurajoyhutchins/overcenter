@@ -196,9 +196,10 @@ test('project.advance separates pinned command implementation from project sourc
     assert.equal(receipt.candidate_branch_base_sha, projectSourceSha);
     assert.equal(receipt.obligation_id, 'external-project-work');
     assert.equal(
-      new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF }).claimedSourceRevision(
-        receipt.run_id!,
-      ),
+      new GitOvercenterKernel(f.work, {
+        remote: 'origin',
+        ref: AUTHORITY_REF,
+      }).claimedSourceRevision(receipt.run_id!),
       projectSourceSha,
     );
   } finally {
