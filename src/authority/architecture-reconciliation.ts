@@ -89,7 +89,10 @@ function nonEmptyString(value: unknown, error: string): asserts value is string 
 }
 
 function stringArray(value: unknown, error: string): asserts value is string[] {
-  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || item.length === 0)) {
+  if (
+    !Array.isArray(value) ||
+    value.some((item) => typeof item !== 'string' || item.length === 0)
+  ) {
     throw new Error(error);
   }
 }
