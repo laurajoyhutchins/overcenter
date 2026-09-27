@@ -593,7 +593,6 @@ export { observe } from './runtime-export.ts';
   ]);
 });
 
-
 test('function-level effect reachability ignores imported but uncalled mutation APIs', () => {
   const probe = createTypeScriptFunctionEffectProbe(process.cwd());
   assert.deepEqual(probe('test/fixtures/function-effect-import-only.ts'), []);
@@ -630,8 +629,7 @@ test('function-level effect reachability binds called semantic mutation terminal
         terminal:
           'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
         root: 'test/fixtures/function-effect-called.ts#<module>',
-        leaf:
-          'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
+        leaf: 'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
         digest_length: 64,
       },
     ],
