@@ -736,10 +736,7 @@ test('source broker canonicalizes an untrusted proposal revision before publicat
     });
     assert.equal(brokered.publication.state, 'PUBLISHED');
     assert.notEqual(brokered.candidate.commit_sha, proposalSha);
-    assert.equal(
-      git(f.work, ['rev-parse', `${brokered.candidate.commit_sha}^`]),
-      sourceSha,
-    );
+    assert.equal(git(f.work, ['rev-parse', `${brokered.candidate.commit_sha}^`]), sourceSha);
     assert.equal(
       git(f.work, ['rev-parse', `${brokered.candidate.commit_sha}^{tree}`]),
       git(f.work, ['rev-parse', `${proposalSha}^{tree}`]),
