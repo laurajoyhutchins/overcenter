@@ -33,7 +33,9 @@ function intent(): ArchitectureIntent {
 }
 
 function observations(
-  overrides: Partial<Record<'authority' | 'projection' | 'verifier' | 'forward' | 'reverse', boolean>> = {},
+  overrides: Partial<
+    Record<'authority' | 'projection' | 'verifier' | 'forward' | 'reverse', boolean>
+  > = {},
 ): ArchitectureObservedFact[] {
   return [
     {
@@ -81,7 +83,10 @@ test('maintained architecture intent reconciles against observed production flow
     source_revision: revision,
     observations: observed,
   });
-  assert.equal(result.resolutions.every((resolution) => resolution.state === 'established'), true);
+  assert.equal(
+    result.resolutions.every((resolution) => resolution.state === 'established'),
+    true,
+  );
 });
 
 test('agreement is established only from exact-revision observations', () => {
@@ -174,7 +179,8 @@ test('observed disagreement becomes bounded reasoning work with no mutation auth
     status: 'BLOCKED',
     reason: {
       kind: 'judgment-required',
-      subject: work.postcondition.verifier === 'operator-judgment/v1' ? work.postcondition.subject : {},
+      subject:
+        work.postcondition.verifier === 'operator-judgment/v1' ? work.postcondition.subject : {},
     },
   };
   const dispatch = classifyJudgmentFrontier({
