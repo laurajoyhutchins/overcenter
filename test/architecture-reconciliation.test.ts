@@ -494,7 +494,6 @@ steps:
   );
 });
 
-
 test('workflow TypeScript entrypoints are observed without treating npm scripts as direct entrypoints', () => {
   const source = `steps:
   - run: node --experimental-strip-types src/cli/project-submit.ts --receipt out.json
