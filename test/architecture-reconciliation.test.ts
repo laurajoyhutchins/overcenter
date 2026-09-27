@@ -655,7 +655,10 @@ test('real operator entrypoints do not inherit uncalled GitHub HTTP effects', ()
     for (const entrypoint of ['src/cli/project-advance.ts', 'src/cli/project-submit.ts']) {
       const analysis = probe(entrypoint);
       const effects = analysis.effects;
-      assert.deepEqual(analysis.unresolved_calls, []);
+      assert.equal(
+        analysis.unresolved_calls.some((fact) => fact.candidate_effects.length > 0),
+        false,
+      );
       assert.equal(
         effects.some(
           (fact) =>
@@ -684,7 +687,8 @@ test('higher-order callback calls become explicit unresolved dynamic targets', (
       analysis.unresolved_calls[0]?.declaration_path,
       'test/fixtures/function-effect-callback.ts',
     );
-    assert.equal(analysis.unresolved_calls[0]?.call_chain.at(-1)?.includes('#<callable>'), true);
+    assert.equal(analysis.unresolved_calls[0]?.declaration_symbol, 'callback');
+    assert.deepEqual(analysis.unresolved_calls[0]?.candidate_effects, []);
   } finally {
     probe.dispose?.();
   }
@@ -700,7 +704,8 @@ test('interface dispatch becomes explicit unresolved dynamic target', () => {
       analysis.unresolved_calls[0]?.call_site_path,
       'test/fixtures/function-effect-interface.ts',
     );
-    assert.equal(analysis.unresolved_calls[0]?.declaration_symbol, 'run');
+    assert.equal(analysis.unresolved_calls[0]?.declaration_symbol, 'plugin.run');
+    assert.deepEqual(analysis.unresolved_calls[0]?.candidate_effects, []);
   } finally {
     probe.dispose?.();
   }
@@ -744,6 +749,7 @@ test('unresolved dynamic target becomes bounded architecture reconciliation work
         declaration_path: 'src/plugin.ts',
         declaration_symbol: 'run',
         call_chain: ['src/cli/dynamic.ts#<module>', 'src/plugin.ts#run'],
+        candidate_effects: ['github-commit-status/create'],
       },
     ],
   });
@@ -758,4 +764,65 @@ test('unresolved dynamic target becomes bounded architecture reconciliation work
   const work = architectureReconciliationWork(resolution, revision);
   assert.equal(work.packet?.kind, 'architecture-reconciliation');
   assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
+});
+
+
+test('effect-bearing dynamic dispatch carries candidate effect families', () => {
+  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+  try {
+    const analysis = probe('test/fixtures/function-effect-dynamic-effect.ts');
+    assert.deepEqual(analysis.effects, []);
+    assert.equal(analysis.unresolved_calls.length, 1);
+    assert.deepEqual(analysis.unresolved_calls[0]?.candidate_effects, [
+      'github-commit-status/create',
+    ]);
+  } finally {
+    probe.dispose?.();
+  }
+});
+
+test('unresolved dynamic calls without an effect-bearing module remain supporting evidence', () => {
+  const policy: ArchitectureIntent = {
+    schema: ARCHITECTURE_INTENT_SCHEMA,
+    claims: [
+      {
+        kind: 'workflow-transitive-effect-authority',
+        concept: 'workflow-transitive-effects',
+        allowed: [],
+      },
+    ],
+  };
+  const result = reconcileArchitecture({
+    intent: policy,
+    source_revision: revision,
+    observations: [
+      {
+        kind: 'github-actions-workflow-scan',
+        source_revision: revision,
+        workflow_paths: ['.github/workflows/dynamic.yml'],
+      },
+      {
+        kind: 'github-actions-unresolved-dynamic-call-target',
+        source_revision: revision,
+        workflow_path: '.github/workflows/dynamic.yml',
+        entrypoint: 'src/cli/dynamic.ts',
+        call_site_path: 'src/cli/dynamic.ts',
+        call_site_line: 7,
+        call_expression_sha256: 'd'.repeat(64),
+        declaration_path: 'src/store.ts',
+        declaration_symbol: 'store.read',
+        call_chain: ['src/cli/dynamic.ts#<module>', 'src/store.ts#store.read'],
+        candidate_effects: [],
+      },
+    ],
+  });
+  const resolution = result.resolutions[0]!;
+  assert.equal(resolution.state, 'established');
+  if (resolution.state !== 'established') return;
+  assert.equal(
+    resolution.supporting_facts.some(
+      (fact) => fact.kind === 'github-actions-unresolved-dynamic-call-target',
+    ),
+    true,
+  );
 });
