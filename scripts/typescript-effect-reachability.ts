@@ -187,6 +187,22 @@ function bindingsForCall(
   return bindings;
 }
 
+function bindingStateKey(root: string, bindings: CallableBindings): string {
+  return [...bindings.entries()]
+    .map(([key, binding]) => {
+      if (binding === null) return `${key}=<absent>`;
+      const source = binding.getSourceFile();
+      return [
+        key,
+        normalized(root, source.fileName),
+        binding.getStart(source),
+        binding.getEnd(),
+      ].join('=');
+    })
+    .sort()
+    .join('|');
+}
+
 function directCalls(rootNode: Node): CallExpression[] {
   const calls: CallExpression[] = [];
   const visit = (node: Node): void => {
@@ -283,10 +299,11 @@ export function createTypeScriptFunctionEffectProbe(
       const body = declarationBody(declaration);
       if (!body) return;
       const label = callLabel(root, declaration);
+      const stateKey = `${label}\0${bindingStateKey(root, bindings)}`;
       const depth = callChain.length;
-      const seenDepth = visitedAtDepth.get(label);
+      const seenDepth = visitedAtDepth.get(stateKey);
       if (seenDepth !== undefined && seenDepth <= depth) return;
-      visitedAtDepth.set(label, depth);
+      visitedAtDepth.set(stateKey, depth);
       pending.push({ declaration, call_chain: callChain, bindings });
     };
 
