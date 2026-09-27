@@ -14,6 +14,10 @@ import { classifyJudgmentFrontier } from '../src/authority/judgment-frontier.ts'
 import type { ProjectExplanation } from '../src/authority/project-state.ts';
 import type { Work } from '../src/model.ts';
 import { observeArchitectureIntent } from '../scripts/observe-architecture.ts';
+import {
+  explicitGitHubActionsWritePermissions,
+  observeGitHubActionsSources,
+} from '../src/observation/github-actions-capabilities.ts';
 
 const revision = 'a'.repeat(40);
 
@@ -231,4 +235,126 @@ test('duplicate authority ownership is a conflict rather than silently accepted 
     ),
     ['DUPLICATE_AUTHORITY_OWNER', 'DUPLICATE_AUTHORITY_OWNER'],
   );
+});
+
+
+test('GitHub Actions observer finds explicit write grants without inferring inherited writes', () => {
+  const source = `
+permissions:
+  contents: read
+jobs:
+  publish:
+    permissions:
+      contents: write
+      statuses: read
+  propose:
+    permissions: { pull-requests: write, contents: read }
+  broad:
+    permissions: write-all
+`;
+  assert.deepEqual(explicitGitHubActionsWritePermissions(source), [
+    '*',
+    'contents',
+    'pull-requests',
+  ]);
+
+  const observed = observeGitHubActionsSources(
+    {
+      '.github/workflows/inherited.yml': `jobs:
+  publish:
+    permissions:
+      contents: write
+`,
+    },
+    revision,
+  );
+  assert.equal(
+    observed.some((fact) => fact.kind === 'github-actions-inherited-permissions'),
+    true,
+  );
+  assert.equal(
+    observed.some(
+      (fact) =>
+        fact.kind === 'github-actions-explicit-write-capability' &&
+        fact.workflow_path === '.github/workflows/inherited.yml' &&
+        fact.permission === 'contents',
+    ),
+    true,
+  );
+});
+
+test('undeclared GitHub Actions write capability becomes an architecture conflict', () => {
+  const policy: ArchitectureIntent = {
+    schema: ARCHITECTURE_INTENT_SCHEMA,
+    claims: [
+      {
+        kind: 'github-actions-explicit-write-authority',
+        concept: 'workflow-write-authority',
+        allowed: [
+          {
+            workflow: '.github/workflows/allowed.yml',
+            permissions: ['contents'],
+          },
+        ],
+      },
+    ],
+  };
+  const observed = observeGitHubActionsSources(
+    {
+      '.github/workflows/allowed.yml': `permissions:
+  contents: write
+`,
+      '.github/workflows/rogue.yml': `permissions:
+  statuses: write
+`,
+    },
+    revision,
+  );
+  const result = reconcileArchitecture({
+    intent: policy,
+    source_revision: revision,
+    observations: observed,
+  });
+  const resolution = result.resolutions[0]!;
+  assert.equal(resolution.state, 'conflict');
+  if (resolution.state !== 'conflict') return;
+  assert.equal(
+    resolution.reason_code,
+    'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY',
+  );
+  assert.deepEqual(
+    resolution.contradicting_facts.map((fact) =>
+      fact.kind === 'github-actions-explicit-write-capability'
+        ? `${fact.workflow_path}:${fact.permission}`
+        : fact.kind,
+    ),
+    ['.github/workflows/rogue.yml:statuses'],
+  );
+});
+
+test('GitHub Actions write policy stays unknown when workflow scan evidence is absent', () => {
+  const policy: ArchitectureIntent = {
+    schema: ARCHITECTURE_INTENT_SCHEMA,
+    claims: [
+      {
+        kind: 'github-actions-explicit-write-authority',
+        concept: 'workflow-write-authority',
+        allowed: [
+          {
+            workflow: '.github/workflows/allowed.yml',
+            permissions: ['contents'],
+          },
+        ],
+      },
+    ],
+  };
+  const result = reconcileArchitecture({
+    intent: policy,
+    source_revision: revision,
+    observations: [],
+  });
+  const resolution = result.resolutions[0]!;
+  assert.equal(resolution.state, 'unknown');
+  if (resolution.state !== 'unknown') return;
+  assert.deepEqual(resolution.missing_evidence, ['github-actions-workflow-scan']);
 });
