@@ -22,6 +22,10 @@ import {
   observeGitHubActionsProviderEffects,
   recognizedGitHubActionsProviderEffects,
 } from '../src/observation/github-actions-effects.ts';
+import {
+  observeWorkflowTransitiveEffects,
+  workflowTypeScriptEntrypoints,
+} from '../src/observation/workflow-transitive-effects.ts';
 
 const revision = 'a'.repeat(40);
 
@@ -488,4 +492,89 @@ steps:
     recognizedGitHubActionsProviderEffects(source).map((fact) => fact.effect),
     ['github-commit-status/create'],
   );
+});
+
+
+test('workflow TypeScript entrypoints are observed without treating npm scripts as direct entrypoints', () => {
+  const source = `steps:
+  - run: node --experimental-strip-types src/cli/project-submit.ts --receipt out.json
+  - run: npm run test
+`;
+  assert.deepEqual(workflowTypeScriptEntrypoints(source), [
+    { entrypoint: 'src/cli/project-submit.ts', line_number: 2 },
+  ]);
+});
+
+test('workflow entrypoint import closure exposes reachable production mutation surface', () => {
+  const observed = observeWorkflowTransitiveEffects(
+    {
+      '.github/workflows/submit.yml':
+        'steps:\n  - run: node --experimental-strip-types src/cli/project-submit.ts --receipt out.json\n',
+    },
+    revision,
+  );
+  const reachable = observed.filter(
+    (fact) => fact.kind === 'github-actions-transitive-effect-reachability',
+  );
+  assert.equal(
+    reachable.some(
+      (fact) =>
+        fact.effect === 'git-remote-ref/mutate' &&
+        fact.import_chain[0] === 'src/cli/project-submit.ts' &&
+        fact.import_chain.at(-1) === fact.terminal_path,
+    ),
+    true,
+  );
+  assert.equal(
+    reachable.every((fact) => /^[0-9a-f]{64}$/.test(fact.terminal_statement_sha256)),
+    true,
+  );
+});
+
+test('undeclared transitive effect reachability becomes bounded architecture reconciliation work', () => {
+  const policy: ArchitectureIntent = {
+    schema: ARCHITECTURE_INTENT_SCHEMA,
+    claims: [
+      {
+        kind: 'workflow-transitive-effect-authority',
+        concept: 'workflow-transitive-effects',
+        allowed: [],
+      },
+    ],
+  };
+  const result = reconcileArchitecture({
+    intent: policy,
+    source_revision: revision,
+    observations: [
+      {
+        kind: 'github-actions-workflow-scan',
+        source_revision: revision,
+        workflow_paths: ['.github/workflows/rogue.yml'],
+      },
+      {
+        kind: 'github-actions-typescript-entrypoint',
+        source_revision: revision,
+        workflow_path: '.github/workflows/rogue.yml',
+        entrypoint: 'src/cli/rogue.ts',
+        line_number: 1,
+      },
+      {
+        kind: 'github-actions-transitive-effect-reachability',
+        source_revision: revision,
+        workflow_path: '.github/workflows/rogue.yml',
+        entrypoint: 'src/cli/rogue.ts',
+        effect: 'git-remote-ref/mutate',
+        terminal_path: 'src/provider.ts',
+        import_chain: ['src/cli/rogue.ts', 'src/provider.ts'],
+        terminal_statement_sha256: 'b'.repeat(64),
+      },
+    ],
+  });
+  const resolution = result.resolutions[0]!;
+  assert.equal(resolution.state, 'conflict');
+  if (resolution.state !== 'conflict') return;
+  assert.equal(resolution.reason_code, 'UNDECLARED_WORKFLOW_TRANSITIVE_EFFECT');
+  const work = architectureReconciliationWork(resolution, revision);
+  assert.equal(work.packet?.kind, 'architecture-reconciliation');
+  assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
 });
