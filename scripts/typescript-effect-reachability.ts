@@ -22,6 +22,7 @@ import type {
   WorkflowFunctionEffectProbe,
   WorkflowFunctionEffectReachability,
   WorkflowReachableProductionEffect,
+  WorkflowUnresolvedFunctionCall,
 } from '../src/observation/workflow-transitive-effects.ts';
 
 interface EffectTerminal {
@@ -168,14 +169,13 @@ export function createTypeScriptFunctionEffectProbe(
   const { snapshot, project } = projectForRoot(api, root);
   const checker = project.checker;
 
-  const probe: WorkflowFunctionEffectProbe = (
-    entrypoint: string,
-  ): WorkflowFunctionEffectReachability[] => {
+  const probe: WorkflowFunctionEffectProbe = (entrypoint: string) => {
     const absolute = resolve(root, entrypoint);
     const source = project.program.getSourceFile(absolute);
-    if (!source) return [];
+    if (!source) return { effects: [], unresolved_calls: [] };
 
     const results: WorkflowFunctionEffectReachability[] = [];
+    const unresolvedCalls: WorkflowUnresolvedFunctionCall[] = [];
     const visitedAtDepth = new Map<string, number>();
     const pending: Array<{ declaration: Node; call_chain: string[] }> = [];
 
@@ -210,6 +210,23 @@ export function createTypeScriptFunctionEffectProbe(
         });
         return;
       }
+
+      const body = declarationBody(declaration);
+      if (!body) {
+        const callSource = call.getSourceFile();
+        const position = callSource.getLineAndCharacterOfPosition(call.getStart(callSource));
+        unresolvedCalls.push({
+          call_site_path: normalized(root, callSource.fileName),
+          call_site_line: position.line + 1,
+          call_expression_sha256: createHash('sha256')
+            .update(call.getText(callSource))
+            .digest('hex'),
+          declaration_path: path,
+          declaration_symbol: declarationName(declaration) ?? '<callable>',
+          call_chain: nextChain,
+        });
+        return;
+      }
       enqueue(declaration, nextChain);
     };
 
@@ -233,9 +250,26 @@ export function createTypeScriptFunctionEffectProbe(
       ].join('\0');
       unique.set(key, result);
     }
-    return [...unique.values()].sort((left, right) =>
-      JSON.stringify(left).localeCompare(JSON.stringify(right)),
-    );
+    const uniqueUnresolved = new Map<string, WorkflowUnresolvedFunctionCall>();
+    for (const unresolved of unresolvedCalls) {
+      const key = [
+        unresolved.call_site_path,
+        unresolved.call_site_line,
+        unresolved.call_expression_sha256,
+        unresolved.declaration_path,
+        unresolved.declaration_symbol,
+        unresolved.call_chain.join('>'),
+      ].join('\0');
+      uniqueUnresolved.set(key, unresolved);
+    }
+    return {
+      effects: [...unique.values()].sort((left, right) =>
+        JSON.stringify(left).localeCompare(JSON.stringify(right)),
+      ),
+      unresolved_calls: [...uniqueUnresolved.values()].sort((left, right) =>
+        JSON.stringify(left).localeCompare(JSON.stringify(right)),
+      ),
+    };
   };
 
   probe.dispose = () => {
