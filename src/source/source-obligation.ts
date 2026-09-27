@@ -141,10 +141,7 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   if (Array.isArray(writableTrees) && !writableTrees.every(validSourceWritablePath)) {
     throw new Error('SOURCE_TASK_WRITABLE_TREE_INVALID');
   }
-  if (
-    Array.isArray(writableTrees) &&
-    new Set(writableTrees).size !== writableTrees.length
-  ) {
+  if (Array.isArray(writableTrees) && new Set(writableTrees).size !== writableTrees.length) {
     throw new Error('SOURCE_TASK_WRITABLE_TREE_DUPLICATE');
   }
   if (value.writable_paths.length === 0 && !Array.isArray(writableTrees)) {
@@ -192,9 +189,7 @@ export function sourceTaskAllowsPath(taskValue: unknown, path: string): boolean 
   const task = validateSourceTaskPacket(taskValue);
   if (!validSourceWritablePath(path)) return false;
   if (task.writable_paths.includes(path)) return true;
-  return (task.writable_trees ?? []).some(
-    (tree) => path === tree || path.startsWith(`${tree}/`),
-  );
+  return (task.writable_trees ?? []).some((tree) => path === tree || path.startsWith(`${tree}/`));
 }
 
 export function bindSourceClaim(
