@@ -14,10 +14,10 @@ import {
   isGetAccessorDeclaration,
   isIdentifier,
   isMethodDeclaration,
-  isParameter,
   isPropertyAssignment,
   isSetAccessorDeclaration,
   isVariableDeclaration,
+  SyntaxKind,
 } from 'typescript/unstable/ast';
 
 import { runtimeLocalImportSpecifiers } from '../src/observation/workflow-transitive-effects.ts';
@@ -328,7 +328,7 @@ export function createTypeScriptFunctionEffectProbe(
 
       const body = declarationBody(declaration);
       if (!body) {
-        if (isParameter(declaration)) {
+        if (declaration.kind === SyntaxKind.Parameter) {
           const binding = bindings.get(parameterKey(root, declaration));
           if (binding === null) return;
           if (binding !== undefined && functionLike(binding) && declarationBody(binding)) {
