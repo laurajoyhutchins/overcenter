@@ -28,6 +28,8 @@ Ask Overcenter to make progress.
 
 The caller supplies no obligation ID, selector, priority, lease, run ID, or execution plan. Overcenter owns those mechanics. It reconciles authoritative state, derives the executable frontier, chooses work, and claims the exact revision.
 
+The command implementation revision and the managed project's source revision are distinct identities. Same-repository operation may use one SHA for both. A host that pins Overcenter from another repository supplies the exact implementation SHA as `command_source_sha` and the exact managed-project commit as `project_source_sha`; graph compilation, assignment materialization, and claim fencing use only the latter. This permits a portable Overcenter runtime to manage another Git repository without pretending the runtime commit exists in the project history.
+
 If the exact trusted command source contains `.overcenter/project-intent.json`, `project.advance` first compiles that declarative intent into exact-source-bound agent obligations and feeds the resulting ensure-set through the kernel's ordinary graph reconciliation boundary. The intent never carries an authority revision or source SHA; those are derived by trusted software. Omitted obligations are not retired, so partial intent cannot delete unrelated project work.
 
 The file is producer input to `project.advance`, not another agent-facing command. A future deterministic or reasoning-backed graph producer can emit the same narrow contract without gaining graph-patch, claim, or settlement authority.
