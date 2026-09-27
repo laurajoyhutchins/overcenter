@@ -579,7 +579,6 @@ test('undeclared transitive effect reachability becomes bounded architecture rec
   assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
 });
 
-
 test('type-only imports do not widen runtime effect reachability', () => {
   const source = `
 import type { Witness } from './type-only-effect.ts';
