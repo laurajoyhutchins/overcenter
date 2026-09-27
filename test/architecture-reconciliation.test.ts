@@ -673,22 +673,33 @@ test('real operator entrypoints do not inherit uncalled GitHub HTTP effects', ()
   }
 });
 
-test('higher-order callback calls become explicit unresolved dynamic targets', () => {
+test('inline higher-order callbacks resolve through actual argument bindings', () => {
   const probe = createTypeScriptFunctionEffectProbe(process.cwd());
   try {
-    const analysis = probe('test/fixtures/function-effect-callback.ts');
-    assert.deepEqual(analysis.effects, []);
-    assert.equal(analysis.unresolved_calls.length, 1);
-    assert.equal(
-      analysis.unresolved_calls[0]?.call_site_path,
-      'test/fixtures/function-effect-callback.ts',
+    assert.deepEqual(probe('test/fixtures/function-effect-callback.ts'), {
+      effects: [],
+      unresolved_calls: [],
+    });
+  } finally {
+    probe.dispose?.();
+  }
+});
+
+test('effect calls inside inline callbacks remain reachable', () => {
+  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+  try {
+    const analysis = probe('test/fixtures/function-effect-callback-effect.ts');
+    assert.deepEqual(analysis.unresolved_calls, []);
+    assert.deepEqual(
+      analysis.effects.map((fact) => fact.effect),
+      ['github-commit-status/create'],
     );
     assert.equal(
-      analysis.unresolved_calls[0]?.declaration_path,
-      'test/fixtures/function-effect-callback.ts',
+      analysis.effects[0]?.call_chain.some((entry) =>
+        entry.includes('function-effect-callback-effect.ts#<anonymous>'),
+      ),
+      true,
     );
-    assert.equal(analysis.unresolved_calls[0]?.declaration_symbol, 'callback');
-    assert.deepEqual(analysis.unresolved_calls[0]?.candidate_effects, []);
   } finally {
     probe.dispose?.();
   }
