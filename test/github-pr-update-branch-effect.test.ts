@@ -13,8 +13,8 @@ import {
 } from '../src/observation/observe.ts';
 import {
   GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
-  performGithubPullRequestUpdateBranchEffect,
-  type GithubUpdateBranchPut,
+  performGitHubPullRequestUpdateBranchEffect,
+  type GitHubUpdateBranchPut,
 } from '../src/providers/github/pr-update-branch-effect.ts';
 
 const HEAD = 'a'.repeat(40);
@@ -93,12 +93,12 @@ test('trusted PR refresh certifies exact identity, reserves, and sends expected_
       if (path === '/repos/acme/widget/pulls/37') return pull();
       throw new Error('unexpected');
     };
-    const put: GithubUpdateBranchPut = async (_token, path, body) => {
+    const put: GitHubUpdateBranchPut = async (_token, path, body) => {
       assert.equal(kernel.hasUnresolvedEffect(run.id), true);
       calls.push('PUT ' + path + ' ' + body.expected_head_sha);
       return { status: 202, body: JSON.stringify({ message: 'Updating pull request branch.' }) };
     };
-    const result = await performGithubPullRequestUpdateBranchEffect(kernel, run, {
+    const result = await performGitHubPullRequestUpdateBranchEffect(kernel, run, {
       token: 'token',
       get,
       put,
@@ -122,7 +122,7 @@ test('head drift fails before reservation and PUT', async () => {
   try {
     const run = define(kernel);
     await assert.rejects(
-      performGithubPullRequestUpdateBranchEffect(kernel, run, {
+      performGitHubPullRequestUpdateBranchEffect(kernel, run, {
         token: 'token',
         get: async (_token, path) => (path === '/repos/acme/widget' ? repository() : pull(NEXT)),
         put: async () => {
@@ -148,7 +148,7 @@ test('missing semantic grant fails before provider I/O', async () => {
   try {
     const run = define(kernel, 'other-effect');
     await assert.rejects(
-      performGithubPullRequestUpdateBranchEffect(kernel, run, {
+      performGitHubPullRequestUpdateBranchEffect(kernel, run, {
         token: 'token',
         get: async () => {
           reads += 1;
