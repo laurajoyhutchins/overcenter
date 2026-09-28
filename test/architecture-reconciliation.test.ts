@@ -123,7 +123,7 @@ test('TCB roots are derived recursively from effect architecture', () => {
     assert.ok(identities.has('src/observation/observe.ts#observationVerified'));
     assert.ok(
       identities.has(
-        'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
+        'src/providers/github/status-effect.ts#performGitHubCommitStatusEffect',
       ),
     );
 
