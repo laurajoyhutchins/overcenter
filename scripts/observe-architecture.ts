@@ -8,6 +8,7 @@ import { API } from 'typescript/unstable/sync';
 import {
   isClassDeclaration,
   isFunctionDeclaration,
+  isInterfaceDeclaration,
   isVariableStatement,
   type Node,
   type SourceFile,
@@ -119,7 +120,9 @@ function hasSymbol(source: SourceFile, symbolId: string): boolean {
   if (dot < 0) {
     return source.statements.some((statement) => {
       if (
-        (isFunctionDeclaration(statement) || isClassDeclaration(statement)) &&
+        (isFunctionDeclaration(statement) ||
+          isClassDeclaration(statement) ||
+          isInterfaceDeclaration(statement)) &&
         nodeName(statement, source) === symbolId
       ) {
         return true;
@@ -136,11 +139,13 @@ function hasSymbol(source: SourceFile, symbolId: string): boolean {
   const ownerName = symbolId.slice(0, dot);
   const memberName = symbolId.slice(dot + 1);
   const owner = source.statements.find(
-    (statement) => isClassDeclaration(statement) && nodeName(statement, source) === ownerName,
+    (statement) =>
+      (isClassDeclaration(statement) || isInterfaceDeclaration(statement)) &&
+      nodeName(statement, source) === ownerName,
   );
   return (
     owner !== undefined &&
-    isClassDeclaration(owner) &&
+    (isClassDeclaration(owner) || isInterfaceDeclaration(owner)) &&
     owner.members.some((member) => nodeName(member, source) === memberName)
   );
 }
