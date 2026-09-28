@@ -94,9 +94,7 @@ export interface ArchitectureDispatchBinding {
   };
 }
 
-export function deriveRuntimeDispatchBindings(
-  db: DatabaseSync,
-): ArchitectureDispatchBinding[] {
+export function deriveRuntimeDispatchBindings(db: DatabaseSync): ArchitectureDispatchBinding[] {
   return db
     .prepare(`
       SELECT
@@ -151,9 +149,7 @@ interface AssurancePropertyTrustRootRow {
   requirement_id: string;
 }
 
-export function deriveAssurancePropertyTrustRoots(
-  db: DatabaseSync,
-): AssurancePropertyTrustRoot[] {
+export function deriveAssurancePropertyTrustRoots(db: DatabaseSync): AssurancePropertyTrustRoot[] {
   return db
     .prepare(`
       WITH RECURSIVE
