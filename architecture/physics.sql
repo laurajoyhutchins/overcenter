@@ -59,8 +59,8 @@ INSERT INTO symbol(symbol_id, artifact_id) VALUES
   ('SqliteFactStore.history', 'src/storage/sqlite.ts'),
   ('observationVerified', 'src/observation/observe.ts'),
   ('integrateVerifiedSourceCandidate', 'src/source/source-integration.ts'),
-  ('performGithubCommitStatusEffect', 'src/providers/github/status-effect.ts'),
-  ('performGithubPullRequestUpdateBranchEffect', 'src/providers/github/pr-update-branch-effect.ts'),
+  ('performGitHubCommitStatusEffect', 'src/providers/github/status-effect.ts'),
+  ('performGitHubPullRequestUpdateBranchEffect', 'src/providers/github/pr-update-branch-effect.ts'),
   ('performKubernetesConfigMapEffect', 'src/providers/kubernetes/configmap-effect.ts');
 
 INSERT INTO symbol_implements_authority(symbol_id, authority_id) VALUES
@@ -92,8 +92,8 @@ INSERT INTO symbol_projects_capability(symbol_id, capability_id) VALUES
   ('deriveProjectProjection', 'effect-settlement');
 
 INSERT INTO symbol_performs_effect(symbol_id, effect_id) VALUES
-  ('performGithubCommitStatusEffect', 'github-commit-status/create'),
-  ('performGithubPullRequestUpdateBranchEffect', 'github-pull-request/update-branch'),
+  ('performGitHubCommitStatusEffect', 'github-commit-status/create'),
+  ('performGitHubPullRequestUpdateBranchEffect', 'github-pull-request/update-branch'),
   ('performKubernetesConfigMapEffect', 'kubernetes-configmap/ensure'),
   ('integrateVerifiedSourceCandidate', 'source/integrate');
 
