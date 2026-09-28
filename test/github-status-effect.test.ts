@@ -7,13 +7,13 @@ import test from 'node:test';
 
 import { OvercenterKernel } from '../src/authority/kernel.ts';
 import {
-  createGithubStatusPost,
+  createGitHubStatusPost,
   GITHUB_COMMIT_STATUS_EFFECT,
-  performGithubCommitStatusEffect,
-  type GithubStatusPost,
+  performGitHubCommitStatusEffect,
+  type GitHubStatusPost,
 } from '../src/providers/github/status-effect.ts';
 import { GITHUB_STATUS_FRESH_HTTPS_NOT_DISPATCHED } from '../src/effect-adapter.ts';
-import type { GithubJsonGet } from '../src/providers/github/rest.ts';
+import type { GitHubJsonGet } from '../src/providers/github/rest.ts';
 
 const COMMIT = 'a'.repeat(40);
 
@@ -89,12 +89,12 @@ test('production GitHub status effect derives provider coordinates from authorit
   };
   try {
     const run = define(kernel);
-    const post: GithubStatusPost = async (_token, path, body) => {
+    const post: GitHubStatusPost = async (_token, path, body) => {
       calls.push({ kind: 'post', path, body });
       assert.equal(kernel.hasUnresolvedEffect(run.id), true);
       return { status: 201, body: '{}' };
     };
-    const result = await performGithubCommitStatusEffect(kernel, run, {
+    const result = await performGitHubCommitStatusEffect(kernel, run, {
       token: 'token',
       get,
       post,
@@ -135,7 +135,7 @@ test('repository identity mismatch fails before reservation or mutation', async 
   try {
     const run = define(kernel);
     await assert.rejects(
-      performGithubCommitStatusEffect(kernel, run, {
+      performGitHubCommitStatusEffect(kernel, run, {
         token: 'token',
         get: () => repository(43),
         post: async () => {
@@ -162,7 +162,7 @@ test('missing effect grant fails before provider I/O', async () => {
   try {
     const run = define(kernel, 'other-effect');
     await assert.rejects(
-      performGithubCommitStatusEffect(kernel, run, {
+      performGitHubCommitStatusEffect(kernel, run, {
         token: 'token',
         get: () => {
           reads += 1;
@@ -192,7 +192,7 @@ test('lost broker acknowledgement survives SQLite reopen and settles from author
 
   try {
     const run = define(first);
-    await performGithubCommitStatusEffect(first, run, {
+    await performGitHubCommitStatusEffect(first, run, {
       token: 'token',
       get: () => repository(),
       post: async () => {
@@ -203,7 +203,7 @@ test('lost broker acknowledgement survives SQLite reopen and settles from author
     assert.equal(first.hasUnresolvedEffect(run.id), true);
     first.close();
 
-    const get: GithubJsonGet = (_token, path) => {
+    const get: GitHubJsonGet = (_token, path) => {
       if (path === '/repos/acme/widget') return repository();
       if (path === `/repos/acme/widget/commits/${COMMIT}/status?page=1&per_page=100`) {
         const statuses = providerState === 'success' ? [status()] : [];
@@ -257,10 +257,10 @@ test('fresh canonical GitHub HTTPS failure before secureConnect releases only th
   try {
     const first = define(kernel);
     await assert.rejects(
-      performGithubCommitStatusEffect(kernel, first, {
+      performGitHubCommitStatusEffect(kernel, first, {
         token: 'token',
         get: () => repository(),
-        post: createGithubStatusPost({
+        post: createGitHubStatusPost({
           lookup: (hostname, _options, callback) => {
             lookedUpHost = hostname;
             callback(null, '127.0.0.2', 4);
@@ -314,10 +314,10 @@ test('transport-minted NOT_DISPATCHED witness from a non-GitHub origin cannot re
   try {
     const run = define(kernel);
     await assert.rejects(
-      performGithubCommitStatusEffect(kernel, run, {
+      performGitHubCommitStatusEffect(kernel, run, {
         token: 'token',
         get: () => repository(),
-        post: createGithubStatusPost({
+        post: createGitHubStatusPost({
           baseUrl: `https://127.0.0.1:${port}`,
           rejectUnauthorized: false,
         }),
@@ -336,7 +336,7 @@ test('transport-minted NOT_DISPATCHED witness from a non-GitHub origin cannot re
 });
 
 async function assertReservationRemainsUnresolved(
-  post: GithubStatusPost,
+  post: GitHubStatusPost,
   expectedError: RegExp,
 ): Promise<void> {
   const root = mkdtempSync(join(tmpdir(), 'github-status-uncertain-'));
@@ -345,7 +345,7 @@ async function assertReservationRemainsUnresolved(
   try {
     const run = define(kernel);
     await assert.rejects(
-      performGithubCommitStatusEffect(kernel, run, {
+      performGitHubCommitStatusEffect(kernel, run, {
         token: 'token',
         get: () => repository(),
         post,
