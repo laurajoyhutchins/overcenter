@@ -185,25 +185,25 @@
         {
           "workflow": ".github/workflows/operator-project-advance.yml",
           "effects": [
-            "git-remote-ref/mutate"
+            "github-source/integrate-verified-tree/v1"
           ]
         },
         {
           "workflow": ".github/workflows/operator-project-submit.yml",
           "effects": [
-            "git-remote-ref/mutate"
+            "github-source/integrate-verified-tree/v1"
           ]
         },
         {
           "workflow": ".github/workflows/production-criticality-mutation-probe.yml",
           "effects": [
-            "git-remote-ref/mutate"
+            "github-source/integrate-verified-tree/v1"
           ]
         },
         {
           "workflow": ".github/workflows/promote-criticality-mutation-evidence.yml",
           "effects": [
-            "git-remote-ref/mutate"
+            "github-source/integrate-verified-tree/v1"
           ]
         }
       ]

@@ -1,19 +1,22 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import { API, SymbolFlags, type Symbol as TypeScriptSymbol } from 'typescript/unstable/sync';
+import {
+  repositoryRelativePath as normalizedRepoPath,
+  runtimeModuleClosure,
+} from '../src/analysis/typescript-runtime.ts';
+
 import {
   SyntaxKind,
   isCallExpression,
   isClassDeclaration,
   isEnumDeclaration,
-  isExportDeclaration,
   isFunctionDeclaration,
   isImportDeclaration,
   isIdentifier,
   isInterfaceDeclaration,
-  isStringLiteral,
   isTypeAliasDeclaration,
   isVariableStatement,
   type Node,
@@ -593,71 +596,6 @@ function symbolClosure(property: TcbProperty): SymbolClosure {
   };
 }
 
-function normalizedRepoPath(path: string): string {
-  return relative(process.cwd(), resolve(path)).replaceAll('\\\\', '/');
-}
-
-function resolveLocalImport(fromPath: string, specifier: string): string {
-  const base = resolve(dirname(resolve(fromPath)), specifier);
-  const candidates = [
-    base,
-    base.endsWith('.js') ? `${base.slice(0, -3)}.ts` : '',
-    `${base}.ts`,
-    resolve(base, 'index.ts'),
-  ].filter(Boolean);
-  const found = candidates.find((candidate) => existsSync(candidate));
-  if (!found) throw new Error(`TCB_LOCAL_IMPORT_UNRESOLVED:${fromPath}:${specifier}`);
-  return normalizedRepoPath(found);
-}
-
-function runtimeImports(path: string): { local: string[]; external: string[] } {
-  const { source } = sourceFor(path);
-  const specifiers = new Set<string>();
-
-  const addModuleSpecifier = (node: Node | undefined, error: string): void => {
-    if (!node || !isStringLiteral(node)) throw new Error(`${error}:${path}`);
-    specifiers.add(node.text);
-  };
-
-  for (const statement of source.statements) {
-    if (isImportDeclaration(statement)) {
-      if (statement.importClause?.phaseModifier === SyntaxKind.TypeKeyword) continue;
-      addModuleSpecifier(statement.moduleSpecifier, 'TCB_IMPORT_SPECIFIER_NONLITERAL');
-      continue;
-    }
-    if (isExportDeclaration(statement)) {
-      if (statement.isTypeOnly || !statement.moduleSpecifier) continue;
-      addModuleSpecifier(statement.moduleSpecifier, 'TCB_EXPORT_SPECIFIER_NONLITERAL');
-      continue;
-    }
-    if (statement.kind === SyntaxKind.ImportEqualsDeclaration) {
-      throw new Error(`TCB_IMPORT_EQUALS_UNSUPPORTED:${path}`);
-    }
-  }
-
-  const text = readFileSync(path, 'utf8');
-  const runtimeLoad = /\b(import|require)\s*\(/g;
-  for (const match of text.matchAll(runtimeLoad)) {
-    const start = match.index;
-    const tail = text.slice(start);
-    const literal = /^(import|require)\s*\(\s*(['"])([^'"]+)\2\s*\)/.exec(tail);
-    if (!literal) {
-      throw new Error(
-        `${match[1] === 'import' ? 'TCB_DYNAMIC_IMPORT_NONLITERAL' : 'TCB_REQUIRE_NONLITERAL'}:${path}`,
-      );
-    }
-    specifiers.add(literal[3] as string);
-  }
-
-  const local: string[] = [];
-  const external: string[] = [];
-  for (const specifier of specifiers) {
-    if (specifier.startsWith('.')) local.push(resolveLocalImport(path, specifier));
-    else external.push(specifier);
-  }
-  return { local, external };
-}
-
 interface HybridClosure {
   semantic_loc: number;
   files: string[];
@@ -723,26 +661,11 @@ function hybridClosure(
 }
 
 function moduleClosure(rootPaths: string[]): ModuleClosure {
-  const pending = [...new Set(rootPaths.map(normalizedRepoPath))];
-  const visited = new Set<string>();
-  const external = new Set<string>();
-
-  while (pending.length > 0) {
-    const path = pending.pop();
-    if (!path || visited.has(path)) continue;
-    visited.add(path);
-    const imports = runtimeImports(path);
-    for (const module of imports.external) external.add(module);
-    for (const dependency of imports.local) {
-      if (!visited.has(dependency)) pending.push(dependency);
-    }
-  }
-
-  const files = [...visited].sort();
+  const closure = runtimeModuleClosure(process.cwd(), rootPaths, (path) => sourceFor(path).source);
   let semanticLoc = 0;
   let bytes = 0;
   const hashes: string[] = [];
-  for (const path of files) {
+  for (const path of closure.files) {
     const text = readFileSync(path, 'utf8');
     semanticLoc += text.split('\n').filter(semanticLine).length;
     bytes += Buffer.byteLength(text);
@@ -750,11 +673,11 @@ function moduleClosure(rootPaths: string[]): ModuleClosure {
   }
 
   return {
-    files,
+    files: closure.files,
     semantic_loc: semanticLoc,
     bytes,
     sha256: createHash('sha256').update(hashes.join('\n')).digest('hex'),
-    external_modules: [...external].sort(),
+    external_modules: closure.external_modules,
   };
 }
 
