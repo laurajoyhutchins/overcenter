@@ -19,7 +19,7 @@ export const AGENT_TASK_PACKET_SCHEMA = 'overcenter-agent-task/v2' as const;
 
 type AssignmentMode = '100644' | '100755';
 
-export interface AssignmentTaskPacket extends Record<string, unknown> {
+export interface AssignmentTaskPacket {
   schema: typeof AGENT_TASK_PACKET_SCHEMA;
   kind: 'pure-candidate';
   command: string[];
@@ -27,7 +27,7 @@ export interface AssignmentTaskPacket extends Record<string, unknown> {
   output_path: string;
 }
 
-export interface AgentTaskDefinition extends Record<string, unknown> {
+export interface AgentTaskDefinition {
   schema: typeof AGENT_TASK_PACKET_SCHEMA;
   kind: 'pure-candidate';
   command: string[];
@@ -36,7 +36,7 @@ export interface AgentTaskDefinition extends Record<string, unknown> {
   output_path: string;
 }
 
-export interface AssignmentWork extends Record<string, unknown> {
+export interface AssignmentWork {
   id: string;
   revision: string;
   run_id: string;
