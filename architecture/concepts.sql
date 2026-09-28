@@ -111,6 +111,13 @@ CREATE TABLE symbol_performs_effect (
   PRIMARY KEY (symbol_id, effect_id)
 ) STRICT;
 
+CREATE TABLE symbol_dispatches_to_symbol (
+  symbol_id TEXT NOT NULL REFERENCES symbol(symbol_id) ON DELETE CASCADE,
+  implementation_symbol_id TEXT NOT NULL REFERENCES symbol(symbol_id) ON DELETE CASCADE,
+  PRIMARY KEY (symbol_id, implementation_symbol_id),
+  CHECK (symbol_id <> implementation_symbol_id)
+) STRICT;
+
 CREATE TABLE artifact_witnesses_evidence (
   artifact_id TEXT NOT NULL REFERENCES artifact(artifact_id) ON DELETE CASCADE,
   evidence_id TEXT NOT NULL REFERENCES evidence(evidence_id) ON DELETE CASCADE,
