@@ -14,6 +14,7 @@ import type {
   WorkflowTransitiveEffectFact,
   WorkflowUnresolvedDynamicCallFact,
 } from '../observation/workflow-transitive-effects.ts';
+import { assertNonEmptyString, isData } from '../validation.ts';
 import type { ObligationInput } from './facts.ts';
 
 export const ARCHITECTURE_INTENT_SCHEMA = 'overcenter-architecture-intent/v1' as const;
@@ -151,10 +152,6 @@ export interface ArchitectureReconciliationInput {
   observations: ArchitectureObservedFact[];
 }
 
-function nonEmptyString(value: unknown, error: string): asserts value is string {
-  if (typeof value !== 'string' || value.length === 0) throw new Error(error);
-}
-
 function stringArray(value: unknown, error: string): asserts value is string[] {
   if (
     !Array.isArray(value) ||
@@ -164,24 +161,41 @@ function stringArray(value: unknown, error: string): asserts value is string[] {
   }
 }
 
+function workflowGrants(
+  value: unknown,
+  field: 'permissions' | 'effects',
+  grantError: string,
+  valuesError: string,
+  emptyError: string,
+): Array<{ workflow: string; values: string[] }> {
+  if (!Array.isArray(value)) throw new Error('ARCHITECTURE_INTENT_ALLOWED_INVALID');
+  return value.map((candidate) => {
+    if (!isData(candidate)) throw new Error(grantError);
+    assertNonEmptyString(candidate.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
+    const values = candidate[field];
+    stringArray(values, valuesError);
+    if (values.length === 0) throw new Error(emptyError);
+    return {
+      workflow: candidate.workflow,
+      values: [...new Set(values)].sort(),
+    };
+  });
+}
+
 export function validateArchitectureIntent(value: unknown): ArchitectureIntent {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('ARCHITECTURE_INTENT_INVALID');
-  }
-  const record = value as Record<string, unknown>;
+  if (!isData(value)) throw new Error('ARCHITECTURE_INTENT_INVALID');
+  const record = value;
   if (record.schema !== ARCHITECTURE_INTENT_SCHEMA || !Array.isArray(record.claims)) {
     throw new Error('ARCHITECTURE_INTENT_SCHEMA_UNSUPPORTED');
   }
 
   const claims = record.claims.map((candidate): ArchitectureIntentClaim => {
-    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
-      throw new Error('ARCHITECTURE_INTENT_CLAIM_INVALID');
-    }
-    const claim = candidate as Record<string, unknown>;
-    nonEmptyString(claim.concept, 'ARCHITECTURE_INTENT_CONCEPT_INVALID');
+    if (!isData(candidate)) throw new Error('ARCHITECTURE_INTENT_CLAIM_INVALID');
+    const claim = candidate;
+    assertNonEmptyString(claim.concept, 'ARCHITECTURE_INTENT_CONCEPT_INVALID');
 
     if (claim.kind === 'authority-role') {
-      nonEmptyString(claim.authority, 'ARCHITECTURE_INTENT_AUTHORITY_INVALID');
+      assertNonEmptyString(claim.authority, 'ARCHITECTURE_INTENT_AUTHORITY_INVALID');
       stringArray(claim.projections, 'ARCHITECTURE_INTENT_PROJECTIONS_INVALID');
       stringArray(claim.verifiers, 'ARCHITECTURE_INTENT_VERIFIERS_INVALID');
       return {
@@ -194,86 +208,59 @@ export function validateArchitectureIntent(value: unknown): ArchitectureIntent {
     }
 
     if (claim.kind === 'github-actions-explicit-write-authority') {
-      if (!Array.isArray(claim.allowed)) throw new Error('ARCHITECTURE_INTENT_ALLOWED_INVALID');
-      const allowed = claim.allowed.map((candidateGrant) => {
-        if (
-          !candidateGrant ||
-          typeof candidateGrant !== 'object' ||
-          Array.isArray(candidateGrant)
-        ) {
-          throw new Error('ARCHITECTURE_INTENT_WRITE_GRANT_INVALID');
-        }
-        const grant = candidateGrant as Record<string, unknown>;
-        nonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
-        stringArray(grant.permissions, 'ARCHITECTURE_INTENT_PERMISSIONS_INVALID');
-        if (grant.permissions.length === 0) {
-          throw new Error('ARCHITECTURE_INTENT_PERMISSIONS_EMPTY');
-        }
-        return {
-          workflow: grant.workflow,
-          permissions: [...new Set(grant.permissions)].sort(),
-        };
-      });
+      const allowed = workflowGrants(
+        claim.allowed,
+        'permissions',
+        'ARCHITECTURE_INTENT_WRITE_GRANT_INVALID',
+        'ARCHITECTURE_INTENT_PERMISSIONS_INVALID',
+        'ARCHITECTURE_INTENT_PERMISSIONS_EMPTY',
+      );
       return {
-        kind: 'github-actions-explicit-write-authority',
+        kind: claim.kind,
         concept: claim.concept,
-        allowed: allowed.sort((left, right) => left.workflow.localeCompare(right.workflow)),
+        allowed: allowed
+          .map(({ workflow, values }) => ({ workflow, permissions: values }))
+          .sort((left, right) => left.workflow.localeCompare(right.workflow)),
       };
     }
 
     if (claim.kind === 'github-actions-provider-effect-authority') {
-      if (!Array.isArray(claim.allowed)) throw new Error('ARCHITECTURE_INTENT_ALLOWED_INVALID');
-      const allowed = claim.allowed.map((candidateGrant) => {
-        if (
-          !candidateGrant ||
-          typeof candidateGrant !== 'object' ||
-          Array.isArray(candidateGrant)
-        ) {
-          throw new Error('ARCHITECTURE_INTENT_EFFECT_GRANT_INVALID');
-        }
-        const grant = candidateGrant as Record<string, unknown>;
-        nonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
-        stringArray(grant.effects, 'ARCHITECTURE_INTENT_EFFECTS_INVALID');
-        if (grant.effects.length === 0) {
-          throw new Error('ARCHITECTURE_INTENT_EFFECTS_EMPTY');
-        }
-        return {
-          workflow: grant.workflow,
-          effects: [...new Set(grant.effects)].sort() as GitHubActionsProviderEffect[],
-        };
-      });
+      const allowed = workflowGrants(
+        claim.allowed,
+        'effects',
+        'ARCHITECTURE_INTENT_EFFECT_GRANT_INVALID',
+        'ARCHITECTURE_INTENT_EFFECTS_INVALID',
+        'ARCHITECTURE_INTENT_EFFECTS_EMPTY',
+      );
       return {
-        kind: 'github-actions-provider-effect-authority',
+        kind: claim.kind,
         concept: claim.concept,
-        allowed: allowed.sort((left, right) => left.workflow.localeCompare(right.workflow)),
+        allowed: allowed
+          .map(({ workflow, values }) => ({
+            workflow,
+            effects: values as GitHubActionsProviderEffect[],
+          }))
+          .sort((left, right) => left.workflow.localeCompare(right.workflow)),
       };
     }
 
     if (claim.kind === 'workflow-transitive-effect-authority') {
-      if (!Array.isArray(claim.allowed)) throw new Error('ARCHITECTURE_INTENT_ALLOWED_INVALID');
-      const allowed = claim.allowed.map((candidateGrant) => {
-        if (
-          !candidateGrant ||
-          typeof candidateGrant !== 'object' ||
-          Array.isArray(candidateGrant)
-        ) {
-          throw new Error('ARCHITECTURE_INTENT_TRANSITIVE_EFFECT_GRANT_INVALID');
-        }
-        const grant = candidateGrant as Record<string, unknown>;
-        nonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
-        stringArray(grant.effects, 'ARCHITECTURE_INTENT_EFFECTS_INVALID');
-        if (grant.effects.length === 0) {
-          throw new Error('ARCHITECTURE_INTENT_EFFECTS_EMPTY');
-        }
-        return {
-          workflow: grant.workflow,
-          effects: [...new Set(grant.effects)].sort() as WorkflowReachableProductionEffect[],
-        };
-      });
+      const allowed = workflowGrants(
+        claim.allowed,
+        'effects',
+        'ARCHITECTURE_INTENT_TRANSITIVE_EFFECT_GRANT_INVALID',
+        'ARCHITECTURE_INTENT_EFFECTS_INVALID',
+        'ARCHITECTURE_INTENT_EFFECTS_EMPTY',
+      );
       return {
-        kind: 'workflow-transitive-effect-authority',
+        kind: claim.kind,
         concept: claim.concept,
-        allowed: allowed.sort((left, right) => left.workflow.localeCompare(right.workflow)),
+        allowed: allowed
+          .map(({ workflow, values }) => ({
+            workflow,
+            effects: values as WorkflowReachableProductionEffect[],
+          }))
+          .sort((left, right) => left.workflow.localeCompare(right.workflow)),
       };
     }
 
@@ -433,9 +420,13 @@ function reconcileAuthorityRoleClaim(
   };
 }
 
-function reconcileGitHubActionsExplicitWriteClaim(
-  claim: GitHubActionsExplicitWriteAuthorityIntentClaim,
+function reconcileWorkflowFacts<TFact extends ArchitectureObservedFact & { workflow_path: string }>(
+  claim: ArchitectureIntentClaim,
   observations: ArchitectureObservedFact[],
+  facts: TFact[],
+  allowed: (fact: TFact) => boolean,
+  reasonCode: ArchitectureConflictReasonCode,
+  extraSupporting: ArchitectureObservedFact[] = [],
 ): ArchitectureResolution {
   const scan = observations.find(
     (fact): fact is GitHubActionsWorkflowScanFact => fact.kind === 'github-actions-workflow-scan',
@@ -449,6 +440,26 @@ function reconcileGitHubActionsExplicitWriteClaim(
     };
   }
 
+  const undeclared = facts.filter((fact) => !allowed(fact));
+  const supporting = [
+    scan,
+    ...facts.filter((fact) => !undeclared.includes(fact)),
+    ...extraSupporting,
+  ];
+  if (undeclared.length > 0) {
+    return conflict(claim, reasonCode, supporting, undeclared);
+  }
+  return {
+    state: 'established',
+    claim: structuredClone(claim),
+    supporting_facts: sortFacts(supporting),
+  };
+}
+
+function reconcileGitHubActionsExplicitWriteClaim(
+  claim: GitHubActionsExplicitWriteAuthorityIntentClaim,
+  observations: ArchitectureObservedFact[],
+): ArchitectureResolution {
   const writes = observations.filter(
     (fact): fact is GitHubActionsExplicitWriteCapabilityFact =>
       fact.kind === 'github-actions-explicit-write-capability',
@@ -460,44 +471,23 @@ function reconcileGitHubActionsExplicitWriteClaim(
   const allowed = new Map(
     claim.allowed.map((grant) => [grant.workflow, new Set(grant.permissions)] as const),
   );
-  const undeclared = writes.filter((fact) => {
-    const permissions = allowed.get(fact.workflow_path);
-    return !permissions || (!permissions.has(fact.permission) && !permissions.has('*'));
-  });
-
-  const supporting = [scan, ...writes.filter((fact) => !undeclared.includes(fact)), ...inherited];
-  if (undeclared.length > 0) {
-    return conflict(
-      claim,
-      'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY',
-      supporting,
-      undeclared,
-    );
-  }
-
-  return {
-    state: 'established',
-    claim: structuredClone(claim),
-    supporting_facts: sortFacts(supporting),
-  };
+  return reconcileWorkflowFacts(
+    claim,
+    observations,
+    writes,
+    (fact) => {
+      const permissions = allowed.get(fact.workflow_path);
+      return !!permissions && (permissions.has(fact.permission) || permissions.has('*'));
+    },
+    'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY',
+    inherited,
+  );
 }
 
 function reconcileGitHubActionsProviderEffectClaim(
   claim: GitHubActionsProviderEffectAuthorityIntentClaim,
   observations: ArchitectureObservedFact[],
 ): ArchitectureResolution {
-  const scan = observations.find(
-    (fact): fact is GitHubActionsWorkflowScanFact => fact.kind === 'github-actions-workflow-scan',
-  );
-  if (!scan) {
-    return {
-      state: 'unknown',
-      claim: structuredClone(claim),
-      missing_evidence: ['github-actions-workflow-scan'],
-      supporting_facts: [],
-    };
-  }
-
   const effects = observations.filter(
     (fact): fact is GitHubActionsProviderEffectInvocationFact =>
       fact.kind === 'github-actions-provider-effect-invocation',
@@ -505,25 +495,13 @@ function reconcileGitHubActionsProviderEffectClaim(
   const allowed = new Map(
     claim.allowed.map((grant) => [grant.workflow, new Set(grant.effects)] as const),
   );
-  const undeclared = effects.filter((fact) => {
-    const workflowEffects = allowed.get(fact.workflow_path);
-    return !workflowEffects || !workflowEffects.has(fact.effect);
-  });
-
-  if (undeclared.length > 0) {
-    return conflict(
-      claim,
-      'UNDECLARED_GITHUB_ACTIONS_PROVIDER_EFFECT',
-      [scan, ...effects.filter((fact) => !undeclared.includes(fact))],
-      undeclared,
-    );
-  }
-
-  return {
-    state: 'established',
-    claim: structuredClone(claim),
-    supporting_facts: sortFacts([scan, ...effects]),
-  };
+  return reconcileWorkflowFacts(
+    claim,
+    observations,
+    effects,
+    (fact) => allowed.get(fact.workflow_path)?.has(fact.effect) === true,
+    'UNDECLARED_GITHUB_ACTIONS_PROVIDER_EFFECT',
+  );
 }
 
 function reconcileWorkflowTransitiveEffectClaim(
@@ -596,7 +574,7 @@ export function reconcileArchitecture({
   observations,
 }: ArchitectureReconciliationInput): ArchitectureReconciliation {
   const intent = validateArchitectureIntent(rawIntent);
-  nonEmptyString(sourceRevision, 'ARCHITECTURE_SOURCE_REVISION_INVALID');
+  assertNonEmptyString(sourceRevision, 'ARCHITECTURE_SOURCE_REVISION_INVALID');
   for (const fact of observations) {
     if (fact.source_revision !== sourceRevision) {
       throw new Error('ARCHITECTURE_OBSERVATION_REVISION_MISMATCH');
@@ -658,7 +636,7 @@ export function architectureReconciliationWork(
   resolution: ConflictedArchitectureResolution,
   sourceRevision: string,
 ): ObligationInput {
-  nonEmptyString(sourceRevision, 'ARCHITECTURE_SOURCE_REVISION_INVALID');
+  assertNonEmptyString(sourceRevision, 'ARCHITECTURE_SOURCE_REVISION_INVALID');
   const identity = canonicalDigest({
     domain: 'overcenter-architecture-reconciliation-work',
     source_revision: sourceRevision,
