@@ -301,7 +301,10 @@ test('Kubernetes verification requires both non-empty UID and resourceVersion', 
       'empty resource version',
       kubernetesObservation(postcondition, { observed_resource_version: '' }),
     ],
-    ['uncertain certainty', kubernetesObservation(postcondition, { mutation_certainty: 'uncertain' })],
+    [
+      'uncertain certainty',
+      kubernetesObservation(postcondition, { mutation_certainty: 'uncertain' }),
+    ],
     ['absent certainty', kubernetesObservation(postcondition, { mutation_certainty: 'absent' })],
   ];
   for (const [name, observation] of invalid) {
