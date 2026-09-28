@@ -8,7 +8,6 @@ import { API, SymbolFlags, type Symbol as TypeScriptSymbol } from 'typescript/un
 import { repositoryRelativePath } from '../src/analysis/typescript-runtime.ts';
 import {
   SyntaxKind,
-  isClassDeclaration,
   isFunctionDeclaration,
   isIdentifier,
   isVariableStatement,
@@ -362,10 +361,10 @@ try {
     if (!source) throw new Error('CODE_WITNESS_SOURCE_UNAVAILABLE:' + path);
 
     for (const statement of source.statements) {
-      if (isFunctionDeclaration(statement) || isClassDeclaration(statement)) {
+      if (isFunctionDeclaration(statement)) {
         const name = (statement as Node & { name?: Node }).name;
         if (!name || !isIdentifier(name)) continue;
-        if (isFunctionDeclaration(statement) && !(statement as Node & { body?: Node }).body) {
+        if (!(statement as Node & { body?: Node }).body) {
           declarationNames.add(name);
           continue;
         }
@@ -374,9 +373,9 @@ try {
           source,
           statement,
           name,
-          isFunctionDeclaration(statement) ? 'function' : 'class',
+          'function',
           exported(statement),
-          isFunctionDeclaration(statement) ? transparentCallTarget(statement, source) : undefined,
+          transparentCallTarget(statement, source),
         );
         continue;
       }
