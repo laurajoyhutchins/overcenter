@@ -30,16 +30,12 @@ export function buildGraphIndex(state: State): GraphIndex {
   const downstreamLists = new Map<string, string[]>(ids.map((id) => [id, []]));
 
   for (const id of ids) {
-    const obligation = state.obligations[id];
-    if (!obligation) throw new Error(`UNKNOWN_OBLIGATION:${id}`);
-    const dependencies = dependencyUpstreams(obligation).sort();
+    const dependencies = dependencyUpstreams(state.obligations[id]!).sort();
     for (const dependency of dependencies) {
       if (!state.obligations[dependency]) {
         throw new Error(`UNKNOWN_DEPENDENCY:${id}:${dependency}`);
       }
-      const downstream = downstreamLists.get(dependency);
-      if (!downstream) throw new Error(`UNKNOWN_DEPENDENCY:${id}:${dependency}`);
-      downstream.push(id);
+      downstreamLists.get(dependency)!.push(id);
     }
     upstreams.set(id, dependencies);
   }
@@ -48,8 +44,7 @@ export function buildGraphIndex(state: State): GraphIndex {
   const ready = ids.filter((id) => remainingDependencies.get(id) === 0);
   const topologicalOrder: string[] = [];
   for (let cursor = 0; cursor < ready.length; cursor += 1) {
-    const id = ready[cursor];
-    if (!id) throw new Error('GRAPH_TOPOLOGY_INCONSISTENT');
+    const id = ready[cursor]!;
     topologicalOrder.push(id);
     for (const downstream of downstreamLists.get(id) ?? []) {
       const remaining = (remainingDependencies.get(downstream) ?? 0) - 1;
@@ -64,9 +59,7 @@ export function buildGraphIndex(state: State): GraphIndex {
 
   const downstreams = new Map<string, readonly string[]>();
   for (const id of ids) {
-    const downstream = downstreamLists.get(id);
-    if (!downstream) throw new Error('GRAPH_TOPOLOGY_INCONSISTENT');
-    downstreams.set(id, downstream.sort());
+    downstreams.set(id, downstreamLists.get(id)!.sort());
   }
 
   return { upstreams, downstreams, topologicalOrder };
