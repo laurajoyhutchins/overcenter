@@ -47,6 +47,12 @@ CREATE TABLE assurance_property_guards_effect (
   PRIMARY KEY (property_id, effect_id)
 ) STRICT;
 
+CREATE TABLE assurance_property_requires_effect_implementation (
+  property_id TEXT NOT NULL REFERENCES assurance_property(property_id) ON DELETE CASCADE,
+  effect_id TEXT NOT NULL REFERENCES effect(effect_id) ON DELETE CASCADE,
+  PRIMARY KEY (property_id, effect_id)
+) STRICT;
+
 CREATE TABLE effect_requires_authority (
   effect_id TEXT NOT NULL REFERENCES effect(effect_id) ON DELETE CASCADE,
   authority_id TEXT NOT NULL REFERENCES authority(authority_id) ON DELETE CASCADE,
