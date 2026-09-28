@@ -100,7 +100,9 @@ test('TCB runtime dispatch authority comes from architecture physics', () => {
       properties: Array<Record<string, unknown>>;
     };
     assert.equal(
-      policy.properties.some((property) => 'runtime_dispatch_bindings' in property),
+      policy.properties.some(
+        (property) => 'entries' in property || 'runtime_dispatch_bindings' in property,
+      ),
       false,
     );
   } finally {
