@@ -1,0 +1,55 @@
+name: Counterfactual code deletion proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: Exact unwitnessed production symbol selector, for example src/foo.ts#helper
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: Prove deletion candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SOURCE_SHA: ${{ github.sha }}
+      SYMBOL: ${{ inputs.symbol }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact source revision
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: '.node-version'
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: '.go-version'
+          cache: false
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(sed -n 's/^channel = "\([^"]*\)"$/\1/p' rust-toolchain.toml)"
+          test -n "$channel"
+          rustup toolchain install "$channel" --profile minimal --component rustfmt --no-self-update
+      - name: Install pinned TypeScript toolchain
+        run: npm install --ignore-scripts --package-lock=false
+      - name: Prove counterfactual deletion
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/overcenter-code-deletion-proof.json"
+          npm run prove:code-deletion -- --symbol "$SYMBOL" --output "$report"
+          {
+            echo '## Counterfactual code deletion'
+            echo
+            sed 's/^/    /' "$report"
+          } >> "$GITHUB_STEP_SUMMARY"
