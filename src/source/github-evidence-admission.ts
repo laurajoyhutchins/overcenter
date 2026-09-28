@@ -2,19 +2,19 @@ import { execFileSync } from 'node:child_process';
 
 import { validPath } from '../execution/assignment-capsule.ts';
 import {
-  observeCertifiedGithubSemanticRead,
-  type CertifiedGithubSemanticReadEvidence,
+  observeCertifiedGitHubSemanticRead,
+  type CertifiedGitHubSemanticReadEvidence,
 } from '../providers/github/certified-read.ts';
 import {
   githubGet,
-  isGithubObjectId,
-  sameGithubObjectId,
-  type GithubJsonGet,
+  isGitHubObjectId,
+  sameGitHubObjectId,
+  type GitHubJsonGet,
 } from '../providers/github/rest.ts';
 import { isData } from '../validation.ts';
 import { validateSourceTaskPacket, type SourceTaskPacket } from './source-obligation.ts';
 
-export interface GithubWorkflowSourceAdmissionRequest {
+export interface GitHubWorkflowSourceAdmissionRequest {
   repositoryId: number;
   repositoryFullName: string;
   designSha: string;
@@ -24,15 +24,15 @@ export interface GithubWorkflowSourceAdmissionRequest {
   workflowPath: string;
 }
 
-export interface AdmittedGithubWorkflowSourceTask {
+export interface AdmittedGitHubWorkflowSourceTask {
   task: SourceTaskPacket;
   design: {
     commit_sha: string;
     task_path: string;
     task_blob_sha: string;
   };
-  workflow_run_evidence: CertifiedGithubSemanticReadEvidence;
-  promotion_job_evidence: CertifiedGithubSemanticReadEvidence;
+  workflow_run_evidence: CertifiedGitHubSemanticReadEvidence;
+  promotion_job_evidence: CertifiedGitHubSemanticReadEvidence;
 }
 
 function positiveSafeInteger(value: unknown, error: string): asserts value is number {
@@ -56,7 +56,7 @@ function frozenSourceTask(
   ) {
     throw new Error('SOURCE_PROMOTION_TASK_PATH_INVALID');
   }
-  if (!isGithubObjectId(designSha)) throw new Error('SOURCE_PROMOTION_DESIGN_SHA_INVALID');
+  if (!isGitHubObjectId(designSha)) throw new Error('SOURCE_PROMOTION_DESIGN_SHA_INVALID');
   if (git(repo, ['cat-file', '-t', designSha]) !== 'commit') {
     throw new Error('SOURCE_PROMOTION_DESIGN_NOT_COMMIT');
   }
@@ -65,7 +65,7 @@ function frozenSourceTask(
   }
 
   const blobSha = git(repo, ['rev-parse', `${designSha}:${taskPath}`]);
-  if (!isGithubObjectId(blobSha) || git(repo, ['cat-file', '-t', blobSha]) !== 'blob') {
+  if (!isGitHubObjectId(blobSha) || git(repo, ['cat-file', '-t', blobSha]) !== 'blob') {
     throw new Error('SOURCE_PROMOTION_TASK_BLOB_INVALID');
   }
 
@@ -87,14 +87,14 @@ function requiredString(value: Record<string, unknown>, name: string, error: str
 
 function requireSuccessfulWorkflowRun(
   value: unknown,
-  request: GithubWorkflowSourceAdmissionRequest,
+  request: GitHubWorkflowSourceAdmissionRequest,
 ): number {
   if (!isData(value)) throw new Error('SOURCE_PROMOTION_WORKFLOW_RUN_INVALID');
   positiveSafeInteger(value.id, 'SOURCE_PROMOTION_WORKFLOW_RUN_ID_INVALID');
   positiveSafeInteger(value.run_attempt, 'SOURCE_PROMOTION_WORKFLOW_RUN_ATTEMPT_INVALID');
   if (value.id !== request.workflowRunId) throw new Error('SOURCE_PROMOTION_WORKFLOW_RUN_MISMATCH');
   if (
-    !sameGithubObjectId(
+    !sameGitHubObjectId(
       requiredString(value, 'head_sha', 'SOURCE_PROMOTION_WORKFLOW_RUN_INVALID'),
       request.designSha,
     )
@@ -114,7 +114,7 @@ function requireSuccessfulWorkflowRun(
 
 function requireSuccessfulPromotionJob(
   value: unknown,
-  request: GithubWorkflowSourceAdmissionRequest,
+  request: GitHubWorkflowSourceAdmissionRequest,
   runAttempt: number,
 ): void {
   if (!isData(value)) throw new Error('SOURCE_PROMOTION_WORKFLOW_JOB_INVALID');
@@ -125,7 +125,7 @@ function requireSuccessfulPromotionJob(
     value.id !== request.workflowJobId ||
     value.run_id !== request.workflowRunId ||
     value.run_attempt !== runAttempt ||
-    !sameGithubObjectId(
+    !sameGitHubObjectId(
       requiredString(value, 'head_sha', 'SOURCE_PROMOTION_WORKFLOW_JOB_INVALID'),
       request.designSha,
     ) ||
@@ -138,24 +138,24 @@ function requireSuccessfulPromotionJob(
   }
 }
 
-export function admitSourceTaskFromGithubWorkflow(
+export function admitSourceTaskFromGitHubWorkflow(
   repo: string,
   token: string,
-  request: GithubWorkflowSourceAdmissionRequest,
+  request: GitHubWorkflowSourceAdmissionRequest,
   {
     get = githubGet,
     clock = () => new Date().toISOString(),
   }: {
-    get?: GithubJsonGet;
+    get?: GitHubJsonGet;
     clock?: () => string;
   } = {},
-): AdmittedGithubWorkflowSourceTask {
+): AdmittedGitHubWorkflowSourceTask {
   positiveSafeInteger(request.workflowRunId, 'SOURCE_PROMOTION_WORKFLOW_RUN_ID_INVALID');
   positiveSafeInteger(request.workflowJobId, 'SOURCE_PROMOTION_WORKFLOW_JOB_ID_INVALID');
   if (!request.workflowPath) throw new Error('SOURCE_PROMOTION_WORKFLOW_PATH_INVALID');
 
   const frozen = frozenSourceTask(repo, request.designSha, request.taskPath);
-  const runRead = observeCertifiedGithubSemanticRead(token, {
+  const runRead = observeCertifiedGitHubSemanticRead(token, {
     repositoryId: request.repositoryId,
     repositoryFullName: request.repositoryFullName,
     operation: 'workflow_run',
@@ -170,7 +170,7 @@ export function admitSourceTaskFromGithubWorkflow(
   if (runRead.state !== 'observed') throw new Error('SOURCE_PROMOTION_WORKFLOW_RUN_NOT_SINGLE');
   const runAttempt = requireSuccessfulWorkflowRun(runRead.value, request);
 
-  const jobRead = observeCertifiedGithubSemanticRead(token, {
+  const jobRead = observeCertifiedGitHubSemanticRead(token, {
     repositoryId: request.repositoryId,
     repositoryFullName: request.repositoryFullName,
     operation: 'workflow_job',
