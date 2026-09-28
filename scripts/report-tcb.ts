@@ -10,8 +10,10 @@ import {
 
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import {
+  deriveAssurancePropertyTrustRoots,
   deriveEffectTrustRoots,
   deriveRuntimeDispatchBindings,
+  type AssurancePropertyTrustRoot,
   type EffectTrustRoot,
 } from '../src/architecture/tcb.ts';
 
@@ -77,10 +79,12 @@ interface TcbComposition {
   max_trusted_file_share?: number;
 }
 
+type TcbPolicyProperty = Omit<TcbProperty, 'entries' | 'runtime_dispatch_bindings'>;
+
 interface TcbPolicy {
   schema: 'overcenter-tcb-policy';
   schema_version: 1;
-  properties: TcbProperty[];
+  properties: TcbPolicyProperty[];
   compositions?: TcbComposition[];
 }
 
@@ -117,9 +121,11 @@ const mutationEvidenceById = new Map(mutationEvidence.probes.map((probe) => [pro
 
 const architectureDb = loadArchitectureDatabase();
 let architectureRoots: EffectTrustRoot[];
+let architecturePropertyRoots: AssurancePropertyTrustRoot[];
 let architectureDispatchBindings: RuntimeDispatchBinding[];
 try {
   architectureRoots = deriveEffectTrustRoots(architectureDb);
+  architecturePropertyRoots = deriveAssurancePropertyTrustRoots(architectureDb);
   architectureDispatchBindings = deriveRuntimeDispatchBindings(architectureDb).map((binding) => ({
     target: `${binding.target.artifact_id}#${binding.target.symbol_id.split('.').at(-1)}`,
     implementation: {
@@ -132,10 +138,50 @@ try {
   architectureDb.close();
 }
 
+const propertyRootsById = new Map<string, AssurancePropertyTrustRoot[]>();
+for (const root of architecturePropertyRoots) {
+  const roots = propertyRootsById.get(root.property_id) ?? [];
+  roots.push(root);
+  propertyRootsById.set(root.property_id, roots);
+}
+
+const measuredProperties: TcbProperty[] = policy.properties.map((property) => {
+  const roots = propertyRootsById.get(property.id) ?? [];
+  if (roots.length === 0) {
+    throw new Error(`TCB_ARCHITECTURE_PROPERTY_ROOTS_MISSING:${property.id}`);
+  }
+  const grouped = new Map<string, { path: string; symbol: string; reasons: string[] }>();
+  for (const root of roots) {
+    const key = `${root.artifact_id}\0${root.symbol_id}`;
+    const entry = grouped.get(key) ?? {
+      path: root.artifact_id,
+      symbol: root.symbol_id,
+      reasons: [],
+    };
+    entry.reasons.push(`${root.basis}:${root.requirement_id}`);
+    grouped.set(key, entry);
+  }
+  const entries = [...grouped.values()]
+    .map((entry) => ({
+      path: entry.path,
+      symbol: entry.symbol,
+      reason: [...new Set(entry.reasons)].sort().join(', '),
+    }))
+    .sort(
+      (left, right) =>
+        left.path.localeCompare(right.path) || left.symbol.localeCompare(right.symbol),
+    );
+  return {
+    ...property,
+    entries,
+    runtime_dispatch_bindings: architectureDispatchBindings,
+  };
+});
+
 const openFiles = [
   ...new Set(
     [
-      ...policy.properties.flatMap((property) => property.entries.map((entry) => entry.path)),
+      ...measuredProperties.flatMap((property) => property.entries.map((entry) => entry.path)),
       ...architectureRoots.map((root) => root.artifact_id),
       ...architectureDispatchBindings.flatMap((binding) => [
         binding.target.split('#', 1)[0]!,
@@ -714,7 +760,7 @@ function moduleClosure(rootPaths: string[]): ModuleClosure {
 
 try {
   let failed = false;
-  const reports = policy.properties.map((property) => {
+  const reports = measuredProperties.map((property) => {
     const slices = property.entries.map(sliceFor);
     const semanticLoc = uniqueSemanticLoc(slices);
     const surfaceSha256 = createHash('sha256')
@@ -726,12 +772,8 @@ try {
       )
       .digest('hex');
     const closure = moduleClosure(property.entries.map((entry) => entry.path));
-    const measuredProperty: TcbProperty = {
-      ...property,
-      runtime_dispatch_bindings: architectureDispatchBindings,
-    };
-    const symbols = symbolClosure(measuredProperty);
-    const hybrid = hybridClosure(closure, symbols, measuredProperty);
+    const symbols = symbolClosure(property);
+    const hybrid = hybridClosure(closure, symbols, property);
     const moduleFiles = new Set(closure.files);
     const symbolFilesOutsideModuleClosure = symbols.files.filter((path) => !moduleFiles.has(path));
     if (semanticLoc > property.max_semantic_loc) failed = true;
@@ -1260,7 +1302,7 @@ try {
   const report = {
     schema: 'overcenter-tcb-report',
     schema_version: 1,
-    generated_from_policy: 'tcb-policy.json',
+    generated_from: [...ARCHITECTURE_SQL_PATHS, 'tcb-policy.json'],
     architecture_tcb: architectureTcb,
     properties: reports,
     compositions,
