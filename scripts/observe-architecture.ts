@@ -5,7 +5,7 @@ import { API } from 'typescript/unstable/sync';
 
 import {
   repositoryRelativePath as normalizedRepoPath,
-  staticRuntimeImports,
+  staticLocalModuleReferences,
 } from '../src/analysis/typescript-runtime.ts';
 
 import {
@@ -42,7 +42,7 @@ function productionReferenceProbe(intent: ArchitectureIntent): ProductionReferen
       const source = project?.program.getSourceFile(absolute);
       if (!source) continue;
 
-      for (const target of staticRuntimeImports(process.cwd(), path, source).local) {
+      for (const target of staticLocalModuleReferences(process.cwd(), path, source)) {
         edges.add(`${path}\0${target}`);
       }
     }
