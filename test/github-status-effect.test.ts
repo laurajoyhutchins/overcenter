@@ -233,7 +233,7 @@ test('lost broker acknowledgement survives SQLite reopen and settles from author
       const settled = fresh.reconcile(recoveryPermit);
       assert.equal(settled.disposition, 'DONE');
       assert.equal(settled.verified, true);
-      assert.equal(fresh.inspect()[0].status, 'DONE');
+      assert.equal(fresh.inspect()[0]?.status, 'DONE');
       assert.deepEqual(
         fresh.receipts(run.id).map((receipt) => receipt.disposition),
         ['RECOVERY_REQUIRED', 'DONE'],
