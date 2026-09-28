@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { observeCertifiedGithubPullRequestIdentity } from '../src/providers/github/certified-pr.ts';
-import type { GithubJsonGet } from '../src/providers/github/rest.ts';
+import { observeCertifiedGitHubPullRequestIdentity } from '../src/providers/github/certified-pr.ts';
+import type { GitHubJsonGet } from '../src/providers/github/rest.ts';
 
 const HEAD = 'a'.repeat(40);
 const BASE = 'b'.repeat(40);
@@ -36,9 +36,9 @@ function provider({
 }: {
   repositoryBody?: unknown;
   pullBody?: unknown;
-} = {}): { get: GithubJsonGet; calls: string[] } {
+} = {}): { get: GitHubJsonGet; calls: string[] } {
   const calls: string[] = [];
-  const get: GithubJsonGet = (_token, path) => {
+  const get: GitHubJsonGet = (_token, path) => {
     calls.push(path);
     if (path === '/repos/acme/widget') return repositoryBody;
     if (path === '/repos/acme/widget/pulls/37') return pullBody;
@@ -57,7 +57,7 @@ const expected = {
 
 test('certified PR identity proves exact work snapshot', () => {
   const p = provider();
-  const result = observeCertifiedGithubPullRequestIdentity('token', {
+  const result = observeCertifiedGitHubPullRequestIdentity('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     pullNumber: 37,
@@ -78,7 +78,7 @@ test('certified PR identity proves exact work snapshot', () => {
 
 test('authoritative PR head drift is stale, not indeterminate', () => {
   const p = provider({ pullBody: pull({ head: { sha: 'c'.repeat(40) } }) });
-  const result = observeCertifiedGithubPullRequestIdentity('token', {
+  const result = observeCertifiedGitHubPullRequestIdentity('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     pullNumber: 37,
@@ -93,7 +93,7 @@ test('authoritative PR head drift is stale, not indeterminate', () => {
 
 test('stable PR entity mismatch is stale and explicit', () => {
   const p = provider({ pullBody: pull({ node_id: 'PR_other' }) });
-  const result = observeCertifiedGithubPullRequestIdentity('token', {
+  const result = observeCertifiedGitHubPullRequestIdentity('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     pullNumber: 37,
@@ -107,7 +107,7 @@ test('stable PR entity mismatch is stale and explicit', () => {
 
 test('repository identity mismatch fails closed before PR read', () => {
   const p = provider({ repositoryBody: repository({ id: 43 }) });
-  const result = observeCertifiedGithubPullRequestIdentity('token', {
+  const result = observeCertifiedGitHubPullRequestIdentity('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     pullNumber: 37,
@@ -123,7 +123,7 @@ test('repository identity mismatch fails closed before PR read', () => {
 
 test('malformed PR response fails closed', () => {
   const p = provider({ pullBody: { ...pull(), head: {} } });
-  const result = observeCertifiedGithubPullRequestIdentity('token', {
+  const result = observeCertifiedGitHubPullRequestIdentity('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     pullNumber: 37,
@@ -139,7 +139,7 @@ test('invalid expected work identity is rejected before provider access', () => 
   const p = provider();
   assert.throws(
     () =>
-      observeCertifiedGithubPullRequestIdentity('token', {
+      observeCertifiedGitHubPullRequestIdentity('token', {
         repositoryId: 42,
         repositoryFullName: 'acme/widget',
         pullNumber: 37,
