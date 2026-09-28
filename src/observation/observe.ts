@@ -215,7 +215,7 @@ function githubStatusObservation(
       }
     : {
         ...common,
-        ...(status.actual_state === undefined ? {} : { actual_state: status.actual_state }),
+        actual_state: status.actual_state!,
         mutation_certainty: 'present',
         provider_evidence: status.evidence,
       };
