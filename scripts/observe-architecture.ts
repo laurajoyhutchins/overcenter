@@ -150,7 +150,10 @@ function hasSymbol(source: SourceFile, symbolId: string): boolean {
   );
 }
 
-function observeSymbols(root: string, bindings: readonly SymbolBinding[]): ObservedArchitecture['symbols'] {
+function observeSymbols(
+  root: string,
+  bindings: readonly SymbolBinding[],
+): ObservedArchitecture['symbols'] {
   const TypeScriptBindings = bindings.filter((binding) => binding.artifact_id.endsWith('.ts'));
   if (TypeScriptBindings.length === 0) return [];
 
