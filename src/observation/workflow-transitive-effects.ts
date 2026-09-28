@@ -87,24 +87,6 @@ export function workflowTypeScriptEntrypoints(source: string): Array<{
   return entrypoints;
 }
 
-function shortestReachability(entrypoint: string): Map<string, string[]> {
-  const seen = new Map<string, string[]>([[entrypoint, [entrypoint]]]);
-  const pending = [entrypoint];
-
-  while (pending.length > 0) {
-    const current = pending.shift()!;
-    if (!existsSync(current)) continue;
-    for (const next of localImports(current)) {
-      if (seen.has(next)) continue;
-      const chain = [...seen.get(current)!, next];
-      seen.set(next, chain);
-      pending.push(next);
-    }
-  }
-
-  return seen;
-}
-
 export function observeWorkflowTransitiveEffects(
   workflowSources: Readonly<Record<string, string>>,
   sourceRevision: string,
