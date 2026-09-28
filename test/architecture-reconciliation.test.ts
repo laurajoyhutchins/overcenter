@@ -101,7 +101,11 @@ test('TCB runtime dispatch authority comes from architecture physics', () => {
     };
     assert.equal(
       policy.properties.some(
-        (property) => 'entries' in property || 'runtime_dispatch_bindings' in property,
+        (property) =>
+          'entries' in property ||
+          'runtime_dispatch_bindings' in property ||
+          'composes_with' in property ||
+          'trusted_symbol_boundaries' in property,
       ),
       false,
     );
