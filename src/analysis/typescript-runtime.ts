@@ -42,17 +42,15 @@ export function resolveLocalRuntimeImport(
   return repositoryRelativePath(found, root);
 }
 
-function staticModuleSpecifiers(
-  source: SourceFile,
-  includeTypeOnly: boolean,
-): string[] {
+function staticModuleSpecifiers(source: SourceFile, includeTypeOnly: boolean): string[] {
   const specifiers = new Set<string>();
   for (const statement of source.statements) {
     if (isImportDeclaration(statement)) {
       if (!includeTypeOnly && statement.importClause?.phaseModifier === SyntaxKind.TypeKeyword) {
         continue;
       }
-      if (isStringLiteral(statement.moduleSpecifier)) specifiers.add(statement.moduleSpecifier.text);
+      if (isStringLiteral(statement.moduleSpecifier))
+        specifiers.add(statement.moduleSpecifier.text);
       continue;
     }
     if (isExportDeclaration(statement)) {
