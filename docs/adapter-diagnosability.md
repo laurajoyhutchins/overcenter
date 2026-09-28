@@ -50,7 +50,7 @@ HTTP 502 after dispatch
     -> ambiguous-do-not-release
 ```
 
-The ambiguous cases deliberately include a candidate `release-authority` transition. That transition is a safety probe, not production behavior. The checker must produce an ambiguity witness showing why such a release would be unsafe.
+The ambiguous cases include a candidate `release-authority` transition. That transition is a safety probe, not production behavior. The checker must produce an ambiguity witness showing why such a release would be unsafe.
 
 ## Adding or changing an adapter
 

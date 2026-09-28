@@ -2,7 +2,7 @@
 
 This directory implements the finite TLA+ model proposed in [`research/tla-formal-kernel.md`](../research/tla-formal-kernel.md).
 
-It is intentionally not a model of all of Overcenter. It asks one question:
+It is not a model of all of Overcenter. It asks one question:
 
 > Under crashes, retries, stale workers, exact-revision drift, and uncertain external mutations, when may an attempted operation become verified project truth?
 
@@ -21,7 +21,7 @@ The model contains exactly:
 - durable terminal evidence;
 - `Done` as a derived predicate, never an assignment.
 
-It deliberately does not model the project DAG, provider APIs, scheduler policy, prompts, Git internals, or agent reasoning.
+It does not model the project DAG, provider APIs, scheduler policy, prompts, Git internals, or agent reasoning.
 
 ## Recovery refinement
 
@@ -57,7 +57,7 @@ This keeps recovery possible without allowing two authority epochs to own confli
 
 `TransitionKernel.cfg` checks seven invariants:
 
-- `TypeOK`: every state remains inside the deliberately finite domains.
+- `TypeOK`: every state remains inside the finite domains.
 - `MutationAuthoritySafety`: every accepted mutation crossed the boundary under current fenced authority and the exact revision.
 - `SettlementAuthoritySafety`: an accepted settlement was authorized at acceptance time.
 - `ExactRevisionEvidence`: settlement evidence names exactly the revision being settled.
@@ -69,7 +69,7 @@ No liveness property is asserted. Stuttering is explicit because this first mode
 
 ## Negative controls
 
-The model has five guard constants. The authoritative configuration enables all of them. Five deliberately broken configurations disable exactly one guard and must produce a counterexample:
+The model has five guard constants. The authoritative configuration enables all of them. Five broken configurations disable exactly one guard and must produce a counterexample:
 
 | configuration | removed guard | expected violated invariant |
 | --- | --- | --- |
@@ -83,7 +83,7 @@ The negative controls matter because a green model is weak evidence if the speci
 
 ## Resource-containment protocol model
 
-`ResourceContainment.tla` models a second, deliberately smaller safety boundary: the trusted supervisor protocol around one exact cgroup leaf.
+`ResourceContainment.tla` models a second, smaller safety boundary: the trusted supervisor protocol around one exact cgroup leaf.
 
 It does **not** model Linux CPU scheduling, memory accounting, PID accounting, Landlock, seccomp, or cgroup controller implementation. Those are exercised by the hosted kernel proof in `src/execution/confinement/proof.sh`.
 
@@ -123,7 +123,7 @@ Two negative controls are mandatory:
 | `BrokenResourceIdentity.cfg` | exact leaf-identity check | `ExactLeafAuthority` |
 | `BrokenResourceEarlyEvidence.cfg` | empty-before-evidence ordering | `FinalEvidenceSafety` |
 
-This formal layer is intentionally about protocol authority and ordering. The stronger physical claim that `memory.max`, `pids.max`, and `cpu.max` actually constrain hostile descendants requires the independent real-kernel proof.
+This formal layer is about protocol authority and ordering. The stronger physical claim that `memory.max`, `pids.max`, and `cpu.max` actually constrain hostile descendants requires the independent real-kernel proof.
 
 ## Run
 
@@ -185,7 +185,7 @@ It also does not prove eventual progress. Permanent inability to establish exter
 
 ## Asynchronous effect finality and conditional liveness
 
-`AsyncEffectKernel.tla` extends the formal boundary only where the first transition model was intentionally too coarse: an outbound request may remain able to apply after Overcenter has observed the target state as absent.
+`AsyncEffectKernel.tla` extends the formal boundary only where the first transition model was too coarse: an outbound request may remain able to apply after Overcenter has observed the target state as absent.
 
 The model separates:
 
@@ -220,11 +220,11 @@ Three negative controls remove one guarantee at a time:
 
 This makes an adapter boundary explicit: Overcenter can prevent itself from authorizing a second logical attempt, but exactly-once external execution additionally depends on provider semantics such as request idempotency, conditional mutation, or proof that the predecessor request is terminal.
 
-`RecoveryLiveness.tla` is deliberately separate from the safety model. It asks a conditional liveness question under explicit fairness assumptions: if a stable successor worker remains available, provider requests eventually resolve, authoritative observations eventually occur, and enabled recovery steps are fairly scheduled, does work eventually reach either `Done` or an explicit `Escalated` terminal classification?
+`RecoveryLiveness.tla` is separate from the safety model. It asks a conditional liveness question under explicit fairness assumptions: if a stable successor worker remains available, provider requests eventually resolve, authoritative observations eventually occur, and enabled recovery steps are fairly scheduled, does work eventually reach either `Done` or an explicit `Escalated` terminal classification?
 
 The negative control `BrokenRecoveryNoReap.cfg` disables dead-lease reclamation while keeping a stable successor available. The expected temporal counterexample demonstrates orphaned authority: the dead owner's live lease can permanently prevent the successor from acquiring authority even though every external dependency needed for progress is available.
 
-The liveness theorem is intentionally conditional. It does not claim that Overcenter can force a provider to resolve an operation, heal a permanently unavailable external dependency, or guarantee that arbitrary projects finish.
+The liveness theorem is conditional. It does not claim that Overcenter can force a provider to resolve an operation, heal a permanently unavailable external dependency, or guarantee that arbitrary projects finish.
 
 ## Scheduler conditional liveness
 
@@ -235,7 +235,7 @@ The authoritative stable-set configuration requires `TargetProgress`: once the r
 - `BrokenSchedulerUnfair.cfg` replaces the selector with fixed priority and must produce a starvation trace.
 - `SchedulerFreshFlood.cfg` retains the current fresh-first policy but abstracts an unbounded stream of newly introduced never-claimed work; it must produce a starvation trace if fresh priority can indefinitely dominate recovered work.
 
-The second case is intentionally not labeled a broken scheduler. It identifies an assumption boundary: fixed finite-set fairness does not by itself imply liveness for an open project whose higher-priority fresh class is replenished forever.
+The second case is not labeled a broken scheduler. It identifies an assumption boundary: fixed finite-set fairness does not by itself imply liveness for an open project whose higher-priority fresh class is replenished forever.
 
 ## Service-age scheduler liveness
 
@@ -245,4 +245,4 @@ For one continuously eligible target, `olderRemaining` counts the finite set of 
 
 The authoritative configuration checks `TargetProgress` under weak fairness for authority restoration, target readiness, continuing younger admissions, and scheduler steps.
 
-`BrokenServiceAgeNonMonotone.cfg` deliberately violates the essential age-order assumption by allowing later work to increase `olderRemaining`. TLC must find a temporal starvation trace. This makes the proof conditional on durable monotonic admission/claim ordinals rather than on wall-clock timing or an implicit scheduler cursor.
+`BrokenServiceAgeNonMonotone.cfg` violates the essential age-order assumption by allowing later work to increase `olderRemaining`. TLC must find a temporal starvation trace. This makes the proof conditional on durable monotonic admission/claim ordinals rather than on wall-clock timing or an implicit scheduler cursor.

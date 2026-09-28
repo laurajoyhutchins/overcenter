@@ -152,7 +152,7 @@ Identical desired states are explicitly modeled as commuting. Incompatible desir
 
 The prior hosted proof established that an authority-untrusted executor can corrupt local Git configuration, refs, kernel source, and cache without redefining the centrally committed obligation or the trusted verifier's provider coordinate.
 
-The current hosted broker is intentionally thin: provider-coordinate derivation, certified repository identity, reservation-before-POST, and the status write itself are now carried by `src/providers/github/status-effect.ts`, with SQLite crash/reopen recovery covered by `test/github-status-effect.test.ts`. This promotes only the explicit GitHub commit-status path, not provider mutation in general.
+The current hosted broker is thin: provider-coordinate derivation, certified repository identity, reservation-before-POST, and the status write itself are now carried by `src/providers/github/status-effect.ts`, with SQLite crash/reopen recovery covered by `test/github-status-effect.test.ts`. This promotes only the explicit GitHub commit-status path, not provider mutation in general.
 
 A prior hosted workflow established the credential boundary: the worker job had `contents: read` but no `statuses: write`, while a separate trusted broker owned provider write authority and execution-generation authority. Live workflow run `35389453056` at exact source revision `f8a883d6214d76b0b609eb05e3798d6238d108cc` showed the worker's authority-ref rewrite and provider status-write attempts both returning HTTP 403; the broker performed the mutation in execution generation 2; fresh recovery rotated to generation 3 and settled `DONE` from canonical GitHub readback. The current proof removes the worker-declared effect-intent echo entirely: immutable project authority carries only a versioned effect contract, and the trusted broker derives repository, commit, context, and desired state from the authoritative postcondition.
 
@@ -160,7 +160,7 @@ A prior hosted workflow established the credential boundary: the worker job had 
 
 > Destruction or corruption of disposable worker-local state does not, by itself, alter authoritative project truth.
 
-This claim is **authority confinement**: worker assertions, local state, and even externally visible worker actions are not themselves project truth. Hosted ambient-authority run `35773715692` strengthens this boundary by deliberately granting one worker `statuses: write`: the worker changed GitHub provider state (HTTP 201), but the obligation remained `EXECUTING` until a separate trusted recovery generation independently observed and settled it.
+This claim is **authority confinement**: worker assertions, local state, and even externally visible worker actions are not themselves project truth. Hosted ambient-authority run `35773715692` strengthens this boundary by granting one worker `statuses: write`: the worker changed GitHub provider state (HTTP 201), but the obligation remained `EXECUTING` until a separate trusted recovery generation independently observed and settled it.
 
 A different claim is **effect confinement**:
 
@@ -273,7 +273,7 @@ Liveness asks:
 
 > If the desired result is possible, under what assumptions will the project eventually advance?
 
-Overcenter intentionally makes weaker liveness claims than safety claims.
+Overcenter makes weaker liveness claims than safety claims.
 
 ### L1. Recovery can continue after total worker loss
 
@@ -308,7 +308,7 @@ The project may remain blocked indefinitely if:
 - a human decision never arrives;
 - a required external system remains down;
 - no authorized worker executes;
-- the graph is intentionally blocked;
+- the graph is blocked;
 - recovery evidence remains permanently ambiguous.
 
 This is deliberate.
@@ -498,7 +498,7 @@ uncertain external effect
         +-- wait for proof    -> stronger safety, possible indefinite block
 ```
 
-Overcenter intentionally chooses the second branch for consequential unresolved effects.
+Overcenter chooses the second branch for consequential unresolved effects.
 
 ### Provenance versus compaction
 

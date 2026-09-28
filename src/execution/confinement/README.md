@@ -34,11 +34,11 @@ TypeScript authority
   attempt evidence / settlement in TypeScript
 ```
 
-There is deliberately no manifest-file pathname in the production launcher contract. The trusted transport opens the workspace once with no-follow semantics, verifies that FD's device/inode against the manifest, and passes the same object on FD 3. Rust re-verifies FD 3 and never reopens the workspace pathname, so replacing that pathname after open cannot retarget the sandbox.
+There is no manifest-file pathname in the production launcher contract. The trusted transport opens the workspace once with no-follow semantics, verifies that FD's device/inode against the manifest, and passes the same object on FD 3. Rust re-verifies FD 3 and never reopens the workspace pathname, so replacing that pathname after open cannot retarget the sandbox.
 
 ## Manifest contract
 
-The manifest grammar is deliberately small and strict. `src/execution/manifest.ts` is the canonical emitter and `src/execution/confined-executor.ts` is the trusted transport.
+The manifest grammar is small and strict. `src/execution/manifest.ts` is the canonical emitter and `src/execution/confined-executor.ts` is the trusted transport.
 
 ```text
 OVERCENTER_EXEC_V1
@@ -87,7 +87,7 @@ On Linux x86-64 with Landlock ABI >= 6, the launcher:
 
 Stdin/stdout/stderr are the intentional process interface. The trusted caller closes stdin after sending the complete manifest, so the worker inherits an EOF'd input stream rather than an ambient capability.
 
-The launcher is intentionally fail-closed when required kernel mechanisms are unavailable or when the inherited scheduling class would make the declared CPU ceiling unenforceable.
+The launcher is fail-closed when required kernel mechanisms are unavailable or when the inherited scheduling class would make the declared CPU ceiling unenforceable.
 
 ### Deliberate residual boundary
 

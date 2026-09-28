@@ -45,7 +45,7 @@ The descriptor is metadata. The evidence envelope is authority-bearing only afte
 | C `foreign-ambient-status-write` | ambient write | the same mutation returns 201 with `statuses: write` |
 | hostile liar | isolated | trusted probe observes the capability present |
 
-B is intentionally narrow. It does **not** claim "no provider credentials." A 403 proves only that the tested credential lacks `github.commit-status.write` at that observation epoch.
+B is narrow. It does **not** claim "no provider credentials." A 403 proves only that the tested credential lacks `github.commit-status.write` at that observation epoch.
 
 ## Preregistered matrix
 
@@ -55,7 +55,7 @@ B is intentionally narrow. It does **not** claim "no provider credentials." A 40
 | status-write absent throughout execution | accept | reject | reject | reject |
 | controlled status-write isolation | accept | reject | reject | reject |
 
-Observed absence is weaker than controlled isolation and is deliberately non-authorizing for a mutable foreign substrate.
+Observed absence is weaker than controlled isolation and is non-authorizing for a mutable foreign substrate.
 
 ## Preregistered hostile controls
 
@@ -91,7 +91,7 @@ The hypothesis is falsified if any hostile control above is admitted, if B's poi
 
 ## Interpretation boundary
 
-A positive result supports the **evidence contract and admission algebra** for one concrete provider capability. It supports positive rejection from observed ambient authority and positive admission from controlled-isolation attestation. It deliberately does not support admission from point-in-time absence on a mutable foreign substrate.
+A positive result supports the **evidence contract and admission algebra** for one concrete provider capability. It supports positive rejection from observed ambient authority and positive admission from controlled-isolation attestation. It does not support admission from point-in-time absence on a mutable foreign substrate.
 
 The experiment also does not claim that the test harness's ephemeral Ed25519 key custody is the production attestation mechanism. Production promotion must preserve the same trust-root separation and context binding while choosing the actual attestor/key custody boundary.
 
