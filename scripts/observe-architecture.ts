@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
+import type { ObservedArchitecture } from '../src/architecture/reconciliation.ts';
+
 import { API } from 'typescript/unstable/sync';
 import {
   isClassDeclaration,
@@ -15,23 +17,6 @@ import { repositoryRelativePath as normalizedRepoPath } from '../src/analysis/ty
 import { observeGitHubActionsProviderEffects } from '../src/observation/github-actions-effects.ts';
 import { observeWorkflowTransitiveEffects } from '../src/observation/workflow-transitive-effects.ts';
 import { createTypeScriptFunctionEffectProbe } from './typescript-effect-reachability.ts';
-
-export interface ObservedArchitecture {
-  source_revision: string;
-  artifacts: Array<{ artifact_id: string }>;
-  symbols: Array<{ symbol_id: string; artifact_id: string }>;
-  principals: Array<{ principal_id: string }>;
-  principal_capabilities: Array<{ principal_id: string; capability_id: string }>;
-  principal_invocations: Array<{ principal_id: string; effect_id: string }>;
-  principal_reachability: Array<{ principal_id: string; effect_id: string }>;
-  unresolved_effect_calls: Array<{
-    principal_id: string;
-    call_site_path: string;
-    call_site_line: number;
-    call_expression_sha256: string;
-    candidate_effects: string[];
-  }>;
-}
 
 interface SymbolBinding {
   symbol_id: string;
