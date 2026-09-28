@@ -2,16 +2,15 @@ import { normalizeObligation, type ObligationInput } from '../authority/facts.ts
 import { canonicalDigest, sha256 } from '../digest.ts';
 import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import {
+  EXACT_SOURCE_PROPOSAL_CONTEXT_SCHEMA,
   SOURCE_PROPOSAL_SCHEMA,
   SOURCE_TASK_SCHEMA,
   validateSourceAssignment,
   validateSourceProposal,
   validateSourceTaskPacket,
-  type SourceClaimBinding,
   type SourceProposal,
   type SourceTaskPacket,
 } from '../source/source-obligation.ts';
-import { assertExactKeys, isData } from '../validation.ts';
 import {
   parseCodeSymbolSelector,
   validateCounterfactualDeletionProof,
@@ -19,22 +18,12 @@ import {
 } from './code-deletion-proof.ts';
 
 export const CODE_DELETION_HANDOFF_SCHEMA = 'overcenter-code-deletion-handoff/v1' as const;
-export const PROVEN_CODE_DELETION_CONTEXT_SCHEMA =
-  'overcenter-proven-code-deletion-context/v1' as const;
-
 export interface CodeDeletionHandoff {
   schema: typeof CODE_DELETION_HANDOFF_SCHEMA;
   proof: CounterfactualDeletionProof;
   proof_sha256: string;
   path: string;
   candidate_content_base64: string;
-}
-
-interface ProvenCodeDeletionContext extends Record<string, unknown> {
-  schema: typeof PROVEN_CODE_DELETION_CONTEXT_SCHEMA;
-  kind: 'proven-code-deletion';
-  proof: CounterfactualDeletionProof;
-  proof_sha256: string;
 }
 
 function canonicalBase64(value: unknown): value is string {
@@ -110,15 +99,6 @@ export function validateCodeDeletionHandoff(value: unknown): CodeDeletionHandoff
   };
 }
 
-function taskContext(proof: CounterfactualDeletionProof): ProvenCodeDeletionContext {
-  return {
-    schema: PROVEN_CODE_DELETION_CONTEXT_SCHEMA,
-    kind: 'proven-code-deletion',
-    proof,
-    proof_sha256: canonicalDigest(proof),
-  };
-}
-
 export function buildProvenCodeDeletionSourceTask(handoffValue: unknown): SourceTaskPacket {
   const handoff = validateCodeDeletionHandoff(handoffValue);
   return validateSourceTaskPacket({
@@ -127,39 +107,14 @@ export function buildProvenCodeDeletionSourceTask(handoffValue: unknown): Source
     objective: `Delete proof-backed unwitnessed production symbol ${handoff.proof.selector}.`,
     writable_paths: [handoff.path],
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
-    context: taskContext(handoff.proof),
+    context: {
+      schema: EXACT_SOURCE_PROPOSAL_CONTEXT_SCHEMA,
+      kind: 'exact-source-proposal',
+      path: handoff.path,
+      content_base64: handoff.candidate_content_base64,
+      provenance_sha256: handoff.proof_sha256,
+    },
   });
-}
-
-export function provenCodeDeletionProofFromTask(
-  taskValue: unknown,
-): CounterfactualDeletionProof | null {
-  const task = validateSourceTaskPacket(taskValue);
-  if (task.context?.kind !== 'proven-code-deletion') return null;
-  const context = task.context;
-  assertExactKeys(
-    context,
-    ['schema', 'kind', 'proof', 'proof_sha256'],
-    [],
-    'PROVEN_CODE_DELETION_CONTEXT_INVALID',
-  );
-  if (context.schema !== PROVEN_CODE_DELETION_CONTEXT_SCHEMA) {
-    throw new Error('PROVEN_CODE_DELETION_CONTEXT_SCHEMA_MISMATCH');
-  }
-  const proof = acceptedProof(context.proof);
-  if (context.proof_sha256 !== canonicalDigest(proof)) {
-    throw new Error('PROVEN_CODE_DELETION_PROOF_DIGEST_MISMATCH');
-  }
-  const parsed = parseCodeSymbolSelector(proof.selector);
-  if (
-    task.writable_paths.length !== 1 ||
-    task.writable_paths[0] !== parsed.path ||
-    task.acceptance !== undefined ||
-    task.objective !== `Delete proof-backed unwitnessed production symbol ${proof.selector}.`
-  ) {
-    throw new Error('PROVEN_CODE_DELETION_TASK_MISMATCH');
-  }
-  return proof;
 }
 
 export function compileProvenCodeDeletionObligation(handoffValue: unknown): ObligationInput {
@@ -200,34 +155,4 @@ export function buildProvenCodeDeletionSourceProposal(
     assignment.task,
     assignment.claim,
   );
-}
-
-export function validateProvenCodeDeletionProposalBinding(
-  taskValue: unknown,
-  claim: SourceClaimBinding,
-  proposalValue: unknown,
-  originalSource: Uint8Array,
-): SourceProposal | null {
-  const proof = provenCodeDeletionProofFromTask(taskValue);
-  if (!proof) return null;
-  if (claim.source_sha !== proof.source_revision) {
-    throw new Error('PROVEN_CODE_DELETION_CLAIM_SOURCE_MISMATCH');
-  }
-  if (sha256(originalSource) !== proof.source_sha256) {
-    throw new Error('PROVEN_CODE_DELETION_ORIGINAL_DIGEST_MISMATCH');
-  }
-  const proposal = validateSourceProposal(proposalValue, taskValue, claim);
-  const parsed = parseCodeSymbolSelector(proof.selector);
-  if (
-    proposal.files.length !== 1 ||
-    proposal.files[0]?.path !== parsed.path ||
-    proposal.files[0].content_base64 === null
-  ) {
-    throw new Error('PROVEN_CODE_DELETION_PROPOSAL_SHAPE_MISMATCH');
-  }
-  const candidate = Buffer.from(proposal.files[0].content_base64, 'base64');
-  if (sha256(candidate) !== proof.candidate_source_sha256) {
-    throw new Error('PROVEN_CODE_DELETION_CANDIDATE_DIGEST_MISMATCH');
-  }
-  return proposal;
 }

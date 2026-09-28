@@ -7,15 +7,17 @@ import {
   buildProvenCodeDeletionSourceProposal,
   buildProvenCodeDeletionSourceTask,
   compileProvenCodeDeletionObligation,
-  provenCodeDeletionProofFromTask,
   validateCodeDeletionHandoff,
-  validateProvenCodeDeletionProposalBinding,
 } from '../src/repository/code-deletion-handoff.ts';
 import {
   buildCounterfactualDeletionProof,
   CODE_DELETION_EVIDENCE_STEPS,
 } from '../src/repository/code-deletion-proof.ts';
-import { bindSourceClaim, buildSourceAssignment } from '../src/source/source-obligation.ts';
+import {
+  bindSourceClaim,
+  buildSourceAssignment,
+  validateSourceProposal,
+} from '../src/source/source-obligation.ts';
 
 const sourceRevision = 'a'.repeat(40);
 const candidateRevision = 'b'.repeat(40);
@@ -52,14 +54,11 @@ test('proof-backed task and proposal remain claim-bound', () => {
   const assignment = buildSourceAssignment('code-deletion:test', task, claim);
   const proposal = buildProvenCodeDeletionSourceProposal(assignment, handoff);
 
-  assert.equal(provenCodeDeletionProofFromTask(task)?.selector, 'src/example.ts#dead');
-  assert.deepEqual(
-    validateProvenCodeDeletionProposalBinding(task, claim, proposal, Buffer.from(original)),
-    proposal,
-  );
+  assert.equal(task.context?.kind, 'exact-source-proposal');
+  assert.deepEqual(validateSourceProposal(proposal, task, claim), proposal);
 });
 
-test('candidate substitution and stale original bytes fail closed', () => {
+test('candidate substitution fails the generic exact-proposal binding', () => {
   const handoff = buildCodeDeletionHandoff(proof(), candidate);
   const task = buildProvenCodeDeletionSourceTask(handoff);
   const claim = bindSourceClaim('semantic-key', 'run-1', 'authority-head', sourceRevision);
@@ -69,19 +68,8 @@ test('candidate substitution and stale original bytes fail closed', () => {
   const substituted = structuredClone(proposal);
   substituted.files[0]!.content_base64 = Buffer.from('export const live = 3;\n').toString('base64');
   assert.throws(
-    () =>
-      validateProvenCodeDeletionProposalBinding(task, claim, substituted, Buffer.from(original)),
-    /CANDIDATE_DIGEST_MISMATCH/,
-  );
-  assert.throws(
-    () =>
-      validateProvenCodeDeletionProposalBinding(
-        task,
-        claim,
-        proposal,
-        Buffer.from(original + '\n'),
-      ),
-    /ORIGINAL_DIGEST_MISMATCH/,
+    () => validateSourceProposal(substituted, task, claim),
+    /SOURCE_PROPOSAL_EXACT_BINDING_MISMATCH/,
   );
 });
 

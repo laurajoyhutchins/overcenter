@@ -3,11 +3,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
-import { parseCodeSymbolSelector } from '../repository/code-deletion-proof.ts';
-import {
-  provenCodeDeletionProofFromTask,
-  validateProvenCodeDeletionProposalBinding,
-} from '../repository/code-deletion-handoff.ts';
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
 import {
   SOURCE_CANDIDATE_SCHEMA,
@@ -314,12 +309,6 @@ export function brokerSourceProposal(
   candidate: SourceCandidate;
   publication: SourceCandidatePublicationResult;
 } {
-  const proof = provenCodeDeletionProofFromTask(taskValue);
-  if (proof) {
-    const path = parseCodeSymbolSelector(proof.selector).path;
-    const original = execFileSync('git', ['-C', repo, 'show', `${claim.source_sha}:${path}`]);
-    validateProvenCodeDeletionProposalBinding(taskValue, claim, proposalValue, original);
-  }
   const candidate = materializeSourceProposal(repo, obligationId, taskValue, claim, proposalValue);
   const publication = publishSourceCandidate(repo, taskValue, claim, candidate.commit_sha, {
     remote,

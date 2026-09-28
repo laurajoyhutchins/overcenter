@@ -5,10 +5,20 @@ export const SOURCE_TASK_SCHEMA = 'overcenter-source-task/v1' as const;
 export const SOURCE_ASSIGNMENT_SCHEMA = 'overcenter-source-assignment/v1' as const;
 export const SOURCE_PROPOSAL_SCHEMA = 'overcenter-source-proposal/v1' as const;
 export const SOURCE_CANDIDATE_SCHEMA = 'overcenter-source-candidate/v1' as const;
+export const EXACT_SOURCE_PROPOSAL_CONTEXT_SCHEMA =
+  'overcenter-exact-source-proposal/v1' as const;
 
 export interface SourceTaskAcceptance extends Record<string, unknown> {
   verifier: 'tcb-finding-absent/v1';
   finding_id: string;
+}
+
+export interface ExactSourceProposalContext extends Record<string, unknown> {
+  schema: typeof EXACT_SOURCE_PROPOSAL_CONTEXT_SCHEMA;
+  kind: 'exact-source-proposal';
+  path: string;
+  content_base64: string;
+  provenance_sha256: string;
 }
 
 export interface SourceTaskPacket extends Record<string, unknown> {
@@ -102,6 +112,38 @@ function canonicalBase64(value: unknown): value is string {
   }
 }
 
+function exactSourceProposalContext(value: unknown): ExactSourceProposalContext | null {
+  if (!isData(value) || value.kind !== 'exact-source-proposal') return null;
+  assertExactKeys(
+    value,
+    ['schema', 'kind', 'path', 'content_base64', 'provenance_sha256'],
+    [],
+    'SOURCE_TASK_EXACT_PROPOSAL_INVALID',
+  );
+  if (value.schema !== EXACT_SOURCE_PROPOSAL_CONTEXT_SCHEMA) {
+    throw new Error('SOURCE_TASK_EXACT_PROPOSAL_SCHEMA_MISMATCH');
+  }
+  if (!validSourceWritablePath(value.path)) {
+    throw new Error('SOURCE_TASK_EXACT_PROPOSAL_PATH_INVALID');
+  }
+  if (!canonicalBase64(value.content_base64)) {
+    throw new Error('SOURCE_TASK_EXACT_PROPOSAL_CONTENT_INVALID');
+  }
+  if (
+    typeof value.provenance_sha256 !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(value.provenance_sha256)
+  ) {
+    throw new Error('SOURCE_TASK_EXACT_PROPOSAL_PROVENANCE_INVALID');
+  }
+  return {
+    schema: EXACT_SOURCE_PROPOSAL_CONTEXT_SCHEMA,
+    kind: 'exact-source-proposal',
+    path: value.path,
+    content_base64: value.content_base64,
+    provenance_sha256: value.provenance_sha256,
+  };
+}
+
 export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   if (!isData(value)) throw new Error('SOURCE_TASK_INVALID');
   assertExactKeys(
@@ -154,6 +196,13 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   if (value.context !== undefined && !isData(value.context)) {
     throw new Error('SOURCE_TASK_CONTEXT_INVALID');
   }
+  const exactProposal = exactSourceProposalContext(value.context);
+  if (
+    exactProposal &&
+    (value.writable_paths.length !== 1 || value.writable_paths[0] !== exactProposal.path)
+  ) {
+    throw new Error('SOURCE_TASK_EXACT_PROPOSAL_SCOPE_MISMATCH');
+  }
 
   return {
     schema: SOURCE_TASK_SCHEMA,
@@ -162,7 +211,9 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
     writable_paths: [...value.writable_paths].sort(),
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
     ...(acceptance ? { acceptance } : {}),
-    ...(value.context === undefined ? {} : { context: structuredClone(value.context) }),
+    ...(value.context === undefined
+      ? {}
+      : { context: exactProposal ?? structuredClone(value.context) }),
   };
 }
 
@@ -295,6 +346,15 @@ export function validateSourceProposal(
   });
   if (new Set(files.map((file) => file.path)).size !== files.length) {
     throw new Error('SOURCE_PROPOSAL_PATH_DUPLICATE');
+  }
+  const exactProposal = exactSourceProposalContext(task.context);
+  if (
+    exactProposal &&
+    (files.length !== 1 ||
+      files[0]?.path !== exactProposal.path ||
+      files[0].content_base64 !== exactProposal.content_base64)
+  ) {
+    throw new Error('SOURCE_PROPOSAL_EXACT_BINDING_MISMATCH');
   }
 
   return {
