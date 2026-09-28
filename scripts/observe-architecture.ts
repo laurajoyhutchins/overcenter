@@ -1,8 +1,12 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { API } from 'typescript/unstable/sync';
-import { isExportDeclaration, isImportDeclaration, isStringLiteral } from 'typescript/unstable/ast';
+
+import {
+  repositoryRelativePath as normalizedRepoPath,
+  staticRuntimeImports,
+} from '../src/analysis/typescript-runtime.ts';
 
 import {
   type ArchitectureIntent,
@@ -15,22 +19,6 @@ import { observeWorkflowTransitiveEffects } from '../src/observation/workflow-tr
 import { createTypeScriptFunctionEffectProbe } from './typescript-effect-reachability.ts';
 
 export type ProductionReferenceProbe = (fromPath: string, toPath: string) => boolean;
-
-function normalizedRepoPath(path: string): string {
-  return relative(process.cwd(), resolve(path)).replaceAll('\\', '/');
-}
-
-function resolveLocalReference(fromPath: string, specifier: string): string | null {
-  const base = resolve(dirname(resolve(fromPath)), specifier);
-  const candidates = [
-    base,
-    base.endsWith('.js') ? `${base.slice(0, -3)}.ts` : '',
-    `${base}.ts`,
-    resolve(base, 'index.ts'),
-  ].filter(Boolean);
-  const found = candidates.find((candidate) => existsSync(candidate));
-  return found ? normalizedRepoPath(found) : null;
-}
 
 function productionReferenceProbe(intent: ArchitectureIntent): ProductionReferenceProbe {
   const paths = [
@@ -54,17 +42,8 @@ function productionReferenceProbe(intent: ArchitectureIntent): ProductionReferen
       const source = project?.program.getSourceFile(absolute);
       if (!source) continue;
 
-      for (const statement of source.statements) {
-        const moduleSpecifier = isImportDeclaration(statement)
-          ? statement.moduleSpecifier
-          : isExportDeclaration(statement)
-            ? statement.moduleSpecifier
-            : undefined;
-        if (!moduleSpecifier || !isStringLiteral(moduleSpecifier)) continue;
-        if (!moduleSpecifier.text.startsWith('.')) continue;
-
-        const target = resolveLocalReference(path, moduleSpecifier.text);
-        if (target) edges.add(`${path}\0${target}`);
+      for (const target of staticRuntimeImports(process.cwd(), path, source).local) {
+        edges.add(`${path}\0${target}`);
       }
     }
   } finally {
