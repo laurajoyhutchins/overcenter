@@ -55,8 +55,8 @@ The experimental receipt is not a production receipt schema. It tests whether th
 5. **Evidence-first crash window.** Publication without authority append leaves an orphan object but no authoritative output.
 6. **Writer race.** Two valid outputs published from one expected authority head may both create immutable evidence objects, but exactly one authority CAS wins and only that winner determines downstream identity.
 7. **Referenced evidence corruption.** If bytes at an authoritative EvidenceRef are missing or corrupt, downstream consumption fails closed.
-8. **Unsafe self-declared identity control.** A unsafe scheme that trusts a worker-declared digest permits two distinct artifacts to collide semantically and must be killed by the treatment.
-9. **Unsafe authority-first control.** A unsafe authority-first ordering can create a dangling authoritative reference and must be killed by the treatment.
+8. **Unsafe self-declared identity control.** An unsafe scheme that trusts a worker-declared digest permits two distinct artifacts to collide semantically and must be killed by the treatment.
+9. **Unsafe authority-first control.** An unsafe authority-first ordering can create a dangling authoritative reference and must be killed by the treatment.
 
 ## Reproduce
 
