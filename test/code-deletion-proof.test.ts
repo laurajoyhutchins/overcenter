@@ -112,7 +112,6 @@ test('proof validation rejects forged success over failed evidence', () => {
   assert.throws(() => validateCounterfactualDeletionProof(forged), /RESULT_MISMATCH/);
 });
 
-
 test('proof success requires the exact deterministic evidence contract', () => {
   assert.throws(
     () =>

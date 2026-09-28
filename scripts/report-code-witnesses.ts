@@ -365,10 +365,7 @@ try {
       if (isFunctionDeclaration(statement) || isClassDeclaration(statement)) {
         const name = (statement as Node & { name?: Node }).name;
         if (!name || !isIdentifier(name)) continue;
-        if (
-          isFunctionDeclaration(statement) &&
-          !(statement as Node & { body?: Node }).body
-        ) {
+        if (isFunctionDeclaration(statement) && !(statement as Node & { body?: Node }).body) {
           declarationNames.add(name);
           continue;
         }
