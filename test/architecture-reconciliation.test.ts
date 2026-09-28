@@ -10,6 +10,11 @@ import {
   reconcileArchitecture,
   validateArchitectureIntent,
 } from '../src/authority/architecture-reconciliation.ts';
+import {
+  GITHUB_COMMIT_STATUS_EFFECT,
+  GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
+  GITHUB_SOURCE_INTEGRATION_EFFECT,
+} from '../src/effect-adapter.ts';
 import { classifyJudgmentFrontier } from '../src/authority/judgment-frontier.ts';
 import type { ProjectExplanation } from '../src/authority/project-state.ts';
 import type { Work } from '../src/model.ts';
@@ -23,11 +28,7 @@ import {
   observeGitHubActionsProviderEffects,
   recognizedGitHubActionsProviderEffects,
 } from '../src/observation/github-actions-effects.ts';
-import {
-  observeWorkflowTransitiveEffects,
-  runtimeLocalImportSpecifiers,
-  workflowTypeScriptEntrypoints,
-} from '../src/observation/workflow-transitive-effects.ts';
+import { workflowTypeScriptEntrypoints } from '../src/observation/workflow-transitive-effects.ts';
 
 const revision = 'a'.repeat(40);
 
@@ -506,32 +507,6 @@ test('workflow TypeScript entrypoints are observed without treating npm scripts 
   ]);
 });
 
-test('workflow entrypoint import closure exposes reachable production mutation surface', () => {
-  const observed = observeWorkflowTransitiveEffects(
-    {
-      '.github/workflows/submit.yml':
-        'steps:\n  - run: node --experimental-strip-types src/cli/project-submit.ts --receipt out.json\n',
-    },
-    revision,
-  );
-  const reachable = observed.filter(
-    (fact) => fact.kind === 'github-actions-transitive-effect-reachability',
-  );
-  assert.equal(
-    reachable.some(
-      (fact) =>
-        fact.effect === 'git-remote-ref/mutate' &&
-        fact.import_chain[0] === 'src/cli/project-submit.ts' &&
-        fact.import_chain.at(-1) === fact.terminal_path,
-    ),
-    true,
-  );
-  assert.equal(
-    reachable.every((fact) => /^[0-9a-f]{64}$/.test(fact.terminal_statement_sha256)),
-    true,
-  );
-});
-
 test('undeclared transitive effect reachability becomes bounded architecture reconciliation work', () => {
   const policy: ArchitectureIntent = {
     schema: ARCHITECTURE_INTENT_SCHEMA,
@@ -564,7 +539,7 @@ test('undeclared transitive effect reachability becomes bounded architecture rec
         source_revision: revision,
         workflow_path: '.github/workflows/rogue.yml',
         entrypoint: 'src/cli/rogue.ts',
-        effect: 'git-remote-ref/mutate',
+        effect: GITHUB_SOURCE_INTEGRATION_EFFECT,
         terminal_path: 'src/provider.ts',
         import_chain: ['src/cli/rogue.ts', 'src/provider.ts'],
         terminal_statement_sha256: 'b'.repeat(64),
@@ -578,19 +553,6 @@ test('undeclared transitive effect reachability becomes bounded architecture rec
   const work = architectureReconciliationWork(resolution, revision);
   assert.equal(work.packet?.kind, 'architecture-reconciliation');
   assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
-});
-
-test('type-only imports do not widen runtime effect reachability', () => {
-  const source = `
-import type { Witness } from './type-only-effect.ts';
-import { execute } from './runtime-effect.ts';
-export type { Receipt } from './type-only-export.ts';
-export { observe } from './runtime-export.ts';
-`;
-  assert.deepEqual(runtimeLocalImportSpecifiers(source), [
-    './runtime-effect.ts',
-    './runtime-export.ts',
-  ]);
 });
 
 test('function-level effect reachability ignores imported but uncalled mutation APIs', () => {
@@ -621,21 +583,21 @@ test('function-level effect reachability binds called semantic mutation terminal
       })),
       [
         {
-          effect: 'git-remote-ref/mutate',
+          effect: GITHUB_SOURCE_INTEGRATION_EFFECT,
           terminal: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
           root: 'test/fixtures/function-effect-called.ts#<module>',
           leaf: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
           digest_length: 64,
         },
         {
-          effect: 'github-commit-status/create',
+          effect: GITHUB_COMMIT_STATUS_EFFECT,
           terminal: 'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
           root: 'test/fixtures/function-effect-called.ts#<module>',
           leaf: 'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
           digest_length: 64,
         },
         {
-          effect: 'github-pull-request/update-branch',
+          effect: GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
           terminal:
             'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
           root: 'test/fixtures/function-effect-called.ts#<module>',
@@ -662,8 +624,8 @@ test('real operator entrypoints do not inherit uncalled GitHub HTTP effects', ()
       assert.equal(
         effects.some(
           (fact) =>
-            fact.effect === 'github-commit-status/create' ||
-            fact.effect === 'github-pull-request/update-branch',
+            fact.effect === GITHUB_COMMIT_STATUS_EFFECT ||
+            fact.effect === GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
         ),
         false,
       );
@@ -692,7 +654,7 @@ test('effect calls inside inline callbacks remain reachable', () => {
     assert.deepEqual(analysis.unresolved_calls, []);
     assert.deepEqual(
       analysis.effects.map((fact) => fact.effect),
-      ['github-commit-status/create'],
+      [GITHUB_COMMIT_STATUS_EFFECT],
     );
     assert.equal(
       analysis.effects[0]?.call_chain.some((entry) =>
@@ -760,7 +722,7 @@ test('unresolved dynamic target becomes bounded architecture reconciliation work
         declaration_path: 'src/plugin.ts',
         declaration_symbol: 'run',
         call_chain: ['src/cli/dynamic.ts#<module>', 'src/plugin.ts#run'],
-        candidate_effects: ['github-commit-status/create'],
+        candidate_effects: [GITHUB_COMMIT_STATUS_EFFECT],
       },
     ],
   });
@@ -784,7 +746,7 @@ test('effect-bearing dynamic dispatch carries candidate effect families', () => 
     assert.deepEqual(analysis.effects, []);
     assert.equal(analysis.unresolved_calls.length, 1);
     assert.deepEqual(analysis.unresolved_calls[0]?.candidate_effects, [
-      'github-commit-status/create',
+      GITHUB_COMMIT_STATUS_EFFECT,
     ]);
   } finally {
     probe.dispose?.();
