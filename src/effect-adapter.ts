@@ -173,6 +173,9 @@ export const EFFECT_IMPLEMENTATION_BINDINGS = [
   },
 ] as const satisfies readonly EffectImplementationBinding[];
 
+export type RegisteredEffectImplementationContract =
+  (typeof EFFECT_IMPLEMENTATION_BINDINGS)[number]['effect_contract'];
+
 for (const capabilities of EFFECT_ADAPTER_CAPABILITIES) {
   validateEffectAdapterCapabilities(capabilities);
 }
