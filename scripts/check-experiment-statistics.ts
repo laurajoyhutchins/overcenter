@@ -8,7 +8,6 @@ const registry = JSON.parse(readFileSync('experiments/registry.json', 'utf8')) a
 };
 
 const statisticalEntries = new Set([
-  'core-loop-concurrency',
   'production-latency',
   'recovery-agent-search',
   'recovery-agent-refinement',
