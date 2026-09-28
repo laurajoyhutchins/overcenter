@@ -20,8 +20,8 @@ import {
   parseCodeSymbolSelector,
   selectCounterfactualDeletion,
   type CounterfactualEvidenceStep,
-} from '../src/repository/code-deletion-proof.ts';
-import { buildCodeDeletionHandoff } from '../src/repository/code-deletion-handoff.ts';
+} from './lib/code-deletion-proof.ts';
+import { buildCodeDeletionHandoff } from './lib/code-deletion-handoff.ts';
 import type { CodeWitnessReport } from '../src/repository/code-witness.ts';
 
 function argValue(name: string): string | null {

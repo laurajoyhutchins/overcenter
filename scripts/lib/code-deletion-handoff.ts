@@ -1,6 +1,6 @@
-import { normalizeObligation, type ObligationInput } from '../authority/facts.ts';
-import { canonicalDigest, sha256 } from '../digest.ts';
-import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
+import { normalizeObligation, type ObligationInput } from '../../src/authority/facts.ts';
+import { canonicalDigest, sha256 } from '../../src/digest.ts';
+import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../../src/effect-adapter.ts';
 import {
   SOURCE_PROPOSAL_SCHEMA,
   SOURCE_TASK_SCHEMA,
@@ -9,8 +9,8 @@ import {
   validateSourceTaskPacket,
   type SourceProposal,
   type SourceTaskPacket,
-} from '../source/source-obligation.ts';
-import { assertExactKeys, isData } from '../validation.ts';
+} from '../../src/source/source-obligation.ts';
+import { assertExactKeys, isData } from '../../src/validation.ts';
 import {
   parseCodeSymbolSelector,
   validateCounterfactualDeletionProof,

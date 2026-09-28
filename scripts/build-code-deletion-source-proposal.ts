@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from 'node:fs';
 
-import { buildProvenCodeDeletionSourceProposal } from '../src/repository/code-deletion-handoff.ts';
+import { buildProvenCodeDeletionSourceProposal } from './lib/code-deletion-handoff.ts';
 
 function argValue(name: string): string {
   const index = process.argv.indexOf(name);

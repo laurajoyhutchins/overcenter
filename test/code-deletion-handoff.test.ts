@@ -8,11 +8,11 @@ import {
   buildProvenCodeDeletionSourceTask,
   compileProvenCodeDeletionObligation,
   validateCodeDeletionHandoff,
-} from '../src/repository/code-deletion-handoff.ts';
+} from '../scripts/lib/code-deletion-handoff.ts';
 import {
   buildCounterfactualDeletionProof,
   CODE_DELETION_EVIDENCE_STEPS,
-} from '../src/repository/code-deletion-proof.ts';
+} from '../scripts/lib/code-deletion-proof.ts';
 import { bindSourceClaim, buildSourceAssignment } from '../src/source/source-obligation.ts';
 
 const sourceRevision = 'a'.repeat(40);

@@ -7,7 +7,7 @@ import {
   parseCodeSymbolSelector,
   selectCounterfactualDeletion,
   validateCounterfactualDeletionProof,
-} from '../src/repository/code-deletion-proof.ts';
+} from '../scripts/lib/code-deletion-proof.ts';
 import type { CodeWitnessReport } from '../src/repository/code-witness.ts';
 
 const revision = 'a'.repeat(40);

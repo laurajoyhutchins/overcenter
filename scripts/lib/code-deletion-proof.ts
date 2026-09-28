@@ -1,5 +1,5 @@
-import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
-import type { CodeWitnessFinding, CodeWitnessReport } from './code-witness.ts';
+import { assertExactKeys, assertNonEmptyString, isData } from '../../src/validation.ts';
+import type { CodeWitnessFinding, CodeWitnessReport } from '../../src/repository/code-witness.ts';
 
 export const CODE_DELETION_PROOF_SCHEMA = 'overcenter-code-deletion-proof/v1' as const;
 export const CODE_DELETION_EVIDENCE_STEPS = [
