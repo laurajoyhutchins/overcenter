@@ -80,7 +80,7 @@ See [`results/2026-09-20.md`](./results/2026-09-20.md). The cleaned exact-head r
 
 This answers the bounded question, "What does one successful transaction cost?" It can show whether Overcenter local bookkeeping is material relative to provider I/O.
 
-It deliberately does **not** answer:
+It does **not** answer:
 
 - throughput under many concurrent workers;
 - large-history projection cost;

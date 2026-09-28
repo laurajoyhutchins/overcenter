@@ -69,7 +69,7 @@ The Unix socket must live in a dedicated directory that the task UID/GID cannot 
 
 Before any computation command is accepted as production-ready, the socket peer emits exactly one `overcenter-executor-hello-v1` record containing the trusted execution-context digest and containment-domain id supplied at executor launch. The TypeScript client compares those values with the authority-side expected values before it may claim or rotate replayable computation authority. A socket peer that cannot produce the exact hello fails closed.
 
-The replay-safe execution-context digest covers the immutable executor image identity, exact source revision, task UID/GID, and the enforced containment profile. The containment id is intentionally separate and changes between disposable worker instances.
+The replay-safe execution-context digest covers the immutable executor image identity, exact source revision, task UID/GID, and the enforced containment profile. The containment id is separate and changes between disposable worker instances.
 
 
 `--unsafe-test-same-uid` is an explicit escape hatch for local protocol tests and is accepted only with `--stdio`. Production socket mode has no same-UID escape hatch: it requires explicit distinct task credentials and fails closed otherwise.
@@ -88,7 +88,7 @@ If the executor transport dies, TypeScript records an interrupted-execution rece
 
 ## Recovery
 
-Executor state is intentionally ephemeral. A client disconnect cancels local work and ends that executor lifetime.
+Executor state is ephemeral. A client disconnect cancels local work and ends that executor lifetime.
 
 Recovery does not reconstruct an in-memory queue. Overcenter re-reads durable facts and either:
 
@@ -105,7 +105,7 @@ If orphan attribution becomes ambiguous while other top-level tasks are still ac
 
 If the executor itself is SIGKILLed, none of this local cleanup is available. Linux `Pdeathsig` protects the direct child, but arbitrary detached descendants are not trusted to disappear.
 
-Therefore the worker container is the outer containment boundary. CI deliberately kills the executor while a detached hostile grandchild survives, then asserts that destroying the worker container removes every remaining host process from that container.
+Therefore the worker container is the outer containment boundary. CI kills the executor while a detached hostile grandchild survives, then asserts that destroying the worker container removes every remaining host process from that container.
 
 ## Wire contract
 

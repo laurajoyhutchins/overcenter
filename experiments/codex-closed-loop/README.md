@@ -53,7 +53,7 @@ A passing run must demonstrate all of the following in one workflow execution:
 
 A positive result establishes that the reasoning worker can be disposable while execution truth remains outside it. It is the smallest physical closed loop from claimed Overcenter work through uncertain implementation to independently verified GitHub reality.
 
-The witness is intentionally trivial. It isolates the transaction boundary before substituting a real maintenance issue.
+The witness is trivial. It isolates the transaction boundary before substituting a real maintenance issue.
 
 ## Non-claims
 

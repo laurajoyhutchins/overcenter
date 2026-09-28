@@ -4,7 +4,7 @@
 
 This note asks whether Overcenter's transaction and recovery machinery is small enough to specify usefully in TLA+ or another lightweight formal method.
 
-The goal is deliberately narrow.
+The goal is narrow.
 
 Do **not** attempt to formally specify:
 
@@ -59,7 +59,7 @@ known outcome       uncertain outcome
 
 ## Implementation status
 
-The first executable model now lives in [`formal/TransitionKernel.tla`](../formal/TransitionKernel.tla), with an authoritative TLC configuration, five deliberately broken negative-control configurations, and a reproducible runner in [`formal/check.sh`](../formal/check.sh).
+The first executable model now lives in [`formal/TransitionKernel.tla`](../formal/TransitionKernel.tla), with an authoritative TLC configuration, five broken negative-control configurations, and a reproducible runner in [`formal/check.sh`](../formal/check.sh).
 
 The implementation preserves the boundary proposed below: two workers, two exact revisions, one transition, one external effect, separate external truth and mutation knowledge, fenced authority, verification, settlement, recovery, durable evidence, and derived `Done`.
 
@@ -187,7 +187,7 @@ Reference:
 
 - Leslie Lamport, TLA+ Tools: https://lamport.azurewebsites.net/tla/tools.html
 
-TLC is the recommended first checker because this model should remain intentionally tiny and finite.
+TLC is the recommended first checker because this model should remain tiny and finite.
 
 Apalache is a useful secondary option if the state space later becomes awkward for explicit enumeration. Apalache translates TLA+ checking problems into SMT constraints and supports bounded model checking and inductiveness checking.
 
@@ -306,7 +306,7 @@ settlementFence    = 0 | 1 | 2
 evidenceValid     = TRUE | FALSE
 ```
 
-This is intentionally redundant in a few places.
+This is redundant in a few places.
 
 The point of the first model is clarity and counterexamples, not minimum variable count.
 
@@ -740,7 +740,7 @@ A theorem over exact durable facts is much harder to lie about.
 
 ## Failure scenarios worth model-checking
 
-The model is valuable only if it deliberately generates ugly traces.
+The model is valuable only if it generates ugly traces.
 
 The following scenarios are the minimum useful suite.
 
@@ -1203,7 +1203,7 @@ NoStaleSettlement ==
 ==========================================================
 ```
 
-This is intentionally illustrative rather than ready-to-run syntax.
+This is illustrative rather than ready-to-run syntax.
 
 The implementation should be designed for readability by Overcenter contributors, not clever TLA+ compression.
 
@@ -1237,10 +1237,10 @@ A useful first milestone is reached when all of the following are true:
 6. Settlement can succeed while its acknowledgement is lost.
 7. Recovery can resume from durable state without hidden worker memory.
 8. The seven safety invariants pass under TLC for the finite configuration.
-9. Deliberately broken variants produce counterexamples for stale settlement, blind replay, and revision-attribution bugs.
+9. Broken variants produce counterexamples for stale settlement, blind replay, and revision-attribution bugs.
 10. DONE is represented as a derived validity condition rather than trusted worker intent.
 
-The deliberately broken variants are important.
+The broken variants are important.
 
 A formal model that only says "no error found" is much less convincing than a model where removing a fence check or exact-revision check immediately causes TLC to produce the expected bad trace.
 
@@ -1395,7 +1395,7 @@ worker loop:
     settle
 ```
 
-But the kernel is fundamentally a set of concurrent state transitions with crashes and environment actions.
+But the kernel is a set of concurrent state transitions with crashes and environment actions.
 
 Raw TLA+ actions are therefore likely clearer than encoding the system as imperative worker programs.
 
@@ -1683,7 +1683,7 @@ That is both meaningful and tractable.
 
 ## Implemented repository shape
 
-The first model is implemented with the following deliberately small structure:
+The first model is implemented with the following small structure:
 
 ```text
 formal/
@@ -1724,7 +1724,7 @@ DONE predicate
 
 ### Phase 2: prove the model is capable of failing
 
-Deliberately remove:
+Remove:
 
 ```text
 fence check

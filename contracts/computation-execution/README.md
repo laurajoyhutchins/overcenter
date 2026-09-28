@@ -46,7 +46,7 @@ The executor decodes and verifies the bytes before parsing `overcenter-process-s
 
 ## Process spec
 
-The process spec is intentionally restrictive:
+The process spec is restrictive:
 
 - absolute executable path
 - argv array, never a shell command string

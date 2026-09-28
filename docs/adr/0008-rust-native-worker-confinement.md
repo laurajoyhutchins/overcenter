@@ -59,8 +59,8 @@ Rejected. Filesystem/process confinement does not grant or interpret provider au
 
 ## Consequences
 
-- Supported hosts for this launcher are deliberately Linux x86-64, must provide Landlock ABI >= 6 and the required seccomp behavior, and must invoke the launcher without uid 0, switchable saved credentials, ambient process capabilities, or a realtime/deadline scheduling policy. Only `SCHED_OTHER`, `SCHED_BATCH`, and `SCHED_IDLE` are admitted because `cpu.max` is a fair-class bandwidth limit.
-- The trusted transport must supply the exact workspace directory on FD 3; pathname replacement after that open is intentionally irrelevant.
+- Supported hosts for this launcher are Linux x86-64, must provide Landlock ABI >= 6 and the required seccomp behavior, and must invoke the launcher without uid 0, switchable saved credentials, ambient process capabilities, or a realtime/deadline scheduling policy. Only `SCHED_OTHER`, `SCHED_BATCH`, and `SCHED_IDLE` are admitted because `cpu.max` is a fair-class bandwidth limit.
+- The trusted transport must supply the exact workspace directory on FD 3; pathname replacement after that open is irrelevant.
 - Program/runtime files are explicit immutable regular-file execution-closure inputs, not blanket access to `/usr` or `/etc`; aliases are de-duplicated by opened inode identity.
 - Writable workspace authority excludes blanket execute, special-device/socket-node creation, device ioctls, and pathname-Unix-socket resolution.
 - Landlock does not currently provide pathname-metadata confidentiality or advisory-lock isolation, and the launcher does not claim either.

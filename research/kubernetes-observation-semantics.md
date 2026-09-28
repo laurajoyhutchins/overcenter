@@ -4,7 +4,7 @@
 
 Can the observation / structural-certificate / fact architecture discovered with GitHub represent Kubernetes without growing a second provider semantics engine?
 
-This experiment deliberately uses one namespace and ConfigMaps only. It is a falsification of the architecture, not the beginning of a Kubernetes integration layer.
+This experiment uses one namespace and ConfigMaps only. It is a falsification of the architecture, not the beginning of a Kubernetes integration layer.
 
 ## Provider contract established first
 
@@ -74,7 +74,7 @@ same coordinate
 
 `A != B` is a different entity lifetime even though the coordinate is unchanged.
 
-A changed resourceVersion for the same UID is a changed state identity. The implementation intentionally does not define `R2 > R1`; resourceVersion is opaque.
+A changed resourceVersion for the same UID is a changed state identity. The implementation does not define `R2 > R1`; resourceVersion is opaque.
 
 ## Structural validation result
 
@@ -203,7 +203,7 @@ The live proof adds real API discovery, OpenAPI `$ref` resolution, real GET muta
 
 ## Complexity accounting
 
-This branch is intentionally based on current `main`, while the more complete structural-certificate implementation is still isolated in draft PR #19. That means source reuse cannot yet be represented as an import without stacking the experiments.
+This branch is based on current `main`, while the more complete structural-certificate implementation is still isolated in draft PR #19. That means source reuse cannot yet be represented as an import without stacking the experiments.
 
 Gross new experiment LOC at the first complete implementation:
 

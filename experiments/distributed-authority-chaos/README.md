@@ -22,7 +22,7 @@ fresh recovery controller
 DONE
 ```
 
-That is strong safety evidence but weak endurance evidence. This experiment deliberately does **not** repeat the provider-general mutation claim. It isolates the authority/recovery machinery and tries to make controller continuity irrelevant over many transitions.
+That is strong safety evidence but weak endurance evidence. This experiment does **not** repeat the provider-general mutation claim. It isolates the authority/recovery machinery and tries to make controller continuity irrelevant over many transitions.
 
 ## Preregistered treatment
 
@@ -54,7 +54,7 @@ After three injected-failure waves, one entirely fresh sweeper may take at most 
 
 ## Observation fixture
 
-The postcondition is a stable local-file observation recreated independently in each fresh controller environment. It is intentionally boring.
+The postcondition is a stable local-file observation recreated independently in each fresh controller environment. It is boring.
 
 That choice keeps the experiment about authority continuity:
 

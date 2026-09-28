@@ -167,7 +167,7 @@ Reference:
 
 - Git push: https://git-scm.com/docs/git-push
 
-The naming is nevertheless useful prior art because it highlights two different concepts that Overcenter should keep separate:
+The naming is useful prior art because it distinguishes two concepts that Overcenter should keep separate:
 
 ```text
 Overcenter temporal lease
@@ -562,7 +562,7 @@ Assessment: **native stronger primitive exists**.
 
 Where an Overcenter hash exists only to represent the exact repository revision, the Git OID is already the canonical content-addressed identity.
 
-Semantic fingerprints should remain when they intentionally describe domain semantics rather than exact repository bytes.
+Semantic fingerprints should remain when they describe domain semantics rather than exact repository bytes.
 
 Assessment: **potential duplicate identifier, depending on purpose**.
 
@@ -665,7 +665,7 @@ Overcenter should not rebuild these at a weaker semantic layer.
 
 ## 15. What remains genuinely Overcenter's job
 
-Git deliberately does not solve several problems that define Overcenter's actual product value:
+Git does not solve several problems that define Overcenter's actual product value:
 
 ```text
                     Git
@@ -711,4 +711,4 @@ The design pressure should be:
 4. use atomic multi-ref updates when repository-local state must move together;
 5. preserve Overcenter's fencing, evidence, settlement, and recovery machinery only where Git's transaction boundary actually ends.
 
-That sharpens Overcenter's role from a second transaction implementation for Git into the higher-level system Git is intentionally not: **a transaction, evidence, and recovery layer spanning repository state, agent authority, time, and external systems.**
+That sharpens Overcenter's role from a second transaction implementation for Git into the higher-level system Git is not: **a transaction, evidence, and recovery layer spanning repository state, agent authority, time, and external systems.**

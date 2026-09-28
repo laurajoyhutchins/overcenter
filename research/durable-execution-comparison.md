@@ -202,7 +202,7 @@ Overcenter asks the next question:
 
 > If the operation was interrupted, can authoritative provider evidence establish whether its intended effect is present or absent?
 
-When the answer is yes, reconciliation can convert uncertainty into a safe terminal or replayable state. When the answer remains unknown, Overcenter deliberately preserves uncertainty rather than silently choosing retry.
+When the answer is yes, reconciliation can convert uncertainty into a safe terminal or replayable state. When the answer remains unknown, Overcenter preserves uncertainty rather than silently choosing retry.
 
 ### AWS sources
 
@@ -274,7 +274,7 @@ therefore
 
 ### 4. Replay requires authoritative negative evidence
 
-Overcenter's recovery rule is intentionally asymmetric:
+Overcenter's recovery rule is asymmetric:
 
 ```text
 verified desired effect present
@@ -309,7 +309,7 @@ Durable replay identity alone does not imply both checks.
 
 ### 6. Settlement is a separate authoritative commit boundary
 
-Execution and settlement are intentionally separated:
+Execution and settlement are separated:
 
 ```text
 attempt effect

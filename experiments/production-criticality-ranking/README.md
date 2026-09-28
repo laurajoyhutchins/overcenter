@@ -4,7 +4,7 @@
 
 Can Overcenter maintain a reproducible total ordering of the importance of its **production code** from quantitative facts rather than periodically repeating a human ranking exercise?
 
-The ranked population in this first experiment is intentionally narrow:
+The ranked population in this first experiment is narrow:
 
 ```text
 ranked:       executable callables under src/
@@ -16,7 +16,7 @@ This does **not** yet claim that a callable is the final atomic unit. The experi
 
 ## Existing software used
 
-The experiment deliberately avoids inventing a parser or history engine:
+The experiment avoids inventing a parser or history engine:
 
 - TypeScript compiler API 5.8.3 supplies the AST, symbols, resolved signatures, and approximate static call graph.
 - Git supplies exact-revision history and line-level blame timestamps.
@@ -51,7 +51,7 @@ For each configured recovery scenario `(entry, terminal)`, the analyzer computes
 
 ## Total orders
 
-The vector is durable data. Ordering is replaceable policy, and v2 deliberately exposes two different total orders instead of mixing consequence with uncertainty.
+The vector is durable data. Ordering is replaceable policy, and v2 exposes two different total orders instead of mixing consequence with uncertainty.
 
 **Consequence criticality** asks: if this production unit is wrong, how much can it matter?
 
@@ -126,12 +126,12 @@ A required calibration regression is evidence against the formula or graph evide
 
 ## First live-run lesson
 
-The initial live run is intentionally allowed to falsify the model. In particular, calibration should not be forced to 100% by weight-tuning when one human judgment names a branch-level semantic claim that the callable-level population cannot represent. A monotone ranking cannot repair missing dimensions or the wrong unit boundary; those disagreements are evidence for the next experiment.
+The initial live run is allowed to falsify the model. In particular, calibration should not be forced to 100% by weight-tuning when one human judgment names a branch-level semantic claim that the callable-level population cannot represent. A monotone ranking cannot repair missing dimensions or the wrong unit boundary; those disagreements are evidence for the next experiment.
 
 
 ## Mutation probe
 
-The callable ranking deliberately does not treat ordinary reachability as proof that hostile cases are defended. A separate targeted mutation probe uses StrykerJS 10.0.0 against the semantic regions that either rank unexpectedly high or anchor the calibration corpus:
+The callable ranking does not treat ordinary reachability as proof that hostile cases are defended. A separate targeted mutation probe uses StrykerJS 10.0.0 against the semantic regions that either rank unexpectedly high or anchor the calibration corpus:
 
 - canonical digest construction;
 - semantic identity;
@@ -188,4 +188,4 @@ The checked-in snapshot is a cache of probe evidence, not an authority by itself
 
 Historical evidence is immutable provenance: file moves, selector changes, and source edits make a probe stale; they must never rewrite the cached probe's historical paths or selectors while retaining its old run ID/digests. The producer treats provenance verification failure as a repair signal and runs the full hostile mutation probe so corrupted or stale caches can self-heal. A merge-gate liveness test also requires the checked-in cache to retain both its producer and promoter.\n\nEach probe carries its own source-run provenance. Successful mutation runs on `main` are reconciled automatically: a trusted `workflow_run` job accepts only the exact uploaded artifact, replaces only probes whose source blobs still match current `main`, and commits the refreshed snapshot. Targeted probes therefore update their own evidence without rewriting unrelated probe provenance or requiring a human copy step.
 
-This makes mutation output a durable evidence snapshot rather than a 27-minute dependency of every ranking run. The raw mutation score is intentionally conservative: diagnostic/equivalent mutants can overstate the gap, but surviving claim-bearing mutants show that the gap is real. A later experiment should distinguish claim-bearing mutants from diagnostic noise rather than pretending the raw percentage is exact.
+This makes mutation output a durable evidence snapshot rather than a 27-minute dependency of every ranking run. The raw mutation score is conservative: diagnostic/equivalent mutants can overstate the gap, but surviving claim-bearing mutants show that the gap is real. A later experiment should distinguish claim-bearing mutants from diagnostic noise rather than pretending the raw percentage is exact.

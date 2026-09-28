@@ -27,7 +27,7 @@ Then use the detailed notes for the specific invariant they contribute:
 | [Transition attestations](./transition-attestations.md) | What evidence should survive after execution machinery is discarded? |
 | [Absence evidence certificates](./absence-evidence-certificates.md) | How should provider-specific negative evidence carry subject, scope, snapshot, completeness, and provenance without collapsing to a boolean? |
 
-The synthesis is deliberately selective:
+The synthesis is selective:
 
 ```text
 Bazel / Nix      -> obligation identity + reuse

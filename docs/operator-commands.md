@@ -52,7 +52,7 @@ Persisted obligation definitions are replay protocol, not disposable implementat
 
 A managed repository may declare one stable source goal in `.overcenter/project-goal.json`. The goal is trusted project configuration, not a worker-authored plan. On each exact project revision, `project.advance` compiles it into bounded `source-change` work whose context includes that revision. After a verified source integration changes the project source, the same goal identity is rebound and becomes eligible for another iteration.
 
-The goal declares exact writable files. Source workers still cannot mutate `.overcenter/**` or `.github/**`. Directory-scope expansion is deliberately not part of this first long-horizon boundary, so the existing source-task TCB remains unchanged.
+The goal declares exact writable files. Source workers still cannot mutate `.overcenter/**` or `.github/**`. Directory-scope expansion is not part of this first long-horizon boundary, so the existing source-task TCB remains unchanged.
 
 A trusted `.overcenter/project-goal-satisfaction.json` record retires the goal. Source candidates cannot write that file, so a worker cannot declare its own success. Provider-specific observation, such as a ladder-rank observer, can be layered on later to produce that trusted satisfaction record.
 
@@ -85,7 +85,7 @@ The following are implementation details and are not supported agent operations:
 - manually settling receipts;
 - invoking arbitrary GitHub REST endpoints or workflow names.
 
-The GitHub transport may use refs, workflow events, artifacts, and reruns internally. Those mechanics are deliberately hidden behind `project.advance` and `project.submit`.
+The GitHub transport may use refs, workflow events, artifacts, and reruns internally. Those mechanics are hidden behind `project.advance` and `project.submit`.
 
 ## Pull-request certification
 

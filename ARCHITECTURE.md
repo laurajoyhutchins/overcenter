@@ -4,7 +4,7 @@
 
 > Overcenter treats project state as a derived claim over immutable intent, exact authority, externally observed effects, verification evidence, and settlement, while treating execution workers as disposable producers of candidate realizations.
 
-The architecture is intentionally split so that reasoning can remain probabilistic while execution correctness is owned by deterministic machinery.
+The architecture is split so that reasoning can remain probabilistic while execution correctness is owned by deterministic machinery.
 
 ```text
 immutable project intent
@@ -37,7 +37,7 @@ durable proof
 derived project truth
 ```
 
-The key boundary is not "agent versus database." It is:
+The boundary is not "agent versus database." It is:
 
 ```text
 producer of candidate effects
@@ -45,7 +45,7 @@ producer of candidate effects
 authority that decides project truth
 ```
 
-## Architecture at a glance
+## Architecture
 
 ```text
 +------------------------------------------------------------------+
@@ -119,7 +119,7 @@ The bottom row is a **projection**, not the deepest source of truth.
 
 ## Durable authority implementation
 
-The authority kernel consumes a deliberately small storage contract:
+The authority kernel consumes a small storage contract:
 
 ```text
 head()
@@ -143,9 +143,9 @@ authority
   sequence
 ```
 
-There is intentionally no privileged lifecycle/status table. `READY`, `EXECUTING`, `WAITING`, `BLOCKED`, `RECOVERY_REQUIRED`, and `DONE` remain projections over durable facts plus current authoritative observation.
+There is no privileged lifecycle/status table. `READY`, `EXECUTING`, `WAITING`, `BLOCKED`, `RECOVERY_REQUIRED`, and `DONE` remain projections over durable facts plus current authoritative observation.
 
-Git implements the same contract as a reference backend and independent replay oracle. Git commit IDs and SQLite commit IDs are backend-local authority revisions; neither is semantic obligation identity. Existing history is not assumed to be byte-portable between backends: facts such as claim ancestry and settlement-receipt semantic dependencies may intentionally contain those backend-local identities, so migration requires an explicit remapping proof.
+Git implements the same contract as a reference backend and independent replay oracle. Git commit IDs and SQLite commit IDs are backend-local authority revisions; neither is semantic obligation identity. Existing history is not assumed to be byte-portable between backends: facts such as claim ancestry and settlement-receipt semantic dependencies may contain those backend-local identities, so migration requires an explicit remapping proof.
 
 ## 1. Immutable project intent
 
@@ -313,7 +313,7 @@ lifecycle repair write is required. If mutable reality drifts away and later
 returns, the same exact historical settlement can disappear from and reappear
 in current project truth without a new settlement.
 
-Already-issued execution/recovery authority deliberately uses historical
+Already-issued execution/recovery authority uses historical
 projection rather than the fresh read overlay. A transient provider read cannot
 revoke an execution permit; fresh current evidence instead governs whether old
 settlement evidence may satisfy **new** project reads or claims.
@@ -421,7 +421,7 @@ A lease alone cannot protect against repository drift.
 
 ## 6. Disposable execution
 
-Workers are deliberately treated as replaceable.
+Workers are treated as replaceable.
 
 A worker may contain:
 
@@ -436,7 +436,7 @@ A worker may contain:
 
 None of those are authoritative merely because they are convenient.
 
-The strongest trust-boundary experiment deliberately lets an executor corrupt its own:
+The strongest trust-boundary experiment lets an executor corrupt its own:
 
 - checkout;
 - local Git configuration;
@@ -460,9 +460,9 @@ The distinction changes substrate admission:
 - if an obligation requires prevention of undelegated external effects, an uncontrolled substrate is inadmissible unless that effect boundary is independently established;
 - OS-level confinement of a nested subprocess is not evidence that the surrounding agent lacks host tools, provider credentials, MCP capabilities, or other ambient authority.
 
-The ordinary GitHub Actions reference boundary demonstrates effect confinement by giving the disposable worker repository read permission only while a separate trusted effect-broker job owns provider write permission and the execution permit. The ambient-authority experiment deliberately removes that stronger premise: an otherwise equivalent worker receives `statuses: write`, successfully performs the provider mutation, and Overcenter still remains `EXECUTING` until separate trusted readback and settlement. That result demonstrates authority confinement while simultaneously showing why effect confinement cannot be inferred for an uncontrolled substrate.
+The ordinary GitHub Actions reference boundary demonstrates effect confinement by giving the disposable worker repository read permission only while a separate trusted effect-broker job owns provider write permission and the execution permit. The ambient-authority experiment removes that stronger premise: an otherwise equivalent worker receives `statuses: write`, successfully performs the provider mutation, and Overcenter still remains `EXECUTING` until separate trusted readback and settlement. That result demonstrates authority confinement while simultaneously showing why effect confinement cannot be inferred for an uncontrolled substrate.
 
-The first production-carried provider mutation is intentionally narrower than that general architecture: `src/providers/github/status-effect.ts` supports only the explicit GitHub commit-status grant. It reconstructs the exact claimed obligation, derives the status coordinate from its `github-commit-status/v2` postcondition, certifies repository identity, and uses the kernel reservation boundary immediately before POST. The live broker job calls this implementation rather than maintaining experiment-local mutation logic.
+The first production-carried provider mutation is narrower than that general architecture: `src/providers/github/status-effect.ts` supports only the explicit GitHub commit-status grant. It reconstructs the exact claimed obligation, derives the status coordinate from its `github-commit-status/v2` postcondition, certifies repository identity, and uses the kernel reservation boundary immediately before POST. The live broker job calls this implementation rather than maintaining experiment-local mutation logic.
 
 ### Worker contract
 
@@ -599,7 +599,7 @@ provenance    how the evidence was obtained / certified
 
 The envelope does not make arbitrary provider claims trustworthy. Provider-specific verifier code still decides whether a certificate kind and its contents prove authoritative absence.
 
-The current local-file certificate is deliberately small:
+The current local-file certificate is small:
 
 ```text
 kind          local-file-enoent/v1
@@ -697,7 +697,7 @@ no conflicting terminal settlement
 
 then performs a compare-and-swap against project authority.
 
-Settlement is deliberately later than execution.
+Settlement is later than execution.
 
 ```text
 execution success
@@ -783,7 +783,7 @@ A currently authorized run exists and has not yet reached a durable non-executin
 
 ### WAITING
 
-The work is intentionally suspended on a known external condition, human decision, timer, or dependency that does not imply mutation uncertainty.
+The work is suspended on a known external condition, human decision, timer, or dependency that does not imply mutation uncertainty.
 
 ### BLOCKED
 
@@ -827,7 +827,7 @@ The architectural truth is the predicate over evidence.
 
 ## 14. Graph semantics
 
-The current graph is intentionally simpler than a general workflow language.
+The current graph is simpler than a general workflow language.
 
 Its base semantics are:
 

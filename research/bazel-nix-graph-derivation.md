@@ -39,7 +39,7 @@ immutable obligation
                                    SATISFIED
 ```
 
-For Overcenter, the key architectural move is:
+For Overcenter, the architectural move is:
 
 > **A project node should evolve from a mutable task record into an immutable obligation predicate over exact inputs, required outputs, and verification evidence.**
 
@@ -945,7 +945,7 @@ That permits deterministic reasoning about both provenance and staleness.
 
 ## 20. External mutations must not become ordinary cache hits
 
-This is where Overcenter must deliberately remain stronger than Bazel or Nix.
+This is where Overcenter must remain stronger than Bazel or Nix.
 
 Consider a node whose producer creates a GitHub Release.
 
@@ -978,7 +978,7 @@ Therefore Overcenter still needs:
 - settlement;
 - recovery for ambiguous outcomes.
 
-The derivation engine can ask whether the mutation obligation is already satisfied, but the evidence required to answer yes is fundamentally transactional.
+The derivation engine can ask whether the mutation obligation is already satisfied, but the evidence required to answer yes is transactional.
 
 This is the boundary where Overcenter adds something build systems generally do not provide.
 

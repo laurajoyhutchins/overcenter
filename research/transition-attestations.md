@@ -82,7 +82,7 @@ runDetails
     byproducts
 ```
 
-SLSA deliberately does not require provenance to serialize every ordinary interaction with the build platform's control plane. What matters is information that materially affects or substantiates the result.
+SLSA does not require provenance to serialize every ordinary interaction with the build platform's control plane. What matters is information that materially affects or substantiates the result.
 
 That distinction is directly applicable to Overcenter.
 
@@ -160,7 +160,7 @@ Reference:
 | TUF | Versioned authority, scoped roles, thresholds, and trust-root evolution |
 | SCITT | Optional append-only registration proof or independent witness |
 
-Overcenter should not call its transition attestation "SLSA provenance." SLSA's schema is intentionally build-specific.
+Overcenter should not call its transition attestation "SLSA provenance." SLSA's schema is build-specific.
 
 A better approach is to use the in-toto Attestation Framework as the generic envelope, define an Overcenter-specific predicate, and borrow SLSA's provenance modeling disciplines.
 

@@ -15,7 +15,7 @@ schema.json              machine-readable wire/data structure
 README.md                trust-boundary and semantic explanation
 ```
 
-The package is intentionally dependency-light. A new framework is not required merely to declare a contract.
+The package is dependency-light. A new framework is not required merely to declare a contract.
 
 ## Authority rules
 
@@ -39,8 +39,8 @@ Start with boundaries where disagreement is expensive:
 1. computation execution and attempt evidence;
 2. durable authority facts: obligation, claim, execution authority, effect reservation, receipt;
 3. provider observations and absence evidence;
-4. application-defined packets and other intentionally extensible payloads.
+4. application-defined packets and other extensible payloads.
 
-The first three migration slices now have machine-readable contract packages. The remaining intentionally open payloads should be contracted only when their semantics become reusable rather than merely because they contain JSON.
+The first three migration slices now have machine-readable contract packages. The remaining open payloads should be contracted only when their semantics become reusable rather than merely because they contain JSON.
 
 Do not migrate a type solely to increase schema coverage. The contract should remove ambiguity or duplicated semantic authority.
