@@ -1,6 +1,4 @@
-import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import { API, type Project } from 'typescript/unstable/sync';
 import {
@@ -20,7 +18,15 @@ import {
   SyntaxKind,
 } from 'typescript/unstable/ast';
 
-import { runtimeLocalImportSpecifiers } from '../src/observation/workflow-transitive-effects.ts';
+import {
+  repositoryRelativePath,
+  runtimeModuleClosure,
+} from '../src/analysis/typescript-runtime.ts';
+import { sha256 } from '../src/digest.ts';
+import {
+  EFFECT_IMPLEMENTATION_BINDINGS,
+  type RegisteredEffectImplementationContract,
+} from '../src/effect-adapter.ts';
 import type {
   WorkflowFunctionEffectProbe,
   WorkflowFunctionEffectReachability,
@@ -28,49 +34,8 @@ import type {
   WorkflowUnresolvedFunctionCall,
 } from '../src/observation/workflow-transitive-effects.ts';
 
-interface EffectTerminal {
-  path: string;
-  symbol: string;
-  effect: WorkflowReachableProductionEffect;
-}
-
-const EFFECT_TERMINALS: readonly EffectTerminal[] = [
-  {
-    path: 'src/source/source-integration.ts',
-    symbol: 'brokerSourceProposal',
-    effect: 'git-remote-ref/mutate',
-  },
-  {
-    path: 'src/source/source-integration.ts',
-    symbol: 'integrateVerifiedSourceCandidate',
-    effect: 'git-remote-ref/mutate',
-  },
-  {
-    path: 'src/providers/github/status-effect.ts',
-    symbol: 'performGithubCommitStatusEffect',
-    effect: 'github-commit-status/create',
-  },
-  {
-    path: 'src/providers/github/pr-update-branch-effect.ts',
-    symbol: 'performGithubPullRequestUpdateBranchEffect',
-    effect: 'github-pull-request/update-branch',
-  },
-];
-
 function normalized(root: string, path: string): string {
-  return relative(root, resolve(path)).replaceAll('\\', '/');
-}
-
-function resolveLocalModule(root: string, fromPath: string, specifier: string): string | null {
-  const base = resolve(root, dirname(fromPath), specifier);
-  const candidates = [
-    base,
-    base.endsWith('.js') ? `${base.slice(0, -3)}.ts` : '',
-    base.endsWith('.ts') ? base : `${base}.ts`,
-    resolve(base, 'index.ts'),
-  ].filter(Boolean);
-  const found = candidates.find((candidate) => existsSync(candidate));
-  return found ? normalized(root, found) : null;
+  return repositoryRelativePath(path, root);
 }
 
 function declarationName(declaration: Node): string | null {
@@ -105,20 +70,19 @@ function declarationBody(declaration: Node): Node | null {
   return null;
 }
 
-function terminalFor(root: string, declaration: Node): EffectTerminal | null {
+function terminalFor(root: string, declaration: Node) {
   const name = declarationName(declaration);
   if (!name) return null;
   const path = normalized(root, declaration.getSourceFile().fileName);
   return (
-    EFFECT_TERMINALS.find((candidate) => candidate.path === path && candidate.symbol === name) ??
-    null
+    EFFECT_IMPLEMENTATION_BINDINGS.find(
+      (candidate) => candidate.path === path && candidate.symbol === name,
+    ) ?? null
   );
 }
 
 function declarationDigest(declaration: Node): string {
-  return createHash('sha256')
-    .update(declaration.getText(declaration.getSourceFile()))
-    .digest('hex');
+  return sha256(declaration.getText(declaration.getSourceFile()));
 }
 
 function callLabel(root: string, declaration: Node): string {
@@ -265,29 +229,18 @@ function candidateEffectsFromModule(
   root: string,
   project: Project,
   startPath: string,
-): WorkflowReachableProductionEffect[] {
-  const effects = new Set<WorkflowReachableProductionEffect>();
-  const seen = new Set<string>();
-  const pending = [startPath];
-
-  while (pending.length > 0) {
-    const current = pending.shift()!;
-    if (seen.has(current)) continue;
-    seen.add(current);
-
-    for (const terminal of EFFECT_TERMINALS) {
-      if (terminal.path === current) effects.add(terminal.effect);
-    }
-
-    const source = project.program.getSourceFile(resolve(root, current));
-    if (!source) continue;
-    for (const specifier of runtimeLocalImportSpecifiers(source.text)) {
-      const target = resolveLocalModule(root, current, specifier);
-      if (target && !seen.has(target)) pending.push(target);
-    }
-  }
-
-  return [...effects].sort();
+): RegisteredEffectImplementationContract[] {
+  const closure = runtimeModuleClosure(root, [startPath], (path) => {
+    return project.program.getSourceFile(resolve(root, path)) ?? null;
+  });
+  const files = new Set(closure.files);
+  return [
+    ...new Set(
+      EFFECT_IMPLEMENTATION_BINDINGS.filter((binding) => files.has(binding.path)).map(
+        (binding) => binding.effect_contract,
+      ),
+    ),
+  ].sort();
 }
 
 export function createTypeScriptFunctionEffectProbe(
@@ -346,7 +299,7 @@ export function createTypeScriptFunctionEffectProbe(
       const terminal = terminalFor(root, declaration);
       if (terminal) {
         results.push({
-          effect: terminal.effect,
+          effect: terminal.effect_contract,
           terminal_path: terminal.path,
           terminal_symbol: terminal.symbol,
           import_chain: moduleChain(nextChain),
@@ -386,9 +339,7 @@ export function createTypeScriptFunctionEffectProbe(
             unresolvedCalls.push({
               call_site_path: normalized(root, callSource.fileName),
               call_site_line: position.line + 1,
-              call_expression_sha256: createHash('sha256')
-                .update(call.getText(callSource))
-                .digest('hex'),
+              call_expression_sha256: sha256(call.getText(callSource)),
               declaration_path: path,
               declaration_symbol: symbol,
               call_chain: [...callChain, `${path}#${symbol}`],
@@ -402,9 +353,7 @@ export function createTypeScriptFunctionEffectProbe(
         unresolvedCalls.push({
           call_site_path: normalized(root, callSource.fileName),
           call_site_line: position.line + 1,
-          call_expression_sha256: createHash('sha256')
-            .update(call.getText(callSource))
-            .digest('hex'),
+          call_expression_sha256: sha256(call.getText(callSource)),
           declaration_path: path,
           declaration_symbol: symbol,
           call_chain: [...callChain, `${path}#${symbol}`],
