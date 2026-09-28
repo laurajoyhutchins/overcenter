@@ -33,6 +33,8 @@ INSERT INTO capability(capability_id) VALUES
   ('authoritative-observation'),
   ('effect-authorization'),
   ('effect-reservation'),
+  ('effect-execution'),
+  ('effect-release'),
   ('effect-settlement'),
   ('source-integration'),
   ('github-commit-status-mutation'),
@@ -49,6 +51,8 @@ INSERT INTO assurance_property_requires_authority(property_id, authority_id) VAL
 INSERT INTO assurance_property_requires_capability(property_id, capability_id) VALUES
   ('broker-mutation-safety', 'effect-authorization'),
   ('broker-mutation-safety', 'effect-reservation'),
+  ('broker-mutation-safety', 'effect-execution'),
+  ('broker-mutation-safety', 'effect-release'),
   ('no-false-done', 'durable-project-facts'),
   ('no-false-done', 'project-lifecycle-projection'),
   ('no-false-done', 'authoritative-observation'),
@@ -70,6 +74,9 @@ INSERT INTO assurance_property_guards_effect(property_id, effect_id) VALUES
 INSERT INTO assurance_property_requires_effect_implementation(property_id, effect_id) VALUES
   ('github-commit-status-provider', 'github-commit-status/create');
 
+INSERT INTO assurance_property_composes_with(property_id, required_property_id) VALUES
+  ('github-commit-status-provider', 'broker-mutation-safety');
+
 INSERT INTO effect_requires_authority(effect_id, authority_id) VALUES
   ('github-commit-status/create', 'effect-authority'),
   ('github-pull-request/update-branch', 'effect-authority'),
@@ -86,6 +93,8 @@ FROM effect
 CROSS JOIN (
   SELECT 'effect-authorization' AS capability_id
   UNION ALL SELECT 'effect-reservation'
+  UNION ALL SELECT 'effect-execution'
+  UNION ALL SELECT 'effect-release'
   UNION ALL SELECT 'effect-settlement'
 );
 
@@ -118,6 +127,9 @@ INSERT INTO capability_depends_on_capability(capability_id, required_capability_
   ('effect-authorization', 'durable-project-facts'),
   ('effect-reservation', 'effect-authorization'),
   ('effect-reservation', 'durable-project-facts'),
+  ('effect-execution', 'effect-reservation'),
+  ('effect-release', 'effect-reservation'),
+  ('effect-settlement', 'effect-execution'),
   ('effect-settlement', 'effect-reservation'),
   ('effect-settlement', 'authoritative-observation'),
   ('effect-settlement', 'durable-project-facts'),
