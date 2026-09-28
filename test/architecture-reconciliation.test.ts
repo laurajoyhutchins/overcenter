@@ -10,6 +10,7 @@ import {
   reconcileArchitecture,
   validateArchitectureIntent,
 } from '../src/authority/architecture-reconciliation.ts';
+import { loadArchitectureIntent } from '../src/architecture/sql-intent.ts';
 import {
   GITHUB_COMMIT_STATUS_EFFECT,
   GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
@@ -89,9 +90,7 @@ function observations(
 }
 
 test('maintained architecture intent reconciles against observed production flow', () => {
-  const maintained = validateArchitectureIntent(
-    JSON.parse(readFileSync('.overcenter/architecture-intent.json', 'utf8')),
-  );
+  const maintained = loadArchitectureIntent();
   const observed = observeArchitectureIntent(maintained, revision);
   const result = reconcileArchitecture({
     intent: maintained,
