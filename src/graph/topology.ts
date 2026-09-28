@@ -30,7 +30,7 @@ export function buildGraphIndex(state: State): GraphIndex {
   const downstreamLists = new Map<string, string[]>(ids.map((id) => [id, []]));
 
   for (const id of ids) {
-    const dependencies = dependencyUpstreams(state.obligations[id]).sort();
+    const dependencies = dependencyUpstreams(state.obligations[id]!).sort();
     for (const dependency of dependencies) {
       if (!state.obligations[dependency]) {
         throw new Error(`UNKNOWN_DEPENDENCY:${id}:${dependency}`);
@@ -44,7 +44,7 @@ export function buildGraphIndex(state: State): GraphIndex {
   const ready = ids.filter((id) => remainingDependencies.get(id) === 0);
   const topologicalOrder: string[] = [];
   for (let cursor = 0; cursor < ready.length; cursor += 1) {
-    const id = ready[cursor];
+    const id = ready[cursor]!;
     topologicalOrder.push(id);
     for (const downstream of downstreamLists.get(id) ?? []) {
       const remaining = (remainingDependencies.get(downstream) ?? 0) - 1;

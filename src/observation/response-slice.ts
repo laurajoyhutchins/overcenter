@@ -153,7 +153,7 @@ function validatePath(
     return 'validated';
   }
 
-  const [segment, ...rest] = segments;
+  const [segment, ...rest] = segments as [string, ...string[]];
 
   if (segment === '[]') {
     const items = schemaCandidates.flatMap((schema) => itemSchemas(schema, resolveRef));

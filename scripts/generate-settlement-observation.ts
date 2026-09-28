@@ -17,8 +17,9 @@ for (let index = 0; index < args.length; index += 1) {
     continue;
   }
   if (arg === '--source') {
-    sourcePath = args[index + 1];
-    if (!sourcePath) throw new Error('--source requires a path');
+    const requestedSourcePath = args[index + 1];
+    if (!requestedSourcePath) throw new Error('--source requires a path');
+    sourcePath = requestedSourcePath;
     index += 1;
     continue;
   }

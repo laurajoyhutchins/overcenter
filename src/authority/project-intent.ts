@@ -6,7 +6,7 @@ import { SOURCE_TASK_SCHEMA, validateSourceTaskPacket } from '../source/source-o
 import type { Dependency, Postcondition } from '../model.ts';
 import { validatePostcondition } from '../observation/observe.ts';
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
-import { normalizeObligation, type ObligationInput } from './facts.ts';
+import { normalizeObligation, validateDependencies, type ObligationInput } from './facts.ts';
 
 export const PROJECT_INTENT_SCHEMA = 'overcenter-project-intent/v1' as const;
 export const PROJECT_INTENT_PATH = '.overcenter/project-intent.json' as const;
@@ -41,14 +41,18 @@ export function compileProjectIntent(value: unknown): ObligationInput[] {
         throw new Error(`PROJECT_INTENT_SOURCE_POSTCONDITION_FORBIDDEN:${index}`);
       }
       const packet = validateSourceTaskPacket(candidate.task);
-      return normalizeObligation({
+      const dependencies =
+        candidate.dependencies === undefined
+          ? undefined
+          : (structuredClone(candidate.dependencies) as Dependency[]);
+      if (dependencies !== undefined) validateDependencies(dependencies);
+      const input: ObligationInput = {
         id: candidate.id,
-        ...(candidate.dependencies === undefined
-          ? {}
-          : { dependencies: structuredClone(candidate.dependencies) }),
+        ...(dependencies === undefined ? {} : { dependencies }),
         packet: structuredClone(packet),
         postcondition: { verifier: 'source-integration/v1' },
-      } as ObligationInput);
+      };
+      return normalizeObligation(input);
     }
 
     if (candidate.postcondition === undefined) {

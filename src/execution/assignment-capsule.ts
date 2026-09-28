@@ -347,7 +347,9 @@ export function runAssignment(
   const assignment = validateAssignment(JSON.parse(assignmentBytes.toString('utf8')));
   materializeAssignment(assignment, workspace);
   const command = assignment.work.packet.command;
-  const run = spawnSync(command[0], command.slice(1), {
+  const executable = command[0];
+  if (!executable) fail('ASSIGNMENT_COMMAND_EMPTY');
+  const run = spawnSync(executable, command.slice(1), {
     cwd: workspace,
     env: { PATH: process.env.PATH ?? '/usr/bin:/bin' },
     encoding: 'utf8',
@@ -385,7 +387,10 @@ export function runAssignment(
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [command, ...args] = process.argv.slice(2);
   if (command === 'run' && args.length === 3) {
-    runAssignment(args[0], args[1], args[2]);
+    const [assignmentPath, workspace, candidatePath] = args;
+    if (!assignmentPath || !workspace || !candidatePath)
+      throw new Error('ASSIGNMENT_ARGUMENTS_INVALID');
+    runAssignment(assignmentPath, workspace, candidatePath);
   } else {
     console.error(
       'usage: assignment-capsule.ts run <assignment.json> <workspace> <candidate.json>',

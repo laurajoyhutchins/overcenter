@@ -24,10 +24,16 @@ const context: ProjectSubmitContext = {
 };
 
 const receipt = submitProjectCandidate(process.cwd(), context, {
-  authorityRef: process.env.OVERCENTER_PROJECT_AUTHORITY_REF,
-  remote: process.env.OVERCENTER_PROJECT_REMOTE,
+  ...(process.env.OVERCENTER_PROJECT_AUTHORITY_REF === undefined
+    ? {}
+    : { authorityRef: process.env.OVERCENTER_PROJECT_AUTHORITY_REF }),
+  ...(process.env.OVERCENTER_PROJECT_REMOTE === undefined
+    ? {}
+    : { remote: process.env.OVERCENTER_PROJECT_REMOTE }),
   githubToken: process.env.GITHUB_TOKEN ?? null,
-  sourceVerificationPath: process.env.OVERCENTER_SOURCE_VERIFICATION_PATH,
+  ...(process.env.OVERCENTER_SOURCE_VERIFICATION_PATH === undefined
+    ? {}
+    : { sourceVerificationPath: process.env.OVERCENTER_SOURCE_VERIFICATION_PATH }),
 });
 mkdirSync(dirname(receiptPath), { recursive: true });
 writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);

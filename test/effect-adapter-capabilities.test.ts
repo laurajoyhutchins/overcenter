@@ -163,7 +163,7 @@ test('reserved-effect absence remains recovery-required across durable replay', 
 
     const reopened = new OvercenterKernel(database, options);
     try {
-      assert.equal(reopened.inspect()[0].status, 'RECOVERY_REQUIRED');
+      assert.equal(reopened.inspect()[0]?.status, 'RECOVERY_REQUIRED');
       assert.equal(reopened.hasUnresolvedEffect(run.id), true);
     } finally {
       reopened.close();

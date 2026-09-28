@@ -40,7 +40,7 @@ test('static graph validation accepts an acyclic dependency chain', () => {
   );
 
   validateGraph(state);
-  assert.deepEqual(dependencyUpstreams(state.obligations.c), ['b']);
+  assert.deepEqual(dependencyUpstreams(state.obligations.c!), ['b']);
   assert.equal(dependsOn(state, 'c', 'a'), true);
   assert.equal(dependsOn(state, 'a', 'c'), false);
 });

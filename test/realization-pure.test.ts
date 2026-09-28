@@ -42,7 +42,9 @@ test('agent, human, and previous run produce the same exact verified realization
 
   assert.deepEqual(facts[0], facts[1]);
   assert.deepEqual(facts[1], facts[2]);
-  const decision = reusableRealization(current, [facts[0]]);
+  const firstFact = facts[0];
+  assert.ok(firstFact);
+  const decision = reusableRealization(current, [firstFact]);
   assert.equal(decision.satisfied, true);
   assert.equal(decision.reason, 'REUSED_VERIFIED_REALIZATION');
 });

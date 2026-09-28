@@ -260,8 +260,6 @@ test('Kubernetes absence requires a complete certificate bound to the exact obje
   const observed = kubernetesObservation(postcondition, {
     mutation_certainty: 'absent',
     absence_evidence: certificate,
-    observed_uid: undefined,
-    observed_resource_version: undefined,
   });
 
   assert.equal(authoritativeAbsenceEvidence(postcondition, observed), certificate);
@@ -274,8 +272,6 @@ test('Kubernetes absence requires a complete certificate bound to the exact obje
   const mismatched = kubernetesObservation(postcondition, {
     mutation_certainty: 'absent',
     absence_evidence: wrongName,
-    observed_uid: undefined,
-    observed_resource_version: undefined,
   });
   assert.equal(authoritativeAbsenceEvidence(postcondition, mismatched), null);
   assert.equal(observationAuthoritativelyAbsent(postcondition, mismatched), false);
@@ -292,20 +288,27 @@ test('Kubernetes verification requires both non-empty UID and resourceVersion', 
   const postcondition = kubernetesPostcondition();
   assert.equal(observationVerified(postcondition, kubernetesObservation(postcondition)), true);
 
-  const invalid: Array<[string, Partial<Observation>]> = [
-    ['missing uid', { observed_uid: undefined }],
-    ['empty uid', { observed_uid: '' }],
-    ['missing resource version', { observed_resource_version: undefined }],
-    ['empty resource version', { observed_resource_version: '' }],
-    ['uncertain certainty', { mutation_certainty: 'uncertain' }],
-    ['absent certainty', { mutation_certainty: 'absent' }],
+  const without = (key: keyof Observation): Observation => {
+    const observation = kubernetesObservation(postcondition);
+    delete observation[key];
+    return observation;
+  };
+  const invalid: Array<[string, Observation]> = [
+    ['missing uid', without('observed_uid')],
+    ['empty uid', kubernetesObservation(postcondition, { observed_uid: '' })],
+    ['missing resource version', without('observed_resource_version')],
+    [
+      'empty resource version',
+      kubernetesObservation(postcondition, { observed_resource_version: '' }),
+    ],
+    [
+      'uncertain certainty',
+      kubernetesObservation(postcondition, { mutation_certainty: 'uncertain' }),
+    ],
+    ['absent certainty', kubernetesObservation(postcondition, { mutation_certainty: 'absent' })],
   ];
-  for (const [name, overrides] of invalid) {
-    assert.equal(
-      observationVerified(postcondition, kubernetesObservation(postcondition, overrides)),
-      false,
-      name,
-    );
+  for (const [name, observation] of invalid) {
+    assert.equal(observationVerified(postcondition, observation), false, name);
   }
 });
 

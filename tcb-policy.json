@@ -98,9 +98,9 @@
         "experiments and tests",
         "formal models and proof tools"
       ],
-      "expected_surface_sha256": "d5d8da95ac87fa9cf6f77f855a6f92e51ce163736ab80197d60355c463bd2af4",
+      "expected_surface_sha256": "ac852e451b8c8a2d8f2b4f3c970ebd74b02454230ea086f7a1c5893e18ebd3b8",
       "max_module_closure_semantic_loc": 9159,
-      "expected_module_closure_sha256": "36a22ff3707a824114e76bb4595a42de8de195f2b805603ce43efbde14cfe409",
+      "expected_module_closure_sha256": "9e2cf3e30e038c289df2d85e754678f1d837052103bfcd4b15d271fb930c18d0",
       "runtime_dispatch_bindings": [
         {
           "target": "src/authority/store.ts#append",
@@ -112,7 +112,7 @@
         }
       ],
       "max_hybrid_closure_semantic_loc": 9286,
-      "expected_hybrid_closure_sha256": "cc6af7f80816d6d5bcd936a808acc9f0cd4b3d4d07bf8eabbc626ab1055831e6",
+      "expected_hybrid_closure_sha256": "1dc9a8c9d4bd51d8c6d4eaaeafefa241b97a2af8e5d0b93177280b053a93a241",
       "require_sound_symbol_closure": true,
       "hostile_evidence_probes": [
         "effect-reservation",
@@ -243,9 +243,9 @@
         "Rust worker confinement",
         "experiments and formal models"
       ],
-      "expected_surface_sha256": "c778a8eba178fb1a9c9d832d3b6dccd0ff0c332f42397fed507e98fd664c500c",
+      "expected_surface_sha256": "2a5c2253a4e097ec387b52d31042d870acfd89e75f5e586a447b2dd8a8e123c2",
       "max_module_closure_semantic_loc": 9159,
-      "expected_module_closure_sha256": "36a22ff3707a824114e76bb4595a42de8de195f2b805603ce43efbde14cfe409",
+      "expected_module_closure_sha256": "9e2cf3e30e038c289df2d85e754678f1d837052103bfcd4b15d271fb930c18d0",
       "runtime_dispatch_bindings": [
         {
           "target": "src/authority/store.ts#append",
@@ -257,7 +257,7 @@
         }
       ],
       "max_hybrid_closure_semantic_loc": 9283,
-      "expected_hybrid_closure_sha256": "cb3106259b5f514c5679ed4d702781caddadeac4c33f68d0f545ecf6f9e9d7f1",
+      "expected_hybrid_closure_sha256": "67eed5e07812d1876454510b55ee3df1d3da48a0e412f4aa4f6b901e149e4ce1",
       "require_sound_symbol_closure": true,
       "hostile_evidence_probes": [
         "digest-foundation",
@@ -355,9 +355,9 @@
         "Kubernetes and GCP providers",
         "worker credentials when they are not broker credentials"
       ],
-      "expected_surface_sha256": "84f0fe24a1fba0b45695052dbb1a1597048cc51d0aad3b20b914f9504868d08e",
+      "expected_surface_sha256": "b981c0e3cefd68883bcae22648e510a951498ec2c41de651be31f9b8eab68e7f",
       "max_module_closure_semantic_loc": 2756,
-      "expected_module_closure_sha256": "bd65360e857e05a9cf303e61f226d38e1df4091917e4ddf75cd05e966ac36045",
+      "expected_module_closure_sha256": "04dba769dd9dfea44bc583528568fa9e39e1971dc66645b131d9255a4ff9d0e4",
       "composes_with": [
         "broker-mutation-safety"
       ],
@@ -367,7 +367,7 @@
         "src/authority/engine.ts#releaseEffectReservation"
       ],
       "max_hybrid_closure_semantic_loc": 2762,
-      "expected_hybrid_closure_sha256": "7c545950e0015b9f37eee8114dd7180daac0a9e8d6cdcbe0145dd1c97e5ae671",
+      "expected_hybrid_closure_sha256": "7248897acdfc14a5bf11b1a3eb9f65536bbaccf0df42c7071427085162a47b01",
       "require_sound_symbol_closure": true,
       "attention_hybrid_closure_semantic_loc": 2746,
       "attention_external_assumptions": [
@@ -389,7 +389,7 @@
         "github-commit-status-provider"
       ],
       "max_hybrid_union_semantic_loc": 9471,
-      "expected_hybrid_union_sha256": "e7b1133f9dce372e2e08e694b7845a633f7d3740db7fb067327c9578990938fc",
+      "expected_hybrid_union_sha256": "7ad24bdb504097ead4756f99c0c902f46e1da8b4451c87c0dcedb2bf8587663d",
       "attention_hybrid_union_semantic_loc": 8348,
       "max_trusted_file_share": 0.1
     }

@@ -144,8 +144,8 @@ test('page collection traversal is driven by generated operation metadata', () =
     '/repos/acme/widget/commits/abc/statuses?page=2&per_page=30',
   ]);
   assert.equal(result.pages.length, 2);
-  assert.equal(result.pages[0].member_count, 30);
-  assert.equal(result.pages[1].member_count, 1);
+  assert.equal(result.pages[0]?.member_count, 30);
+  assert.equal(result.pages[1]?.member_count, 1);
 });
 
 test('page collection traversal fails closed on unsupported or hostile shapes', () => {

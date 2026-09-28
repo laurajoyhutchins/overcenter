@@ -161,7 +161,9 @@ test('SQLite graph patch admits multiple nodes in one authority transition', () 
         .prepare('SELECT sequence, files_json FROM fact_commits ORDER BY sequence')
         .all() as Array<{ sequence: number; files_json: string }>;
       assert.equal(rows.length, 2);
-      const files = JSON.parse(rows[1].files_json) as Record<string, unknown>;
+      const row = rows[1];
+      assert.ok(row);
+      const files = JSON.parse(row.files_json) as Record<string, unknown>;
       assert.equal('obligation.json' in files, false);
       assert.equal('obligations.json' in files, false);
       const patch = files['graph-patch.json'] as {
@@ -443,8 +445,8 @@ test('retired node can rebind the same immutable definition and reuse evidence',
       },
       kernel.head()!,
     );
-    assert.equal(kernel.inspect()[0].status, 'DONE');
-    assert.equal(kernel.inspect()[0].run_id, run.id);
+    assert.equal(kernel.inspect()[0]?.status, 'DONE');
+    assert.equal(kernel.inspect()[0]?.run_id, run.id);
 
     const db = new DatabaseSync(database);
     try {
@@ -452,7 +454,9 @@ test('retired node can rebind the same immutable definition and reuse evidence',
         .prepare('SELECT files_json FROM fact_commits WHERE files_json LIKE ? ORDER BY sequence')
         .all('%"graph-patch.json"%') as Array<{ files_json: string }>;
       assert.equal(rows.length, 3);
-      const reintroduced = JSON.parse(rows[2].files_json)['graph-patch.json'] as {
+      const row = rows[2];
+      assert.ok(row);
+      const reintroduced = JSON.parse(row.files_json)['graph-patch.json'] as {
         definitions: unknown[];
         bindings: unknown[];
         retire: unknown[];

@@ -404,8 +404,8 @@ test('legacy v3 static-conflict history remains replayable but fail-closed', () 
     },
   ]);
 
-  assert.equal(projection.state.obligations.alpha.id, 'alpha');
-  assert.equal(projection.state.obligations.beta.id, 'beta');
+  assert.equal(projection.state.obligations.alpha?.id, 'alpha');
+  assert.equal(projection.state.obligations.beta?.id, 'beta');
   assert.equal(
     projection.project.claimabilityErrors.get(alpha.id),
     'UNORDERED_EFFECT_CONFLICT:alpha:beta',

@@ -102,7 +102,7 @@ test('core loop commits an effect reservation before invoking effect handler', a
 
     assert.equal(effectObservedReservation, true);
     assert.equal(result.state, 'IDLE');
-    assert.equal(f.kernel.inspect()[0].status, 'DONE');
+    assert.equal(f.kernel.inspect()[0]?.status, 'DONE');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -136,7 +136,7 @@ test('core loop never invokes effect handler when effect reservation cannot comm
     );
 
     assert.equal(executions, 0);
-    assert.equal(f.kernel.inspect()[0].status, 'EXECUTING');
+    assert.equal(f.kernel.inspect()[0]?.status, 'EXECUTING');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -166,7 +166,7 @@ test('preflight judgment can WAIT without opening the effect boundary', async ()
 
     assert.equal(result.state, 'WAITING');
     assert.equal(executions, 0);
-    assert.equal(f.kernel.inspect()[0].status, 'WAITING');
+    assert.equal(f.kernel.inspect()[0]?.status, 'WAITING');
 
     const commits = execFileSync('git', ['-C', f.repo, 'rev-list', 'refs/overcenter/state'], {
       encoding: 'utf8',
@@ -204,7 +204,7 @@ test('post-reservation judgment is recovery uncertainty, not WAITING', async () 
     });
 
     assert.equal(result.state, 'RECOVERY_REQUIRED');
-    assert.equal(f.kernel.inspect()[0].status, 'RECOVERY_REQUIRED');
+    assert.equal(f.kernel.inspect()[0]?.status, 'RECOVERY_REQUIRED');
     assert.deepEqual(
       f.kernel.receipts(result.run!).map((receipt) => receipt.disposition),
       ['RECOVERY_REQUIRED'],
@@ -244,7 +244,7 @@ test('authoritative absence alone makes work replayable', () => {
     assert.equal(receipt.observed?.absence_evidence?.provenance.error_code, 'ENOENT');
     assert.equal('negative_evidence_authoritative' in receipt.observed!, false);
     assert.equal(receipt.disposition, 'READY');
-    assert.equal(f.kernel.inspect()[0].status, 'READY');
+    assert.equal(f.kernel.inspect()[0]?.status, 'READY');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -323,7 +323,7 @@ test('unresolved effect reservation survives generation handoff until presence s
 
     const settled = f.kernel.resolve(second);
     assert.equal(settled.disposition, 'DONE');
-    assert.equal(f.kernel.inspect()[0].status, 'DONE');
+    assert.equal(f.kernel.inspect()[0]?.status, 'DONE');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -345,7 +345,7 @@ test('authoritative absence does not release an unresolved effect without adapte
     assert.equal(absent.disposition, 'RECOVERY_REQUIRED');
     assert.equal(f.kernel.hasUnresolvedEffect(first.id), true);
     assert.equal(f.kernel.deriveReadyWork(), null);
-    assert.equal(f.kernel.inspect()[0].status, 'RECOVERY_REQUIRED');
+    assert.equal(f.kernel.inspect()[0]?.status, 'RECOVERY_REQUIRED');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -361,7 +361,7 @@ test('interrupted exact run reconciles to DONE without replay', () => {
     f.kernel.recoverInterrupted(run, { source: 'supervisor' });
     const receipt = f.kernel.reconcile(run);
     assert.equal(receipt.disposition, 'DONE');
-    assert.equal(f.kernel.inspect()[0].status, 'DONE');
+    assert.equal(f.kernel.inspect()[0]?.status, 'DONE');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -388,7 +388,7 @@ test('supervisor rotates execution authority before recovering a dead worker', (
     const settled = f.kernel.reconcile(supervisor);
     assert.equal(settled.disposition, 'DONE');
     assert.equal(settled.verified, true);
-    assert.equal(f.kernel.inspect()[0].status, 'DONE');
+    assert.equal(f.kernel.inspect()[0]?.status, 'DONE');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -452,18 +452,18 @@ test('authority history contains no state snapshot and receipts remain factual',
       }
     };
 
-    assert.equal(f.kernel.inspect()[0].status, 'READY');
+    assert.equal(f.kernel.inspect()[0]?.status, 'READY');
     assertNoStateSnapshot();
 
     const run = f.kernel.claim('x', f.kernel.deriveReadyWork()!.revision);
-    assert.equal(f.kernel.inspect()[0].status, 'EXECUTING');
+    assert.equal(f.kernel.inspect()[0]?.status, 'EXECUTING');
     assertNoStateSnapshot();
 
     const recovery = f.kernel.recoverInterrupted(run, { source: 'test' });
     assert.equal(recovery.disposition, 'RECOVERY_REQUIRED');
     assert.equal(recovery.verified, false);
     assert.equal(recovery.claim_commit, run.claim_commit);
-    assert.equal(f.kernel.inspect()[0].status, 'RECOVERY_REQUIRED');
+    assert.equal(f.kernel.inspect()[0]?.status, 'RECOVERY_REQUIRED');
     assertNoStateSnapshot();
 
     const persistedRecovery = JSON.parse(
@@ -480,7 +480,7 @@ test('authority history contains no state snapshot and receipts remain factual',
     assert.equal(settled.disposition, 'DONE');
     assert.equal(settled.verified, true);
     assert.equal(settled.claim_commit, run.claim_commit);
-    assert.equal(f.kernel.inspect()[0].status, 'DONE');
+    assert.equal(f.kernel.inspect()[0]?.status, 'DONE');
     assertNoStateSnapshot();
 
     const persistedSettlement = JSON.parse(
@@ -533,6 +533,7 @@ test('historical receipt stays bound to the immutable definition claimed by its 
     );
 
     const rebound = f.kernel.inspect()[0];
+    assert.ok(rebound);
     assert.equal(rebound.status, 'READY');
     assert.deepEqual(rebound.packet, { generation: 2 });
     assert.deepEqual(rebound.postcondition, pc(path, 'two'));
@@ -549,7 +550,7 @@ test('historical receipt stays bound to the immutable definition claimed by its 
     const secondDone = f.kernel.resolve(secondRun);
     assert.equal(secondDone.disposition, 'DONE');
     assert.equal(secondDone.verified, true);
-    assert.equal(f.kernel.inspect()[0].status, 'DONE');
+    assert.equal(f.kernel.inspect()[0]?.status, 'DONE');
 
     const graphPatchCommits = execFileSync(
       'git',
@@ -582,11 +583,11 @@ test('historical receipt stays bound to the immutable definition claimed by its 
           bindings: Array<{ node_id: string; definition_id: string }>;
         },
     );
-    assert.deepEqual(patches[0].definitions[0].definition.packet, { generation: 1 });
-    assert.deepEqual(patches[1].definitions[0].definition.packet, { generation: 2 });
-    assert.notEqual(patches[0].definitions[0].id, patches[1].definitions[0].id);
-    assert.equal(patches[0].bindings[0].definition_id, patches[0].definitions[0].id);
-    assert.equal(patches[1].bindings[0].definition_id, patches[1].definitions[0].id);
+    assert.deepEqual(patches[0]!.definitions[0]!.definition.packet, { generation: 1 });
+    assert.deepEqual(patches[1]!.definitions[0]!.definition.packet, { generation: 2 });
+    assert.notEqual(patches[0]!.definitions[0]!.id, patches[1]!.definitions[0]!.id);
+    assert.equal(patches[0]!.bindings[0]!.definition_id, patches[0]!.definitions[0]!.id);
+    assert.equal(patches[1]!.bindings[0]!.definition_id, patches[1]!.definitions[0]!.id);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -607,8 +608,8 @@ test('projected terminal receipt remains idempotent after a retry is claimed', (
 
     assert.equal(repeated.disposition, 'READY');
     assert.equal(repeated.settlement_commit, replayable.settlement_commit);
-    assert.equal(f.kernel.inspect()[0].run_id, secondRun.id);
-    assert.equal(f.kernel.inspect()[0].status, 'EXECUTING');
+    assert.equal(f.kernel.inspect()[0]?.run_id, secondRun.id);
+    assert.equal(f.kernel.inspect()[0]?.status, 'EXECUTING');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -628,7 +629,7 @@ test('judgment-required fact projects WAITING without persisting WAITING', () =>
 
     assert.equal(waiting.disposition, 'WAITING');
     assert.equal(waiting.verified, false);
-    assert.equal(f.kernel.inspect()[0].status, 'WAITING');
+    assert.equal(f.kernel.inspect()[0]?.status, 'WAITING');
 
     const persisted = JSON.parse(
       execFileSync('git', ['-C', f.repo, 'show', `${waiting.settlement_commit}:receipt.json`], {
@@ -644,7 +645,7 @@ test('judgment-required fact projects WAITING without persisting WAITING', () =>
     writeFileSync(path, 'present');
     const settled = f.kernel.reconcile(run);
     assert.equal(settled.disposition, 'DONE');
-    assert.equal(f.kernel.inspect()[0].status, 'DONE');
+    assert.equal(f.kernel.inspect()[0]?.status, 'DONE');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }

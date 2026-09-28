@@ -63,7 +63,9 @@ try {
   const inputFile = damaged.files.find((file) => file.path === 'input.txt');
   assert.ok(inputFile);
   const altered = Buffer.from(inputFile.content_base64, 'base64');
-  altered[0] ^= 1;
+  const firstByte = altered[0];
+  if (firstByte === undefined) throw new Error('input fixture unexpectedly empty');
+  altered[0] = firstByte ^ 1;
   inputFile.content_base64 = altered.toString('base64');
   const damagedPath = join(root, 'damaged.json');
   writeFileSync(damagedPath, JSON.stringify(damaged, null, 2) + '\n');

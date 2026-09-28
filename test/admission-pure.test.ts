@@ -146,10 +146,10 @@ test('indexed effect ordering matches recursive reference on every four-node lab
           .filter(([downstream]) => downstream === index)
           .map(([, upstream]) => ({
             kind: 'control' as const,
-            upstream: ids[upstream],
+            upstream: ids[upstream]!,
           }));
-        obligations[ids[index]] = statusObligation(
-          ids[index],
+        obligations[ids[index]!] = statusObligation(
+          ids[index]!,
           (desiredMask & (1 << index)) !== 0 ? 'success' : 'failure',
           dependencies,
         );

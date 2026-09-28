@@ -238,7 +238,7 @@ export function replayProjection(
         execution_capability_sha256: claim.execution_capability_sha256,
         ...(sourceRevision ? { source_revision: sourceRevision.source_revision } : {}),
         obligation: structuredClone(obligation),
-        definition_id: state.definition_ids[claim.obligation_id],
+        definition_id: state.definition_ids[claim.obligation_id]!,
       };
       runs.set(run.id, run);
       claimOrdinalsByRun.set(run.id, authorityOrdinal);

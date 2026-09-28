@@ -215,7 +215,7 @@ function githubStatusObservation(
       }
     : {
         ...common,
-        actual_state: status.actual_state,
+        actual_state: status.actual_state!,
         mutation_certainty: 'present',
         provider_evidence: status.evidence,
       };
@@ -506,9 +506,9 @@ export function observePostcondition(p: Postcondition, context: ObservationConte
       return {
         ...common,
         mutation_certainty: 'present',
-        observed_uid: result.uid,
-        observed_resource_version: result.resource_version,
-        snapshot_resource_version: result.snapshot_resource_version,
+        observed_uid: result.uid!,
+        observed_resource_version: result.resource_version!,
+        snapshot_resource_version: result.snapshot_resource_version!,
         provider_evidence: result.provider_evidence,
       };
     }
@@ -516,8 +516,8 @@ export function observePostcondition(p: Postcondition, context: ObservationConte
       return {
         ...common,
         mutation_certainty: 'absent',
-        snapshot_resource_version: result.snapshot_resource_version,
-        absence_evidence: result.absence_evidence,
+        snapshot_resource_version: result.snapshot_resource_version!,
+        absence_evidence: result.absence_evidence!,
         provider_evidence: result.provider_evidence,
       };
     }

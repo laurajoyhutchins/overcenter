@@ -185,7 +185,7 @@ test('complete Kubernetes LIST absence drives generic settlement to READY and la
     assert.equal(absent.observed?.mutation_certainty, 'absent');
     assert.equal(absent.observed?.absence_evidence?.kind, 'kubernetes-complete-list-absence/v1');
     assert.equal(absent.observed?.absence_evidence?.completeness.page_count, 2);
-    assert.equal(f.kernel.inspect()[0].status, 'READY');
+    assert.equal(f.kernel.inspect()[0]?.status, 'READY');
 
     present = true;
     const second = f.kernel.claim('ensure-configmap', f.kernel.deriveReadyWork()!.revision);
@@ -193,7 +193,7 @@ test('complete Kubernetes LIST absence drives generic settlement to READY and la
     assert.equal(done.disposition, 'DONE');
     assert.equal(done.verified, true);
     assert.equal(done.observed?.observed_uid, 'uid-target');
-    assert.equal(f.kernel.inspect()[0].status, 'DONE');
+    assert.equal(f.kernel.inspect()[0]?.status, 'DONE');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -277,7 +277,9 @@ test('durable LIST page-chain tampering cannot authorize absence', () => {
 
   const brokenChain = structuredClone(result.absence_evidence);
   const pages = brokenChain.provenance.pages as Array<Record<string, unknown>>;
-  pages[1].request_continue = 'wrong-token';
+  const secondPage = pages[1];
+  assert.ok(secondPage);
+  secondPage.request_continue = 'wrong-token';
   assert.equal(kubernetesConfigMapAbsenceEvidenceMatches(brokenChain, pc()), false);
 });
 
