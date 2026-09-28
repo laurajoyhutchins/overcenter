@@ -8,7 +8,7 @@ import {
   runtimeModuleClosure,
 } from '../src/analysis/typescript-runtime.ts';
 
-import { loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
+import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import { deriveEffectTrustRoots, type EffectTrustRoot } from '../src/architecture/tcb.ts';
 
 import {
@@ -858,8 +858,12 @@ try {
   });
 
   const architectureDb = loadArchitectureDatabase();
-  const architectureRoots = deriveEffectTrustRoots(architectureDb);
-  architectureDb.close();
+  let architectureRoots: EffectTrustRoot[];
+  try {
+    architectureRoots = deriveEffectTrustRoots(architectureDb);
+  } finally {
+    architectureDb.close();
+  }
 
   const propertyCoversRoot = (
     property: (typeof reports)[number],
