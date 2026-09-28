@@ -726,8 +726,12 @@ try {
       )
       .digest('hex');
     const closure = moduleClosure(property.entries.map((entry) => entry.path));
-    const symbols = symbolClosure(property);
-    const hybrid = hybridClosure(closure, symbols, property);
+    const measuredProperty: TcbProperty = {
+      ...property,
+      runtime_dispatch_bindings: architectureDispatchBindings,
+    };
+    const symbols = symbolClosure(measuredProperty);
+    const hybrid = hybridClosure(closure, symbols, measuredProperty);
     const moduleFiles = new Set(closure.files);
     const symbolFilesOutsideModuleClosure = symbols.files.filter((path) => !moduleFiles.has(path));
     if (semanticLoc > property.max_semantic_loc) failed = true;
