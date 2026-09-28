@@ -47,7 +47,7 @@ The table below and `.overcenter/tcb-obligations.json` are generated from the ex
 | --- | ---: | ---: | ---: | ---: | --- | --- |
 | `broker-mutation-safety` | 1,134 | 3,374 | 9,159 | **9,286** | stale | `3f269400397a…ec882` |
 | `no-false-done` | 1,572 | 3,231 | 9,159 | **9,283** | stale | `b058afdc79f0…bb319` |
-| `github-commit-status-provider` | 2,377 | 2,550 | 2,756 | **2,762** | unconfigured | `098afca43abc…c98aa0` |
+| `github-commit-status-provider` | 2,377 | 2,550 | 2,756 | **2,762** | unconfigured | `098afca43abc…98aa0` |
 
 | Composition | Deduplicated hybrid union | Hostile evidence | Union SHA-256 |
 | --- | ---: | --- | --- |
