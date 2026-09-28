@@ -16,7 +16,7 @@ npx --yes "@biomejs/biome@$BIOME_VERSION" format "${biome_format_files[@]}"
 
 # TypeScript identifiers use the product's canonical GitHub casing. Lowercase github remains valid
 # in wire values, schema IDs, paths, and filenames.
-if git grep -nE '\bGithub[A-Z][A-Za-z0-9_]*\b' -- '*.ts'; then
+if git grep -nE '(^|[^A-Za-z0-9_])Github[A-Z][A-Za-z0-9_]*' -- '*.ts'; then
   echo 'TypeScript identifiers must spell the product name GitHub, not Github.' >&2
   exit 1
 fi
