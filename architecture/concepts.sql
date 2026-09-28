@@ -25,6 +25,28 @@ CREATE TABLE capability (
   capability_id TEXT PRIMARY KEY CHECK (length(trim(capability_id)) > 0)
 ) STRICT;
 
+CREATE TABLE assurance_property (
+  property_id TEXT PRIMARY KEY CHECK (length(trim(property_id)) > 0)
+) STRICT;
+
+CREATE TABLE assurance_property_requires_authority (
+  property_id TEXT NOT NULL REFERENCES assurance_property(property_id) ON DELETE CASCADE,
+  authority_id TEXT NOT NULL REFERENCES authority(authority_id) ON DELETE CASCADE,
+  PRIMARY KEY (property_id, authority_id)
+) STRICT;
+
+CREATE TABLE assurance_property_requires_capability (
+  property_id TEXT NOT NULL REFERENCES assurance_property(property_id) ON DELETE CASCADE,
+  capability_id TEXT NOT NULL REFERENCES capability(capability_id) ON DELETE CASCADE,
+  PRIMARY KEY (property_id, capability_id)
+) STRICT;
+
+CREATE TABLE assurance_property_guards_effect (
+  property_id TEXT NOT NULL REFERENCES assurance_property(property_id) ON DELETE CASCADE,
+  effect_id TEXT NOT NULL REFERENCES effect(effect_id) ON DELETE CASCADE,
+  PRIMARY KEY (property_id, effect_id)
+) STRICT;
+
 CREATE TABLE effect_requires_authority (
   effect_id TEXT NOT NULL REFERENCES effect(effect_id) ON DELETE CASCADE,
   authority_id TEXT NOT NULL REFERENCES authority(authority_id) ON DELETE CASCADE,
