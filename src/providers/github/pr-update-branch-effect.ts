@@ -2,12 +2,12 @@ import type { KernelCore } from '../../authority/engine.ts';
 import type { ExecutionPermit } from '../../model.ts';
 import { GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT } from '../../effect-adapter.ts';
 import { GITHUB_API_VERSION } from './contract.ts';
-import { observeCertifiedGithubPullRequestIdentity } from './certified-pr.ts';
-import { githubGetAsync, runGithubReadObserverAsync, type GithubJsonGetAsync } from './rest.ts';
+import { observeCertifiedGitHubPullRequestIdentity } from './certified-pr.ts';
+import { githubGetAsync, runGitHubReadObserverAsync, type GitHubJsonGetAsync } from './rest.ts';
 
 export { GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT } from '../../effect-adapter.ts';
 
-export type GithubUpdateBranchPut = (
+export type GitHubUpdateBranchPut = (
   token: string,
   path: string,
   body: { expected_head_sha: string },
@@ -31,7 +31,7 @@ async function githubPut(
   return { status: response.status, body: await response.text() };
 }
 
-export async function performGithubPullRequestUpdateBranchEffect(
+export async function performGitHubPullRequestUpdateBranchEffect(
   kernel: KernelCore,
   permit: ExecutionPermit,
   {
@@ -41,8 +41,8 @@ export async function performGithubPullRequestUpdateBranchEffect(
     clock = () => new Date().toISOString(),
   }: {
     token: string;
-    get?: GithubJsonGetAsync;
-    put?: GithubUpdateBranchPut;
+    get?: GitHubJsonGetAsync;
+    put?: GitHubUpdateBranchPut;
     clock?: () => string;
   },
 ): Promise<{
@@ -54,10 +54,10 @@ export async function performGithubPullRequestUpdateBranchEffect(
   if (!token) throw new Error('GITHUB_TOKEN_UNAVAILABLE');
   const authority = kernel.authorizeEffect(permit, GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT);
   const p = authority.postcondition;
-  const identity = await runGithubReadObserverAsync(
+  const identity = await runGitHubReadObserverAsync(
     token,
     (syncGet) =>
-      observeCertifiedGithubPullRequestIdentity(token, {
+      observeCertifiedGitHubPullRequestIdentity(token, {
         repositoryId: p.repository_id,
         repositoryFullName: p.repository_full_name,
         pullNumber: p.pull_number,
