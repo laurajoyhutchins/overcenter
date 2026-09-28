@@ -14,6 +14,7 @@ import type {
   WorkflowTransitiveEffectFact,
   WorkflowUnresolvedDynamicCallFact,
 } from '../observation/workflow-transitive-effects.ts';
+import { assertNonEmptyString, isData } from '../validation.ts';
 import type { ObligationInput } from './facts.ts';
 
 export const ARCHITECTURE_INTENT_SCHEMA = 'overcenter-architecture-intent/v1' as const;
@@ -151,10 +152,6 @@ export interface ArchitectureReconciliationInput {
   observations: ArchitectureObservedFact[];
 }
 
-function nonEmptyString(value: unknown, error: string): asserts value is string {
-  if (typeof value !== 'string' || value.length === 0) throw new Error(error);
-}
-
 function stringArray(value: unknown, error: string): asserts value is string[] {
   if (
     !Array.isArray(value) ||
@@ -165,23 +162,19 @@ function stringArray(value: unknown, error: string): asserts value is string[] {
 }
 
 export function validateArchitectureIntent(value: unknown): ArchitectureIntent {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('ARCHITECTURE_INTENT_INVALID');
-  }
-  const record = value as Record<string, unknown>;
+  if (!isData(value)) throw new Error('ARCHITECTURE_INTENT_INVALID');
+  const record = value;
   if (record.schema !== ARCHITECTURE_INTENT_SCHEMA || !Array.isArray(record.claims)) {
     throw new Error('ARCHITECTURE_INTENT_SCHEMA_UNSUPPORTED');
   }
 
   const claims = record.claims.map((candidate): ArchitectureIntentClaim => {
-    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
-      throw new Error('ARCHITECTURE_INTENT_CLAIM_INVALID');
-    }
-    const claim = candidate as Record<string, unknown>;
-    nonEmptyString(claim.concept, 'ARCHITECTURE_INTENT_CONCEPT_INVALID');
+    if (!isData(candidate)) throw new Error('ARCHITECTURE_INTENT_CLAIM_INVALID');
+    const claim = candidate;
+    assertNonEmptyString(claim.concept, 'ARCHITECTURE_INTENT_CONCEPT_INVALID');
 
     if (claim.kind === 'authority-role') {
-      nonEmptyString(claim.authority, 'ARCHITECTURE_INTENT_AUTHORITY_INVALID');
+      assertNonEmptyString(claim.authority, 'ARCHITECTURE_INTENT_AUTHORITY_INVALID');
       stringArray(claim.projections, 'ARCHITECTURE_INTENT_PROJECTIONS_INVALID');
       stringArray(claim.verifiers, 'ARCHITECTURE_INTENT_VERIFIERS_INVALID');
       return {
@@ -196,15 +189,11 @@ export function validateArchitectureIntent(value: unknown): ArchitectureIntent {
     if (claim.kind === 'github-actions-explicit-write-authority') {
       if (!Array.isArray(claim.allowed)) throw new Error('ARCHITECTURE_INTENT_ALLOWED_INVALID');
       const allowed = claim.allowed.map((candidateGrant) => {
-        if (
-          !candidateGrant ||
-          typeof candidateGrant !== 'object' ||
-          Array.isArray(candidateGrant)
-        ) {
+        if (!isData(candidateGrant)) {
           throw new Error('ARCHITECTURE_INTENT_WRITE_GRANT_INVALID');
         }
-        const grant = candidateGrant as Record<string, unknown>;
-        nonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
+        const grant = candidateGrant;
+        assertNonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
         stringArray(grant.permissions, 'ARCHITECTURE_INTENT_PERMISSIONS_INVALID');
         if (grant.permissions.length === 0) {
           throw new Error('ARCHITECTURE_INTENT_PERMISSIONS_EMPTY');
@@ -224,15 +213,11 @@ export function validateArchitectureIntent(value: unknown): ArchitectureIntent {
     if (claim.kind === 'github-actions-provider-effect-authority') {
       if (!Array.isArray(claim.allowed)) throw new Error('ARCHITECTURE_INTENT_ALLOWED_INVALID');
       const allowed = claim.allowed.map((candidateGrant) => {
-        if (
-          !candidateGrant ||
-          typeof candidateGrant !== 'object' ||
-          Array.isArray(candidateGrant)
-        ) {
+        if (!isData(candidateGrant)) {
           throw new Error('ARCHITECTURE_INTENT_EFFECT_GRANT_INVALID');
         }
-        const grant = candidateGrant as Record<string, unknown>;
-        nonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
+        const grant = candidateGrant;
+        assertNonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
         stringArray(grant.effects, 'ARCHITECTURE_INTENT_EFFECTS_INVALID');
         if (grant.effects.length === 0) {
           throw new Error('ARCHITECTURE_INTENT_EFFECTS_EMPTY');
@@ -252,15 +237,11 @@ export function validateArchitectureIntent(value: unknown): ArchitectureIntent {
     if (claim.kind === 'workflow-transitive-effect-authority') {
       if (!Array.isArray(claim.allowed)) throw new Error('ARCHITECTURE_INTENT_ALLOWED_INVALID');
       const allowed = claim.allowed.map((candidateGrant) => {
-        if (
-          !candidateGrant ||
-          typeof candidateGrant !== 'object' ||
-          Array.isArray(candidateGrant)
-        ) {
+        if (!isData(candidateGrant)) {
           throw new Error('ARCHITECTURE_INTENT_TRANSITIVE_EFFECT_GRANT_INVALID');
         }
-        const grant = candidateGrant as Record<string, unknown>;
-        nonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
+        const grant = candidateGrant;
+        assertNonEmptyString(grant.workflow, 'ARCHITECTURE_INTENT_WORKFLOW_INVALID');
         stringArray(grant.effects, 'ARCHITECTURE_INTENT_EFFECTS_INVALID');
         if (grant.effects.length === 0) {
           throw new Error('ARCHITECTURE_INTENT_EFFECTS_EMPTY');
@@ -596,7 +577,7 @@ export function reconcileArchitecture({
   observations,
 }: ArchitectureReconciliationInput): ArchitectureReconciliation {
   const intent = validateArchitectureIntent(rawIntent);
-  nonEmptyString(sourceRevision, 'ARCHITECTURE_SOURCE_REVISION_INVALID');
+  assertNonEmptyString(sourceRevision, 'ARCHITECTURE_SOURCE_REVISION_INVALID');
   for (const fact of observations) {
     if (fact.source_revision !== sourceRevision) {
       throw new Error('ARCHITECTURE_OBSERVATION_REVISION_MISMATCH');
@@ -658,7 +639,7 @@ export function architectureReconciliationWork(
   resolution: ConflictedArchitectureResolution,
   sourceRevision: string,
 ): ObligationInput {
-  nonEmptyString(sourceRevision, 'ARCHITECTURE_SOURCE_REVISION_INVALID');
+  assertNonEmptyString(sourceRevision, 'ARCHITECTURE_SOURCE_REVISION_INVALID');
   const identity = canonicalDigest({
     domain: 'overcenter-architecture-reconciliation-work',
     source_revision: sourceRevision,
