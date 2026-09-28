@@ -10,7 +10,7 @@ import {
   reconcileArchitecture,
   validateArchitectureIntent,
 } from '../src/authority/architecture-reconciliation.ts';
-import { loadArchitectureIntent } from '../src/architecture/sql-intent.ts';
+import { ARCHITECTURE_SQL_PATHS, loadArchitectureIntent } from '../src/architecture/sql-model.ts';
 import {
   GITHUB_COMMIT_STATUS_EFFECT,
   GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
@@ -88,6 +88,22 @@ function observations(
     },
   ];
 }
+
+test('architecture SQL separates language, logic, and physics', () => {
+  assert.deepEqual(ARCHITECTURE_SQL_PATHS, [
+    'architecture/concepts.sql',
+    'architecture/logic.sql',
+    'architecture/physics.sql',
+  ]);
+
+  const concepts = readFileSync('architecture/concepts.sql', 'utf8');
+  const logic = readFileSync('architecture/logic.sql', 'utf8');
+  const physics = readFileSync('architecture/physics.sql', 'utf8');
+
+  assert.doesNotMatch(concepts, /src\/|\.github\/|github|kubernetes/i);
+  assert.doesNotMatch(logic, /src\/|\.github\/workflows\//);
+  assert.doesNotMatch(physics, /\bCREATE\s+TABLE\b/i);
+});
 
 test('maintained architecture intent reconciles against observed production flow', () => {
   const maintained = loadArchitectureIntent();
@@ -207,8 +223,8 @@ test('observed disagreement becomes bounded reasoning work with no mutation auth
   assert.ok(dispatch.evidence_predicates.includes('packet.kind=architecture-reconciliation'));
 });
 
-test('duplicate authority ownership is a conflict rather than silently accepted reality', () => {
-  const duplicated: ArchitectureIntent = {
+test('one artifact may implement multiple architecture concepts', () => {
+  const shared: ArchitectureIntent = {
     schema: ARCHITECTURE_INTENT_SCHEMA,
     claims: [
       {
@@ -228,7 +244,7 @@ test('duplicate authority ownership is a conflict rather than silently accepted 
     ],
   };
   const result = reconcileArchitecture({
-    intent: duplicated,
+    intent: shared,
     source_revision: revision,
     observations: [
       {
@@ -240,10 +256,8 @@ test('duplicate authority ownership is a conflict rather than silently accepted 
     ],
   });
   assert.deepEqual(
-    result.resolutions.map((resolution) =>
-      resolution.state === 'conflict' ? resolution.reason_code : resolution.state,
-    ),
-    ['DUPLICATE_AUTHORITY_OWNER', 'DUPLICATE_AUTHORITY_OWNER'],
+    result.resolutions.map((resolution) => resolution.state),
+    ['established', 'established'],
   );
 });
 
