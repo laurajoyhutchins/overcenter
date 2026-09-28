@@ -23,7 +23,6 @@ const candidateOnlyWorkflowPaths = [
   '../.github/workflows/disposable-agent-proof.yml',
   '../.github/workflows/formal-kernel.yml',
   '../.github/workflows/github-object-transport-proof.yml',
-  '../.github/workflows/github-observation-grammar.yml',
   '../.github/workflows/production-latency.yml',
   '../.github/workflows/typebox-production-contract.yml',
 ];
