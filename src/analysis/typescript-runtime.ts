@@ -84,11 +84,7 @@ export function staticRuntimeImports(
   return { local: local.sort(), external: external.sort() };
 }
 
-export function runtimeImports(
-  root: string,
-  path: string,
-  source: SourceFile,
-): RuntimeImports {
+export function runtimeImports(root: string, path: string, source: SourceFile): RuntimeImports {
   const imports = staticRuntimeImports(root, path, source);
   const local = new Set(imports.local);
   const external = new Set(imports.external);
