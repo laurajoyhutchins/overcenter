@@ -36,6 +36,7 @@ export class GitFactStore implements DurableFactStore {
       return null;
     }
     const sha = line.split(/\s+/)[0];
+    if (!sha) throw new Error('AUTHORITY_REMOTE_REF_INVALID');
     const fetched = this.#git(['fetch', '--no-tags', this.remote, `+${this.ref}:${this.ref}`], {
       allowFailure: true,
     });
