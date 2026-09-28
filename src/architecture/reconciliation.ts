@@ -97,9 +97,7 @@ function insertObserved(db: DatabaseSync, observed: ObservedArchitecture): void 
   const artifact = db.prepare('INSERT INTO observed_artifact(artifact_id) VALUES (?)');
   for (const row of observed.artifacts) artifact.run(row.artifact_id);
 
-  const symbol = db.prepare(
-    'INSERT INTO observed_symbol(symbol_id, artifact_id) VALUES (?, ?)',
-  );
+  const symbol = db.prepare('INSERT INTO observed_symbol(symbol_id, artifact_id) VALUES (?, ?)');
   for (const row of observed.symbols) symbol.run(row.symbol_id, row.artifact_id);
 
   const principal = db.prepare('INSERT INTO observed_principal(principal_id) VALUES (?)');
