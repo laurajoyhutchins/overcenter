@@ -31,6 +31,19 @@ CREATE TABLE effect_requires_authority (
   PRIMARY KEY (effect_id, authority_id)
 ) STRICT;
 
+CREATE TABLE authority_depends_on_authority (
+  authority_id TEXT NOT NULL REFERENCES authority(authority_id) ON DELETE CASCADE,
+  required_authority_id TEXT NOT NULL REFERENCES authority(authority_id) ON DELETE CASCADE,
+  PRIMARY KEY (authority_id, required_authority_id),
+  CHECK (authority_id <> required_authority_id)
+) STRICT;
+
+CREATE TABLE effect_requires_capability (
+  effect_id TEXT NOT NULL REFERENCES effect(effect_id) ON DELETE CASCADE,
+  capability_id TEXT NOT NULL REFERENCES capability(capability_id) ON DELETE CASCADE,
+  PRIMARY KEY (effect_id, capability_id)
+) STRICT;
+
 CREATE TABLE obligation_guards_effect (
   obligation_id TEXT NOT NULL REFERENCES obligation(obligation_id) ON DELETE CASCADE,
   effect_id TEXT NOT NULL REFERENCES effect(effect_id) ON DELETE CASCADE,
