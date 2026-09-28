@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
+import { trustRootsForEffect } from '../src/architecture/tcb.ts';
 import { reconcileArchitecture, type ObservedArchitecture } from '../src/architecture/reconciliation.ts';
 import { observeArchitecture } from '../scripts/observe-architecture.ts';
 
@@ -52,6 +53,39 @@ test('layered architecture loads as one foreign-key-valid relational model', () 
           }
         ).count,
       ) > 0,
+    );
+  } finally {
+    db.close();
+  }
+});
+
+
+test('TCB roots are derived recursively from effect architecture', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const roots = trustRootsForEffect(db, 'github-commit-status/create');
+    const identities = new Set(roots.map((root) => `${root.artifact_id}#${root.symbol_id}`));
+
+    assert.ok(identities.has('src/authority/engine.ts#KernelCore.claim'));
+    assert.ok(identities.has('src/authority/engine.ts#KernelCore.acquireExecution'));
+    assert.ok(identities.has('src/authority/engine.ts#KernelCore.authorizeEffect'));
+    assert.ok(identities.has('src/authority/engine.ts#KernelCore.beginEffect'));
+    assert.ok(identities.has('src/authority/engine.ts#KernelCore.resolve'));
+    assert.ok(identities.has('src/storage/sqlite.ts#SqliteFactStore.append'));
+    assert.ok(identities.has('src/observation/observe.ts#observationVerified'));
+    assert.ok(
+      identities.has(
+        'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
+      ),
+    );
+
+    const sourceRoots = trustRootsForEffect(db, 'source/integrate');
+    assert.ok(
+      sourceRoots.some(
+        (root) =>
+          root.artifact_id === 'src/source/source-integration.ts' &&
+          root.symbol_id === 'integrateVerifiedSourceCandidate',
+      ),
     );
   } finally {
     db.close();
