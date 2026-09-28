@@ -35,7 +35,14 @@ export function parseCodeSymbolSelector(selector: string): CodeSymbolSelector {
   }
   const path = selector.slice(0, separator);
   const symbol = selector.slice(separator + 1);
-  if (!path.startsWith('src/') || !path.endsWith('.ts') || symbol.length === 0) {
+  const segments = path.split('/');
+  if (
+    !path.startsWith('src/') ||
+    !path.endsWith('.ts') ||
+    path.includes('\\') ||
+    segments.some((segment) => segment.length === 0 || segment === '.' || segment === '..') ||
+    !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(symbol)
+  ) {
     throw new Error('CODE_DELETION_SELECTOR_INVALID');
   }
   return { path, symbol };
