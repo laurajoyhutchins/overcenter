@@ -92,13 +92,15 @@ if (!Number.isSafeInteger(parentPid)) throw new Error('parent pid missing');
 const statusOf = (pid: number): string => readFileSync('/proc/' + pid + '/status', 'utf8');
 const uidOf = (pid: number): number => {
   const match = statusOf(pid).match(/^Uid:\s+(\d+)/m);
-  if (!match) throw new Error('uid unavailable for pid ' + pid);
-  return Number.parseInt(match[1], 10);
+  const uid = match?.[1];
+  if (!uid) throw new Error('uid unavailable for pid ' + pid);
+  return Number.parseInt(uid, 10);
 };
 const groupsOf = (pid: number): number[] => {
   const match = statusOf(pid).match(/^Groups:\s*(.*)$/m);
-  if (!match) throw new Error('groups unavailable for pid ' + pid);
-  return match[1]
+  const groups = match?.[1];
+  if (groups === undefined) throw new Error('groups unavailable for pid ' + pid);
+  return groups
     .trim()
     .split(/\s+/)
     .filter(Boolean)
