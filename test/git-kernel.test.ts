@@ -586,8 +586,8 @@ test('historical receipt stays bound to the immutable definition claimed by its 
     assert.deepEqual(patches[0]!.definitions[0]!.definition.packet, { generation: 1 });
     assert.deepEqual(patches[1]!.definitions[0]!.definition.packet, { generation: 2 });
     assert.notEqual(patches[0]!.definitions[0]!.id, patches[1]!.definitions[0]!.id);
-    assert.equal(patches[0].bindings[0].definition_id, patches[0]!.definitions[0]!.id);
-    assert.equal(patches[1].bindings[0].definition_id, patches[1]!.definitions[0]!.id);
+    assert.equal(patches[0]!.bindings[0]!.definition_id, patches[0]!.definitions[0]!.id);
+    assert.equal(patches[1]!.bindings[0]!.definition_id, patches[1]!.definitions[0]!.id);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
@@ -608,7 +608,7 @@ test('projected terminal receipt remains idempotent after a retry is claimed', (
 
     assert.equal(repeated.disposition, 'READY');
     assert.equal(repeated.settlement_commit, replayable.settlement_commit);
-    assert.equal(f.kernel.inspect()[0].run_id, secondRun.id);
+    assert.equal(f.kernel.inspect()[0]?.run_id, secondRun.id);
     assert.equal(f.kernel.inspect()[0]?.status, 'EXECUTING');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
