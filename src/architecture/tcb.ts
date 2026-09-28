@@ -216,3 +216,20 @@ export function deriveAssurancePropertyTrustRoots(
     `)
     .all() as unknown as AssurancePropertyTrustRootRow[];
 }
+
+export interface AssurancePropertyComposition {
+  property_id: string;
+  required_property_id: string;
+}
+
+export function deriveAssurancePropertyCompositions(
+  db: DatabaseSync,
+): AssurancePropertyComposition[] {
+  return db
+    .prepare(`
+      SELECT property_id, required_property_id
+      FROM assurance_property_composes_with
+      ORDER BY property_id, required_property_id
+    `)
+    .all() as unknown as AssurancePropertyComposition[];
+}
