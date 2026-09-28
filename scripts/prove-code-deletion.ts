@@ -19,7 +19,6 @@ import {
   isIdentifier,
   isVariableStatement,
   type Node,
-  type SourceFile,
 } from 'typescript/unstable/ast';
 
 import { repositoryRelativePath } from '../src/analysis/typescript-runtime.ts';
@@ -199,7 +198,7 @@ try {
     .trim()
     .split('\n')
     .filter(Boolean)
-    .map((path) => repositoryRelativePath(path, worktree));
+    .map((path) => repositoryRelativePath(resolve(worktree, path), worktree));
   if (changedPaths.length !== 1 || changedPaths[0] !== parsed.path) {
     throw new Error('CODE_DELETION_CANDIDATE_SCOPE_INVALID:' + changedPaths.join(','));
   }
