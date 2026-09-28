@@ -69,7 +69,8 @@ test('candidate substitution and stale original bytes fail closed', () => {
   const substituted = structuredClone(proposal);
   substituted.files[0]!.content_base64 = Buffer.from('export const live = 3;\n').toString('base64');
   assert.throws(
-    () => validateProvenCodeDeletionProposalBinding(task, claim, substituted, Buffer.from(original)),
+    () =>
+      validateProvenCodeDeletionProposalBinding(task, claim, substituted, Buffer.from(original)),
     /CANDIDATE_DIGEST_MISMATCH/,
   );
   assert.throws(
