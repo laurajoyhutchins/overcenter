@@ -4,24 +4,24 @@ import {
   GITHUB_OPENAPI_SOURCE_COMMIT,
 } from './contract.ts';
 import { GITHUB_OBSERVATION_OPERATIONS } from './operations.generated.ts';
-import { materializeGithubOperationRequest } from './openapi.ts';
+import { materializeGitHubOperationRequest } from './openapi.ts';
 import {
   GITHUB_OPERATION_SEMANTICS,
-  type GithubRepositoryReadPermission,
-  type GithubSemanticOperationName,
+  type GitHubRepositoryReadPermission,
+  type GitHubSemanticOperationName,
 } from './semantics.ts';
 import {
   githubRepositoryCoordinate,
-  observeCertifiedGithubRepository,
-  type CertifiedGithubRepositoryEvidence,
+  observeCertifiedGitHubRepository,
+  type CertifiedGitHubRepositoryEvidence,
 } from './certified-repository.ts';
 import { projectResponseSlice } from '../../observation/response-slice.ts';
-import { observeCertifiedGithubRead200 } from './certified-observation.ts';
-import { githubGet, type GithubJsonGet } from './rest.ts';
+import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
+import { githubGet, type GitHubJsonGet } from './rest.ts';
 
-export type GithubGenericSemanticOperationName = Exclude<GithubSemanticOperationName, 'repository'>;
+export type GitHubGenericSemanticOperationName = Exclude<GitHubSemanticOperationName, 'repository'>;
 
-export interface CertifiedGithubSemanticReadEvidence {
+export interface CertifiedGitHubSemanticReadEvidence {
   provider: 'github';
   api_version: string;
   schema_sha256: string;
@@ -29,13 +29,13 @@ export interface CertifiedGithubSemanticReadEvidence {
   observer: { kind: 'git-kernel'; id: 'github-semantic-read/v1' };
   repository_id: number;
   requested_repository_full_name: string;
-  repository: CertifiedGithubRepositoryEvidence;
-  operation_key: GithubGenericSemanticOperationName;
+  repository: CertifiedGitHubRepositoryEvidence;
+  operation_key: GitHubGenericSemanticOperationName;
   operation_id: string;
   observed_at: string;
   request_path: string;
   parameters: Record<string, string | number | boolean>;
-  required_permissions: readonly GithubRepositoryReadPermission[];
+  required_permissions: readonly GitHubRepositoryReadPermission[];
   collection: null | {
     kind: 'single-page';
     page: number;
@@ -47,21 +47,21 @@ export interface CertifiedGithubSemanticReadEvidence {
   optional_absent_paths: string[];
 }
 
-export type CertifiedGithubSemanticReadResult =
+export type CertifiedGitHubSemanticReadResult =
   | {
       state: 'observed' | 'page-observed';
       value: unknown;
-      evidence: CertifiedGithubSemanticReadEvidence;
+      evidence: CertifiedGitHubSemanticReadEvidence;
     }
   | {
       state: 'indeterminate';
-      operation_key: GithubGenericSemanticOperationName;
+      operation_key: GitHubGenericSemanticOperationName;
       operation_id: string;
       observation_error: string;
     };
 
 function validateParameters(
-  operationName: GithubGenericSemanticOperationName,
+  operationName: GitHubGenericSemanticOperationName,
   parameters: Record<string, string | number | boolean>,
 ): void {
   const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
@@ -86,7 +86,7 @@ function validateParameters(
   }
 }
 
-export function observeCertifiedGithubSemanticRead(
+export function observeCertifiedGitHubSemanticRead(
   token: string,
   {
     repositoryId,
@@ -99,18 +99,18 @@ export function observeCertifiedGithubSemanticRead(
   }: {
     repositoryId: number;
     repositoryFullName: string;
-    operation: GithubGenericSemanticOperationName;
+    operation: GitHubGenericSemanticOperationName;
     parameters?: Record<string, string | number | boolean>;
-    grantedPermissions: readonly GithubRepositoryReadPermission[];
-    get?: GithubJsonGet;
+    grantedPermissions: readonly GitHubRepositoryReadPermission[];
+    get?: GitHubJsonGet;
     clock?: () => string;
   },
-): CertifiedGithubSemanticReadResult {
+): CertifiedGitHubSemanticReadResult {
   validateParameters(operationName, parameters);
   githubRepositoryCoordinate(repositoryFullName);
   const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
   const semantic = GITHUB_OPERATION_SEMANTICS[operationName];
-  const granted = new Set<GithubRepositoryReadPermission>(grantedPermissions);
+  const granted = new Set<GitHubRepositoryReadPermission>(grantedPermissions);
   const missing = semantic.required_permissions.filter((permission) => !granted.has(permission));
   if (missing.length > 0) {
     return {
@@ -122,7 +122,7 @@ export function observeCertifiedGithubSemanticRead(
   }
 
   try {
-    const repository = observeCertifiedGithubRepository(token, {
+    const repository = observeCertifiedGitHubRepository(token, {
       repositoryId,
       repositoryFullName,
       get,
@@ -130,8 +130,8 @@ export function observeCertifiedGithubSemanticRead(
       observerId: 'github-semantic-read/v1',
     });
     const { owner, repo } = repository.fact.object;
-    const request = materializeGithubOperationRequest(operation, { owner, repo, ...parameters });
-    const { observed_at: observedAt, certified } = observeCertifiedGithubRead200({
+    const request = materializeGitHubOperationRequest(operation, { owner, repo, ...parameters });
+    const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
       token,
       operation,
       request,
