@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 
-import type { RegisteredEffectImplementationContract } from '../effect-adapter.ts';
+import type { RegisteredEffectImplementationContract } from '../analysis/effect-implementations.ts';
 
 export type WorkflowReachableProductionEffect = RegisteredEffectImplementationContract;
 
