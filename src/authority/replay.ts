@@ -227,8 +227,7 @@ export function replayProjection(
       if (!expectedKey) throw new Error('CLAIM_PREREQUISITES_INCONSISTENT');
       if (claim.obligation_key !== expectedKey) throw new Error('CLAIM_OBLIGATION_KEY_MISMATCH');
 
-      const definitionId = state.definition_ids[claim.obligation_id];
-      if (!definitionId) throw new Error('CLAIM_DEFINITION_NOT_PROJECTED');
+      const definitionId = state.definition_ids[claim.obligation_id]!;
       const run: HistoricalRun = {
         id: claim.run_id,
         obligation_id: claim.obligation_id,
