@@ -181,7 +181,15 @@ try {
       '-m',
       'Counterfactual delete ' + selector,
     ],
-    { cwd: worktree, stdio: 'inherit' },
+    {
+      cwd: worktree,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z',
+        GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z',
+      },
+      stdio: 'inherit',
+    },
   );
   const candidateRevision = execFileSync('git', ['rev-parse', 'HEAD'], {
     cwd: worktree,
