@@ -5,8 +5,8 @@ import {
   KUBERNETES_CONFIGMAP_EFFECT,
 } from '../effect-adapter.ts';
 import type { Data, ExecutionPermit } from '../model.ts';
-import { performGithubCommitStatusEffect, type GithubStatusPost } from './github/status-effect.ts';
-import type { GithubJsonGetAsync } from './github/rest.ts';
+import { performGitHubCommitStatusEffect, type GitHubStatusPost } from './github/status-effect.ts';
+import type { GitHubJsonGetAsync } from './github/rest.ts';
 import {
   performKubernetesConfigMapEffect,
   type KubernetesConfigMapApply,
@@ -15,8 +15,8 @@ import {
 export interface TrustedEffectDispatchContext {
   github?: {
     token: string;
-    get?: GithubJsonGetAsync;
-    statusPost?: GithubStatusPost;
+    get?: GitHubJsonGetAsync;
+    statusPost?: GitHubStatusPost;
     clock?: () => string;
   };
   kubernetes?: {
@@ -39,7 +39,7 @@ export async function dispatchAdmittedEffect(
   if (capabilities.effect_contract === GITHUB_COMMIT_STATUS_EFFECT) {
     const github = context.github;
     if (!github) throw new Error('REGISTERED_EFFECT_DISPATCH_GITHUB_CONTEXT_REQUIRED');
-    return await performGithubCommitStatusEffect(kernel, permit, {
+    return await performGitHubCommitStatusEffect(kernel, permit, {
       token: github.token,
       ...(github.get ? { get: github.get } : {}),
       ...(github.statusPost ? { post: github.statusPost } : {}),
