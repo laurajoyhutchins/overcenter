@@ -6,7 +6,7 @@ import {
   type ProjectSubmitContext,
 } from '../authority/project-agent-protocol.ts';
 import {
-  appendGithubOutputs,
+  appendGitHubOutputs,
   commandOption,
   projectCommandContext,
   requiredEnv,
@@ -39,7 +39,7 @@ mkdirSync(dirname(receiptPath), { recursive: true });
 writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
 console.log(JSON.stringify(receipt, null, 2));
 
-appendGithubOutputs({
+appendGitHubOutputs({
   disposition: receipt.disposition,
   verified: String(receipt.verified),
   authority_head: receipt.authority_head,
