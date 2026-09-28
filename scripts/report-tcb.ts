@@ -1420,8 +1420,9 @@ try {
       '',
       '| Effect | Roots | Derived TCB | Symbol closure | Covered by current composition |',
       '| --- | ---: | ---: | --- | --- |',
-      ...architectureTcb.effects.map((effect) =>
-        `| \`${effect.effect_id}\` | ${effect.roots.length} | **${number(effect.hybrid_closure_semantic_loc)}** | ${effect.symbol_closure_status} | ${effect.covered_by_compositions.length > 0 ? effect.covered_by_compositions.map((id) => `\`${id}\``).join(', ') : '_none_'} |`,
+      ...architectureTcb.effects.map(
+        (effect) =>
+          `| \`${effect.effect_id}\` | ${effect.roots.length} | **${number(effect.hybrid_closure_semantic_loc)}** | ${effect.symbol_closure_status} | ${effect.covered_by_compositions.length > 0 ? effect.covered_by_compositions.map((id) => `\`${id}\``).join(', ') : '_none_'} |`,
       ),
       '',
       '### Largest trusted files in composed properties',
