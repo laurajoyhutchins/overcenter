@@ -1,16 +1,16 @@
 import { GITHUB_API_VERSION } from './contract.ts';
 import { readJsonWithCurl } from '../curl-json.ts';
 
-export type GithubJsonGet = (token: string, path: string) => unknown;
-export type GithubJsonGetAsync = (token: string, path: string) => unknown | Promise<unknown>;
+export type GitHubJsonGet = (token: string, path: string) => unknown;
+export type GitHubJsonGetAsync = (token: string, path: string) => unknown | Promise<unknown>;
 
 const GITHUB_OBJECT_ID = /^[0-9a-f]{40,64}$/i;
 
-export function isGithubObjectId(value: unknown): value is string {
+export function isGitHubObjectId(value: unknown): value is string {
   return typeof value === 'string' && GITHUB_OBJECT_ID.test(value);
 }
 
-export function sameGithubObjectId(left: string, right: string): boolean {
+export function sameGitHubObjectId(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
 }
 
@@ -47,17 +47,17 @@ export async function githubGetAsync(token: string, path: string): Promise<unkno
   }
 }
 
-export class GithubAsyncReadRequired {
+export class GitHubAsyncReadRequired {
   readonly path: string;
   constructor(path: string) {
     this.path = path;
   }
 }
 
-export async function runGithubReadObserverAsync<T>(
+export async function runGitHubReadObserverAsync<T>(
   token: string,
-  observe: (get: GithubJsonGet) => T,
-  get: GithubJsonGetAsync = githubGetAsync,
+  observe: (get: GitHubJsonGet) => T,
+  get: GitHubJsonGetAsync = githubGetAsync,
 ): Promise<T> {
   const cache = new Map<string, unknown>();
   for (let reads = 0; reads < 256; ) {
@@ -65,10 +65,10 @@ export async function runGithubReadObserverAsync<T>(
       return observe((readToken, path) => {
         if (readToken !== token) throw new Error('GITHUB_PROVIDER_TOKEN_MISMATCH');
         if (cache.has(path)) return cache.get(path);
-        throw new GithubAsyncReadRequired(path);
+        throw new GitHubAsyncReadRequired(path);
       });
     } catch (error: unknown) {
-      if (!(error instanceof GithubAsyncReadRequired)) throw error;
+      if (!(error instanceof GitHubAsyncReadRequired)) throw error;
       if (reads++ >= 255) throw new Error('GITHUB_PROVIDER_READ_LIMIT_EXCEEDED');
       cache.set(error.path, await get(token, error.path));
     }
