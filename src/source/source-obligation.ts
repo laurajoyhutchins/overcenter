@@ -6,12 +6,12 @@ export const SOURCE_ASSIGNMENT_SCHEMA = 'overcenter-source-assignment/v1' as con
 export const SOURCE_PROPOSAL_SCHEMA = 'overcenter-source-proposal/v1' as const;
 export const SOURCE_CANDIDATE_SCHEMA = 'overcenter-source-candidate/v1' as const;
 
-export interface SourceTaskAcceptance extends Record<string, unknown> {
+export interface SourceTaskAcceptance {
   verifier: 'tcb-finding-absent/v1';
   finding_id: string;
 }
 
-export interface SourceTaskPacket extends Record<string, unknown> {
+export interface SourceTaskPacket {
   schema: typeof SOURCE_TASK_SCHEMA;
   kind: 'source-change';
   objective: string;
