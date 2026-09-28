@@ -34,7 +34,38 @@ INSERT INTO capability(capability_id) VALUES
   ('effect-authorization'),
   ('effect-reservation'),
   ('effect-settlement'),
-  ('source-integration');
+  ('source-integration'),
+  ('github-commit-status-mutation'),
+  ('github-commit-status-observation');
+
+INSERT INTO assurance_property(property_id) VALUES
+  ('broker-mutation-safety'),
+  ('no-false-done'),
+  ('github-commit-status-provider');
+
+INSERT INTO assurance_property_requires_authority(property_id, authority_id) VALUES
+  ('broker-mutation-safety', 'effect-authority');
+
+INSERT INTO assurance_property_requires_capability(property_id, capability_id) VALUES
+  ('broker-mutation-safety', 'effect-authorization'),
+  ('broker-mutation-safety', 'effect-reservation'),
+  ('no-false-done', 'durable-project-facts'),
+  ('no-false-done', 'project-lifecycle-projection'),
+  ('no-false-done', 'authoritative-observation'),
+  ('no-false-done', 'effect-settlement'),
+  ('github-commit-status-provider', 'github-commit-status-mutation'),
+  ('github-commit-status-provider', 'github-commit-status-observation');
+
+INSERT INTO assurance_property_guards_effect(property_id, effect_id) VALUES
+  ('broker-mutation-safety', 'github-commit-status/create'),
+  ('broker-mutation-safety', 'github-pull-request/update-branch'),
+  ('broker-mutation-safety', 'kubernetes-configmap/ensure'),
+  ('broker-mutation-safety', 'source/integrate'),
+  ('no-false-done', 'github-commit-status/create'),
+  ('no-false-done', 'github-pull-request/update-branch'),
+  ('no-false-done', 'kubernetes-configmap/ensure'),
+  ('no-false-done', 'source/integrate'),
+  ('github-commit-status-provider', 'github-commit-status/create');
 
 INSERT INTO effect_requires_authority(effect_id, authority_id) VALUES
   ('github-commit-status/create', 'effect-authority'),
