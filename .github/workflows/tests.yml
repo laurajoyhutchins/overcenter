@@ -56,6 +56,8 @@ jobs:
         run: npm run typecheck
       - name: Analyze trusted computing base
         run: npm run check:tcb -- --summary "$GITHUB_STEP_SUMMARY" --output "$RUNNER_TEMP/overcenter-tcb-report.json"
+      - name: Analyze production code witnesses
+        run: npm run check:code-witnesses -- --summary "$GITHUB_STEP_SUMMARY" --output "$RUNNER_TEMP/overcenter-code-witness-report.json"
       - name: Check adapter diagnosability
         run: npm run check:adapter-diagnosability
       - name: Check experiment statistics contract
