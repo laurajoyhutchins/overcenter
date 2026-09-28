@@ -97,7 +97,11 @@ function deletionRange(
 }
 
 function runEvidence(worktree: string, candidateRevision: string): CounterfactualEvidenceStep[] {
-  const commands: Array<{ name: CounterfactualEvidenceStep['name']; command: string; args: string[] }> = [
+  const commands: Array<{
+    name: CounterfactualEvidenceStep['name'];
+    command: string;
+    args: string[];
+  }> = [
     { name: 'lint', command: 'npm', args: ['run', 'lint'] },
     { name: 'typecheck', command: 'npm', args: ['run', 'typecheck'] },
     {
