@@ -99,8 +99,8 @@
         "formal models and proof tools"
       ],
       "expected_surface_sha256": "d5d8da95ac87fa9cf6f77f855a6f92e51ce163736ab80197d60355c463bd2af4",
-      "max_module_closure_semantic_loc": 9159,
-      "expected_module_closure_sha256": "36a22ff3707a824114e76bb4595a42de8de195f2b805603ce43efbde14cfe409",
+      "max_module_closure_semantic_loc": 9155,
+      "expected_module_closure_sha256": "ac75999c7f190f9adea49d332fd629967305efc628af6ac9364506dee64f514d",
       "runtime_dispatch_bindings": [
         {
           "target": "src/authority/store.ts#append",
@@ -111,8 +111,8 @@
           "reason": "production authority persistence is the SQLite durable fact store"
         }
       ],
-      "max_hybrid_closure_semantic_loc": 9286,
-      "expected_hybrid_closure_sha256": "cc6af7f80816d6d5bcd936a808acc9f0cd4b3d4d07bf8eabbc626ab1055831e6",
+      "max_hybrid_closure_semantic_loc": 9282,
+      "expected_hybrid_closure_sha256": "5db5bdf0fa6e8f4fc5d91eabde870039298b49d3e1d45d65231c0016edc5c24d",
       "require_sound_symbol_closure": true,
       "hostile_evidence_probes": [
         "effect-reservation",
@@ -244,8 +244,8 @@
         "experiments and formal models"
       ],
       "expected_surface_sha256": "c778a8eba178fb1a9c9d832d3b6dccd0ff0c332f42397fed507e98fd664c500c",
-      "max_module_closure_semantic_loc": 9159,
-      "expected_module_closure_sha256": "36a22ff3707a824114e76bb4595a42de8de195f2b805603ce43efbde14cfe409",
+      "max_module_closure_semantic_loc": 9155,
+      "expected_module_closure_sha256": "ac75999c7f190f9adea49d332fd629967305efc628af6ac9364506dee64f514d",
       "runtime_dispatch_bindings": [
         {
           "target": "src/authority/store.ts#append",
@@ -256,8 +256,8 @@
           "reason": "production authority persistence is the SQLite durable fact store"
         }
       ],
-      "max_hybrid_closure_semantic_loc": 9283,
-      "expected_hybrid_closure_sha256": "cb3106259b5f514c5679ed4d702781caddadeac4c33f68d0f545ecf6f9e9d7f1",
+      "max_hybrid_closure_semantic_loc": 9279,
+      "expected_hybrid_closure_sha256": "7f50f89b4793ddc5c6d96017b47acc975731b8b000e70d8083b517a8db1ba3b5",
       "require_sound_symbol_closure": true,
       "hostile_evidence_probes": [
         "digest-foundation",
@@ -388,8 +388,8 @@
         "no-false-done",
         "github-commit-status-provider"
       ],
-      "max_hybrid_union_semantic_loc": 9471,
-      "expected_hybrid_union_sha256": "e7b1133f9dce372e2e08e694b7845a633f7d3740db7fb067327c9578990938fc",
+      "max_hybrid_union_semantic_loc": 9467,
+      "expected_hybrid_union_sha256": "d5588f1334addc3fdb5af18c345daf41026dc9931490701c1028307909f09639",
       "attention_hybrid_union_semantic_loc": 8348,
       "max_trusted_file_share": 0.1
     }
