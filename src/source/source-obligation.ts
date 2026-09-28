@@ -5,8 +5,7 @@ export const SOURCE_TASK_SCHEMA = 'overcenter-source-task/v1' as const;
 export const SOURCE_ASSIGNMENT_SCHEMA = 'overcenter-source-assignment/v1' as const;
 export const SOURCE_PROPOSAL_SCHEMA = 'overcenter-source-proposal/v1' as const;
 export const SOURCE_CANDIDATE_SCHEMA = 'overcenter-source-candidate/v1' as const;
-export const EXACT_SOURCE_PROPOSAL_CONTEXT_SCHEMA =
-  'overcenter-exact-source-proposal/v1' as const;
+export const EXACT_SOURCE_PROPOSAL_CONTEXT_SCHEMA = 'overcenter-exact-source-proposal/v1' as const;
 
 export interface SourceTaskAcceptance extends Record<string, unknown> {
   verifier: 'tcb-finding-absent/v1';
