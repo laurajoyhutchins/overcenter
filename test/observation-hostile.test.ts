@@ -259,7 +259,7 @@ test('Kubernetes absence requires a complete certificate bound to the exact obje
   const certificate = kubernetesAbsenceEvidence(postcondition);
   const observed = kubernetesObservation(postcondition, {
     mutation_certainty: 'absent',
-    absence_evidence: certificate ,
+    absence_evidence: certificate,
   });
 
   assert.equal(authoritativeAbsenceEvidence(postcondition, observed), certificate);
@@ -271,7 +271,7 @@ test('Kubernetes absence requires a complete certificate bound to the exact obje
   };
   const mismatched = kubernetesObservation(postcondition, {
     mutation_certainty: 'absent',
-    absence_evidence: wrongName ,
+    absence_evidence: wrongName,
   });
   assert.equal(authoritativeAbsenceEvidence(postcondition, mismatched), null);
   assert.equal(observationAuthoritativelyAbsent(postcondition, mismatched), false);
