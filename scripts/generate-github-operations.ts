@@ -6,8 +6,8 @@ import {
   GITHUB_OPENAPI_SOURCE_COMMIT,
 } from '../src/providers/github/contract.ts';
 import {
-  deriveGithubObservationOperation,
-  type GithubOpenApiDocument,
+  deriveGitHubObservationOperation,
+  type GitHubOpenApiDocument,
   type JsonObject,
 } from '../src/providers/github/openapi.ts';
 import { GITHUB_OPERATION_SEMANTICS } from '../src/providers/github/semantics.ts';
@@ -22,7 +22,7 @@ const digest = createHash('sha256').update(source).digest('hex');
 if (digest !== GITHUB_OPENAPI_SHA256) {
   throw new Error(`GITHUB_OPENAPI_SCHEMA_DIGEST_MISMATCH:${digest}`);
 }
-const document = JSON.parse(source) as GithubOpenApiDocument;
+const document = JSON.parse(source) as GitHubOpenApiDocument;
 
 function object(value: unknown): JsonObject | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -152,7 +152,7 @@ function constantName(name: string): string {
 }
 
 const operations = Object.entries(GITHUB_OPERATION_SEMANTICS).map(([key, semantic]) => {
-  const operation = deriveGithubObservationOperation(
+  const operation = deriveGitHubObservationOperation(
     document,
     semantic.operation_id,
     GITHUB_API_VERSION,
@@ -185,10 +185,10 @@ const generated = [
   '// GENERATED FILE. DO NOT EDIT.',
   `// Source: github/rest-api-description@${GITHUB_OPENAPI_SOURCE_COMMIT}`,
   `// SHA-256: ${GITHUB_OPENAPI_SHA256}`,
-  "import type { GithubObservationOperation } from './openapi.ts';",
+  "import type { GitHubObservationOperation } from './openapi.ts';",
   '',
   ...operations.flatMap(([, name, operation]) => [
-    `export const ${name}:GithubObservationOperation=${JSON.stringify(operation)};`,
+    `export const ${name}:GitHubObservationOperation=${JSON.stringify(operation)};`,
     '',
   ]),
   'export const GITHUB_OBSERVATION_OPERATIONS={',
