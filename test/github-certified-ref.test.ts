@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { observeCertifiedGithubRefFence } from '../src/providers/github/certified-ref.ts';
-import type { GithubJsonGet } from '../src/providers/github/rest.ts';
+import { observeCertifiedGitHubRefFence } from '../src/providers/github/certified-ref.ts';
+import type { GitHubJsonGet } from '../src/providers/github/rest.ts';
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
@@ -23,9 +23,9 @@ function provider({
 }: {
   repositoryBody?: unknown;
   refBody?: unknown;
-} = {}): { get: GithubJsonGet; calls: string[] } {
+} = {}): { get: GitHubJsonGet; calls: string[] } {
   const calls: string[] = [];
-  const get: GithubJsonGet = (_token, path) => {
+  const get: GitHubJsonGet = (_token, path) => {
     calls.push(path);
     if (path === '/repos/acme/widget') return repositoryBody;
     if (path === '/repos/acme/widget/git/ref/heads%2Fmain') return refBody;
@@ -36,7 +36,7 @@ function provider({
 
 test('certified ref fence proves exact current binding', () => {
   const p = provider();
-  const result = observeCertifiedGithubRefFence('token', {
+  const result = observeCertifiedGitHubRefFence('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     ref: 'heads/main',
@@ -57,7 +57,7 @@ test('certified ref fence proves exact current binding', () => {
 
 test('certified ref fence reports authoritative revision drift as stale', () => {
   const p = provider();
-  const result = observeCertifiedGithubRefFence('token', {
+  const result = observeCertifiedGitHubRefFence('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     ref: 'refs/heads/main',
@@ -74,7 +74,7 @@ test('certified ref fence reports authoritative revision drift as stale', () => 
 
 test('repository identity mismatch fails closed instead of becoming stale', () => {
   const p = provider({ repositoryBody: repository({ id: 43 }) });
-  const result = observeCertifiedGithubRefFence('token', {
+  const result = observeCertifiedGitHubRefFence('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     ref: 'heads/main',
@@ -91,7 +91,7 @@ test('repository identity mismatch fails closed instead of becoming stale', () =
 
 test('malformed ref response fails closed', () => {
   const p = provider({ refBody: { ref: 'refs/heads/main', object: { type: 'commit' } } });
-  const result = observeCertifiedGithubRefFence('token', {
+  const result = observeCertifiedGitHubRefFence('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     ref: 'heads/main',
@@ -111,7 +111,7 @@ test('invalid expected SHA is rejected before provider access', () => {
   const p = provider();
   assert.throws(
     () =>
-      observeCertifiedGithubRefFence('token', {
+      observeCertifiedGitHubRefFence('token', {
         repositoryId: 42,
         repositoryFullName: 'acme/widget',
         ref: 'heads/main',

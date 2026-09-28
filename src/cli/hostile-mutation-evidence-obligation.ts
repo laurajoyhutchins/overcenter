@@ -5,7 +5,7 @@ import {
   reconcileSystemEvidence,
   settleSystemEvidence,
 } from '../evidence/system-evidence-lifecycle.ts';
-import { observeGithubHostileMutationEvidence } from '../providers/github/hostile-mutation-evidence.ts';
+import { observeGitHubHostileMutationEvidence } from '../providers/github/hostile-mutation-evidence.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
 import { requiredEnv } from './project-command-runtime.ts';
 
@@ -48,8 +48,8 @@ const kernel = new GitOvercenterKernel(repo, {
   remote,
   githubToken: token,
   observationContext: {
-    observeGithubHostileMutationEvidence: (postcondition) =>
-      observeGithubHostileMutationEvidence(token, postcondition),
+    observeGitHubHostileMutationEvidence: (postcondition) =>
+      observeGitHubHostileMutationEvidence(token, postcondition),
   },
 });
 if (!kernel.head()) throw new Error('HOSTILE_MUTATION_AUTHORITY_MISSING');

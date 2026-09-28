@@ -14,6 +14,13 @@ mapfile -t biome_format_files < <(
 )
 npx --yes "@biomejs/biome@$BIOME_VERSION" format "${biome_format_files[@]}"
 
+# TypeScript identifiers use the product's canonical GitHub casing. Lowercase github remains valid
+# in wire values, schema IDs, paths, and filenames.
+if git grep -nE '(^|[^A-Za-z0-9_])Github[A-Z][A-Za-z0-9_]*' -- '*.ts'; then
+  echo 'TypeScript identifiers must spell the product name GitHub, not Github.' >&2
+  exit 1
+fi
+
 go_unformatted="$(gofmt -l src/execution/executor)"
 if [[ -n "$go_unformatted" ]]; then
   printf 'gofmt required:\n%s\n' "$go_unformatted" >&2

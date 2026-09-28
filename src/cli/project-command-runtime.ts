@@ -35,7 +35,7 @@ export function projectCommandContext(): ProjectCommandContext {
   };
 }
 
-export function appendGithubOutputs(values: Record<string, string | number | boolean>): void {
+export function appendGitHubOutputs(values: Record<string, string | number | boolean>): void {
   const output = process.env.GITHUB_OUTPUT;
   if (!output) return;
   for (const [key, value] of Object.entries(values)) {

@@ -62,7 +62,7 @@
       "evidence": {
         "measured_semantic_loc": 9286,
         "attention_semantic_loc": 8163,
-        "hybrid_sha256": "1dc9a8c9d4bd51d8c6d4eaaeafefa241b97a2af8e5d0b93177280b053a93a241"
+        "hybrid_sha256": "3f269400397aaed24d19ad66d28a0c1096009150cbf040e8c58de0d0311ec882"
       }
     },
     {
@@ -99,7 +99,7 @@
       "evidence": {
         "measured_semantic_loc": 2762,
         "attention_semantic_loc": 2746,
-        "hybrid_sha256": "7248897acdfc14a5bf11b1a3eb9f65536bbaccf0df42c7071427085162a47b01"
+        "hybrid_sha256": "098afca43abc48e7a358fad48f00a99d4164f8d6668e232d89862a53a0c98aa0"
       }
     },
     {
@@ -164,7 +164,7 @@
       "evidence": {
         "measured_semantic_loc": 9471,
         "attention_semantic_loc": 8348,
-        "hybrid_union_sha256": "7ad24bdb504097ead4756f99c0c902f46e1da8b4451c87c0dcedb2bf8587663d"
+        "hybrid_union_sha256": "ef552bea0880b0b7aa97b50a7c9ebc7b064b1ed952790b07c5331c0579c62682"
       }
     },
     {
@@ -228,7 +228,7 @@
       "evidence": {
         "measured_semantic_loc": 9283,
         "attention_semantic_loc": 8160,
-        "hybrid_sha256": "67eed5e07812d1876454510b55ee3df1d3da48a0e412f4aa4f6b901e149e4ce1"
+        "hybrid_sha256": "b058afdc79f0fa87182ddeb9a96084cd174b7e7d01e92fa67c01293dcf1bb319"
       }
     },
     {
@@ -266,7 +266,7 @@
       },
       "evidence": {
         "property_id": "github-commit-status-provider",
-        "hybrid_sha256": "7248897acdfc14a5bf11b1a3eb9f65536bbaccf0df42c7071427085162a47b01"
+        "hybrid_sha256": "098afca43abc48e7a358fad48f00a99d4164f8d6668e232d89862a53a0c98aa0"
       }
     },
     {
@@ -367,7 +367,7 @@
           {
             "path": "src/observation/observe.ts",
             "expected_blob_sha1": "ddf142f25516587578836e7f0bab0b37cd15562a",
-            "current_blob_sha1": "52fbfd991ecb21afebbe57cc8dcf947f993dfb1d",
+            "current_blob_sha1": "a9fa25141d913877b84f3bea490f4e706007f4ff",
             "current": false
           }
         ]

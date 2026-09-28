@@ -4,7 +4,7 @@ import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync }
 import { dirname, resolve } from 'node:path';
 import type {
   AbsenceEvidenceCertificate,
-  GithubHostileMutationEvidencePostcondition,
+  GitHubHostileMutationEvidencePostcondition,
   Observation,
   Postcondition,
 } from '../model.ts';
@@ -17,18 +17,18 @@ import { SettlementObservationSchema } from '../generated/settlement-observation
 import { assertSupportedStructuralSchema, structurallyMatches } from '../structural-schema.ts';
 import { isPositiveSafeInteger, isSha256Hex } from '../validation.ts';
 import {
-  observeCertifiedGithubCommitStatus,
-  type GithubJsonGet,
+  observeCertifiedGitHubCommitStatus,
+  type GitHubJsonGet,
 } from '../providers/github/certified-status.ts';
-import { observeCertifiedGithubPullRequestIdentity } from '../providers/github/certified-pr.ts';
-import { observeCertifiedGithubCommitAncestry } from '../providers/github/certified-ancestry.ts';
+import { observeCertifiedGitHubPullRequestIdentity } from '../providers/github/certified-pr.ts';
+import { observeCertifiedGitHubCommitAncestry } from '../providers/github/certified-ancestry.ts';
 import {
   githubGet,
   githubGetAsync,
-  isGithubObjectId,
-  sameGithubObjectId,
-  runGithubReadObserverAsync,
-  type GithubJsonGetAsync,
+  isGitHubObjectId,
+  sameGitHubObjectId,
+  runGitHubReadObserverAsync,
+  type GitHubJsonGetAsync,
 } from '../providers/github/rest.ts';
 import {
   kubernetesConfigMapAbsenceEvidenceMatches,
@@ -38,10 +38,10 @@ import {
 
 export interface ObservationContext {
   githubToken: string | null;
-  githubGet?: GithubJsonGet;
-  githubGetAsync?: GithubJsonGetAsync;
-  observeGithubHostileMutationEvidence?: (
-    postcondition: GithubHostileMutationEvidencePostcondition,
+  githubGet?: GitHubJsonGet;
+  githubGetAsync?: GitHubJsonGetAsync;
+  observeGitHubHostileMutationEvidence?: (
+    postcondition: GitHubHostileMutationEvidencePostcondition,
   ) => Observation;
   kubernetesListConfigMaps?: KubernetesListConfigMaps;
   kubernetesListLimit?: number;
@@ -133,7 +133,7 @@ export function validatePostcondition(p: Postcondition): void {
     p.repository_id > 0 &&
     typeof p.repository_full_name === 'string' &&
     /^[^/]+\/[^/]+$/.test(p.repository_full_name) &&
-    isGithubObjectId(p.commit_sha) &&
+    isGitHubObjectId(p.commit_sha) &&
     typeof p.context === 'string' &&
     p.context.length > 0 &&
     ['error', 'failure', 'pending', 'success'].includes(p.expected_state)
@@ -150,10 +150,10 @@ export function validatePostcondition(p: Postcondition): void {
     p.pull_number > 0 &&
     typeof p.pull_node_id === 'string' &&
     p.pull_node_id.length > 0 &&
-    isGithubObjectId(p.expected_previous_head_sha) &&
+    isGitHubObjectId(p.expected_previous_head_sha) &&
     typeof p.base_ref === 'string' &&
     p.base_ref.length > 0 &&
-    isGithubObjectId(p.expected_base_sha)
+    isGitHubObjectId(p.expected_base_sha)
   )
     return;
   if (
@@ -169,7 +169,7 @@ export function validatePostcondition(p: Postcondition): void {
     data(p.source_blobs) &&
     Object.keys(p.source_blobs).length > 0 &&
     Object.entries(p.source_blobs).every(
-      ([path, blob]) => repositoryRelativePath(path) && isGithubObjectId(blob),
+      ([path, blob]) => repositoryRelativePath(path) && isGitHubObjectId(blob),
     )
   )
     return;
@@ -203,7 +203,7 @@ const githubStatusCommon = (
 
 function githubStatusObservation(
   p: Extract<Postcondition, { verifier: 'github-commit-status/v2' }>,
-  status: ReturnType<typeof observeCertifiedGithubCommitStatus>,
+  status: ReturnType<typeof observeCertifiedGitHubCommitStatus>,
 ): Observation {
   const common = githubStatusCommon(p);
   return status.state === 'indeterminate'
@@ -231,7 +231,7 @@ const githubStatusError = (
 });
 
 const githubHostileMutationEvidenceError = (
-  p: GithubHostileMutationEvidencePostcondition,
+  p: GitHubHostileMutationEvidencePostcondition,
   error: string,
 ): Observation => ({
   verifier: p.verifier,
@@ -246,12 +246,12 @@ const githubHostileMutationEvidenceError = (
   observation_error: error,
 });
 
-type GithubPullRequestBranchUpdatedPostcondition = Extract<
+type GitHubPullRequestBranchUpdatedPostcondition = Extract<
   Postcondition,
   { verifier: 'github-pull-request-branch-updated/v1' }
 >;
 
-const githubPullRequestBranchUpdatedCommon = (p: GithubPullRequestBranchUpdatedPostcondition) => ({
+const githubPullRequestBranchUpdatedCommon = (p: GitHubPullRequestBranchUpdatedPostcondition) => ({
   verifier: p.verifier,
   provider: 'github' as const,
   repository_id: p.repository_id,
@@ -264,7 +264,7 @@ const githubPullRequestBranchUpdatedCommon = (p: GithubPullRequestBranchUpdatedP
 });
 
 const githubPullRequestBranchUpdatedError = (
-  p: GithubPullRequestBranchUpdatedPostcondition,
+  p: GitHubPullRequestBranchUpdatedPostcondition,
   error: string,
 ): Observation => ({
   ...githubPullRequestBranchUpdatedCommon(p),
@@ -272,14 +272,14 @@ const githubPullRequestBranchUpdatedError = (
   observation_error: error,
 });
 
-function observeGithubPullRequestBranchUpdated(
+function observeGitHubPullRequestBranchUpdated(
   token: string,
-  p: GithubPullRequestBranchUpdatedPostcondition,
-  get: GithubJsonGet,
+  p: GitHubPullRequestBranchUpdatedPostcondition,
+  get: GitHubJsonGet,
   clock?: () => string,
 ): Observation {
   const common = githubPullRequestBranchUpdatedCommon(p);
-  const result = observeCertifiedGithubPullRequestIdentity(token, {
+  const result = observeCertifiedGitHubPullRequestIdentity(token, {
     repositoryId: p.repository_id,
     repositoryFullName: p.repository_full_name,
     pullNumber: p.pull_number,
@@ -317,7 +317,7 @@ function observeGithubPullRequestBranchUpdated(
       provider_evidence: { pull_request: result.evidence },
     };
   }
-  if (sameGithubObjectId(actual.head_sha, p.expected_previous_head_sha)) {
+  if (sameGitHubObjectId(actual.head_sha, p.expected_previous_head_sha)) {
     return {
       ...common,
       actual_head_sha: actual.head_sha,
@@ -326,14 +326,14 @@ function observeGithubPullRequestBranchUpdated(
     };
   }
 
-  const previousHeadAncestry = observeCertifiedGithubCommitAncestry(token, {
+  const previousHeadAncestry = observeCertifiedGitHubCommitAncestry(token, {
     repositoryFullName: result.repository_full_name,
     ancestorSha: p.expected_previous_head_sha,
     descendantSha: actual.head_sha,
     get,
     ...(clock ? { clock } : {}),
   });
-  const baseAncestry = observeCertifiedGithubCommitAncestry(token, {
+  const baseAncestry = observeCertifiedGitHubCommitAncestry(token, {
     repositoryFullName: result.repository_full_name,
     ancestorSha: p.expected_base_sha,
     descendantSha: actual.head_sha,
@@ -373,21 +373,21 @@ function githubCommitAncestryEvidenceMatches(
     value.relation === 'ancestor' &&
     typeof value.ancestor_sha === 'string' &&
     typeof value.descendant_sha === 'string' &&
-    isGithubObjectId(value.ancestor_sha) &&
-    isGithubObjectId(value.descendant_sha) &&
-    sameGithubObjectId(value.ancestor_sha, ancestorSha) &&
-    sameGithubObjectId(value.descendant_sha, descendantSha)
+    isGitHubObjectId(value.ancestor_sha) &&
+    isGitHubObjectId(value.descendant_sha) &&
+    sameGitHubObjectId(value.ancestor_sha, ancestorSha) &&
+    sameGitHubObjectId(value.descendant_sha, descendantSha)
   );
 }
 
 function githubPullRequestBranchUpdatedEvidenceMatches(
-  p: GithubPullRequestBranchUpdatedPostcondition,
+  p: GitHubPullRequestBranchUpdatedPostcondition,
   observed: Observation,
 ): boolean {
   if (
     typeof observed.actual_head_sha !== 'string' ||
-    !isGithubObjectId(observed.actual_head_sha) ||
-    sameGithubObjectId(observed.actual_head_sha, p.expected_previous_head_sha) ||
+    !isGitHubObjectId(observed.actual_head_sha) ||
+    sameGitHubObjectId(observed.actual_head_sha, p.expected_previous_head_sha) ||
     !data(observed.provider_evidence)
   )
     return false;
@@ -403,8 +403,8 @@ function githubPullRequestBranchUpdatedEvidenceMatches(
     typeof pull.requested_repository_full_name !== 'string' ||
     pull.requested_repository_full_name.toLowerCase() !== p.repository_full_name.toLowerCase() ||
     typeof pull.head_sha !== 'string' ||
-    !isGithubObjectId(pull.head_sha) ||
-    !sameGithubObjectId(pull.head_sha, observed.actual_head_sha) ||
+    !isGitHubObjectId(pull.head_sha) ||
+    !sameGitHubObjectId(pull.head_sha, observed.actual_head_sha) ||
     pull.base_ref !== p.base_ref
   )
     return false;
@@ -437,7 +437,7 @@ export function observePostcondition(p: Postcondition, context: ObservationConte
       return githubPullRequestBranchUpdatedError(p, 'GITHUB_TOKEN_UNAVAILABLE');
     }
     try {
-      return observeGithubPullRequestBranchUpdated(
+      return observeGitHubPullRequestBranchUpdated(
         context.githubToken,
         p,
         context.githubGet ?? githubGet,
@@ -449,14 +449,14 @@ export function observePostcondition(p: Postcondition, context: ObservationConte
   }
 
   if (p.verifier === 'github-hostile-mutation-evidence/v1') {
-    if (!context.observeGithubHostileMutationEvidence) {
+    if (!context.observeGitHubHostileMutationEvidence) {
       return githubHostileMutationEvidenceError(
         p,
         'GITHUB_HOSTILE_MUTATION_EVIDENCE_OBSERVER_UNAVAILABLE',
       );
     }
     try {
-      return context.observeGithubHostileMutationEvidence(p);
+      return context.observeGitHubHostileMutationEvidence(p);
     } catch (e: unknown) {
       return githubHostileMutationEvidenceError(p, errorMessage(e));
     }
@@ -467,7 +467,7 @@ export function observePostcondition(p: Postcondition, context: ObservationConte
     try {
       return githubStatusObservation(
         p,
-        observeCertifiedGithubCommitStatus(context.githubToken, {
+        observeCertifiedGitHubCommitStatus(context.githubToken, {
           repositoryId: p.repository_id,
           repositoryFullName: p.repository_full_name,
           commitSha: p.commit_sha,
@@ -619,9 +619,9 @@ export async function observePostconditionAsync(
         ? async (token: string, path: string) => context.githubGet!(token, path)
         : githubGetAsync);
     try {
-      return await runGithubReadObserverAsync(
+      return await runGitHubReadObserverAsync(
         context.githubToken,
-        (get) => observeGithubPullRequestBranchUpdated(context.githubToken!, p, get, context.clock),
+        (get) => observeGitHubPullRequestBranchUpdated(context.githubToken!, p, get, context.clock),
         getAsync,
       );
     } catch (e: unknown) {
@@ -638,10 +638,10 @@ export async function observePostconditionAsync(
   try {
     return githubStatusObservation(
       p,
-      await runGithubReadObserverAsync(
+      await runGitHubReadObserverAsync(
         context.githubToken,
         (get) =>
-          observeCertifiedGithubCommitStatus(context.githubToken!, {
+          observeCertifiedGitHubCommitStatus(context.githubToken!, {
             repositoryId: p.repository_id,
             repositoryFullName: p.repository_full_name,
             commitSha: p.commit_sha,

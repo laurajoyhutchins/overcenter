@@ -11,9 +11,9 @@ import {
   HOSTILE_MUTATION_EVIDENCE_OBLIGATION_ID,
 } from '../src/evidence/hostile-mutation-obligation.ts';
 import { obligationDefinition, obligationDefinitionId } from '../src/authority/facts.ts';
-import type { GithubHostileMutationEvidencePostcondition } from '../src/model.ts';
+import type { GitHubHostileMutationEvidencePostcondition } from '../src/model.ts';
 import { observationVerified, observePostcondition } from '../src/observation/observe.ts';
-import { observeGithubHostileMutationEvidence } from '../src/providers/github/hostile-mutation-evidence.ts';
+import { observeGitHubHostileMutationEvidence } from '../src/providers/github/hostile-mutation-evidence.ts';
 
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
@@ -150,7 +150,7 @@ test('GitHub hostile evidence observation fails currentness on source drift', ()
       ],
     }),
   );
-  const postcondition: GithubHostileMutationEvidencePostcondition = {
+  const postcondition: GitHubHostileMutationEvidencePostcondition = {
     verifier: 'github-hostile-mutation-evidence/v1',
     provider: 'github',
     repository_id: 42,
@@ -217,8 +217,8 @@ test('GitHub hostile evidence observation fails currentness on source drift', ()
   const context = {
     githubToken: 'token',
     githubGet: get,
-    observeGithubHostileMutationEvidence: (candidate: GithubHostileMutationEvidencePostcondition) =>
-      observeGithubHostileMutationEvidence('token', candidate, get),
+    observeGitHubHostileMutationEvidence: (candidate: GitHubHostileMutationEvidencePostcondition) =>
+      observeGitHubHostileMutationEvidence('token', candidate, get),
   };
 
   const current = observePostcondition(postcondition, context);

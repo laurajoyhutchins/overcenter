@@ -1,13 +1,13 @@
 import type { Observation } from '../../model.ts';
 import { canonicalDigest, sha256 } from '../../digest.ts';
 import {
-  readGithubEvidenceFile,
-  verifyGithubRepositoryIdentity,
-  verifyGithubWorkflowArtifact,
+  readGitHubEvidenceFile,
+  verifyGitHubRepositoryIdentity,
+  verifyGitHubWorkflowArtifact,
 } from './evidence-primitives.ts';
-import { githubGet, type GithubJsonGet } from './rest.ts';
+import { githubGet, type GitHubJsonGet } from './rest.ts';
 
-export interface GithubSourceBoundEvidenceCoordinates {
+export interface GitHubSourceBoundEvidenceCoordinates {
   verifier: Observation['verifier'];
   provider: 'github';
   repository_id: number;
@@ -18,29 +18,29 @@ export interface GithubSourceBoundEvidenceCoordinates {
   source_blobs: Record<string, string>;
 }
 
-export interface GithubSourceBoundEvidenceRun {
+export interface GitHubSourceBoundEvidenceRun {
   workflow_run_id: number;
   revision: string;
   artifact_digest: string;
 }
 
-export interface GithubSourceBoundEvidenceBinding {
+export interface GitHubSourceBoundEvidenceBinding {
   source_blobs: Record<string, string>;
-  source_runs: GithubSourceBoundEvidenceRun[];
+  source_runs: GitHubSourceBoundEvidenceRun[];
 }
 
-export interface GithubSourceBoundEvidenceAdapter {
+export interface GitHubSourceBoundEvidenceAdapter {
   workflow_path: string;
   job_name: string;
   artifact_name: string;
-  bindingFromEvidence(bytes: Buffer): GithubSourceBoundEvidenceBinding;
+  bindingFromEvidence(bytes: Buffer): GitHubSourceBoundEvidenceBinding;
 }
 
-export function observeGithubSourceBoundEvidence(
+export function observeGitHubSourceBoundEvidence(
   token: string,
-  p: GithubSourceBoundEvidenceCoordinates,
-  adapter: GithubSourceBoundEvidenceAdapter,
-  get: GithubJsonGet = githubGet,
+  p: GitHubSourceBoundEvidenceCoordinates,
+  adapter: GitHubSourceBoundEvidenceAdapter,
+  get: GitHubJsonGet = githubGet,
 ): Observation {
   const base = {
     verifier: p.verifier,
@@ -54,13 +54,13 @@ export function observeGithubSourceBoundEvidence(
   };
 
   try {
-    verifyGithubRepositoryIdentity(token, {
+    verifyGitHubRepositoryIdentity(token, {
       repositoryId: p.repository_id,
       repositoryFullName: p.repository_full_name,
       get,
     });
 
-    const evidenceFile = readGithubEvidenceFile(token, {
+    const evidenceFile = readGitHubEvidenceFile(token, {
       repositoryFullName: p.repository_full_name,
       path: p.evidence_path,
       ref: p.ref,
@@ -79,7 +79,7 @@ export function observeGithubSourceBoundEvidence(
     for (const path of expectedPaths) {
       const expected = p.source_blobs[path]!.toLowerCase();
       const declared = binding.source_blobs[path]?.toLowerCase();
-      const observed = readGithubEvidenceFile(token, {
+      const observed = readGitHubEvidenceFile(token, {
         repositoryFullName: p.repository_full_name,
         path,
         ref: p.ref,
@@ -97,7 +97,7 @@ export function observeGithubSourceBoundEvidence(
       throw new Error('GITHUB_SOURCE_BOUND_EVIDENCE_RUNS_MISSING');
     }
     const sourceRuns = binding.source_runs.map((source) =>
-      verifyGithubWorkflowArtifact(token, {
+      verifyGitHubWorkflowArtifact(token, {
         repositoryFullName: p.repository_full_name,
         workflowRunId: source.workflow_run_id,
         revision: source.revision,

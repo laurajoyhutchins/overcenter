@@ -8,10 +8,10 @@ import { OvercenterKernel } from '../src/authority/kernel.ts';
 import { GITHUB_COMMIT_STATUS_EFFECT } from '../src/effect-adapter.ts';
 import {
   githubCommitStatus,
-  type GithubCommitStatusDesired,
-  type GithubCommitStatusTarget,
+  type GitHubCommitStatusDesired,
+  type GitHubCommitStatusTarget,
 } from '../src/providers/github/status-resource.ts';
-import { performGithubCommitStatusEffect } from '../src/providers/github/status-effect.ts';
+import { performGitHubCommitStatusEffect } from '../src/providers/github/status-effect.ts';
 import {
   defineSemanticEffect,
   SEMANTIC_EFFECT_INTENT_SCHEMA,
@@ -19,13 +19,13 @@ import {
 } from '../src/semantic-effect.ts';
 
 const COMMIT = 'a'.repeat(40);
-const TARGET: GithubCommitStatusTarget = {
+const TARGET: GitHubCommitStatusTarget = {
   repository_id: 42,
   repository_full_name: 'acme/widget',
   commit_sha: COMMIT,
   context: 'overcenter/proof',
 };
-const DESIRED: GithubCommitStatusDesired = { state: 'success' };
+const DESIRED: GitHubCommitStatusDesired = { state: 'success' };
 
 test('semantic ensure compiles developer intent into the registered effect contract', () => {
   const obligation = githubCommitStatus.ensure({
@@ -101,7 +101,7 @@ test('semantic ensure drives the existing fenced GitHub mutation path without ex
     assert.ok(work);
     const permit = kernel.claim(work.id, work.revision);
 
-    await performGithubCommitStatusEffect(kernel, permit, {
+    await performGitHubCommitStatusEffect(kernel, permit, {
       token: 'token',
       get: async () => ({
         id: 42,

@@ -1,22 +1,22 @@
 import type { KernelCore } from '../../authority/engine.ts';
 import type { ExecutionPermit } from '../../model.ts';
 import { GITHUB_COMMIT_STATUS_EFFECT } from '../../effect-adapter.ts';
-import { observeCertifiedGithubRepository } from './certified-repository.ts';
-import { githubGetAsync, runGithubReadObserverAsync, type GithubJsonGetAsync } from './rest.ts';
+import { observeCertifiedGitHubRepository } from './certified-repository.ts';
+import { githubGetAsync, runGitHubReadObserverAsync, type GitHubJsonGetAsync } from './rest.ts';
 import {
-  createGithubStatusPost,
+  createGitHubStatusPost,
   githubStatusNotDispatchedWitness,
-  type GithubStatusMutationBody,
-  type GithubStatusPost,
+  type GitHubStatusMutationBody,
+  type GitHubStatusPost,
 } from './status-transport.ts';
 
 export { GITHUB_COMMIT_STATUS_EFFECT } from '../../effect-adapter.ts';
-export { createGithubStatusPost } from './status-transport.ts';
-export type { GithubStatusMutationBody, GithubStatusPost } from './status-transport.ts';
+export { createGitHubStatusPost } from './status-transport.ts';
+export type { GitHubStatusMutationBody, GitHubStatusPost } from './status-transport.ts';
 
-const githubPost = createGithubStatusPost();
+const githubPost = createGitHubStatusPost();
 
-export async function performGithubCommitStatusEffect(
+export async function performGitHubCommitStatusEffect(
   kernel: KernelCore,
   permit: ExecutionPermit,
   {
@@ -26,8 +26,8 @@ export async function performGithubCommitStatusEffect(
     clock = () => new Date().toISOString(),
   }: {
     token: string;
-    get?: GithubJsonGetAsync;
-    post?: GithubStatusPost;
+    get?: GitHubJsonGetAsync;
+    post?: GitHubStatusPost;
     clock?: () => string;
   },
 ): Promise<{
@@ -41,10 +41,10 @@ export async function performGithubCommitStatusEffect(
 
   const authority = kernel.authorizeEffect(permit, GITHUB_COMMIT_STATUS_EFFECT);
   const p = authority.postcondition;
-  const repository = await runGithubReadObserverAsync(
+  const repository = await runGitHubReadObserverAsync(
     token,
     (syncGet) =>
-      observeCertifiedGithubRepository(token, {
+      observeCertifiedGitHubRepository(token, {
         repositoryId: p.repository_id,
         repositoryFullName: p.repository_full_name,
         get: syncGet,
@@ -55,7 +55,7 @@ export async function performGithubCommitStatusEffect(
   );
   const { owner, repo, full_name } = repository.fact.object;
   const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/statuses/${encodeURIComponent(p.commit_sha)}`;
-  const body: GithubStatusMutationBody = {
+  const body: GitHubStatusMutationBody = {
     state: p.expected_state,
     context: p.context,
     description: 'Overcenter trusted effect broker',

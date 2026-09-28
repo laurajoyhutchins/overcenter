@@ -1,50 +1,50 @@
 import {
-  materializeGithubOperationRequest,
-  type GithubObservationOperation,
-  type MaterializedGithubOperationRequest,
+  materializeGitHubOperationRequest,
+  type GitHubObservationOperation,
+  type MaterializedGitHubOperationRequest,
 } from './openapi.ts';
 
-export interface GithubPageRead<T, E extends object> {
+export interface GitHubPageRead<T, E extends object> {
   members: readonly T[];
   evidence: E;
 }
 
-export type GithubPageEvidence<E extends object> = E & {
+export type GitHubPageEvidence<E extends object> = E & {
   page: number;
   member_count: number;
 };
 
-export type GithubPageScanResult<T, E extends object> =
+export type GitHubPageScanResult<T, E extends object> =
   | {
       state: 'matched';
       match: T;
-      pages: Array<GithubPageEvidence<E>>;
+      pages: Array<GitHubPageEvidence<E>>;
     }
   | {
       state: 'collection-end-observed';
-      pages: Array<GithubPageEvidence<E>>;
+      pages: Array<GitHubPageEvidence<E>>;
     }
   | {
       state: 'limit-reached';
-      pages: Array<GithubPageEvidence<E>>;
+      pages: Array<GitHubPageEvidence<E>>;
     };
 
-export function scanGithubPageCollection<T, E extends object>({
+export function scanGitHubPageCollection<T, E extends object>({
   operation,
   parameters,
   readPage,
   matches,
   maxPages = 1000,
 }: {
-  operation: GithubObservationOperation;
+  operation: GitHubObservationOperation;
   parameters: Record<string, string | number | boolean>;
   readPage: (input: {
     page: number;
-    request: MaterializedGithubOperationRequest;
-  }) => GithubPageRead<T, E>;
+    request: MaterializedGitHubOperationRequest;
+  }) => GitHubPageRead<T, E>;
   matches: (member: T) => boolean;
   maxPages?: number;
-}): GithubPageScanResult<T, E> {
+}): GitHubPageScanResult<T, E> {
   const pagination = operation.pagination;
   if (!pagination || pagination.kind !== 'page-number') {
     throw new Error(`GITHUB_OPERATION_PAGE_PAGINATION_UNAVAILABLE:${operation.operation_id}`);
@@ -67,10 +67,10 @@ export function scanGithubPageCollection<T, E extends object>({
     throw new Error('GITHUB_PAGE_SCAN_PAGINATION_PARAMETER_RESERVED');
   }
 
-  const pages: Array<GithubPageEvidence<E>> = [];
+  const pages: Array<GitHubPageEvidence<E>> = [];
   for (let offset = 0; offset < maxPages; offset += 1) {
     const page = pagination.first_page + offset;
-    const request = materializeGithubOperationRequest(operation, {
+    const request = materializeGitHubOperationRequest(operation, {
       ...parameters,
       [pagination.page_parameter]: page,
       [pagination.page_size_parameter]: pagination.default_page_size,

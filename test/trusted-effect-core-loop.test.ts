@@ -7,7 +7,7 @@ import test from 'node:test';
 
 import { OvercenterKernel, runCoreLoop } from '../src/authority/kernel.ts';
 import { githubCommitStatus } from '../src/providers/github/status-resource.ts';
-import type { GithubJsonGet } from '../src/providers/github/rest.ts';
+import type { GitHubJsonGet } from '../src/providers/github/rest.ts';
 
 const COMMIT = 'a'.repeat(40);
 
@@ -33,7 +33,7 @@ function status(context = 'overcenter/proof') {
   };
 }
 
-function githubRead(providerState: () => 'missing' | 'success'): GithubJsonGet {
+function githubRead(providerState: () => 'missing' | 'success'): GitHubJsonGet {
   return (_token, path) => {
     if (path === '/repos/acme/widget') return repository();
     if (path === `/repos/acme/widget/commits/${COMMIT}/status?page=1&per_page=100`) {
@@ -263,7 +263,7 @@ test('admitted effects preserve bounded concurrency and one reservation per run'
     [commits[1], 'overcenter/b'],
   ]);
   const successful = new Set<string>();
-  const read: GithubJsonGet = (_token, path) => {
+  const read: GitHubJsonGet = (_token, path) => {
     if (path === '/repos/acme/widget') return repository();
     for (const commit of commits) {
       const observedStatuses = successful.has(commit) ? [status(contexts.get(commit)!)] : [];

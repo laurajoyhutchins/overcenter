@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { admitSourceTaskFromGithubWorkflow } from '../src/source/github-evidence-admission.ts';
-import type { GithubJsonGet } from '../src/providers/github/rest.ts';
+import { admitSourceTaskFromGitHubWorkflow } from '../src/source/github-evidence-admission.ts';
+import type { GitHubJsonGet } from '../src/providers/github/rest.ts';
 import { SOURCE_TASK_SCHEMA, validateSourceTaskPacket } from '../src/source/source-obligation.ts';
 
 const TASK_PATH = '.overcenter/promotions/result-a.json';
@@ -110,9 +110,9 @@ function provider(
     run?: unknown;
     job?: unknown;
   } = {},
-): { get: GithubJsonGet; calls: string[] } {
+): { get: GitHubJsonGet; calls: string[] } {
   const calls: string[] = [];
-  const get: GithubJsonGet = (_token, path) => {
+  const get: GitHubJsonGet = (_token, path) => {
     calls.push(path);
     if (path === '/repos/acme/widget') return repository();
     if (path === `/repos/acme/widget/actions/runs/${WORKFLOW_RUN_ID}`) return run;
@@ -139,7 +139,7 @@ test('exact GitHub evidence admits only the source task frozen at the executed d
   try {
     assert.notEqual(f.currentSha, f.designSha);
     const p = provider(f.designSha);
-    const admitted = admitSourceTaskFromGithubWorkflow(f.root, 'token', request(f.designSha), {
+    const admitted = admitSourceTaskFromGitHubWorkflow(f.root, 'token', request(f.designSha), {
       get: p.get,
       clock: () => '2026-09-24T14:06:00.000Z',
     });
@@ -163,7 +163,7 @@ test('a green experiment does not promote when its promotion job is skipped', ()
     });
     assert.throws(
       () =>
-        admitSourceTaskFromGithubWorkflow(f.root, 'token', request(f.designSha), {
+        admitSourceTaskFromGitHubWorkflow(f.root, 'token', request(f.designSha), {
           get: p.get,
         }),
       /SOURCE_PROMOTION_JOB_NOT_SUCCESSFUL/,
@@ -181,7 +181,7 @@ test('workflow identity and exact design revision fail closed', () => {
     });
     assert.throws(
       () =>
-        admitSourceTaskFromGithubWorkflow(f.root, 'token', request(f.designSha), {
+        admitSourceTaskFromGitHubWorkflow(f.root, 'token', request(f.designSha), {
           get: stale.get,
         }),
       /SOURCE_PROMOTION_DESIGN_SHA_MISMATCH/,
@@ -192,7 +192,7 @@ test('workflow identity and exact design revision fail closed', () => {
     });
     assert.throws(
       () =>
-        admitSourceTaskFromGithubWorkflow(f.root, 'token', request(f.designSha), {
+        admitSourceTaskFromGitHubWorkflow(f.root, 'token', request(f.designSha), {
           get: wrongWorkflow.get,
         }),
       /SOURCE_PROMOTION_WORKFLOW_IDENTITY_MISMATCH/,
@@ -203,7 +203,7 @@ test('workflow identity and exact design revision fail closed', () => {
     });
     assert.throws(
       () =>
-        admitSourceTaskFromGithubWorkflow(f.root, 'token', request(f.designSha), {
+        admitSourceTaskFromGitHubWorkflow(f.root, 'token', request(f.designSha), {
           get: wrongJob.get,
         }),
       /SOURCE_PROMOTION_WORKFLOW_JOB_MISMATCH/,
@@ -224,7 +224,7 @@ test('workflow job must belong to the exact successful run and attempt', () => {
       const p = provider(f.designSha, { job });
       assert.throws(
         () =>
-          admitSourceTaskFromGithubWorkflow(f.root, 'token', request(f.designSha), {
+          admitSourceTaskFromGitHubWorkflow(f.root, 'token', request(f.designSha), {
             get: p.get,
           }),
         /SOURCE_PROMOTION_WORKFLOW_JOB_MISMATCH/,
@@ -254,7 +254,7 @@ test('invalid frozen source task fails before any provider evidence is consulted
 
     assert.throws(
       () =>
-        admitSourceTaskFromGithubWorkflow(f.root, 'token', request(badDesign), {
+        admitSourceTaskFromGitHubWorkflow(f.root, 'token', request(badDesign), {
           get: p.get,
         }),
       /SOURCE_TASK_WRITABLE_PATH_INVALID/,

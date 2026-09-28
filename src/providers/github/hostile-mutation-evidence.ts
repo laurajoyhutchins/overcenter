@@ -1,9 +1,9 @@
-import type { GithubHostileMutationEvidencePostcondition, Observation } from '../../model.ts';
+import type { GitHubHostileMutationEvidencePostcondition, Observation } from '../../model.ts';
 import {
-  observeGithubSourceBoundEvidence,
-  type GithubSourceBoundEvidenceBinding,
+  observeGitHubSourceBoundEvidence,
+  type GitHubSourceBoundEvidenceBinding,
 } from './source-bound-evidence.ts';
-import { githubGet, type GithubJsonGet } from './rest.ts';
+import { githubGet, type GitHubJsonGet } from './rest.ts';
 
 const WORKFLOW_PATH = '.github/workflows/production-criticality-mutation-probe.yml';
 const JOB_NAME = 'mutate';
@@ -12,7 +12,7 @@ const ARTIFACT_NAME = 'production-criticality-mutation-probe';
 const data = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-function mutationEvidenceBinding(bytes: Buffer): GithubSourceBoundEvidenceBinding {
+function mutationEvidenceBinding(bytes: Buffer): GitHubSourceBoundEvidenceBinding {
   let value: unknown;
   try {
     value = JSON.parse(bytes.toString('utf8'));
@@ -76,12 +76,12 @@ function mutationEvidenceBinding(bytes: Buffer): GithubSourceBoundEvidenceBindin
   return { source_blobs: sourceBlobs, source_runs: [...sourceRuns.values()] };
 }
 
-export function observeGithubHostileMutationEvidence(
+export function observeGitHubHostileMutationEvidence(
   token: string,
-  p: GithubHostileMutationEvidencePostcondition,
-  get: GithubJsonGet = githubGet,
+  p: GitHubHostileMutationEvidencePostcondition,
+  get: GitHubJsonGet = githubGet,
 ): Observation {
-  return observeGithubSourceBoundEvidence(
+  return observeGitHubSourceBoundEvidence(
     token,
     p,
     {
