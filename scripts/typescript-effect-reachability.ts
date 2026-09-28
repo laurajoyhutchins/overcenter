@@ -26,7 +26,7 @@ import { sha256 } from '../src/digest.ts';
 import {
   EFFECT_IMPLEMENTATION_BINDINGS,
   type RegisteredEffectImplementationContract,
-} from '../src/effect-adapter.ts';
+} from '../src/analysis/effect-implementations.ts';
 import type {
   WorkflowFunctionEffectProbe,
   WorkflowFunctionEffectReachability,
