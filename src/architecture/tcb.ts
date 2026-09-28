@@ -134,3 +134,85 @@ export function deriveRuntimeDispatchBindings(
       };
     });
 }
+
+export interface AssurancePropertyTrustRoot {
+  property_id: string;
+  artifact_id: string;
+  symbol_id: string;
+  basis: 'authority' | 'capability' | 'effect';
+  requirement_id: string;
+}
+
+interface AssurancePropertyTrustRootRow {
+  property_id: string;
+  artifact_id: string;
+  symbol_id: string;
+  basis: AssurancePropertyTrustRoot['basis'];
+  requirement_id: string;
+}
+
+export function deriveAssurancePropertyTrustRoots(
+  db: DatabaseSync,
+): AssurancePropertyTrustRoot[] {
+  return db
+    .prepare(`
+      WITH RECURSIVE
+      required_authority(property_id, authority_id) AS (
+        SELECT property_id, authority_id
+        FROM assurance_property_requires_authority
+        UNION
+        SELECT required_authority.property_id, dependency.required_authority_id
+        FROM required_authority
+        JOIN authority_depends_on_authority AS dependency
+          ON dependency.authority_id = required_authority.authority_id
+      ),
+      required_capability(property_id, capability_id) AS (
+        SELECT property_id, capability_id
+        FROM assurance_property_requires_capability
+        UNION
+        SELECT required_capability.property_id, dependency.required_capability_id
+        FROM required_capability
+        JOIN capability_depends_on_capability AS dependency
+          ON dependency.capability_id = required_capability.capability_id
+      ),
+      roots(property_id, artifact_id, symbol_id, basis, requirement_id) AS (
+        SELECT
+          required_authority.property_id,
+          symbol.artifact_id,
+          implementation.symbol_id,
+          'authority',
+          required_authority.authority_id
+        FROM required_authority
+        JOIN symbol_implements_authority AS implementation USING(authority_id)
+        JOIN symbol USING(symbol_id)
+
+        UNION
+
+        SELECT
+          required_capability.property_id,
+          symbol.artifact_id,
+          implementation.symbol_id,
+          'capability',
+          required_capability.capability_id
+        FROM required_capability
+        JOIN symbol_implements_capability AS implementation USING(capability_id)
+        JOIN symbol USING(symbol_id)
+
+        UNION
+
+        SELECT
+          guarded.property_id,
+          symbol.artifact_id,
+          implementation.symbol_id,
+          'effect',
+          guarded.effect_id
+        FROM assurance_property_guards_effect AS guarded
+        JOIN symbol_performs_effect AS implementation USING(effect_id)
+        JOIN symbol USING(symbol_id)
+      )
+      SELECT property_id, artifact_id, symbol_id, basis, requirement_id
+      FROM roots
+      ORDER BY property_id, artifact_id, symbol_id, basis, requirement_id
+    `)
+    .all() as unknown as AssurancePropertyTrustRootRow[];
+}
