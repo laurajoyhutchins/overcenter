@@ -10,6 +10,7 @@ import {
 
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import {
+  deriveAssurancePropertyCompositions,
   deriveAssurancePropertyTrustRoots,
   deriveEffectTrustRoots,
   deriveRuntimeDispatchBindings,
@@ -79,7 +80,10 @@ interface TcbComposition {
   max_trusted_file_share?: number;
 }
 
-type TcbPolicyProperty = Omit<TcbProperty, 'entries' | 'runtime_dispatch_bindings'>;
+type TcbPolicyProperty = Omit<
+  TcbProperty,
+  'entries' | 'runtime_dispatch_bindings' | 'composes_with' | 'trusted_symbol_boundaries'
+>;
 
 interface TcbPolicy {
   schema: 'overcenter-tcb-policy';
@@ -122,10 +126,15 @@ const mutationEvidenceById = new Map(mutationEvidence.probes.map((probe) => [pro
 const architectureDb = loadArchitectureDatabase();
 let architectureRoots: EffectTrustRoot[];
 let architecturePropertyRoots: AssurancePropertyTrustRoot[];
+let architecturePropertyCompositions: Array<{
+  property_id: string;
+  required_property_id: string;
+}>;
 let architectureDispatchBindings: RuntimeDispatchBinding[];
 try {
   architectureRoots = deriveEffectTrustRoots(architectureDb);
   architecturePropertyRoots = deriveAssurancePropertyTrustRoots(architectureDb);
+  architecturePropertyCompositions = deriveAssurancePropertyCompositions(architectureDb);
   architectureDispatchBindings = deriveRuntimeDispatchBindings(architectureDb).map((binding) => ({
     target: `${binding.target.artifact_id}#${binding.target.symbol_id.split('.').at(-1)}`,
     implementation: {
@@ -143,6 +152,13 @@ for (const root of architecturePropertyRoots) {
   const roots = propertyRootsById.get(root.property_id) ?? [];
   roots.push(root);
   propertyRootsById.set(root.property_id, roots);
+}
+
+const propertyCompositionById = new Map<string, string[]>();
+for (const relation of architecturePropertyCompositions) {
+  const required = propertyCompositionById.get(relation.property_id) ?? [];
+  required.push(relation.required_property_id);
+  propertyCompositionById.set(relation.property_id, required);
 }
 
 const measuredProperties: TcbProperty[] = policy.properties.map((property) => {
@@ -171,10 +187,22 @@ const measuredProperties: TcbProperty[] = policy.properties.map((property) => {
       (left, right) =>
         left.path.localeCompare(right.path) || left.symbol.localeCompare(right.symbol),
     );
+  const composesWith = [...(propertyCompositionById.get(property.id) ?? [])].sort();
+  const trustedSymbolBoundaries = [
+    ...new Set(
+      composesWith.flatMap((requiredPropertyId) =>
+        (propertyRootsById.get(requiredPropertyId) ?? []).map(
+          (root) => `${root.artifact_id}#${root.symbol_id.split('.').at(-1)}`,
+        ),
+      ),
+    ),
+  ].sort();
   return {
     ...property,
     entries,
     runtime_dispatch_bindings: architectureDispatchBindings,
+    composes_with: composesWith,
+    trusted_symbol_boundaries: trustedSymbolBoundaries,
   };
 });
 
