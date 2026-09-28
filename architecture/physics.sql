@@ -25,6 +25,7 @@ INSERT INTO artifact(artifact_id) VALUES
   ('src/digest.ts'),
   ('src/effect-release-witness.ts'),
   ('src/observation/observe.ts'),
+  ('src/providers/github/certified-status.ts'),
   ('src/providers/github/pr-update-branch-effect.ts'),
   ('src/providers/github/status-effect.ts'),
   ('src/providers/kubernetes/configmap-effect.ts'),
@@ -59,6 +60,7 @@ INSERT INTO symbol(symbol_id, artifact_id) VALUES
   ('SqliteFactStore.history', 'src/storage/sqlite.ts'),
   ('observationVerified', 'src/observation/observe.ts'),
   ('integrateVerifiedSourceCandidate', 'src/source/source-integration.ts'),
+  ('observeCertifiedGitHubCommitStatus', 'src/providers/github/certified-status.ts'),
   ('performGitHubCommitStatusEffect', 'src/providers/github/status-effect.ts'),
   ('performGitHubPullRequestUpdateBranchEffect', 'src/providers/github/pr-update-branch-effect.ts'),
   ('performKubernetesConfigMapEffect', 'src/providers/kubernetes/configmap-effect.ts');
@@ -84,7 +86,9 @@ INSERT INTO symbol_implements_capability(symbol_id, capability_id) VALUES
   ('validateEffectReleaseEvidence', 'effect-reservation'),
   ('KernelCore.resolve', 'effect-settlement'),
   ('settlementSemantics', 'effect-settlement'),
-  ('integrateVerifiedSourceCandidate', 'source-integration');
+  ('integrateVerifiedSourceCandidate', 'source-integration'),
+  ('performGitHubCommitStatusEffect', 'github-commit-status-mutation'),
+  ('observeCertifiedGitHubCommitStatus', 'github-commit-status-observation');
 
 INSERT INTO symbol_projects_capability(symbol_id, capability_id) VALUES
   ('deriveProjectProjection', 'durable-project-facts'),
