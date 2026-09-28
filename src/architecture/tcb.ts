@@ -201,12 +201,12 @@ export function deriveAssurancePropertyTrustRoots(
         UNION
 
         SELECT
-          guarded.property_id,
+          required_effect.property_id,
           symbol.artifact_id,
           implementation.symbol_id,
           'effect',
-          guarded.effect_id
-        FROM assurance_property_guards_effect AS guarded
+          required_effect.effect_id
+        FROM assurance_property_requires_effect_implementation AS required_effect
         JOIN symbol_performs_effect AS implementation USING(effect_id)
         JOIN symbol USING(symbol_id)
       )
