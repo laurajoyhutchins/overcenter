@@ -56,7 +56,8 @@ function staticModuleSpecifiers(source: SourceFile, includeTypeOnly: boolean): s
     if (isExportDeclaration(statement)) {
       if (!statement.moduleSpecifier) continue;
       if (!includeTypeOnly && statement.isTypeOnly) continue;
-      if (isStringLiteral(statement.moduleSpecifier)) specifiers.add(statement.moduleSpecifier.text);
+      if (isStringLiteral(statement.moduleSpecifier))
+        specifiers.add(statement.moduleSpecifier.text);
     }
   }
   return [...specifiers].sort();
