@@ -42,39 +42,46 @@ export function resolveLocalRuntimeImport(
   return repositoryRelativePath(found, root);
 }
 
+function staticModuleSpecifiers(
+  source: SourceFile,
+  includeTypeOnly: boolean,
+): string[] {
+  const specifiers = new Set<string>();
+  for (const statement of source.statements) {
+    if (isImportDeclaration(statement)) {
+      if (!includeTypeOnly && statement.importClause?.phaseModifier === SyntaxKind.TypeKeyword) {
+        continue;
+      }
+      if (isStringLiteral(statement.moduleSpecifier)) specifiers.add(statement.moduleSpecifier.text);
+      continue;
+    }
+    if (isExportDeclaration(statement)) {
+      if (!statement.moduleSpecifier) continue;
+      if (!includeTypeOnly && statement.isTypeOnly) continue;
+      if (isStringLiteral(statement.moduleSpecifier)) specifiers.add(statement.moduleSpecifier.text);
+    }
+  }
+  return [...specifiers].sort();
+}
+
+export function staticLocalModuleReferences(
+  root: string,
+  path: string,
+  source: SourceFile,
+): string[] {
+  return staticModuleSpecifiers(source, true)
+    .filter((specifier) => specifier.startsWith('.'))
+    .map((specifier) => resolveLocalRuntimeImport(root, path, specifier));
+}
+
 export function staticRuntimeImports(
   root: string,
   path: string,
   source: SourceFile,
 ): RuntimeImports {
-  const specifiers = new Set<string>();
-
-  const addModuleSpecifier = (node: unknown, error: string): void => {
-    if (!node || !isStringLiteral(node as never)) {
-      throw new Error(`${error}:${path}`);
-    }
-    specifiers.add((node as { text: string }).text);
-  };
-
-  for (const statement of source.statements) {
-    if (isImportDeclaration(statement)) {
-      if (statement.importClause?.phaseModifier === SyntaxKind.TypeKeyword) continue;
-      addModuleSpecifier(statement.moduleSpecifier, 'TYPESCRIPT_IMPORT_SPECIFIER_NONLITERAL');
-      continue;
-    }
-    if (isExportDeclaration(statement)) {
-      if (statement.isTypeOnly || !statement.moduleSpecifier) continue;
-      addModuleSpecifier(statement.moduleSpecifier, 'TYPESCRIPT_EXPORT_SPECIFIER_NONLITERAL');
-      continue;
-    }
-    if (statement.kind === SyntaxKind.ImportEqualsDeclaration) {
-      throw new Error(`TYPESCRIPT_IMPORT_EQUALS_UNSUPPORTED:${path}`);
-    }
-  }
-
   const local: string[] = [];
   const external: string[] = [];
-  for (const specifier of specifiers) {
+  for (const specifier of staticModuleSpecifiers(source, false)) {
     if (specifier.startsWith('.')) {
       local.push(resolveLocalRuntimeImport(root, path, specifier));
     } else {
