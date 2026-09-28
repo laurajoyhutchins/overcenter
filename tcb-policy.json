@@ -98,11 +98,11 @@
         "experiments and tests",
         "formal models and proof tools"
       ],
-      "expected_surface_sha256": "ac852e451b8c8a2d8f2b4f3c970ebd74b02454230ea086f7a1c5893e18ebd3b8",
+      "expected_surface_sha256": "85035c67893543424799e9b50bbc6efaca87718b5d203015db062dbbcccd5827",
       "max_module_closure_semantic_loc": 9159,
-      "expected_module_closure_sha256": "9e2cf3e30e038c289df2d85e754678f1d837052103bfcd4b15d271fb930c18d0",
+      "expected_module_closure_sha256": "b7c07fc1d5e045809da8e85ce6d4692cf6b4e20a28950072f1ff434b9f270ca0",
       "max_hybrid_closure_semantic_loc": 9286,
-      "expected_hybrid_closure_sha256": "1dc9a8c9d4bd51d8c6d4eaaeafefa241b97a2af8e5d0b93177280b053a93a241",
+      "expected_hybrid_closure_sha256": "3f269400397aaed24d19ad66d28a0c1096009150cbf040e8c58de0d0311ec882",
       "require_sound_symbol_closure": true,
       "hostile_evidence_probes": [
         "effect-reservation",
@@ -235,9 +235,9 @@
       ],
       "expected_surface_sha256": "2a5c2253a4e097ec387b52d31042d870acfd89e75f5e586a447b2dd8a8e123c2",
       "max_module_closure_semantic_loc": 9159,
-      "expected_module_closure_sha256": "9e2cf3e30e038c289df2d85e754678f1d837052103bfcd4b15d271fb930c18d0",
+      "expected_module_closure_sha256": "b7c07fc1d5e045809da8e85ce6d4692cf6b4e20a28950072f1ff434b9f270ca0",
       "max_hybrid_closure_semantic_loc": 9283,
-      "expected_hybrid_closure_sha256": "67eed5e07812d1876454510b55ee3df1d3da48a0e412f4aa4f6b901e149e4ce1",
+      "expected_hybrid_closure_sha256": "b058afdc79f0fa87182ddeb9a96084cd174b7e7d01e92fa67c01293dcf1bb319",
       "require_sound_symbol_closure": true,
       "hostile_evidence_probes": [
         "digest-foundation",
@@ -335,9 +335,9 @@
         "Kubernetes and GCP providers",
         "worker credentials when they are not broker credentials"
       ],
-      "expected_surface_sha256": "b981c0e3cefd68883bcae22648e510a951498ec2c41de651be31f9b8eab68e7f",
+      "expected_surface_sha256": "32ad73453c6b70f032b1122c9139185286d419e0776908603978c567897636d5",
       "max_module_closure_semantic_loc": 2756,
-      "expected_module_closure_sha256": "04dba769dd9dfea44bc583528568fa9e39e1971dc66645b131d9255a4ff9d0e4",
+      "expected_module_closure_sha256": "6fbb53a6669507dd904ad07a50f9cfd6b56b4598bfa567ad27a1fa1ec2efd6bd",
       "composes_with": [
         "broker-mutation-safety"
       ],
@@ -347,7 +347,7 @@
         "src/authority/engine.ts#releaseEffectReservation"
       ],
       "max_hybrid_closure_semantic_loc": 2762,
-      "expected_hybrid_closure_sha256": "7248897acdfc14a5bf11b1a3eb9f65536bbaccf0df42c7071427085162a47b01",
+      "expected_hybrid_closure_sha256": "098afca43abc48e7a358fad48f00a99d4164f8d6668e232d89862a53a0c98aa0",
       "require_sound_symbol_closure": true,
       "attention_hybrid_closure_semantic_loc": 2746,
       "attention_external_assumptions": [
@@ -369,7 +369,7 @@
         "github-commit-status-provider"
       ],
       "max_hybrid_union_semantic_loc": 9471,
-      "expected_hybrid_union_sha256": "7ad24bdb504097ead4756f99c0c902f46e1da8b4451c87c0dcedb2bf8587663d",
+      "expected_hybrid_union_sha256": "ef552bea0880b0b7aa97b50a7c9ebc7b064b1ed952790b07c5331c0579c62682",
       "attention_hybrid_union_semantic_loc": 8348,
       "max_trusted_file_share": 0.1
     }
