@@ -227,7 +227,6 @@ export function replayProjection(
       if (!expectedKey) throw new Error('CLAIM_PREREQUISITES_INCONSISTENT');
       if (claim.obligation_key !== expectedKey) throw new Error('CLAIM_OBLIGATION_KEY_MISMATCH');
 
-      const definitionId = state.definition_ids[claim.obligation_id]!;
       const run: HistoricalRun = {
         id: claim.run_id,
         obligation_id: claim.obligation_id,
@@ -239,7 +238,7 @@ export function replayProjection(
         execution_capability_sha256: claim.execution_capability_sha256,
         ...(sourceRevision ? { source_revision: sourceRevision.source_revision } : {}),
         obligation: structuredClone(obligation),
-        definition_id: definitionId,
+        definition_id: state.definition_ids[claim.obligation_id]!,
       };
       runs.set(run.id, run);
       claimOrdinalsByRun.set(run.id, authorityOrdinal);
