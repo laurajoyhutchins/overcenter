@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'experiments/authority-storage-decomposition/**'
+      - '!experiments/authority-storage-decomposition/README.md'
       - '.github/workflows/authority-storage-decomposition.yml'
       - 'src/authority/**'
       - 'src/storage/git-store.ts'

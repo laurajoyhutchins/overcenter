@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'experiments/distributed-authority-handoff/**'
+      - '!experiments/distributed-authority-handoff/README.md'
       - '.github/workflows/distributed-authority-handoff.yml'
       - 'src/authority/**'
       - 'src/storage/git-kernel.ts'

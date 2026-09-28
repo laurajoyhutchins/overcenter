@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'experiments/distributed-authority-chaos/**'
+      - '!experiments/distributed-authority-chaos/README.md'
       - '.github/workflows/distributed-authority-chaos.yml'
       - 'src/authority/**'
       - 'src/storage/git-kernel.ts'
