@@ -8,6 +8,9 @@ import {
   runtimeModuleClosure,
 } from '../src/analysis/typescript-runtime.ts';
 
+import { loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
+import { deriveEffectTrustRoots, type EffectTrustRoot } from '../src/architecture/tcb.ts';
+
 import {
   SyntaxKind,
   isCallExpression,
@@ -854,6 +857,72 @@ try {
     };
   });
 
+  const architectureDb = loadArchitectureDatabase();
+  const architectureRoots = deriveEffectTrustRoots(architectureDb);
+  architectureDb.close();
+
+  const propertyCoversRoot = (
+    property: (typeof reports)[number],
+    root: EffectTrustRoot,
+  ): boolean => {
+    if (property.module_closure_files.includes(root.artifact_id)) return true;
+    if (
+      property.slices.some(
+        (slice) =>
+          slice.path === root.artifact_id &&
+          (slice.symbol === '*' ||
+            slice.symbol === root.symbol_id ||
+            slice.symbol === root.symbol_id.split('.').at(-1)),
+      )
+    ) {
+      return true;
+    }
+    const leaf = root.symbol_id.split('.').at(-1);
+    return property.symbol_closure_declarations.some(
+      (declaration) =>
+        declaration.path === root.artifact_id &&
+        (declaration.symbol === root.symbol_id || declaration.symbol === leaf),
+    );
+  };
+
+  const rootsByEffect = new Map<string, EffectTrustRoot[]>();
+  for (const root of architectureRoots) {
+    const roots = rootsByEffect.get(root.effect_id) ?? [];
+    roots.push(root);
+    rootsByEffect.set(root.effect_id, roots);
+  }
+
+  const architectureTcb = {
+    source: ARCHITECTURE_SQL_PATHS,
+    effects: [...rootsByEffect]
+      .map(([effectId, roots]) => {
+        const compositionsForEffect = compositions
+          .map((composition) => {
+            const properties = composition.properties
+              .map((id) => reports.find((candidate) => candidate.id === id))
+              .filter((property): property is (typeof reports)[number] => property !== undefined);
+            const uncoveredRoots = roots.filter(
+              (root) => !properties.some((property) => propertyCoversRoot(property, root)),
+            );
+            return {
+              composition_id: composition.id,
+              covered: uncoveredRoots.length === 0,
+              uncovered_roots: uncoveredRoots,
+            };
+          })
+          .sort((left, right) => left.composition_id.localeCompare(right.composition_id));
+        return {
+          effect_id: effectId,
+          roots,
+          covered_by_compositions: compositionsForEffect
+            .filter((composition) => composition.covered)
+            .map((composition) => composition.composition_id),
+          composition_coverage: compositionsForEffect,
+        };
+      })
+      .sort((left, right) => left.effect_id.localeCompare(right.effect_id)),
+  };
+
   type TcbFindingKind =
     | 'tcb-growth'
     | 'hostile-evidence-stale'
@@ -1111,6 +1180,7 @@ try {
     schema: 'overcenter-tcb-report',
     schema_version: 1,
     generated_from_policy: 'tcb-policy.json',
+    architecture_tcb: architectureTcb,
     properties: reports,
     compositions,
     obligations: findings,
@@ -1194,6 +1264,14 @@ try {
         const ratchet = baseline === null ? 'n/a' : number(baseline);
         return `| \`${composition.id}\` | **${number(composition.hybrid_union_semantic_loc)}** | ${ratchet} | ${delta} | ${composition.hostile_evidence_status} |`;
       }),
+      '',
+      '### Architecture-derived trust roots',
+      '',
+      '| Effect | Roots | Covered by current composition |',
+      '| --- | ---: | --- |',
+      ...architectureTcb.effects.map((effect) =>
+        `| \`${effect.effect_id}\` | ${effect.roots.length} | ${effect.covered_by_compositions.length > 0 ? effect.covered_by_compositions.map((id) => `\`${id}\``).join(', ') : '_none_'} |`,
+      ),
       '',
       '### Largest trusted files in composed properties',
       '',
