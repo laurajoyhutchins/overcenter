@@ -144,38 +144,6 @@ export type EffectVerifier<E extends RegisteredEffectContract> = Extract<
   { effect_contract: E }
 >['postcondition_verifier'];
 
-export interface EffectImplementationBinding {
-  effect_contract: RegisteredEffectContract;
-  path: string;
-  symbol: string;
-}
-
-export const EFFECT_IMPLEMENTATION_BINDINGS = [
-  {
-    effect_contract: GITHUB_COMMIT_STATUS_EFFECT,
-    path: 'src/providers/github/status-effect.ts',
-    symbol: 'performGithubCommitStatusEffect',
-  },
-  {
-    effect_contract: GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
-    path: 'src/providers/github/pr-update-branch-effect.ts',
-    symbol: 'performGithubPullRequestUpdateBranchEffect',
-  },
-  {
-    effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
-    path: 'src/source/source-integration.ts',
-    symbol: 'brokerSourceProposal',
-  },
-  {
-    effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
-    path: 'src/source/source-integration.ts',
-    symbol: 'integrateVerifiedSourceCandidate',
-  },
-] as const satisfies readonly EffectImplementationBinding[];
-
-export type RegisteredEffectImplementationContract =
-  (typeof EFFECT_IMPLEMENTATION_BINDINGS)[number]['effect_contract'];
-
 for (const capabilities of EFFECT_ADAPTER_CAPABILITIES) {
   validateEffectAdapterCapabilities(capabilities);
 }
