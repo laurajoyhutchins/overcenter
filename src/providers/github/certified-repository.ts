@@ -1,8 +1,8 @@
 import { GITHUB_REPOSITORY_OPERATION } from './operations.generated.ts';
-import { materializeGithubOperationRequest } from './openapi.ts';
-import { observeCertifiedGithubRead200 } from './certified-observation.ts';
+import { materializeGitHubOperationRequest } from './openapi.ts';
+import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
 import { GITHUB_REPOSITORY_RESPONSE_SLICE } from './semantics.ts';
-import { githubGet, type GithubJsonGet } from './rest.ts';
+import { githubGet, type GitHubJsonGet } from './rest.ts';
 
 export interface RepositoryIdentityFact {
   kind: 'repository-identity';
@@ -12,7 +12,7 @@ export interface RepositoryIdentityFact {
   stability: 'stable-subject-mutable-alias';
 }
 
-export interface CertifiedGithubRepositoryEvidence {
+export interface CertifiedGitHubRepositoryEvidence {
   operation_id: 'repos/get';
   observed_at: string;
   node_id: string;
@@ -21,9 +21,9 @@ export interface CertifiedGithubRepositoryEvidence {
   optional_absent_paths: string[];
 }
 
-export interface CertifiedGithubRepository {
+export interface CertifiedGitHubRepository {
   fact: RepositoryIdentityFact;
-  evidence: CertifiedGithubRepositoryEvidence;
+  evidence: CertifiedGitHubRepositoryEvidence;
 }
 
 export function githubRepositoryCoordinate(fullName: string): { owner: string; repo: string } {
@@ -34,7 +34,7 @@ export function githubRepositoryCoordinate(fullName: string): { owner: string; r
   return { owner: fullName.slice(0, slash), repo: fullName.slice(slash + 1) };
 }
 
-export function observeCertifiedGithubRepository(
+export function observeCertifiedGitHubRepository(
   token: string,
   {
     repositoryId,
@@ -45,14 +45,14 @@ export function observeCertifiedGithubRepository(
   }: {
     repositoryId: number;
     repositoryFullName: string;
-    get?: GithubJsonGet;
+    get?: GitHubJsonGet;
     clock?: () => string;
     observerId: string;
   },
-): CertifiedGithubRepository {
+): CertifiedGitHubRepository {
   const { owner, repo } = githubRepositoryCoordinate(repositoryFullName);
-  const request = materializeGithubOperationRequest(GITHUB_REPOSITORY_OPERATION, { owner, repo });
-  const { observed_at: observedAt, certified } = observeCertifiedGithubRead200({
+  const request = materializeGitHubOperationRequest(GITHUB_REPOSITORY_OPERATION, { owner, repo });
+  const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
     token,
     operation: GITHUB_REPOSITORY_OPERATION,
     request,
@@ -108,5 +108,5 @@ export {
 } from './contract.ts';
 export { GITHUB_REPOSITORY_OPERATION } from './operations.generated.ts';
 export { GITHUB_REPOSITORY_RESPONSE_SLICE } from './semantics.ts';
-export type { GithubObservationOperation } from './openapi.ts';
-export type { GithubJsonGet } from './rest.ts';
+export type { GitHubObservationOperation } from './openapi.ts';
+export type { GitHubJsonGet } from './rest.ts';
