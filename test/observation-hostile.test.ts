@@ -288,25 +288,24 @@ test('Kubernetes verification requires both non-empty UID and resourceVersion', 
   const postcondition = kubernetesPostcondition();
   assert.equal(observationVerified(postcondition, kubernetesObservation(postcondition)), true);
 
-  const without = (key: keyof Observation): Partial<Observation> => {
+  const without = (key: keyof Observation): Observation => {
     const observation = kubernetesObservation(postcondition);
     delete observation[key];
     return observation;
   };
-  const invalid: Array<[string, Partial<Observation>]> = [
+  const invalid: Array<[string, Observation]> = [
     ['missing uid', without('observed_uid')],
-    ['empty uid', { observed_uid: '' }],
+    ['empty uid', kubernetesObservation(postcondition, { observed_uid: '' })],
     ['missing resource version', without('observed_resource_version')],
-    ['empty resource version', { observed_resource_version: '' }],
-    ['uncertain certainty', { mutation_certainty: 'uncertain' }],
-    ['absent certainty', { mutation_certainty: 'absent' }],
+    [
+      'empty resource version',
+      kubernetesObservation(postcondition, { observed_resource_version: '' }),
+    ],
+    ['uncertain certainty', kubernetesObservation(postcondition, { mutation_certainty: 'uncertain' })],
+    ['absent certainty', kubernetesObservation(postcondition, { mutation_certainty: 'absent' })],
   ];
-  for (const [name, overrides] of invalid) {
-    assert.equal(
-      observationVerified(postcondition, kubernetesObservation(postcondition, overrides)),
-      false,
-      name,
-    );
+  for (const [name, observation] of invalid) {
+    assert.equal(observationVerified(postcondition, observation), false, name);
   }
 });
 
