@@ -464,9 +464,7 @@ export function githubResponseSlice(operationId: string): readonly ResponseField
         : `GITHUB_OPERATION_SEMANTICS_DUPLICATE:${operationId}`,
     );
   }
-  const match = matches[0];
-  if (!match) throw new Error(`GITHUB_OPERATION_SEMANTICS_NOT_FOUND:${operationId}`);
-  return match.response_slice;
+  return matches[0]!.response_slice;
 }
 
 export type GithubSemanticOperationName = keyof typeof GITHUB_OPERATION_SEMANTICS;
