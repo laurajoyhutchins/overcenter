@@ -388,7 +388,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const [command, ...args] = process.argv.slice(2);
   if (command === 'run' && args.length === 3) {
     const [assignmentPath, workspace, candidatePath] = args;
-    if (!assignmentPath || !workspace || !candidatePath) throw new Error('ASSIGNMENT_ARGUMENTS_INVALID');
+    if (!assignmentPath || !workspace || !candidatePath)
+      throw new Error('ASSIGNMENT_ARGUMENTS_INVALID');
     runAssignment(assignmentPath, workspace, candidatePath);
   } else {
     console.error(
