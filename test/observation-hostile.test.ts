@@ -259,9 +259,7 @@ test('Kubernetes absence requires a complete certificate bound to the exact obje
   const certificate = kubernetesAbsenceEvidence(postcondition);
   const observed = kubernetesObservation(postcondition, {
     mutation_certainty: 'absent',
-    absence_evidence: certificate,
-    observed_uid: undefined,
-    observed_resource_version: undefined,
+    absence_evidence: certificate ,
   });
 
   assert.equal(authoritativeAbsenceEvidence(postcondition, observed), certificate);
@@ -273,9 +271,7 @@ test('Kubernetes absence requires a complete certificate bound to the exact obje
   };
   const mismatched = kubernetesObservation(postcondition, {
     mutation_certainty: 'absent',
-    absence_evidence: wrongName,
-    observed_uid: undefined,
-    observed_resource_version: undefined,
+    absence_evidence: wrongName ,
   });
   assert.equal(authoritativeAbsenceEvidence(postcondition, mismatched), null);
   assert.equal(observationAuthoritativelyAbsent(postcondition, mismatched), false);
@@ -292,10 +288,15 @@ test('Kubernetes verification requires both non-empty UID and resourceVersion', 
   const postcondition = kubernetesPostcondition();
   assert.equal(observationVerified(postcondition, kubernetesObservation(postcondition)), true);
 
+  const without = (key: keyof Observation): Partial<Observation> => {
+    const observation = kubernetesObservation(postcondition);
+    delete observation[key];
+    return observation;
+  };
   const invalid: Array<[string, Partial<Observation>]> = [
-    ['missing uid', { observed_uid: undefined }],
+    ['missing uid', without('observed_uid')],
     ['empty uid', { observed_uid: '' }],
-    ['missing resource version', { observed_resource_version: undefined }],
+    ['missing resource version', without('observed_resource_version')],
     ['empty resource version', { observed_resource_version: '' }],
     ['uncertain certainty', { mutation_certainty: 'uncertain' }],
     ['absent certainty', { mutation_certainty: 'absent' }],
