@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
-import { reconcileArchitecture } from '../src/authority/architecture-reconciliation.ts';
+import { reconcileArchitecture } from '../src/architecture/reconciliation.ts';
 import { observeArchitecture, type ObservedArchitecture } from '../scripts/observe-architecture.ts';
 
 const revision = 'a'.repeat(40);
