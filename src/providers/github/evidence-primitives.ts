@@ -1,11 +1,11 @@
-import { githubGet, type GithubJsonGet } from './rest.ts';
+import { githubGet, type GitHubJsonGet } from './rest.ts';
 
-export interface GithubEvidenceFile {
+export interface GitHubEvidenceFile {
   bytes: Buffer;
   blob: string;
 }
 
-export interface GithubWorkflowArtifactEvidence {
+export interface GitHubWorkflowArtifactEvidence {
   workflow_run_id: number;
   revision: string;
   artifact_digest: string;
@@ -22,7 +22,7 @@ export function githubRepositoryPath(repositoryFullName: string, suffix = ''): s
   return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}${suffix}`;
 }
 
-export function readGithubEvidenceFile(
+export function readGitHubEvidenceFile(
   token: string,
   {
     repositoryFullName,
@@ -33,9 +33,9 @@ export function readGithubEvidenceFile(
     repositoryFullName: string;
     path: string;
     ref: string;
-    get?: GithubJsonGet;
+    get?: GitHubJsonGet;
   },
-): GithubEvidenceFile {
+): GitHubEvidenceFile {
   const encodedPath = path
     .split('/')
     .map((part) => encodeURIComponent(part))
@@ -62,7 +62,7 @@ export function readGithubEvidenceFile(
   };
 }
 
-export function verifyGithubRepositoryIdentity(
+export function verifyGitHubRepositoryIdentity(
   token: string,
   {
     repositoryId,
@@ -71,7 +71,7 @@ export function verifyGithubRepositoryIdentity(
   }: {
     repositoryId: number;
     repositoryFullName: string;
-    get?: GithubJsonGet;
+    get?: GitHubJsonGet;
   },
 ): void {
   const repository = get(token, githubRepositoryPath(repositoryFullName));
@@ -85,7 +85,7 @@ export function verifyGithubRepositoryIdentity(
   }
 }
 
-export function verifyGithubWorkflowArtifact(
+export function verifyGitHubWorkflowArtifact(
   token: string,
   {
     repositoryFullName,
@@ -104,9 +104,9 @@ export function verifyGithubWorkflowArtifact(
     jobName: string;
     artifactName: string;
     artifactDigest: string;
-    get?: GithubJsonGet;
+    get?: GitHubJsonGet;
   },
-): GithubWorkflowArtifactEvidence {
+): GitHubWorkflowArtifactEvidence {
   const run = get(
     token,
     githubRepositoryPath(repositoryFullName, `/actions/runs/${workflowRunId}`),
