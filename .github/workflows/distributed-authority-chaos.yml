@@ -9,6 +9,7 @@ on:
       - 'src/authority/**'
       - 'src/storage/git-kernel.ts'
       - 'src/storage/git-store.ts'
+      - 'scripts/plan-hosted-evidence.ts'
       - 'package.json'
   workflow_dispatch:
 
@@ -28,24 +29,37 @@ jobs:
   setup:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
+    outputs:
+      required: ${{ steps.impact.outputs.required }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
           persist-credentials: true
       - name: Verify exact source revision
         run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: '.node-version'
-      - run: npm install --ignore-scripts --package-lock=false
+      - id: impact
+        name: Plan hosted evidence
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ env.SOURCE_SHA }}
+        run: node --experimental-strip-types scripts/plan-hosted-evidence.ts distributed-chaos "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+      - if: steps.impact.outputs.required == 'true'
+        run: npm install --ignore-scripts --package-lock=false
       - name: Run deterministic contract
+        if: steps.impact.outputs.required == 'true'
         run: npm run test:distributed-authority-chaos
       - name: Initialize hosted chaos authority
+        if: steps.impact.outputs.required == 'true'
         run: node --experimental-strip-types experiments/distributed-authority-chaos/controller.ts setup "$AUTHORITY_REF" "$CHAOS_TASKS"
 
   wave-one:
     needs: setup
+    if: needs.setup.outputs.required == 'true'
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -140,7 +154,7 @@ jobs:
         run: node --experimental-strip-types experiments/distributed-authority-chaos/controller.ts verify "$AUTHORITY_REF" "$CHAOS_TASKS"
 
   cleanup:
-    if: ${{ always() }}
+    if: ${{ always() && needs.setup.outputs.required == 'true' }}
     needs: [setup, wave-one, wave-two, wave-three, sweep, verify]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
