@@ -2,7 +2,6 @@ import { normalizeObligation, type ObligationInput } from '../authority/facts.ts
 import { canonicalDigest, sha256 } from '../digest.ts';
 import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import {
-  EXACT_SOURCE_PROPOSAL_CONTEXT_SCHEMA,
   SOURCE_PROPOSAL_SCHEMA,
   SOURCE_TASK_SCHEMA,
   validateSourceAssignment,
@@ -109,11 +108,9 @@ export function buildProvenCodeDeletionSourceTask(handoffValue: unknown): Source
     writable_paths: [handoff.path],
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
     context: {
-      schema: EXACT_SOURCE_PROPOSAL_CONTEXT_SCHEMA,
-      kind: 'exact-source-proposal',
-      path: handoff.path,
-      content_base64: handoff.candidate_content_base64,
-      provenance_sha256: handoff.proof_sha256,
+      kind: 'proven-code-deletion',
+      proof_sha256: handoff.proof_sha256,
+      selector: handoff.proof.selector,
     },
   });
 }

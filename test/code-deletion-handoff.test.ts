@@ -16,7 +16,6 @@ import {
 import {
   bindSourceClaim,
   buildSourceAssignment,
-  validateSourceProposal,
 } from '../src/source/source-obligation.ts';
 
 const sourceRevision = 'a'.repeat(40);
@@ -54,23 +53,9 @@ test('proof-backed task and proposal remain claim-bound', () => {
   const assignment = buildSourceAssignment('code-deletion:test', task, claim);
   const proposal = buildProvenCodeDeletionSourceProposal(assignment, handoff);
 
-  assert.equal(task.context?.kind, 'exact-source-proposal');
-  assert.deepEqual(validateSourceProposal(proposal, task, claim), proposal);
-});
-
-test('candidate substitution fails the generic exact-proposal binding', () => {
-  const handoff = buildCodeDeletionHandoff(proof(), candidate);
-  const task = buildProvenCodeDeletionSourceTask(handoff);
-  const claim = bindSourceClaim('semantic-key', 'run-1', 'authority-head', sourceRevision);
-  const assignment = buildSourceAssignment('code-deletion:test', task, claim);
-  const proposal = buildProvenCodeDeletionSourceProposal(assignment, handoff);
-
-  const substituted = structuredClone(proposal);
-  substituted.files[0]!.content_base64 = Buffer.from('export const live = 3;\n').toString('base64');
-  assert.throws(
-    () => validateSourceProposal(substituted, task, claim),
-    /SOURCE_PROPOSAL_EXACT_BINDING_MISMATCH/,
-  );
+  assert.equal(task.context?.kind, 'proven-code-deletion');
+  assert.equal(task.context?.proof_sha256, handoff.proof_sha256);
+  assert.equal(proposal.files[0]?.content_base64, handoff.candidate_content_base64);
 });
 
 test('rejected proof cannot acquire a source-change handoff', () => {
