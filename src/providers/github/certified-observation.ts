@@ -5,10 +5,10 @@ import {
   type ResponseFieldSpec,
 } from '../../observation/response-slice.ts';
 import { GITHUB_API_VERSION, GITHUB_OPENAPI_SHA256 } from './contract.ts';
-import type { GithubObservationOperation, MaterializedGithubOperationRequest } from './openapi.ts';
-import type { GithubJsonGet } from './rest.ts';
+import type { GitHubObservationOperation, MaterializedGitHubOperationRequest } from './openapi.ts';
+import type { GitHubJsonGet } from './rest.ts';
 
-interface GithubObservationRequest {
+interface GitHubObservationRequest {
   method: 'GET';
   path_template: string;
   path: string;
@@ -17,20 +17,20 @@ interface GithubObservationRequest {
   authorization: 'bearer';
 }
 
-interface GithubObservationResponse {
+interface GitHubObservationResponse {
   date: string | null;
   etag: string | null;
   link: string | null;
   request_id: string | null;
 }
 
-type GithubRawObservation = ProviderObservation<
+type GitHubRawObservation = ProviderObservation<
   'github',
-  GithubObservationRequest,
-  GithubObservationResponse
+  GitHubObservationRequest,
+  GitHubObservationResponse
 >;
 
-function rawGithubObserved200({
+function rawGitHubObserved200({
   operation,
   path,
   parameters,
@@ -38,13 +38,13 @@ function rawGithubObserved200({
   observedAt,
   observerId,
 }: {
-  operation: GithubObservationOperation;
+  operation: GitHubObservationOperation;
   path: string;
   parameters: Record<string, string | number | boolean>;
   body: unknown;
   observedAt: string;
   observerId: string;
-}): GithubRawObservation {
+}): GitHubRawObservation {
   if (operation.method !== 'GET') throw new Error('GITHUB_CERTIFIED_READ_REQUIRES_GET');
   return {
     contract: {
@@ -71,7 +71,7 @@ function rawGithubObserved200({
   };
 }
 
-export function observeCertifiedGithubRead200({
+export function observeCertifiedGitHubRead200({
   token,
   operation,
   request,
@@ -81,19 +81,19 @@ export function observeCertifiedGithubRead200({
   observerId,
 }: {
   token: string;
-  operation: GithubObservationOperation;
-  request: MaterializedGithubOperationRequest;
+  operation: GitHubObservationOperation;
+  request: MaterializedGitHubOperationRequest;
   fields: readonly ResponseFieldSpec[];
-  get: GithubJsonGet;
+  get: GitHubJsonGet;
   clock: () => string;
   observerId: string;
 }): {
   observed_at: string;
-  certified: CertifiedObservation<GithubRawObservation>;
+  certified: CertifiedObservation<GitHubRawObservation>;
 } {
   const body = get(token, request.path);
   const observedAt = clock();
-  const raw = rawGithubObserved200({
+  const raw = rawGitHubObserved200({
     operation,
     path: request.path,
     parameters: request.parameters,
