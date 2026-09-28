@@ -27,11 +27,7 @@ export interface CounterfactualDeletionProof {
 
 export function parseCodeSymbolSelector(selector: string): CodeSymbolSelector {
   const separator = selector.lastIndexOf('#');
-  if (
-    separator <= 0 ||
-    separator === selector.length - 1 ||
-    selector.indexOf('#') !== separator
-  ) {
+  if (separator <= 0 || separator === selector.length - 1 || selector.indexOf('#') !== separator) {
     throw new Error('CODE_DELETION_SELECTOR_INVALID');
   }
   const path = selector.slice(0, separator);
@@ -104,17 +100,12 @@ export function buildCounterfactualDeletionProof(input: {
     source_sha256: input.source_sha256,
     candidate_source_sha256: input.candidate_source_sha256,
     status: preserved ? 'deterministic-evidence-preserved' : 'rejected',
-    reason_code: preserved
-      ? 'ALL_DETERMINISTIC_EVIDENCE_PASSED'
-      : 'DETERMINISTIC_EVIDENCE_FAILED',
+    reason_code: preserved ? 'ALL_DETERMINISTIC_EVIDENCE_PASSED' : 'DETERMINISTIC_EVIDENCE_FAILED',
     evidence: input.evidence.map((step) => ({ ...step })),
   };
 }
 
-
-export function validateCounterfactualDeletionProof(
-  value: unknown,
-): CounterfactualDeletionProof {
+export function validateCounterfactualDeletionProof(value: unknown): CounterfactualDeletionProof {
   if (!isData(value)) throw new Error('CODE_DELETION_PROOF_INVALID');
   assertExactKeys(
     value,
@@ -141,12 +132,7 @@ export function validateCounterfactualDeletionProof(
   }
   const evidence = value.evidence.map((step, index): CounterfactualEvidenceStep => {
     if (!isData(step)) throw new Error(`CODE_DELETION_PROOF_EVIDENCE_INVALID:${index}`);
-    assertExactKeys(
-      step,
-      ['name', 'passed'],
-      [],
-      `CODE_DELETION_PROOF_EVIDENCE_INVALID:${index}`,
-    );
+    assertExactKeys(step, ['name', 'passed'], [], `CODE_DELETION_PROOF_EVIDENCE_INVALID:${index}`);
     assertNonEmptyString(step.name, `CODE_DELETION_PROOF_EVIDENCE_NAME_INVALID:${index}`);
     if (typeof step.passed !== 'boolean') {
       throw new Error(`CODE_DELETION_PROOF_EVIDENCE_RESULT_INVALID:${index}`);

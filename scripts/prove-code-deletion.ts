@@ -1,14 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -59,7 +52,11 @@ function nodeName(node: Node): string | null {
   return named.name && isIdentifier(named.name) ? named.name.text : null;
 }
 
-function deletionRange(root: string, path: string, symbol: string): {
+function deletionRange(
+  root: string,
+  path: string,
+  symbol: string,
+): {
   start: number;
   end: number;
   source: string;
@@ -99,10 +96,7 @@ function deletionRange(root: string, path: string, symbol: string): {
   throw new Error('CODE_DELETION_DECLARATION_NOT_FOUND:' + path + '#' + symbol);
 }
 
-function runEvidence(
-  worktree: string,
-  candidateRevision: string,
-): CounterfactualEvidenceStep[] {
+function runEvidence(worktree: string, candidateRevision: string): CounterfactualEvidenceStep[] {
   const commands: Array<{ name: string; command: string; args: string[] }> = [
     { name: 'lint', command: 'npm', args: ['run', 'lint'] },
     { name: 'typecheck', command: 'npm', args: ['run', 'typecheck'] },

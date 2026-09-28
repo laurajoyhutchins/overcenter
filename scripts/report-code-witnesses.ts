@@ -308,10 +308,10 @@ function resolvedValueSymbol(node: Node): TypeScriptSymbol | null {
 function targetKey(node: Node): string | null {
   const symbol = resolvedValueSymbol(node);
   if (!symbol) return null;
-  const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0];
-  if (!declaration || declaration.getSourceFile().isDeclarationFile) return null;
-  const path = repositoryRelativePath(declaration.getSourceFile().fileName);
-  return path + '#' + symbol.getName();
+  const declaration = symbol.valueDeclaration ?? symbol.declarations[0];
+  if (!declaration) return null;
+  const path = repositoryRelativePath(declaration.path);
+  return path + '#' + symbol.name;
 }
 
 function addCandidate(

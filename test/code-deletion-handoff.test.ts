@@ -12,10 +12,7 @@ import {
   validateProvenCodeDeletionProposalBinding,
 } from '../src/repository/code-deletion-handoff.ts';
 import { buildCounterfactualDeletionProof } from '../src/repository/code-deletion-proof.ts';
-import {
-  bindSourceClaim,
-  buildSourceAssignment,
-} from '../src/source/source-obligation.ts';
+import { bindSourceClaim, buildSourceAssignment } from '../src/source/source-obligation.ts';
 
 const sourceRevision = 'a'.repeat(40);
 const candidateRevision = 'b'.repeat(40);
@@ -44,6 +41,7 @@ test('successful proof becomes a content-addressed one-file handoff', () => {
 
   const obligation = compileProvenCodeDeletionObligation(handoff);
   assert.equal(obligation.id, 'code-deletion:' + handoff.proof_sha256);
+  assert.ok(obligation.packet);
   assert.deepEqual(obligation.packet.writable_paths, ['src/example.ts']);
 });
 
@@ -71,13 +69,7 @@ test('candidate substitution and stale original bytes fail closed', () => {
   const substituted = structuredClone(proposal);
   substituted.files[0]!.content_base64 = Buffer.from('export const live = 3;\n').toString('base64');
   assert.throws(
-    () =>
-      validateProvenCodeDeletionProposalBinding(
-        task,
-        claim,
-        substituted,
-        Buffer.from(original),
-      ),
+    () => validateProvenCodeDeletionProposalBinding(task, claim, substituted, Buffer.from(original)),
     /CANDIDATE_DIGEST_MISMATCH/,
   );
   assert.throws(

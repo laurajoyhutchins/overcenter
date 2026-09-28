@@ -20,7 +20,6 @@ test('source candidate publication does not bypass reserved effects', () => {
   );
 });
 
-
 test('proof-backed deletion proposals are rebound at the trusted source broker', () => {
   const source = readFileSync(
     new URL('../src/source/source-integration.ts', import.meta.url),

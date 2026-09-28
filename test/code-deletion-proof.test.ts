@@ -51,10 +51,7 @@ test('selector identifies one production symbol', () => {
 });
 
 test('only an exact unwitnessed finding is deletion-proof eligible', () => {
-  assert.equal(
-    selectCounterfactualDeletion(report(), revision, 'src/dead.ts#dead').symbol,
-    'dead',
-  );
+  assert.equal(selectCounterfactualDeletion(report(), revision, 'src/dead.ts#dead').symbol, 'dead');
   assert.throws(
     () => selectCounterfactualDeletion(report(), revision, 'src/live.ts#forward'),
     /UNWITNESSED_FINDING_REQUIRED/,
@@ -96,7 +93,6 @@ test('all deterministic evidence must pass before preservation is reported', () 
   assert.equal(rejected.status, 'rejected');
   assert.equal(rejected.reason_code, 'DETERMINISTIC_EVIDENCE_FAILED');
 });
-
 
 test('proof validation rejects forged success over failed evidence', () => {
   const forged = {
