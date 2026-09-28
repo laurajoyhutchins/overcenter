@@ -42,7 +42,7 @@ export function resolveLocalRuntimeImport(
   return repositoryRelativePath(found, root);
 }
 
-export function runtimeImports(
+export function staticRuntimeImports(
   root: string,
   path: string,
   source: SourceFile,
@@ -72,18 +72,6 @@ export function runtimeImports(
     }
   }
 
-  const runtimeLoad = /\b(import|require)\s*\(/g;
-  for (const match of source.text.matchAll(runtimeLoad)) {
-    const tail = source.text.slice(match.index);
-    const literal = /^(import|require)\s*\(\s*(['"])([^'"]+)\2\s*\)/.exec(tail);
-    if (!literal) {
-      throw new Error(
-        `${match[1] === 'import' ? 'TYPESCRIPT_DYNAMIC_IMPORT_NONLITERAL' : 'TYPESCRIPT_REQUIRE_NONLITERAL'}:${path}`,
-      );
-    }
-    specifiers.add(literal[3]!);
-  }
-
   const local: string[] = [];
   const external: string[] = [];
   for (const specifier of specifiers) {
@@ -94,6 +82,35 @@ export function runtimeImports(
     }
   }
   return { local: local.sort(), external: external.sort() };
+}
+
+export function runtimeImports(
+  root: string,
+  path: string,
+  source: SourceFile,
+): RuntimeImports {
+  const imports = staticRuntimeImports(root, path, source);
+  const local = new Set(imports.local);
+  const external = new Set(imports.external);
+
+  const runtimeLoad = /\b(import|require)\s*\(/g;
+  for (const match of source.text.matchAll(runtimeLoad)) {
+    const tail = source.text.slice(match.index);
+    const literal = /^(import|require)\s*\(\s*(['"])([^'"]+)\2\s*\)/.exec(tail);
+    if (!literal) {
+      throw new Error(
+        `${match[1] === 'import' ? 'TYPESCRIPT_DYNAMIC_IMPORT_NONLITERAL' : 'TYPESCRIPT_REQUIRE_NONLITERAL'}:${path}`,
+      );
+    }
+    const specifier = literal[3]!;
+    if (specifier.startsWith('.')) {
+      local.add(resolveLocalRuntimeImport(root, path, specifier));
+    } else {
+      external.add(specifier);
+    }
+  }
+
+  return { local: [...local].sort(), external: [...external].sort() };
 }
 
 export function runtimeModuleClosure(
