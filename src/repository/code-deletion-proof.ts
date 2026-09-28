@@ -2,6 +2,18 @@ import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts'
 import type { CodeWitnessFinding, CodeWitnessReport } from './code-witness.ts';
 
 export const CODE_DELETION_PROOF_SCHEMA = 'overcenter-code-deletion-proof/v1' as const;
+export const CODE_DELETION_EVIDENCE_STEPS = [
+  'lint',
+  'typecheck',
+  'architecture-reconciliation',
+  'trusted-computing-base',
+  'adapter-diagnosability',
+  'experiment-statistics',
+  'code-witness-analysis',
+  'unit-tests',
+] as const;
+
+export type CodeDeletionEvidenceStepName = (typeof CODE_DELETION_EVIDENCE_STEPS)[number];
 
 export interface CodeSymbolSelector {
   path: string;
@@ -9,7 +21,7 @@ export interface CodeSymbolSelector {
 }
 
 export interface CounterfactualEvidenceStep {
-  name: string;
+  name: CodeDeletionEvidenceStepName;
   passed: boolean;
 }
 
@@ -21,7 +33,10 @@ export interface CounterfactualDeletionProof {
   source_sha256: string;
   candidate_source_sha256: string;
   status: 'deterministic-evidence-preserved' | 'rejected';
-  reason_code: 'ALL_DETERMINISTIC_EVIDENCE_PASSED' | 'DETERMINISTIC_EVIDENCE_FAILED';
+  reason_code:
+    | 'ALL_DETERMINISTIC_EVIDENCE_PASSED'
+    | 'DETERMINISTIC_EVIDENCE_FAILED'
+    | 'DETERMINISTIC_EVIDENCE_INCOMPLETE';
   evidence: CounterfactualEvidenceStep[];
 }
 
@@ -90,8 +105,26 @@ export function buildCounterfactualDeletionProof(input: {
     throw new Error('CODE_DELETION_SOURCE_IDENTITY_INVALID');
   }
   if (input.evidence.length === 0) throw new Error('CODE_DELETION_EVIDENCE_REQUIRED');
+  if (input.evidence.length > CODE_DELETION_EVIDENCE_STEPS.length) {
+    throw new Error('CODE_DELETION_EVIDENCE_SEQUENCE_INVALID');
+  }
+  for (const [index, step] of input.evidence.entries()) {
+    if (step.name !== CODE_DELETION_EVIDENCE_STEPS[index]) {
+      throw new Error('CODE_DELETION_EVIDENCE_SEQUENCE_INVALID');
+    }
+    if (!step.passed && index !== input.evidence.length - 1) {
+      throw new Error('CODE_DELETION_EVIDENCE_AFTER_FAILURE');
+    }
+  }
 
-  const preserved = input.evidence.every((step) => step.passed);
+  const allPassed = input.evidence.every((step) => step.passed);
+  const complete = input.evidence.length === CODE_DELETION_EVIDENCE_STEPS.length;
+  const preserved = allPassed && complete;
+  const reasonCode = preserved
+    ? 'ALL_DETERMINISTIC_EVIDENCE_PASSED'
+    : allPassed
+      ? 'DETERMINISTIC_EVIDENCE_INCOMPLETE'
+      : 'DETERMINISTIC_EVIDENCE_FAILED';
   return {
     schema: CODE_DELETION_PROOF_SCHEMA,
     source_revision: input.source_revision,
@@ -100,7 +133,7 @@ export function buildCounterfactualDeletionProof(input: {
     source_sha256: input.source_sha256,
     candidate_source_sha256: input.candidate_source_sha256,
     status: preserved ? 'deterministic-evidence-preserved' : 'rejected',
-    reason_code: preserved ? 'ALL_DETERMINISTIC_EVIDENCE_PASSED' : 'DETERMINISTIC_EVIDENCE_FAILED',
+    reason_code: reasonCode,
     evidence: input.evidence.map((step) => ({ ...step })),
   };
 }
@@ -137,7 +170,7 @@ export function validateCounterfactualDeletionProof(value: unknown): Counterfact
     if (typeof step.passed !== 'boolean') {
       throw new Error(`CODE_DELETION_PROOF_EVIDENCE_RESULT_INVALID:${index}`);
     }
-    return { name: step.name, passed: step.passed };
+    return { name: step.name as CodeDeletionEvidenceStepName, passed: step.passed };
   });
   if (new Set(evidence.map((step) => step.name)).size !== evidence.length) {
     throw new Error('CODE_DELETION_PROOF_EVIDENCE_DUPLICATE');

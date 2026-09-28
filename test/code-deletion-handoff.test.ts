@@ -11,7 +11,10 @@ import {
   validateCodeDeletionHandoff,
   validateProvenCodeDeletionProposalBinding,
 } from '../src/repository/code-deletion-handoff.ts';
-import { buildCounterfactualDeletionProof } from '../src/repository/code-deletion-proof.ts';
+import {
+  buildCounterfactualDeletionProof,
+  CODE_DELETION_EVIDENCE_STEPS,
+} from '../src/repository/code-deletion-proof.ts';
 import { bindSourceClaim, buildSourceAssignment } from '../src/source/source-obligation.ts';
 
 const sourceRevision = 'a'.repeat(40);
@@ -26,10 +29,7 @@ function proof() {
     selector: 'src/example.ts#dead',
     source_sha256: sha256(original),
     candidate_source_sha256: sha256(candidate),
-    evidence: [
-      { name: 'typecheck', passed: true },
-      { name: 'unit-tests', passed: true },
-    ],
+    evidence: CODE_DELETION_EVIDENCE_STEPS.map((name) => ({ name, passed: true })),
   });
 }
 
@@ -91,7 +91,7 @@ test('rejected proof cannot acquire a source-change handoff', () => {
     selector: 'src/example.ts#dead',
     source_sha256: sha256(original),
     candidate_source_sha256: sha256(candidate),
-    evidence: [{ name: 'unit-tests', passed: false }],
+    evidence: [{ name: 'lint', passed: false }],
   });
   assert.throws(() => buildCodeDeletionHandoff(rejected, candidate), /PROOF_REJECTED/);
 });
