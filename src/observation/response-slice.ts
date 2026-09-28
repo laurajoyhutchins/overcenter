@@ -153,8 +153,7 @@ function validatePath(
     return 'validated';
   }
 
-  const [segment, ...rest] = segments;
-  if (segment === undefined) throw new Error(`RESPONSE_SLICE_PATH_INVALID:${fullPath}`);
+  const [segment, ...rest] = segments as [string, ...string[]];
 
   if (segment === '[]') {
     const items = schemaCandidates.flatMap((schema) => itemSchemas(schema, resolveRef));
