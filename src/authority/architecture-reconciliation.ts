@@ -420,9 +420,15 @@ function reconcileAuthorityRoleClaim(
   };
 }
 
-function reconcileGitHubActionsExplicitWriteClaim(
-  claim: GitHubActionsExplicitWriteAuthorityIntentClaim,
+function reconcileWorkflowFacts<
+  TFact extends ArchitectureObservedFact & { workflow_path: string },
+>(
+  claim: ArchitectureIntentClaim,
   observations: ArchitectureObservedFact[],
+  facts: TFact[],
+  allowed: (fact: TFact) => boolean,
+  reasonCode: ArchitectureConflictReasonCode,
+  extraSupporting: ArchitectureObservedFact[] = [],
 ): ArchitectureResolution {
   const scan = observations.find(
     (fact): fact is GitHubActionsWorkflowScanFact => fact.kind === 'github-actions-workflow-scan',
@@ -436,6 +442,26 @@ function reconcileGitHubActionsExplicitWriteClaim(
     };
   }
 
+  const undeclared = facts.filter((fact) => !allowed(fact));
+  const supporting = [
+    scan,
+    ...facts.filter((fact) => !undeclared.includes(fact)),
+    ...extraSupporting,
+  ];
+  if (undeclared.length > 0) {
+    return conflict(claim, reasonCode, supporting, undeclared);
+  }
+  return {
+    state: 'established',
+    claim: structuredClone(claim),
+    supporting_facts: sortFacts(supporting),
+  };
+}
+
+function reconcileGitHubActionsExplicitWriteClaim(
+  claim: GitHubActionsExplicitWriteAuthorityIntentClaim,
+  observations: ArchitectureObservedFact[],
+): ArchitectureResolution {
   const writes = observations.filter(
     (fact): fact is GitHubActionsExplicitWriteCapabilityFact =>
       fact.kind === 'github-actions-explicit-write-capability',
@@ -447,44 +473,23 @@ function reconcileGitHubActionsExplicitWriteClaim(
   const allowed = new Map(
     claim.allowed.map((grant) => [grant.workflow, new Set(grant.permissions)] as const),
   );
-  const undeclared = writes.filter((fact) => {
-    const permissions = allowed.get(fact.workflow_path);
-    return !permissions || (!permissions.has(fact.permission) && !permissions.has('*'));
-  });
-
-  const supporting = [scan, ...writes.filter((fact) => !undeclared.includes(fact)), ...inherited];
-  if (undeclared.length > 0) {
-    return conflict(
-      claim,
-      'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY',
-      supporting,
-      undeclared,
-    );
-  }
-
-  return {
-    state: 'established',
-    claim: structuredClone(claim),
-    supporting_facts: sortFacts(supporting),
-  };
+  return reconcileWorkflowFacts(
+    claim,
+    observations,
+    writes,
+    (fact) => {
+      const permissions = allowed.get(fact.workflow_path);
+      return !!permissions && (permissions.has(fact.permission) || permissions.has('*'));
+    },
+    'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY',
+    inherited,
+  );
 }
 
 function reconcileGitHubActionsProviderEffectClaim(
   claim: GitHubActionsProviderEffectAuthorityIntentClaim,
   observations: ArchitectureObservedFact[],
 ): ArchitectureResolution {
-  const scan = observations.find(
-    (fact): fact is GitHubActionsWorkflowScanFact => fact.kind === 'github-actions-workflow-scan',
-  );
-  if (!scan) {
-    return {
-      state: 'unknown',
-      claim: structuredClone(claim),
-      missing_evidence: ['github-actions-workflow-scan'],
-      supporting_facts: [],
-    };
-  }
-
   const effects = observations.filter(
     (fact): fact is GitHubActionsProviderEffectInvocationFact =>
       fact.kind === 'github-actions-provider-effect-invocation',
@@ -492,25 +497,13 @@ function reconcileGitHubActionsProviderEffectClaim(
   const allowed = new Map(
     claim.allowed.map((grant) => [grant.workflow, new Set(grant.effects)] as const),
   );
-  const undeclared = effects.filter((fact) => {
-    const workflowEffects = allowed.get(fact.workflow_path);
-    return !workflowEffects || !workflowEffects.has(fact.effect);
-  });
-
-  if (undeclared.length > 0) {
-    return conflict(
-      claim,
-      'UNDECLARED_GITHUB_ACTIONS_PROVIDER_EFFECT',
-      [scan, ...effects.filter((fact) => !undeclared.includes(fact))],
-      undeclared,
-    );
-  }
-
-  return {
-    state: 'established',
-    claim: structuredClone(claim),
-    supporting_facts: sortFacts([scan, ...effects]),
-  };
+  return reconcileWorkflowFacts(
+    claim,
+    observations,
+    effects,
+    (fact) => allowed.get(fact.workflow_path)?.has(fact.effect) === true,
+    'UNDECLARED_GITHUB_ACTIONS_PROVIDER_EFFECT',
+  );
 }
 
 function reconcileWorkflowTransitiveEffectClaim(
