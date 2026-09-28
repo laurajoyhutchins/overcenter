@@ -5,6 +5,7 @@ import {
   buildCounterfactualDeletionProof,
   parseCodeSymbolSelector,
   selectCounterfactualDeletion,
+  validateCounterfactualDeletionProof,
 } from '../src/repository/code-deletion-proof.ts';
 import type { CodeWitnessReport } from '../src/repository/code-witness.ts';
 
@@ -94,4 +95,21 @@ test('all deterministic evidence must pass before preservation is reported', () 
   });
   assert.equal(rejected.status, 'rejected');
   assert.equal(rejected.reason_code, 'DETERMINISTIC_EVIDENCE_FAILED');
+});
+
+
+test('proof validation rejects forged success over failed evidence', () => {
+  const forged = {
+    ...buildCounterfactualDeletionProof({
+      source_revision: revision,
+      candidate_revision: 'b'.repeat(40),
+      selector: 'src/dead.ts#dead',
+      source_sha256: 'c'.repeat(64),
+      candidate_source_sha256: 'd'.repeat(64),
+      evidence: [{ name: 'unit-tests', passed: false }],
+    }),
+    status: 'deterministic-evidence-preserved',
+    reason_code: 'ALL_DETERMINISTIC_EVIDENCE_PASSED',
+  };
+  assert.throws(() => validateCounterfactualDeletionProof(forged), /RESULT_MISMATCH/);
 });
