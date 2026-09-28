@@ -66,6 +66,7 @@ export function buildStaticEffectIndex(
 
   for (let index = 0; index < effectful.length; index += 1) {
     const effect = effectful[index];
+    if (!effect) throw new Error('STATIC_EFFECT_INDEX_INCONSISTENT');
     const bit = 1n << BigInt(index);
     const entry: IndexedEffect = { ...effect, bit };
     byId.set(entry.id, entry);
@@ -157,7 +158,10 @@ export function staticEffectConflict(
     ?.find((candidate) => (unorderedMask & candidate.bit) !== 0n);
   if (!other) throw new Error('STATIC_EFFECT_INDEX_INCONSISTENT');
 
-  const [left, right] = [workId, other.id].sort();
+  const ordered = [workId, other.id].sort();
+  const left = ordered[0];
+  const right = ordered[1];
+  if (!left || !right) throw new Error('STATIC_EFFECT_INDEX_INCONSISTENT');
   return {
     left,
     right,
