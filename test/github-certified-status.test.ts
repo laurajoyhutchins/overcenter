@@ -237,8 +237,8 @@ test('combined miss preserves later-page positive fallback', () => {
   assert.equal(result.actual_state, 'success');
   assert.equal(result.evidence.status_operation_id, 'repos/list-commit-statuses-for-ref');
   assert.equal(result.evidence.pages.length, 2);
-  assert.equal(result.evidence.pages[0].member_count, 30);
-  assert.equal(result.evidence.pages[1].member_count, 1);
+  assert.equal(result.evidence.pages[0]?.member_count, 30);
+  assert.equal(result.evidence.pages[1]?.member_count, 1);
   assert.deepEqual(p.calls, [
     `/repos/acme/widget/commits/${COMMIT}/status?page=1&per_page=100`,
     '/repos/acme/widget',
