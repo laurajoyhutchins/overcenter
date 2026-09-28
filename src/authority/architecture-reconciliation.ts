@@ -420,9 +420,7 @@ function reconcileAuthorityRoleClaim(
   };
 }
 
-function reconcileWorkflowFacts<
-  TFact extends ArchitectureObservedFact & { workflow_path: string },
->(
+function reconcileWorkflowFacts<TFact extends ArchitectureObservedFact & { workflow_path: string }>(
   claim: ArchitectureIntentClaim,
   observations: ArchitectureObservedFact[],
   facts: TFact[],
