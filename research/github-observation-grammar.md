@@ -59,11 +59,11 @@ required_sha == observed_sha
 
 `experiments/github-observation-grammar/openapi.ts` mechanically derives a read-only observation descriptor from an OpenAPI document and records the exact API version, operation ID, request coordinate, HTTP outcome, and raw value.
 
-`experiments/github-observation-grammar/semantics.ts` is intentionally separate. It contains the handwritten rule that a successful `git/get-ref` response with a matching coordinate proves a `ref -> object SHA` binding.
+`experiments/github-observation-grammar/semantics.ts` is separate. It contains the handwritten rule that a successful `git/get-ref` response with a matching coordinate proves a `ref -> object SHA` binding.
 
 ## Negative evidence rule
 
-This experiment deliberately refuses the tempting conversion:
+This experiment refuses the tempting conversion:
 
 ```text
 HTTP 404 -> does not exist
@@ -106,7 +106,7 @@ Handwritten provider semantics:
 - strength of negative evidence
 - obligation evaluation
 
-This is a deliberately small handwritten layer. If that layer grows into a second GitHub model, the experiment has failed.
+This is a small handwritten layer. If that layer grows into a second GitHub model, the experiment has failed.
 
 ## Safety properties exercised
 
@@ -194,7 +194,7 @@ The useful metric is not endpoint coverage by itself. It is how much GitHub stat
 
 ## Second falsification round: semantic shapes and freshness
 
-The next experiment deliberately does not add broad endpoint support. It selects representative GitHub read shapes and asks whether the handwritten semantic layer remains small:
+The next experiment does not add broad endpoint support. It selects representative GitHub read shapes and asks whether the handwritten semantic layer remains small:
 
 | Shape | GitHub operation | Projection |
 | --- | --- | --- |
@@ -276,7 +276,7 @@ fresh current authority
 reconstructed projection
 ```
 
-The reconstruction test intentionally supplies an old durable ref observation and no fresh ref observation. The reconstructed projection contains the durable commit but **no current ref**. Supplying fresh authority restores the current ref binding.
+The reconstruction test supplies an old durable ref observation and no fresh ref observation. The reconstructed projection contains the durable commit but **no current ref**. Supplying fresh authority restores the current ref binding.
 
 This is stronger than choosing the newest stored timestamp. A recent historical observation is still historical.
 
@@ -363,7 +363,7 @@ The next failure signal to watch is **semantic rule growth**, not endpoint count
 
 ### Remaining hard boundary
 
-Authentication provenance is intentionally incomplete.
+Authentication provenance is incomplete.
 
 GitHub documents the built-in `GITHUB_TOKEN` as a GitHub App installation access token minted for each workflow job:
 
@@ -380,7 +380,7 @@ Settlement-strength evidence that depends on installation-specific authority rem
 
 ## Third falsification round: identity overlap and marginal semantic cost
 
-The next round deliberately added surfaces that should reuse already discovered semantic shapes rather than introduce new lifecycle models:
+The next round added surfaces that should reuse already discovered semantic shapes rather than introduce new lifecycle models:
 
 - `issues/get` as a second mutable-entity surface;
 - `repos/list-commit-statuses-for-ref` as a second ref-scoped paginated collection;
@@ -555,7 +555,7 @@ overcenter/concurrency/35373921130/1/beta  -> success
 
 The live proof now uses that exact commit SHA as the positive status fixture.
 
-This is not just test hygiene. It demonstrates the architectural rule directly:
+This demonstrates the architectural rule directly:
 
 ```text
 "main had status S"
@@ -686,7 +686,7 @@ checks/list-for-ref
 
 The selector walks the actual pinned OpenAPI response schema, including properties inherited through `allOf` / `anyOf` / `oneOf`, and validates the selected runtime values against the provider-declared primitive type, nullability, enum, and length constraints.
 
-Unselected fields are deliberately ignored.
+Unselected fields are ignored.
 
 This keeps the split explicit:
 

@@ -55,7 +55,7 @@ attempt exact-head CAS
 authority   orphan immutable object
 ~~~
 
-A loser may leave storage garbage. It may not leave project truth. Garbage collection is intentionally out of scope.
+A loser may leave storage garbage. It may not leave project truth. Garbage collection is out of scope.
 
 ## Run
 

@@ -38,7 +38,7 @@ The repository has one mechanically checkable merge predicate instead of an info
 
 Core evidence producers remain independently invokable through `workflow_dispatch`, but their ordinary pull-request and `main` triggers move into the merge-gate composition so they are not duplicated.
 
-The computation proof now runs for every candidate merge rather than only path-selected changes. This is intentionally conservative while the required evidence set is small. A later optimization may introduce deterministic affected-evidence selection, but selection must itself be software-defined and fail closed.
+The computation proof now runs for every candidate merge rather than only path-selected changes. This is conservative while the required evidence set is small. A later optimization may introduce deterministic affected-evidence selection, but selection must itself be software-defined and fail closed.
 
 The gate proves evidence for an exact source revision. Repository policy is still responsible for preventing a stale pull-request head from being admitted after the target branch advances.
 

@@ -126,7 +126,7 @@ authority_epoch = monotonic fencing generation for the subject
 Git SHA         = exact version of repository authority
 ```
 
-These are deliberately different things.
+These are different things.
 
 - `lease_ref` identifies the specific lease and is the natural agent-facing capability.
 - `authority_epoch` prevents a superseded lease holder from making an authoritative effect.

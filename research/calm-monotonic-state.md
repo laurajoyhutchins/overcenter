@@ -155,7 +155,7 @@ References:
 
 ### Lattices
 
-BloomL generalized monotonicity from set growth to arbitrary semilattices. This matters because Overcenter has several values that are better understood as increasing knowledge rather than append-only sets.
+BloomL generalized monotonicity from set growth to arbitrary semilattices. Overcenter has several values that are better understood as increasing knowledge rather than append-only sets.
 
 For example, mutation certainty can be ordered by information content:
 
@@ -177,7 +177,7 @@ Reference:
 
 Hellerstein's 2026 "Coordination Criterion" generalizes the same intuition over partially ordered execution histories: specifications whose observable outcomes are monotone under history extension admit coordination-free implementations, while specifications whose outcomes can be invalidated by later history intrinsically require coordination.
 
-This is useful for Overcenter because the design question is fundamentally semantic. The goal is not to remove SQL transactions. The goal is to make the synchronized portion of the specification as small as possible.
+This is useful for Overcenter because the design question is semantic. The goal is not to remove SQL transactions. The goal is to make the synchronized portion of the specification as small as possible.
 
 Reference:
 

@@ -6,7 +6,7 @@ Each ADR should answer five things:
 
 1. What concrete decision did we make?
 2. What evidence justified it?
-3. What remains deliberately outside the decision?
+3. What remains outside the decision?
 4. What alternatives did we reject?
 5. What would cause us to revisit it?
 
@@ -17,7 +17,7 @@ Use one ADR per decision. Do not accumulate unrelated decisions into a rolling a
 - **Proposed** — under active evaluation.
 - **Accepted** — current architectural policy.
 - **Superseded** — replaced by a later ADR.
-- **Rejected** — considered and deliberately not adopted.
+- **Rejected** — considered and not adopted.
 
 ## Decisions
 

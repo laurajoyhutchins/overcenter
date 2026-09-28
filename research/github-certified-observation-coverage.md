@@ -1,6 +1,6 @@
 # GitHub certified observation coverage
 
-The pinned GitHub OpenAPI schema contains **647 GET/HEAD operations** in total, of which **271** are repository-scoped under `/repos/{owner}/{repo}`. The operation-count denominator intentionally remains the whole repository read catalog; GitHub-App enablement and credential permissions are tracked as separate capability gates rather than mixed into that percentage.
+The pinned GitHub OpenAPI schema contains **647 GET/HEAD operations** in total, of which **271** are repository-scoped under `/repos/{owner}/{repo}`. The operation-count denominator remains the whole repository read catalog; GitHub-App enablement and credential permissions are tracked as separate capability gates rather than mixed into that percentage.
 
 For the repository-observation question, the repository-scoped denominator is the useful one:
 
@@ -14,7 +14,7 @@ For completeness, against the entire GitHub GET/HEAD catalog including non-repos
 
 The 42 registered operations cover repository/ref/commit/branch/tag identity; pull requests, files, reviews, review comments, issues, issue comments, and issue events; checks and commit statuses; Actions workflows, runs, jobs, and artifacts; releases/assets; deployments/statuses; Git trees/blobs; and commit-to-pull-request association.
 
-These percentages are deliberately crude. Every endpoint counts equally; this is not a capability-weighted score. The expansion is therefore biased toward operations that remove real observation blind spots for autonomous repository work rather than toward cheap catalog inflation.
+These percentages are crude. Every endpoint counts equally; this is not a capability-weighted score. The expansion is therefore biased toward operations that remove real observation blind spots for autonomous repository work rather than toward cheap catalog inflation.
 
 ## Coverage is not capability
 
@@ -33,7 +33,7 @@ The generic reader now fails closed before provider access when its declared cre
 
 1. Request grammar comes from the pinned GitHub OpenAPI operation.
 2. Stable numeric repository identity is re-established before the target read.
-3. A deliberately small response slice is structurally validated against the pinned response schema.
+3. A small response slice is structurally validated against the pinned response schema.
 4. Evidence binds operation, request parameters, schema identity, observer identity, and observation time.
 5. Generic reads are positive-only.
 6. The value returned to callers is a projection containing only fields in the validated response slice; raw provider fields outside that slice do not cross the certified API boundary.

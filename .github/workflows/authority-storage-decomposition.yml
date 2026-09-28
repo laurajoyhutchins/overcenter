@@ -4,12 +4,18 @@ on:
   pull_request:
     paths:
       - 'experiments/authority-storage-decomposition/**'
+      - '!experiments/authority-storage-decomposition/README.md'
       - '.github/workflows/authority-storage-decomposition.yml'
       - 'src/authority/**'
       - 'src/storage/git-store.ts'
       - 'src/storage/git-kernel.ts'
+      - 'scripts/plan-hosted-evidence.ts'
       - 'package.json'
   workflow_dispatch:
+
+concurrency:
+  group: authority-storage-decomposition-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -22,6 +28,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Verify exact source revision
         shell: bash
@@ -32,6 +39,14 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: '.node-version'
-      - run: npm install --ignore-scripts --package-lock=false
+      - id: impact
+        name: Plan hosted evidence
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node --experimental-strip-types scripts/plan-hosted-evidence.ts authority-storage "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+      - if: steps.impact.outputs.required == 'true'
+        run: npm install --ignore-scripts --package-lock=false
       - name: Run decomposition treatment
+        if: steps.impact.outputs.required == 'true'
         run: npm run test:authority-storage-decomposition

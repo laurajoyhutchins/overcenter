@@ -20,7 +20,7 @@ The analysis should reject every preregistered hostile mutant while accepting bo
 
 ## Abstract domain
 
-The prototype intentionally keeps the lattice small:
+The prototype keeps the lattice small:
 
 ```text
 value facts
@@ -36,7 +36,7 @@ control fact
 
 Joins are conservative. If one branch is unvalidated, the joined value is unvalidated. If one branch lacks exact revision or current lease, the joined authority lacks it.
 
-Serialization and queue boundaries deliberately erase validation and authority proof. Raw bytes may preserve data, but they do not preserve the runtime fact that those bytes were checked under a particular authority state.
+Serialization and queue boundaries erase validation and authority proof. Raw bytes may preserve data, but they do not preserve the runtime fact that those bytes were checked under a particular authority state.
 
 ## Refiners and sinks
 
@@ -118,7 +118,7 @@ Supported at exact treatment revision `7554f069570e6501afc971adfb9d7420dae3b683`
 
 A positive result would justify a follow-on production linter that derives summaries from real modules rather than expanding this experiment into a universal TypeScript analyzer.
 
-The important architectural claim is not that every byte can be statically trusted. It is that runtime-established authority should have a statically visible path, and proof should decay deliberately when code crosses boundaries that erase that fact.
+The important architectural claim is not that every byte can be statically trusted. It is that runtime-established authority should have a statically visible path, and proof should decay when code crosses boundaries that erase that fact.
 
 ## Non-claims
 

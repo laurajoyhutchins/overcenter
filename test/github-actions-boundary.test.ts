@@ -107,8 +107,8 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
   );
   assert.match(
     mergeGate,
-    /group: merge-gate-\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/,
-    'all attempts for one exact PR head must share one concurrency key',
+    /group: merge-gate-\$\{\{ github\.event\.pull_request\.number \|\| github\.sha \}\}/,
+    'all heads for one PR must share one cancellation key while pushes remain revision-scoped',
   );
   assert.match(
     mergeGate,

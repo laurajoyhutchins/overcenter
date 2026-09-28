@@ -1,6 +1,6 @@
 # CAS evidence research program
 
-The content-addressed evidence work is one research program with deliberately staged production promotion. Each stage should stay narrower than the conclusion established by its gate.
+The content-addressed evidence work is one research program with staged production promotion. Each stage should stay narrower than the conclusion established by its gate.
 
 ## Program thesis
 
@@ -78,7 +78,7 @@ The negative and corrective steps are part of the result. In particular, #284 pr
 
 PR #299, **Add content-addressed evidence store**, is the first production promotion from the earlier Merkle/evidence investigations.
 
-Its production responsibility is intentionally small:
+Its production responsibility is small:
 
 - define backend-neutral `EvidenceRef { algorithm, digest, byte_length }`;
 - publish and verify immutable bytes through `EvidenceStore`;

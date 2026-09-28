@@ -127,7 +127,7 @@ Provider-specific Kubernetes semantics remain about 254 LOC. That code expresses
 
 ## What was *not* generalized
 
-The experiment deliberately did not create generic abstractions for:
+The experiment did not create generic abstractions for:
 
 - entity lifetime;
 - state versions;

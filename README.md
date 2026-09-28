@@ -55,7 +55,7 @@ If deterministic machinery and bounded agent recovery both fail to resolve an am
 
 ## Current production slice
 
-The supported runtime boundary is intentionally smaller than the research surface:
+The supported runtime boundary is smaller than the research surface:
 
 | Concern | Current owner | Status |
 | --- | --- | --- |
@@ -116,7 +116,7 @@ deterministic kernel
 authoritative project truth
 ```
 
-The production authority store is SQLite: immutable fact-commit rows plus one compare-and-swap authority head, committed atomically in a local transaction. Git implements the same durable-fact contract as a reference and independent replay backend; project semantics do not depend on Git. Direct migration of an existing history between backends is a separate problem because some durable facts intentionally bind backend-local authority identities.
+The production authority store is SQLite: immutable fact-commit rows plus one compare-and-swap authority head, committed atomically in a local transaction. Git implements the same durable-fact contract as a reference and independent replay backend; project semantics do not depend on Git. Direct migration of an existing history between backends is a separate problem because some durable facts bind backend-local authority identities.
 
 Project state such as `READY`, `EXECUTING`, `BLOCKED`, `RECOVERY_REQUIRED`, and `DONE` is reconstructed from durable facts and current authority. It is not stored as a privileged lifecycle document.
 
@@ -148,7 +148,7 @@ The detailed empirical lineage and live hosted proof evidence live under [`exper
 
 ## What is not proved?
 
-The repository deliberately does **not** establish that:
+The repository does **not** establish that:
 
 - Overcenter is a complete production orchestration system;
 - SQLite is a final distributed/HA authority substrate or suitable for every future deployment scale;
@@ -235,7 +235,7 @@ These are different evidence classes, not cumulative certification levels. A liv
 
 ### Operator commands
 
-The reasoning-agent interface is deliberately small:
+The reasoning-agent interface is small:
 
 ```text
 project.advance -> work packet -> reasoning -> project.submit
@@ -254,7 +254,7 @@ Requirements:
 - network access on the first formal run unless `TLA2TOOLS_JAR` already points to the pinned TLC jar;
 - GitHub CLI authentication for `proof:live`.
 
-Runtime configuration is intentionally narrow. Overcenter does not define a general `.env` surface: authority database paths, socket locations, exact revisions, executor image selection, and execution identity are explicit arguments or protocol data. `GITHUB_TOKEN` is the credential spelling used by the GitHub authority CLI. `TLA2TOOLS_JAR` is a developer/formal-proof override only, and its bytes are still checked against the pinned SHA-256 before use. `OVERCENTER_EXECUTOR_IMAGE` is an internal handoff used only by the production containment proof between its build script and container test; it is not supported operator configuration. Task-scoped variables such as `OVERCENTER_SOURCE_SHA` are explicit `ProcessSpec` data delivered to the contained task, not ambient host configuration.
+Runtime configuration is narrow. Overcenter does not define a general `.env` surface: authority database paths, socket locations, exact revisions, executor image selection, and execution identity are explicit arguments or protocol data. `GITHUB_TOKEN` is the credential spelling used by the GitHub authority CLI. `TLA2TOOLS_JAR` is a developer/formal-proof override only, and its bytes are still checked against the pinned SHA-256 before use. `OVERCENTER_EXECUTOR_IMAGE` is an internal handoff used only by the production containment proof between its build script and container test; it is not supported operator configuration. Task-scoped variables such as `OVERCENTER_SOURCE_SHA` are explicit `ProcessSpec` data delivered to the contained task, not ambient host configuration.
 
 The focused underlying commands remain available when debugging a particular claim:
 
@@ -278,7 +278,7 @@ To target a non-default branch:
 npm run proof:live -- --ref <branch>
 ```
 
-The live command is intentionally fail-closed: successful workflow dispatch is not treated as successful proof.
+The live command is fail-closed: successful workflow dispatch is not treated as successful proof.
 
 ## Go deeper
 

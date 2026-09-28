@@ -36,7 +36,7 @@ Each property has explicit-slice, import-envelope, and hybrid semantic-LOC ceili
 
 A LOC ceiling or static dependency closure is not a proof. It is an architectural ratchet. The stronger evidence comes from combining this inventory with hostile tests, authority-flow analysis, exact-head CI, differential backends, and formal models.
 
-Hard ratchets and attention baselines are intentionally different. Hard ratchets fence the exact trusted surface admitted by the current revision. Attention baselines preserve the architectural target across intentional ratchet updates. If the measured TCB grows above an attention baseline, updating the hard fingerprint does not erase the debt: the reporter derives a stable `tcb-growth` obligation until the trusted surface is reduced or the attention baseline is deliberately changed.
+Hard ratchets and attention baselines are different. Hard ratchets fence the exact trusted surface admitted by the current revision. Attention baselines preserve the architectural target across intentional ratchet updates. If the measured TCB grows above an attention baseline, updating the hard fingerprint does not erase the debt: the reporter derives a stable `tcb-growth` obligation until the trusted surface is reduced or the attention baseline is changed.
 
 ## Current baseline
 
@@ -56,7 +56,7 @@ The table below and `.overcenter/tcb-obligations.json` are generated from the ex
 
 The property scopes overlap and must not be summed. The composed GitHub status path is the deduplicated end-to-end trust surface for mutation admission through authoritative settlement. The two core properties share most of the same broad authority, graph, observation, and provider cone; adding the GitHub commit-status profile increases the composed hybrid surface by only 185 semantic lines above broker mutation safety.
 
-Hostile-evidence freshness is deliberately separate from the TCB size ratchet. A stale mutation probe remains visible as debt but does not make unrelated source changes fail the merge gate; an unknown configured probe still fails closed. `unconfigured` means the property does not yet have a dedicated hostile mutation probe.
+Hostile-evidence freshness is separate from the TCB size ratchet. A stale mutation probe remains visible as debt but does not make unrelated source changes fail the merge gate; an unknown configured probe still fails closed. `unconfigured` means the property does not yet have a dedicated hostile mutation probe.
 
 ## Derived obligations
 

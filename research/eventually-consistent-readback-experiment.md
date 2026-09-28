@@ -4,7 +4,7 @@
 
 What should Overcenter do when an external mutation may have succeeded, but the provider's read path can temporarily return a false negative or an older value?
 
-This is deliberately harder than the Git ref and GitHub commit-status experiments.
+This is harder than the Git ref and GitHub commit-status experiments.
 
 Those providers give Overcenter a read path where exhausted lookup can be treated as authoritative absence. An eventually consistent provider does not.
 
@@ -14,7 +14,7 @@ The experiment asks:
 
 ## Provider model
 
-The experiment uses a deliberately small provider simulator with two conceptual surfaces:
+The experiment uses a small provider simulator with two conceptual surfaces:
 
 ```text
 authoritative write acceptance
@@ -43,11 +43,11 @@ read #2 -> old value
 read #3 -> expected value
 ```
 
-The first two reads are intentionally hostile. They look like absence to a naive recovery loop even though the mutation already happened.
+The first two reads are hostile. They look like absence to a naive recovery loop even though the mutation already happened.
 
 ## Adapter contract
 
-The experiment adds one intentionally narrow verifier:
+The experiment adds one narrow verifier:
 
 ```text
 eventually-consistent-file-content-equals/v1
@@ -62,7 +62,7 @@ Its semantics are:
 | different value | `uncertain` | `RECOVERY_REQUIRED` |
 | read failure | `uncertain` | `RECOVERY_REQUIRED` |
 
-There is deliberately **no readback result that produces `absent`**.
+There is **no readback result that produces `absent`**.
 
 This is the point of the experiment.
 
@@ -145,6 +145,6 @@ It does not prove:
 - that compensation is impossible;
 - liveness when negative evidence can never become authoritative.
 
-The simulator is intentionally deterministic so the experiment isolates the recovery contract rather than provider timing.
+The simulator is deterministic so the experiment isolates the recovery contract rather than provider timing.
 
 A later live-provider experiment can substitute a real API with documented eventual consistency without changing the safety rule being tested.

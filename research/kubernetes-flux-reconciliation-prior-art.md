@@ -37,7 +37,7 @@ The concise rule is:
 
 > **Reconcile everything that can safely be recomputed. Settle everything whose ambiguity would make the next project transition unsafe.**
 
-Overcenter should become more Kubernetes-like outside a project transition and deliberately stronger than Kubernetes inside it.
+Overcenter should become more Kubernetes-like outside a project transition and stronger than Kubernetes inside it.
 
 ---
 
@@ -315,7 +315,7 @@ Flux uses conditions such as:
 - `Stalled`;
 - `ProgressingWithRetry` reasons.
 
-Importantly, a resource can be reconciling while also currently failing. Conditions therefore capture orthogonal facts without exploding the main lifecycle into dozens of mutually exclusive states.
+a resource can be reconciling while also currently failing. Conditions therefore capture orthogonal facts without exploding the main lifecycle into dozens of mutually exclusive states.
 
 ### Overcenter mapping
 
@@ -573,7 +573,7 @@ Never collapse:
 - resulting-state verification;
 - transition settlement.
 
-Flux's attempted/applied split is good prior art. Overcenter should deliberately retain a stronger evidence model because it is producing project truth rather than only maintaining a declarative workload.
+Flux's attempted/applied split is good prior art. Overcenter should retain a stronger evidence model because it is producing project truth rather than only maintaining a declarative workload.
 
 ### Source
 

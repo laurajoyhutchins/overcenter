@@ -33,7 +33,7 @@ For selected deterministic safety predicates:
 - production TypeScript may use an operationally simpler implementation;
 - exact-revision oracle runs may feed the same normalized facts to both and fail on bounded disagreement;
 - a semantic change that relies on this oracle must either reproduce agreement
-  with the pinned oracle or deliberately amend the semantic specification, proof
+  with the pinned oracle or amend the semantic specification, proof
   obligations, and pinned oracle identity;
 - `formal/lean-semantic-oracle-revision.txt` records the pinned Lean revision
   used by the historical witness and future reproduction.

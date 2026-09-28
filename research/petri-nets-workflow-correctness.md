@@ -425,7 +425,7 @@ This suggests an explicit rule:
 
 That is a strong composition of workflow theory with Overcenter's transaction/evidence model.
 
-## 11. Cancellation should remain deliberately constrained
+## 11. Cancellation should remain constrained
 
 Cancellation is one of the places where workflow languages rapidly become harder to analyze.
 
@@ -586,7 +586,7 @@ A reasonable initial profile name would be something like:
 overcenter-and-dag-v1
 ```
 
-The name is intentionally boring. It should describe a machine-checkable semantic contract.
+The name is boring. It should describe a machine-checkable semantic contract.
 
 ### Treat live amendments as workflow migration
 
