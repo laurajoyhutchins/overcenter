@@ -45,13 +45,13 @@ The table below and `.overcenter/tcb-obligations.json` are generated from the ex
 <!-- BEGIN GENERATED TCB BASELINE -->
 | Property | Explicit slice | Runtime symbols | Import envelope | Hybrid TCB | Hostile evidence | Hybrid SHA-256 |
 | --- | ---: | ---: | ---: | ---: | --- | --- |
-| `broker-mutation-safety` | 1,134 | 3,374 | 9,159 | **9,286** | stale | `1dc9a8c9d4bd…3a241` |
-| `no-false-done` | 1,572 | 3,231 | 9,159 | **9,283** | stale | `67eed5e07812…e4ce1` |
-| `github-commit-status-provider` | 2,377 | 2,550 | 2,756 | **2,762** | unconfigured | `7248897acdfc…47b01` |
+| `broker-mutation-safety` | 1,134 | 3,374 | 9,159 | **9,286** | stale | `3f269400397a…ec882` |
+| `no-false-done` | 1,572 | 3,231 | 9,159 | **9,283** | stale | `b058afdc79f0…bb319` |
+| `github-commit-status-provider` | 2,377 | 2,550 | 2,756 | **2,762** | unconfigured | `098afca43abc…c98aa0` |
 
 | Composition | Deduplicated hybrid union | Hostile evidence | Union SHA-256 |
 | --- | ---: | --- | --- |
-| `github-status-safe-settlement` | **9,471** | stale-and-incomplete | `7ad24bdb5040…7663d` |
+| `github-status-safe-settlement` | **9,471** | stale-and-incomplete | `ef552bea0880…62682` |
 <!-- END GENERATED TCB BASELINE -->
 
 The property scopes overlap and must not be summed. The composed GitHub status path is the deduplicated end-to-end trust surface for mutation admission through authoritative settlement. The two core properties share most of the same broad authority, graph, observation, and provider cone; adding the GitHub commit-status profile increases the composed hybrid surface by only 185 semantic lines above broker mutation safety.
