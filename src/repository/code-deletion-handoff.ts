@@ -11,6 +11,7 @@ import {
   type SourceProposal,
   type SourceTaskPacket,
 } from '../source/source-obligation.ts';
+import { assertExactKeys, isData } from '../validation.ts';
 import {
   parseCodeSymbolSelector,
   validateCounterfactualDeletionProof,
