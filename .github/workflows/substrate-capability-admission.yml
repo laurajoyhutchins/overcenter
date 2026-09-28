@@ -10,6 +10,10 @@ on:
       - src/execution/confinement/**
       - package.json
 
+concurrency:
+  group: substrate-capability-admission-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 permissions: {}
 
 env:

@@ -11,6 +11,10 @@ on:
       - src/providers/github/status-effect.ts
       - src/providers/github/pr-update-branch-effect.ts
 
+concurrency:
+  group: authority-flow-analysis-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 permissions: {}
 
 env:
