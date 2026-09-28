@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process';
 
 import { loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
-import { reconcileArchitecture } from '../src/authority/architecture-reconciliation.ts';
+import { reconcileArchitecture } from '../src/architecture/reconciliation.ts';
 import { observeArchitecture } from './observe-architecture.ts';
 
 const sourceRevision =
