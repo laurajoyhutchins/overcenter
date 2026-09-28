@@ -48,7 +48,7 @@ export interface GitHubPullRequestBranchUpdatedPostcondition {
   expected_base_sha: string;
 }
 
-export interface GithubHostileMutationEvidencePostcondition {
+export interface GitHubHostileMutationEvidencePostcondition {
   verifier: 'github-hostile-mutation-evidence/v1';
   provider: 'github';
   repository_id: number;
@@ -83,7 +83,7 @@ export type Postcondition =
   | EventuallyConsistentFilePostcondition
   | GitHubCommitStatusPostcondition
   | GitHubPullRequestBranchUpdatedPostcondition
-  | GithubHostileMutationEvidencePostcondition
+  | GitHubHostileMutationEvidencePostcondition
   | SourceIntegrationPostcondition
   | KubernetesConfigMapExistsPostcondition
   | OperatorJudgmentPostcondition;
