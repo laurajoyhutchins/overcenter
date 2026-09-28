@@ -13,10 +13,7 @@ import {
   buildCounterfactualDeletionProof,
   CODE_DELETION_EVIDENCE_STEPS,
 } from '../src/repository/code-deletion-proof.ts';
-import {
-  bindSourceClaim,
-  buildSourceAssignment,
-} from '../src/source/source-obligation.ts';
+import { bindSourceClaim, buildSourceAssignment } from '../src/source/source-obligation.ts';
 
 const sourceRevision = 'a'.repeat(40);
 const candidateRevision = 'b'.repeat(40);
