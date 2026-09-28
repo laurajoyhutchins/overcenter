@@ -20,6 +20,7 @@ INSERT INTO artifact(artifact_id) VALUES
   ('src/authority/facts.ts'),
   ('src/authority/project-state.ts'),
   ('src/authority/replay.ts'),
+  ('src/authority/store.ts'),
   ('src/authority/transaction-admission.ts'),
   ('src/digest.ts'),
   ('src/effect-release-witness.ts'),
@@ -47,6 +48,9 @@ INSERT INTO symbol(symbol_id, artifact_id) VALUES
   ('KernelCore.beginEffect', 'src/authority/engine.ts'),
   ('KernelCore.resolve', 'src/authority/engine.ts'),
   ('replayProjection', 'src/authority/replay.ts'),
+  ('DurableFactStore.head', 'src/authority/store.ts'),
+  ('DurableFactStore.append', 'src/authority/store.ts'),
+  ('DurableFactStore.history', 'src/authority/store.ts'),
   ('mutationAdmitted', 'src/authority/transaction-admission.ts'),
   ('validateEffectReleaseEvidence', 'src/effect-release-witness.ts'),
   ('settlementSemantics', 'src/semantics.ts'),
@@ -92,6 +96,11 @@ INSERT INTO symbol_performs_effect(symbol_id, effect_id) VALUES
   ('performGithubPullRequestUpdateBranchEffect', 'github-pull-request/update-branch'),
   ('performKubernetesConfigMapEffect', 'kubernetes-configmap/ensure'),
   ('integrateVerifiedSourceCandidate', 'source/integrate');
+
+INSERT INTO symbol_dispatches_to_symbol(symbol_id, implementation_symbol_id) VALUES
+  ('DurableFactStore.head', 'SqliteFactStore.head'),
+  ('DurableFactStore.append', 'SqliteFactStore.append'),
+  ('DurableFactStore.history', 'SqliteFactStore.history');
 
 INSERT INTO artifact_witnesses_evidence(artifact_id, evidence_id) VALUES
   ('test/digest-pure.test.ts', 'canonical-content-identity-proof'),
