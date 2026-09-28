@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { reconcileArchitecture } from '../src/authority/architecture-reconciliation.ts';
-import { loadArchitectureIntent } from '../src/architecture/sql-intent.ts';
+import { loadArchitectureIntent } from '../src/architecture/sql-model.ts';
 import { observeArchitectureIntent } from './observe-architecture.ts';
 
 const sourceRevision =
