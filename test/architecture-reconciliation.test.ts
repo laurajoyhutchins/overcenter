@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
-import { trustRootsForEffect } from '../src/architecture/tcb.ts';
+import { deriveRuntimeDispatchBindings, trustRootsForEffect } from '../src/architecture/tcb.ts';
 import { reconcileArchitecture, type ObservedArchitecture } from '../src/architecture/reconciliation.ts';
 import { observeArchitecture } from '../scripts/observe-architecture.ts';
 
@@ -59,6 +59,54 @@ test('layered architecture loads as one foreign-key-valid relational model', () 
   }
 });
 
+
+test('TCB runtime dispatch authority comes from architecture physics', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    assert.deepEqual(deriveRuntimeDispatchBindings(db), [
+      {
+        target: {
+          artifact_id: 'src/authority/store.ts',
+          symbol_id: 'DurableFactStore.append',
+        },
+        implementation: {
+          artifact_id: 'src/storage/sqlite.ts',
+          symbol_id: 'SqliteFactStore.append',
+        },
+      },
+      {
+        target: {
+          artifact_id: 'src/authority/store.ts',
+          symbol_id: 'DurableFactStore.head',
+        },
+        implementation: {
+          artifact_id: 'src/storage/sqlite.ts',
+          symbol_id: 'SqliteFactStore.head',
+        },
+      },
+      {
+        target: {
+          artifact_id: 'src/authority/store.ts',
+          symbol_id: 'DurableFactStore.history',
+        },
+        implementation: {
+          artifact_id: 'src/storage/sqlite.ts',
+          symbol_id: 'SqliteFactStore.history',
+        },
+      },
+    ]);
+
+    const policy = JSON.parse(readFileSync('tcb-policy.json', 'utf8')) as {
+      properties: Array<Record<string, unknown>>;
+    };
+    assert.equal(
+      policy.properties.some((property) => 'runtime_dispatch_bindings' in property),
+      false,
+    );
+  } finally {
+    db.close();
+  }
+});
 
 test('TCB roots are derived recursively from effect architecture', () => {
   const db = loadArchitectureDatabase();
