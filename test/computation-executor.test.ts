@@ -502,7 +502,10 @@ test('trusted evidence accepts captures above the process-spec byte limit', asyn
 test('exact spec bytes cannot change under an old digest', () => {
   const execution = computationExecution(permit(3), spec('env'));
   const bytes = Buffer.from(execution.execution_spec_base64, 'base64');
-  bytes[bytes.length - 2] ^= 1;
+  const tamperIndex = bytes.length - 2;
+  const original = bytes[tamperIndex];
+  assert.notEqual(original, undefined);
+  bytes[tamperIndex] = original! ^ 1;
   assert.throws(
     () =>
       validateComputationExecution({
