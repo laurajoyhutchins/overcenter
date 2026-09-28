@@ -19,8 +19,12 @@ test('checked-in hostile mutation evidence retains a live refresh path', () => {
   for (const path of required) {
     assert.equal(existsSync(path), true, `missing mutation-evidence refresh component: ${path}`);
   }
-  const producer = readFileSync(required[0], 'utf8');
-  const promoter = readFileSync(required[1], 'utf8');
+  const producerPath = required[0];
+  const promoterPath = required[1];
+  assert.ok(producerPath);
+  assert.ok(promoterPath);
+  const producer = readFileSync(producerPath, 'utf8');
+  const promoter = readFileSync(promoterPath, 'utf8');
   assert.match(producer, /continue-on-error:\s*true[\s\S]*verify-mutation-evidence-sources\.ts/);
   assert.match(producer, /forcing a full repair run/);
   assert.match(promoter, /workflow_run:/);
