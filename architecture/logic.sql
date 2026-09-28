@@ -42,6 +42,22 @@ INSERT INTO effect_requires_authority(effect_id, authority_id) VALUES
   ('kubernetes-configmap/ensure', 'effect-authority'),
   ('source/integrate', 'effect-authority');
 
+INSERT INTO authority_depends_on_authority(authority_id, required_authority_id) VALUES
+  ('execution-authority', 'project-authority'),
+  ('effect-authority', 'execution-authority');
+
+INSERT INTO effect_requires_capability(effect_id, capability_id)
+SELECT effect_id, capability_id
+FROM effect
+CROSS JOIN (
+  SELECT 'effect-authorization' AS capability_id
+  UNION ALL SELECT 'effect-reservation'
+  UNION ALL SELECT 'effect-settlement'
+);
+
+INSERT INTO effect_requires_capability(effect_id, capability_id) VALUES
+  ('source/integrate', 'source-integration');
+
 INSERT INTO obligation_guards_effect(obligation_id, effect_id)
 SELECT obligation_id, effect_id
 FROM obligation
@@ -64,9 +80,13 @@ INSERT INTO evidence_witnesses_capability(evidence_id, capability_id) VALUES
 
 INSERT INTO capability_depends_on_capability(capability_id, required_capability_id) VALUES
   ('project-lifecycle-projection', 'durable-project-facts'),
+  ('effect-authorization', 'canonical-content-identity'),
+  ('effect-authorization', 'durable-project-facts'),
   ('effect-reservation', 'effect-authorization'),
+  ('effect-reservation', 'durable-project-facts'),
   ('effect-settlement', 'effect-reservation'),
   ('effect-settlement', 'authoritative-observation'),
+  ('effect-settlement', 'durable-project-facts'),
   ('source-integration', 'effect-authorization'),
   ('source-integration', 'effect-reservation'),
   ('source-integration', 'effect-settlement');
