@@ -82,3 +82,55 @@ export function deriveEffectTrustRoots(db: DatabaseSync): EffectTrustRoot[] {
 export function trustRootsForEffect(db: DatabaseSync, effectId: string): EffectTrustRoot[] {
   return deriveEffectTrustRoots(db).filter((root) => root.effect_id === effectId);
 }
+
+export interface ArchitectureDispatchBinding {
+  target: {
+    artifact_id: string;
+    symbol_id: string;
+  };
+  implementation: {
+    artifact_id: string;
+    symbol_id: string;
+  };
+}
+
+export function deriveRuntimeDispatchBindings(
+  db: DatabaseSync,
+): ArchitectureDispatchBinding[] {
+  return db
+    .prepare(`
+      SELECT
+        target.artifact_id AS target_artifact_id,
+        binding.symbol_id AS target_symbol_id,
+        implementation.artifact_id AS implementation_artifact_id,
+        binding.implementation_symbol_id AS implementation_symbol_id
+      FROM symbol_dispatches_to_symbol AS binding
+      JOIN symbol AS target ON target.symbol_id = binding.symbol_id
+      JOIN symbol AS implementation
+        ON implementation.symbol_id = binding.implementation_symbol_id
+      ORDER BY
+        target.artifact_id,
+        binding.symbol_id,
+        implementation.artifact_id,
+        binding.implementation_symbol_id
+    `)
+    .all()
+    .map((row) => {
+      const value = row as {
+        target_artifact_id: string;
+        target_symbol_id: string;
+        implementation_artifact_id: string;
+        implementation_symbol_id: string;
+      };
+      return {
+        target: {
+          artifact_id: value.target_artifact_id,
+          symbol_id: value.target_symbol_id,
+        },
+        implementation: {
+          artifact_id: value.implementation_artifact_id,
+          symbol_id: value.implementation_symbol_id,
+        },
+      };
+    });
+}
