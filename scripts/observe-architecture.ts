@@ -105,7 +105,11 @@ function workflowJobs(source: string): WorkflowJob[] {
   });
 }
 
-function principalForLine(workflowPath: string, jobs: readonly WorkflowJob[], line: number): string | null {
+function principalForLine(
+  workflowPath: string,
+  jobs: readonly WorkflowJob[],
+  line: number,
+): string | null {
   const job = jobs.find((candidate) => line >= candidate.start_line && line <= candidate.end_line);
   return job ? `${workflowPath}#${job.id}` : null;
 }
@@ -158,7 +162,9 @@ function observeSymbols(
   if (TypeScriptBindings.length === 0) return [];
 
   const api = new API({ cwd: root });
-  const openFiles = [...new Set(TypeScriptBindings.map((binding) => resolve(root, binding.artifact_id)))];
+  const openFiles = [
+    ...new Set(TypeScriptBindings.map((binding) => resolve(root, binding.artifact_id))),
+  ];
   const snapshot = api.updateSnapshot({ openFiles });
   try {
     return TypeScriptBindings.filter((binding) => {
@@ -231,7 +237,8 @@ export function observeArchitecture(
       jobsByWorkflow.get(fact.workflow_path) ?? [],
       fact.line_number,
     );
-    if (principalId) principalInvocations.push({ principal_id: principalId, effect_id: fact.effect });
+    if (principalId)
+      principalInvocations.push({ principal_id: principalId, effect_id: fact.effect });
   }
 
   const principalReachability: ObservedArchitecture['principal_reachability'] = [];
@@ -276,9 +283,10 @@ export function observeArchitecture(
     functionEffects.dispose?.();
   }
 
-  const unique = <T>(rows: T[]): T[] => [
-    ...new Map(rows.map((row) => [JSON.stringify(row), row])).values(),
-  ].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+  const unique = <T>(rows: T[]): T[] =>
+    [...new Map(rows.map((row) => [JSON.stringify(row), row])).values()].sort((left, right) =>
+      JSON.stringify(left).localeCompare(JSON.stringify(right)),
+    );
 
   return {
     source_revision: sourceRevision,
