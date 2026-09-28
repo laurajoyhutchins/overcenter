@@ -76,8 +76,10 @@ export class GoExecutorClient {
     if ((executionContextSha256 === undefined) !== (containmentId === undefined)) {
       throw new Error('GO_EXECUTOR_ATTESTATION_PAIR_REQUIRED');
     }
-    this.#expectedExecutionContextSha256 = executionContextSha256;
-    this.#expectedContainmentId = containmentId;
+    if (executionContextSha256 !== undefined && containmentId !== undefined) {
+      this.#expectedExecutionContextSha256 = executionContextSha256;
+      this.#expectedContainmentId = containmentId;
+    }
     this.#helloRequired = executionContextSha256 !== undefined;
     this.#ready = new Promise<void>((resolve, reject) => {
       this.#resolveReady = resolve;
