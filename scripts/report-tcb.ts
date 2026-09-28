@@ -9,7 +9,11 @@ import {
 } from '../src/analysis/typescript-runtime.ts';
 
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
-import { deriveEffectTrustRoots, type EffectTrustRoot } from '../src/architecture/tcb.ts';
+import {
+  deriveEffectTrustRoots,
+  deriveRuntimeDispatchBindings,
+  type EffectTrustRoot,
+} from '../src/architecture/tcb.ts';
 
 import {
   SyntaxKind,
@@ -111,9 +115,33 @@ const mutationEvidence = JSON.parse(
 ) as MutationEvidence;
 const mutationEvidenceById = new Map(mutationEvidence.probes.map((probe) => [probe.id, probe]));
 
+const architectureDb = loadArchitectureDatabase();
+let architectureRoots: EffectTrustRoot[];
+let architectureDispatchBindings: RuntimeDispatchBinding[];
+try {
+  architectureRoots = deriveEffectTrustRoots(architectureDb);
+  architectureDispatchBindings = deriveRuntimeDispatchBindings(architectureDb).map((binding) => ({
+    target: `${binding.target.artifact_id}#${binding.target.symbol_id.split('.').at(-1)}`,
+    implementation: {
+      path: binding.implementation.artifact_id,
+      symbol: binding.implementation.symbol_id,
+    },
+    reason: 'architecture physics dispatch binding',
+  }));
+} finally {
+  architectureDb.close();
+}
+
 const openFiles = [
   ...new Set(
-    policy.properties.flatMap((property) => property.entries.map((entry) => resolve(entry.path))),
+    [
+      ...policy.properties.flatMap((property) => property.entries.map((entry) => entry.path)),
+      ...architectureRoots.map((root) => root.artifact_id),
+      ...architectureDispatchBindings.flatMap((binding) => [
+        binding.target.split('#', 1)[0]!,
+        binding.implementation.path,
+      ]),
+    ].map((path) => resolve(path)),
   ),
 ];
 const api = new API({ cwd: process.cwd() });
@@ -857,14 +885,6 @@ try {
     };
   });
 
-  const architectureDb = loadArchitectureDatabase();
-  let architectureRoots: EffectTrustRoot[];
-  try {
-    architectureRoots = deriveEffectTrustRoots(architectureDb);
-  } finally {
-    architectureDb.close();
-  }
-
   const propertyCoversRoot = (
     property: (typeof reports)[number],
     root: EffectTrustRoot,
@@ -896,35 +916,88 @@ try {
     rootsByEffect.set(root.effect_id, roots);
   }
 
+  const architectureEffectTcbs = [...rootsByEffect]
+    .map(([effectId, roots]) => {
+      const groupedEntries = new Map<string, { path: string; symbol: string; reasons: string[] }>();
+      for (const root of roots) {
+        const key = `${root.artifact_id}\0${root.symbol_id}`;
+        const entry = groupedEntries.get(key) ?? {
+          path: root.artifact_id,
+          symbol: root.symbol_id,
+          reasons: [],
+        };
+        entry.reasons.push(`${root.basis}:${root.requirement_id}`);
+        groupedEntries.set(key, entry);
+      }
+      const entries: SymbolEntry[] = [...groupedEntries.values()]
+        .map((entry) => ({
+          path: entry.path,
+          symbol: entry.symbol,
+          reason: [...new Set(entry.reasons)].sort().join(', '),
+        }))
+        .sort(
+          (left, right) =>
+            left.path.localeCompare(right.path) ||
+            (left.symbol ?? '').localeCompare(right.symbol ?? ''),
+        );
+      const candidate: TcbProperty = {
+        id: `architecture-effect:${effectId}`,
+        statement: `Architecture-derived trusted computation required for ${effectId}.`,
+        max_semantic_loc: Number.MAX_SAFE_INTEGER,
+        entries,
+        runtime_dispatch_bindings: architectureDispatchBindings,
+        external_assumptions: [],
+        excluded: [],
+      };
+      const slices = entries.map(sliceFor);
+      const closure = moduleClosure(entries.map((entry) => entry.path));
+      const symbols = symbolClosure(candidate);
+      const hybrid = hybridClosure(closure, symbols, candidate);
+      return {
+        effect_id: effectId,
+        roots,
+        root_semantic_loc: uniqueSemanticLoc(slices),
+        module_closure_semantic_loc: closure.semantic_loc,
+        symbol_closure_status: symbols.status,
+        symbol_closure_semantic_loc: symbols.semantic_loc,
+        symbol_closure_obligations: symbols.obligations,
+        resolved_dispatch_bindings: symbols.resolved_dispatch_bindings,
+        hybrid_closure_semantic_loc: hybrid.semantic_loc,
+        hybrid_closure_sha256: hybrid.sha256,
+        hybrid_closure_files: hybrid.files,
+      };
+    })
+    .sort((left, right) => left.effect_id.localeCompare(right.effect_id));
+
   const architectureTcb = {
     source: ARCHITECTURE_SQL_PATHS,
-    effects: [...rootsByEffect]
-      .map(([effectId, roots]) => {
-        const compositionsForEffect = compositions
-          .map((composition) => {
-            const properties = composition.properties
-              .map((id) => reports.find((candidate) => candidate.id === id))
-              .filter((property): property is (typeof reports)[number] => property !== undefined);
-            const uncoveredRoots = roots.filter(
-              (root) => !properties.some((property) => propertyCoversRoot(property, root)),
-            );
-            return {
-              composition_id: composition.id,
-              covered: uncoveredRoots.length === 0,
-              uncovered_roots: uncoveredRoots,
-            };
-          })
-          .sort((left, right) => left.composition_id.localeCompare(right.composition_id));
-        return {
-          effect_id: effectId,
-          roots,
-          covered_by_compositions: compositionsForEffect
-            .filter((composition) => composition.covered)
-            .map((composition) => composition.composition_id),
-          composition_coverage: compositionsForEffect,
-        };
-      })
-      .sort((left, right) => left.effect_id.localeCompare(right.effect_id)),
+    runtime_dispatch_bindings: architectureDispatchBindings,
+    effects: architectureEffectTcbs.map((candidate) => {
+      const compositionsForEffect = compositions
+        .map((composition) => {
+          const properties = composition.properties
+            .map((id) => reports.find((property) => property.id === id))
+            .filter((property): property is (typeof reports)[number] => property !== undefined);
+          const uncoveredRoots = candidate.roots.filter(
+            (root) => !properties.some((property) => propertyCoversRoot(property, root)),
+          );
+          return {
+            composition_id: composition.id,
+            covered: uncoveredRoots.length === 0,
+            semantic_loc_delta:
+              candidate.hybrid_closure_semantic_loc - composition.hybrid_union_semantic_loc,
+            uncovered_roots: uncoveredRoots,
+          };
+        })
+        .sort((left, right) => left.composition_id.localeCompare(right.composition_id));
+      return {
+        ...candidate,
+        covered_by_compositions: compositionsForEffect
+          .filter((composition) => composition.covered)
+          .map((composition) => composition.composition_id),
+        composition_coverage: compositionsForEffect,
+      };
+    }),
   };
 
   type TcbFindingKind =
@@ -1271,10 +1344,10 @@ try {
       '',
       '### Architecture-derived trust roots',
       '',
-      '| Effect | Roots | Covered by current composition |',
-      '| --- | ---: | --- |',
+      '| Effect | Roots | Derived TCB | Symbol closure | Covered by current composition |',
+      '| --- | ---: | ---: | --- | --- |',
       ...architectureTcb.effects.map((effect) =>
-        `| \`${effect.effect_id}\` | ${effect.roots.length} | ${effect.covered_by_compositions.length > 0 ? effect.covered_by_compositions.map((id) => `\`${id}\``).join(', ') : '_none_'} |`,
+        `| \`${effect.effect_id}\` | ${effect.roots.length} | **${number(effect.hybrid_closure_semantic_loc)}** | ${effect.symbol_closure_status} | ${effect.covered_by_compositions.length > 0 ? effect.covered_by_compositions.map((id) => `\`${id}\``).join(', ') : '_none_'} |`,
       ),
       '',
       '### Largest trusted files in composed properties',
