@@ -78,7 +78,9 @@ test('schema mutations directly change deterministic structural admission', () =
   assert.equal(structurallyMatches(added, { ...base, observer_generation: 1 }), true);
 
   const narrowed = mutableSettlementSchema();
-  narrowed.properties.verifier.enum = ['file-content-equals/v1'];
+  const verifier = narrowed.properties.verifier;
+  assert.ok(verifier);
+  verifier.enum = ['file-content-equals/v1'];
   assert.equal(
     structurallyMatches(narrowed, {
       verifier: 'github-commit-status/v2',
@@ -88,6 +90,8 @@ test('schema mutations directly change deterministic structural admission', () =
   );
 
   const bounded = mutableSettlementSchema();
-  bounded.properties.repository_id.maximum = 10;
+  const repositoryId = bounded.properties.repository_id;
+  assert.ok(repositoryId);
+  repositoryId.maximum = 10;
   assert.equal(structurallyMatches(bounded, { ...base, repository_id: 11 }), false);
 });
