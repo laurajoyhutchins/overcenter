@@ -15,9 +15,15 @@ if (!outputDir) {
 const githubToken = process.env.GITHUB_TOKEN ?? null;
 const receipt = advanceProjectForAgent(process.cwd(), projectCommandContext(), {
   outputDir,
-  workerClientPath: process.env.OVERCENTER_WORKER_CLIENT,
-  authorityRef: process.env.OVERCENTER_PROJECT_AUTHORITY_REF,
-  remote: process.env.OVERCENTER_PROJECT_REMOTE,
+  ...(process.env.OVERCENTER_WORKER_CLIENT === undefined
+    ? {}
+    : { workerClientPath: process.env.OVERCENTER_WORKER_CLIENT }),
+  ...(process.env.OVERCENTER_PROJECT_AUTHORITY_REF === undefined
+    ? {}
+    : { authorityRef: process.env.OVERCENTER_PROJECT_AUTHORITY_REF }),
+  ...(process.env.OVERCENTER_PROJECT_REMOTE === undefined
+    ? {}
+    : { remote: process.env.OVERCENTER_PROJECT_REMOTE }),
   githubToken,
   graphProducers: DEFAULT_PROJECT_GRAPH_PRODUCERS,
   observationContext: {
