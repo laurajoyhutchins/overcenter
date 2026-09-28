@@ -102,14 +102,6 @@
       "expected_surface_sha256": "32ad73453c6b70f032b1122c9139185286d419e0776908603978c567897636d5",
       "max_module_closure_semantic_loc": 2756,
       "expected_module_closure_sha256": "6fbb53a6669507dd904ad07a50f9cfd6b56b4598bfa567ad27a1fa1ec2efd6bd",
-      "composes_with": [
-        "broker-mutation-safety"
-      ],
-      "trusted_symbol_boundaries": [
-        "src/authority/engine.ts#authorizeEffect",
-        "src/authority/engine.ts#performEffect",
-        "src/authority/engine.ts#releaseEffectReservation"
-      ],
       "max_hybrid_closure_semantic_loc": 2762,
       "expected_hybrid_closure_sha256": "098afca43abc48e7a358fad48f00a99d4164f8d6668e232d89862a53a0c98aa0",
       "require_sound_symbol_closure": true,
