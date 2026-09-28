@@ -101,16 +101,6 @@
       "expected_surface_sha256": "ac852e451b8c8a2d8f2b4f3c970ebd74b02454230ea086f7a1c5893e18ebd3b8",
       "max_module_closure_semantic_loc": 9159,
       "expected_module_closure_sha256": "9e2cf3e30e038c289df2d85e754678f1d837052103bfcd4b15d271fb930c18d0",
-      "runtime_dispatch_bindings": [
-        {
-          "target": "src/authority/store.ts#append",
-          "implementation": {
-            "path": "src/storage/sqlite.ts",
-            "symbol": "SqliteFactStore.append"
-          },
-          "reason": "production authority persistence is the SQLite durable fact store"
-        }
-      ],
       "max_hybrid_closure_semantic_loc": 9286,
       "expected_hybrid_closure_sha256": "1dc9a8c9d4bd51d8c6d4eaaeafefa241b97a2af8e5d0b93177280b053a93a241",
       "require_sound_symbol_closure": true,
@@ -246,16 +236,6 @@
       "expected_surface_sha256": "2a5c2253a4e097ec387b52d31042d870acfd89e75f5e586a447b2dd8a8e123c2",
       "max_module_closure_semantic_loc": 9159,
       "expected_module_closure_sha256": "9e2cf3e30e038c289df2d85e754678f1d837052103bfcd4b15d271fb930c18d0",
-      "runtime_dispatch_bindings": [
-        {
-          "target": "src/authority/store.ts#append",
-          "implementation": {
-            "path": "src/storage/sqlite.ts",
-            "symbol": "SqliteFactStore.append"
-          },
-          "reason": "production authority persistence is the SQLite durable fact store"
-        }
-      ],
       "max_hybrid_closure_semantic_loc": 9283,
       "expected_hybrid_closure_sha256": "67eed5e07812d1876454510b55ee3df1d3da48a0e412f4aa4f6b901e149e4ce1",
       "require_sound_symbol_closure": true,
