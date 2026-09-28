@@ -301,8 +301,8 @@ test('project.advance reconciles trusted project intent before frontier selectio
     assert.equal(authoritative.claimedSourceRevision(receipt.run_id!), sourceSha);
     const current = authoritative.inspect();
     assert.equal(current.length, 1);
-    assert.equal(current[0].id, 'intent-work');
-    assert.equal(current[0].status, 'EXECUTING');
+    assert.equal(current[0]?.id, 'intent-work');
+    assert.equal(current[0]?.status, 'EXECUTING');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
@@ -373,9 +373,9 @@ test('project.advance surfaces READY system evidence without claiming agent work
       ref: AUTHORITY_REF,
     }).inspect();
     assert.equal(current.length, 1);
-    assert.equal(current[0].id, 'system-evidence:hostile-mutation');
-    assert.equal(current[0].status, 'READY');
-    assert.equal(current[0].run_id, undefined);
+    assert.equal(current[0]?.id, 'system-evidence:hostile-mutation');
+    assert.equal(current[0]?.status, 'READY');
+    assert.equal(current[0]?.run_id, undefined);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
@@ -505,9 +505,9 @@ test('project.advance selects and claims real READY work, then emits a bounded p
       ref: AUTHORITY_REF,
     }).inspect();
     assert.equal(current.length, 1, 'project.advance must not manufacture request obligations');
-    assert.equal(current[0].id, 'real-frontier-work');
-    assert.equal(current[0].status, 'EXECUTING');
-    assert.equal(current[0].run_id, receipt.run_id);
+    assert.equal(current[0]?.id, 'real-frontier-work');
+    assert.equal(current[0]?.status, 'EXECUTING');
+    assert.equal(current[0]?.run_id, receipt.run_id);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
@@ -867,7 +867,7 @@ test('project.submit integrates a verified source candidate and settles the sour
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
-    assert.equal(authoritative.inspect()[0].status, 'DONE');
+    assert.equal(authoritative.inspect()[0]?.status, 'DONE');
 
     const replay = submitProjectCandidate(
       f.work,
@@ -963,7 +963,7 @@ test('rejected source verification releases the obligation without moving source
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
-    assert.equal(authoritative.inspect()[0].status, 'READY');
+    assert.equal(authoritative.inspect()[0]?.status, 'READY');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
@@ -989,7 +989,7 @@ test('project.advance requires native client bytes before claiming reasoning wor
 
     const after = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     assert.equal(after.head(), head);
-    assert.equal(after.inspect()[0].status, 'READY');
+    assert.equal(after.inspect()[0]?.status, 'READY');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
@@ -1025,8 +1025,8 @@ test('unsupported READY work reports a blocked frontier without claiming authori
 
     const after = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     assert.equal(after.head(), before);
-    assert.equal(after.inspect()[0].status, 'READY');
-    assert.equal(after.inspect()[0].run_id, undefined);
+    assert.equal(after.inspect()[0]?.status, 'READY');
+    assert.equal(after.inspect()[0]?.run_id, undefined);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
@@ -1088,7 +1088,7 @@ test('project.submit validates exact packet identity and settles independently',
       remote: 'origin',
       ref: AUTHORITY_REF,
     }).inspect();
-    assert.equal(current[0].status, 'DONE');
+    assert.equal(current[0]?.status, 'DONE');
 
     const replay = submitProjectCandidate(
       f.work,
