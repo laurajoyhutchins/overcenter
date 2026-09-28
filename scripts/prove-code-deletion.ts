@@ -28,6 +28,7 @@ import {
   selectCounterfactualDeletion,
   type CounterfactualEvidenceStep,
 } from '../src/repository/code-deletion-proof.ts';
+import { buildCodeDeletionHandoff } from '../src/repository/code-deletion-handoff.ts';
 import type { CodeWitnessReport } from '../src/repository/code-witness.ts';
 
 function argValue(name: string): string | null {
@@ -144,6 +145,8 @@ if (!selector) throw new Error('CODE_DELETION_SYMBOL_REQUIRED');
 const parsed = parseCodeSymbolSelector(selector);
 const output = argValue('--output');
 const outputPath = output ? resolve(root, output) : null;
+const handoffOutput = argValue('--handoff');
+const handoffOutputPath = handoffOutput ? resolve(root, handoffOutput) : null;
 const sourceRevision = exactSourceRevision();
 const temporary = mkdtempSync(join(tmpdir(), 'overcenter-code-deletion-'));
 const reportPath = join(temporary, 'witness-report.json');
@@ -219,6 +222,11 @@ try {
   const serialized = JSON.stringify(proof, null, 2) + '\n';
   if (outputPath) writeFileSync(outputPath, serialized);
   else process.stdout.write(serialized);
+
+  if (proof.status === 'deterministic-evidence-preserved' && handoffOutputPath) {
+    const handoff = buildCodeDeletionHandoff(proof, candidateSource);
+    writeFileSync(handoffOutputPath, JSON.stringify(handoff, null, 2) + '\n');
+  }
 
   if (proof.status !== 'deterministic-evidence-preserved') process.exitCode = 1;
 } finally {

@@ -19,3 +19,18 @@ test('source candidate publication does not bypass reserved effects', () => {
     'candidate review-ref publication must cross an admitted reserved-effect boundary',
   );
 });
+
+
+test('proof-backed deletion proposals are rebound at the trusted source broker', () => {
+  const source = readFileSync(
+    new URL('../src/source/source-integration.ts', import.meta.url),
+    'utf8',
+  );
+  const broker = source.slice(source.indexOf('export function brokerSourceProposal('));
+  assert.match(broker, /provenCodeDeletionProofFromTask\(taskValue\)/);
+  assert.match(broker, /git'.*show|execFileSync\('git',[\s\S]*'show'/);
+  assert.match(
+    broker,
+    /validateProvenCodeDeletionProposalBinding\(taskValue, claim, proposalValue, original\)/,
+  );
+});
