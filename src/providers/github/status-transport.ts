@@ -15,20 +15,20 @@ import type {
 } from '../../effect-release-witness.ts';
 import { GITHUB_API_VERSION } from './contract.ts';
 
-export interface GithubStatusMutationBody {
+export interface GitHubStatusMutationBody {
   state: 'error' | 'failure' | 'pending' | 'success';
   context: string;
   description: string;
 }
 
-export type GithubStatusPost = (
+export type GitHubStatusPost = (
   token: string,
   path: string,
-  body: GithubStatusMutationBody,
+  body: GitHubStatusMutationBody,
   attempt: EffectAttemptBinding,
 ) => Promise<{ status: number; body: string }>;
 
-interface InternalGithubStatusNotDispatchedWitness {
+interface InternalGitHubStatusNotDispatchedWitness {
   kind: typeof GITHUB_STATUS_FRESH_HTTPS_NOT_DISPATCHED;
   source: 'github-status/fresh-https';
   attempt: Readonly<EffectAttemptBinding>;
@@ -48,10 +48,10 @@ interface InternalGithubStatusNotDispatchedWitness {
 
 const trustedWitnesses = new WeakSet<object>();
 
-class GithubStatusNotDispatchedError extends Error {
-  readonly witness: InternalGithubStatusNotDispatchedWitness;
+class GitHubStatusNotDispatchedError extends Error {
+  readonly witness: InternalGitHubStatusNotDispatchedWitness;
 
-  constructor(witness: InternalGithubStatusNotDispatchedWitness) {
+  constructor(witness: InternalGitHubStatusNotDispatchedWitness) {
     super(`GITHUB_STATUS_MUTATION_NOT_DISPATCHED:${witness.observation.error_code ?? 'UNKNOWN'}`);
     this.witness = witness;
   }
@@ -67,10 +67,10 @@ function mintNotDispatchedWitness(
   attempt: EffectAttemptBinding,
   origin: string,
   path: string,
-  body: GithubStatusMutationBody,
+  body: GitHubStatusMutationBody,
   errorCode: string | null,
-): InternalGithubStatusNotDispatchedWitness {
-  const witness: InternalGithubStatusNotDispatchedWitness = Object.freeze({
+): InternalGitHubStatusNotDispatchedWitness {
+  const witness: InternalGitHubStatusNotDispatchedWitness = Object.freeze({
     kind: GITHUB_STATUS_FRESH_HTTPS_NOT_DISPATCHED,
     source: 'github-status/fresh-https',
     attempt: Object.freeze(structuredClone(attempt)),
@@ -94,19 +94,19 @@ function mintNotDispatchedWitness(
 export function githubStatusNotDispatchedWitness(
   error: unknown,
 ): TrustedEffectReleaseWitness | null {
-  if (!(error instanceof GithubStatusNotDispatchedError)) return null;
+  if (!(error instanceof GitHubStatusNotDispatchedError)) return null;
   return trustedWitnesses.has(error.witness)
     ? (error.witness as unknown as TrustedEffectReleaseWitness)
     : null;
 }
 
-export function consumeGithubStatusNotDispatchedWitness(
+export function consumeGitHubStatusNotDispatchedWitness(
   value: unknown,
 ): ValidatedEffectReleaseWitness | null {
   if (!value || typeof value !== 'object' || !trustedWitnesses.delete(value as object)) {
     return null;
   }
-  const witness = value as InternalGithubStatusNotDispatchedWitness;
+  const witness = value as InternalGitHubStatusNotDispatchedWitness;
   return {
     kind: witness.kind,
     source: witness.source,
@@ -115,7 +115,7 @@ export function consumeGithubStatusNotDispatchedWitness(
   };
 }
 
-export function createGithubStatusPost({
+export function createGitHubStatusPost({
   baseUrl = GITHUB_STATUS_PROVIDER_ORIGIN,
   rejectUnauthorized = true,
   lookup,
@@ -123,7 +123,7 @@ export function createGithubStatusPost({
   baseUrl?: string;
   rejectUnauthorized?: boolean;
   lookup?: LookupFunction;
-} = {}): GithubStatusPost {
+} = {}): GitHubStatusPost {
   const origin = new URL(baseUrl).origin;
   return async (token, path, body, attempt) => {
     if (!attempt) throw new Error('GITHUB_STATUS_EFFECT_ATTEMPT_BINDING_REQUIRED');
@@ -189,7 +189,7 @@ export function createGithubStatusPost({
                     transportErrorCode(error) ?? 'UNKNOWN'
                   }`,
                 )
-              : new GithubStatusNotDispatchedError(
+              : new GitHubStatusNotDispatchedError(
                   mintNotDispatchedWitness(attempt, origin, path, body, transportErrorCode(error)),
                 ),
           ),
