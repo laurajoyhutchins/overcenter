@@ -103,7 +103,6 @@ export type ArchitectureObservedFact =
 
 export type ArchitectureConflictReasonCode =
   | 'DUPLICATE_CONCEPT'
-  | 'DUPLICATE_AUTHORITY_OWNER'
   | 'AUTHORITY_PATH_MISSING'
   | 'PROJECTION_PATH_MISSING'
   | 'VERIFIER_PATH_MISSING'
@@ -583,16 +582,10 @@ export function reconcileArchitecture({
 
   const resolutions: ArchitectureResolution[] = [];
   const concepts = new Map<string, ArchitectureIntentClaim[]>();
-  const owners = new Map<string, AuthorityRoleIntentClaim[]>();
   for (const claim of intent.claims) {
     const byConcept = concepts.get(claim.concept) ?? [];
     byConcept.push(claim);
     concepts.set(claim.concept, byConcept);
-    if (claim.kind === 'authority-role') {
-      const byOwner = owners.get(claim.authority) ?? [];
-      byOwner.push(claim);
-      owners.set(claim.authority, byOwner);
-    }
   }
 
   const conflicted = new Set<ArchitectureIntentClaim>();
@@ -601,14 +594,6 @@ export function reconcileArchitecture({
     for (const claim of claims) {
       conflicted.add(claim);
       resolutions.push(conflict(claim, 'DUPLICATE_CONCEPT'));
-    }
-  }
-  for (const claims of owners.values()) {
-    if (new Set(claims.map((claim) => claim.concept)).size < 2) continue;
-    for (const claim of claims) {
-      if (conflicted.has(claim)) continue;
-      conflicted.add(claim);
-      resolutions.push(conflict(claim, 'DUPLICATE_AUTHORITY_OWNER'));
     }
   }
 
