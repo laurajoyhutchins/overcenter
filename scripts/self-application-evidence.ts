@@ -244,13 +244,11 @@ function attestingExecutor(
   marker: string,
   content: string,
 ): ComputationExecutor {
+  const executionContextSha256 = client.executionContextSha256;
+  const containmentId = client.containmentId;
   return {
-    get executionContextSha256() {
-      return client.executionContextSha256;
-    },
-    get containmentId() {
-      return client.containmentId;
-    },
+    ...(executionContextSha256 === undefined ? {} : { executionContextSha256 }),
+    ...(containmentId === undefined ? {} : { containmentId }),
     ready: () => client.ready(),
     execute: async (execution: ComputationExecution) => {
       const evidence = await client.execute(execution);
