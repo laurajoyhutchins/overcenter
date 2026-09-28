@@ -108,9 +108,11 @@ export function buildProvenCodeDeletionSourceTask(handoffValue: unknown): Source
     writable_paths: [handoff.path],
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
     context: {
-      kind: 'proven-code-deletion',
-      proof_sha256: handoff.proof_sha256,
-      selector: handoff.proof.selector,
+      kind: 'exact-source-proposal',
+      files_sha256: canonicalDigest([
+        { path: handoff.path, content_base64: handoff.candidate_content_base64 },
+      ]),
+      provenance_sha256: handoff.proof_sha256,
     },
   });
 }

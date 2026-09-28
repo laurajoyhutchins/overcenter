@@ -1,5 +1,6 @@
+import { canonicalDigest } from '../digest.ts';
 import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
-import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
+import { assertExactKeys, assertNonEmptyString, isData, isSha256Hex } from '../validation.ts';
 
 export const SOURCE_TASK_SCHEMA = 'overcenter-source-task/v1' as const;
 export const SOURCE_ASSIGNMENT_SCHEMA = 'overcenter-source-assignment/v1' as const;
@@ -295,6 +296,12 @@ export function validateSourceProposal(
   });
   if (new Set(files.map((file) => file.path)).size !== files.length) {
     throw new Error('SOURCE_PROPOSAL_PATH_DUPLICATE');
+  }
+  if (task.context?.kind === 'exact-source-proposal') {
+    const expected = task.context.files_sha256;
+    if (!isSha256Hex(expected) || canonicalDigest(files) !== expected) {
+      throw new Error('SOURCE_PROPOSAL_EXACT_BINDING_MISMATCH');
+    }
   }
 
   return {

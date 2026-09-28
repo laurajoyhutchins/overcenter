@@ -19,3 +19,11 @@ test('source candidate publication does not bypass reserved effects', () => {
     'candidate review-ref publication must cross an admitted reserved-effect boundary',
   );
 });
+
+test('trusted source integration has no repository-specific deletion dependency', () => {
+  const source = readFileSync(
+    new URL('../src/source/source-integration.ts', import.meta.url),
+    'utf8',
+  );
+  assert.doesNotMatch(source, /code-deletion/);
+});

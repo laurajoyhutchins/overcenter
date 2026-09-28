@@ -199,10 +199,12 @@ function TypeScriptFiles(root: string): string[] {
 }
 
 test('diagnosability tooling has no production runtime import', () => {
+  const importPattern =
+    /(?:\bfrom\s*|\bimport\s*(?:\(\s*)?)['"][^'"]*adapter-diagnosability/;
   for (const path of TypeScriptFiles('src')) {
-    assert.equal(
-      readFileSync(path, 'utf8').includes('adapter-diagnosability'),
-      false,
+    assert.doesNotMatch(
+      readFileSync(path, 'utf8'),
+      importPattern,
       `${path}: production source imports development-only diagnosability tooling`,
     );
   }

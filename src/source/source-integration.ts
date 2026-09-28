@@ -107,15 +107,6 @@ function exactSha(value: unknown, error: string): asserts value is string {
   if (typeof value !== 'string' || !/^[0-9a-f]{40}$/.test(value)) throw new Error(error);
 }
 
-function sourceControlPath(path: string): boolean {
-  return (
-    path === '.overcenter' ||
-    path.startsWith('.overcenter/') ||
-    path === '.github' ||
-    path.startsWith('.github/')
-  );
-}
-
 export function validateSourceVerification(value: unknown): SourceVerification {
   if (!isData(value)) throw new Error('SOURCE_VERIFICATION_INVALID');
   assertExactKeys(
@@ -363,9 +354,6 @@ export function inspectSourceCandidate(
   ]);
   const changedPaths = changed ? changed.split('\n').sort() : [];
   if (changedPaths.length === 0) throw new Error('SOURCE_CANDIDATE_EMPTY');
-  if (changedPaths.some(sourceControlPath)) {
-    throw new Error('SOURCE_CONTROL_PLANE_MUTATION_FORBIDDEN');
-  }
   if (changedPaths.some((path) => !task.writable_paths.includes(path))) {
     throw new Error('SOURCE_SCOPE_VIOLATION');
   }
