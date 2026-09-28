@@ -4,7 +4,10 @@ import test from 'node:test';
 
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import { deriveRuntimeDispatchBindings, trustRootsForEffect } from '../src/architecture/tcb.ts';
-import { reconcileArchitecture, type ObservedArchitecture } from '../src/architecture/reconciliation.ts';
+import {
+  reconcileArchitecture,
+  type ObservedArchitecture,
+} from '../src/architecture/reconciliation.ts';
 import { observeArchitecture } from '../scripts/observe-architecture.ts';
 
 const revision = 'a'.repeat(40);
@@ -58,7 +61,6 @@ test('layered architecture loads as one foreign-key-valid relational model', () 
     db.close();
   }
 });
-
 
 test('TCB runtime dispatch authority comes from architecture physics', () => {
   const db = loadArchitectureDatabase();
@@ -128,9 +130,7 @@ test('TCB roots are derived recursively from effect architecture', () => {
     assert.ok(identities.has('src/storage/sqlite.ts#SqliteFactStore.append'));
     assert.ok(identities.has('src/observation/observe.ts#observationVerified'));
     assert.ok(
-      identities.has(
-        'src/providers/github/status-effect.ts#performGitHubCommitStatusEffect',
-      ),
+      identities.has('src/providers/github/status-effect.ts#performGitHubCommitStatusEffect'),
     );
 
     const sourceRoots = trustRootsForEffect(db, 'source/integrate');
@@ -274,7 +274,9 @@ test('missing physical symbol is detected without treating its declared semantic
 test('logical authority without a physical implementation fails closed', () => {
   const db = loadArchitectureDatabase();
   try {
-    db.prepare("DELETE FROM symbol_implements_authority WHERE authority_id = 'effect-authority'").run();
+    db.prepare(
+      "DELETE FROM symbol_implements_authority WHERE authority_id = 'effect-authority'",
+    ).run();
     const observed = observeArchitecture(db, revision);
     const reconciliation = reconcileArchitecture(db, observed);
     assert.ok(
@@ -308,8 +310,7 @@ test('unresolved dynamic effect reachability is unknown rather than silently acc
         (finding) =>
           finding.state === 'unknown' &&
           finding.relation === 'principal_reaches_effect' &&
-          finding.key.principal_id ===
-            '.github/workflows/operator-project-submit.yml#command',
+          finding.key.principal_id === '.github/workflows/operator-project-submit.yml#command',
       ),
     );
   } finally {
