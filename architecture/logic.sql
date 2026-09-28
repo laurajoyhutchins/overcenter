@@ -67,6 +67,9 @@ INSERT INTO assurance_property_guards_effect(property_id, effect_id) VALUES
   ('no-false-done', 'source/integrate'),
   ('github-commit-status-provider', 'github-commit-status/create');
 
+INSERT INTO assurance_property_requires_effect_implementation(property_id, effect_id) VALUES
+  ('github-commit-status-provider', 'github-commit-status/create');
+
 INSERT INTO effect_requires_authority(effect_id, authority_id) VALUES
   ('github-commit-status/create', 'effect-authority'),
   ('github-pull-request/update-branch', 'effect-authority'),
