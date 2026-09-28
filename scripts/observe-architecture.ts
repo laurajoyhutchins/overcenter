@@ -230,37 +230,38 @@ export function observeArchitecture(
   const unresolvedEffectCalls: ObservedArchitecture['unresolved_effect_calls'] = [];
   const functionEffects = createTypeScriptFunctionEffectProbe(root);
   try {
-    for (const fact of observeWorkflowTransitiveEffects(sources, sourceRevision, functionEffects)) {
+    const facts = observeWorkflowTransitiveEffects(sources, sourceRevision, functionEffects);
+    const entrypointLines = new Map(
+      facts
+        .filter((fact) => fact.kind === 'github-actions-typescript-entrypoint')
+        .map((fact) => [`${fact.workflow_path}\0${fact.entrypoint}`, fact.line_number] as const),
+    );
+    for (const fact of facts) {
+      if (
+        fact.kind !== 'github-actions-transitive-effect-reachability' &&
+        fact.kind !== 'github-actions-unresolved-dynamic-call-target'
+      ) {
+        continue;
+      }
+      const entrypointLine = entrypointLines.get(`${fact.workflow_path}\0${fact.entrypoint}`);
+      if (entrypointLine === undefined) continue;
+      const principalId = principalForLine(
+        fact.workflow_path,
+        jobsByWorkflow.get(fact.workflow_path) ?? [],
+        entrypointLine,
+      );
+      if (!principalId) continue;
+
       if (fact.kind === 'github-actions-transitive-effect-reachability') {
-        const principalId = principalForLine(
-          fact.workflow_path,
-          jobsByWorkflow.get(fact.workflow_path) ?? [],
-          sources[fact.workflow_path]!
-            .split(/\r?\n/)
-            .findIndex((line) => line.includes(fact.entrypoint)) + 1,
-        );
-        if (principalId) {
-          principalReachability.push({ principal_id: principalId, effect_id: fact.effect });
-        }
-      } else if (fact.kind === 'github-actions-unresolved-dynamic-call-target') {
-        const entrypointLine =
-          sources[fact.workflow_path]!
-            .split(/\r?\n/)
-            .findIndex((line) => line.includes(fact.entrypoint)) + 1;
-        const principalId = principalForLine(
-          fact.workflow_path,
-          jobsByWorkflow.get(fact.workflow_path) ?? [],
-          entrypointLine,
-        );
-        if (principalId && fact.candidate_effects.length > 0) {
-          unresolvedEffectCalls.push({
-            principal_id: principalId,
-            call_site_path: fact.call_site_path,
-            call_site_line: fact.call_site_line,
-            call_expression_sha256: fact.call_expression_sha256,
-            candidate_effects: [...fact.candidate_effects].sort(),
-          });
-        }
+        principalReachability.push({ principal_id: principalId, effect_id: fact.effect });
+      } else if (fact.candidate_effects.length > 0) {
+        unresolvedEffectCalls.push({
+          principal_id: principalId,
+          call_site_path: fact.call_site_path,
+          call_site_line: fact.call_site_line,
+          call_expression_sha256: fact.call_expression_sha256,
+          candidate_effects: [...fact.candidate_effects].sort(),
+        });
       }
     }
   } finally {
