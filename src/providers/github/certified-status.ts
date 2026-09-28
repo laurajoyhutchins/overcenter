@@ -7,26 +7,26 @@ import {
   GITHUB_COMBINED_COMMIT_STATUS_OPERATION,
   GITHUB_COMMIT_STATUSES_OPERATION,
 } from './operations.generated.ts';
-import { materializeGithubOperationRequest } from './openapi.ts';
-import { scanGithubPageCollection } from './page-collection.ts';
+import { materializeGitHubOperationRequest } from './openapi.ts';
+import { scanGitHubPageCollection } from './page-collection.ts';
 import {
   GITHUB_COMBINED_COMMIT_STATUS_RESPONSE_SLICE,
   GITHUB_COMMIT_STATUS_RESPONSE_SLICE,
 } from './semantics.ts';
 import {
   githubRepositoryCoordinate,
-  observeCertifiedGithubRepository,
-  type CertifiedGithubRepositoryEvidence,
+  observeCertifiedGitHubRepository,
+  type CertifiedGitHubRepositoryEvidence,
 } from './certified-repository.ts';
-import { observeCertifiedGithubRead200 } from './certified-observation.ts';
+import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
 import {
   githubGet,
   githubStatusContextKey,
-  sameGithubObjectId,
-  type GithubJsonGet,
+  sameGitHubObjectId,
+  type GitHubJsonGet,
 } from './rest.ts';
 
-export interface CertifiedGithubStatusPageEvidence {
+export interface CertifiedGitHubStatusPageEvidence {
   page: number;
   member_count: number;
   observed_at: string;
@@ -43,7 +43,7 @@ interface CombinedRepositoryEvidence {
   optional_absent_paths: string[];
 }
 
-export interface CertifiedGithubStatusEvidence extends Record<string, unknown> {
+export interface CertifiedGitHubStatusEvidence extends Record<string, unknown> {
   provider: 'github';
   api_version: string;
   schema_sha256: string;
@@ -51,13 +51,13 @@ export interface CertifiedGithubStatusEvidence extends Record<string, unknown> {
   observer: { kind: 'git-kernel'; id: 'github-commit-status/v2' };
   repository_id: number;
   requested_repository_full_name: string;
-  repository: CertifiedGithubRepositoryEvidence | CombinedRepositoryEvidence;
+  repository: CertifiedGitHubRepositoryEvidence | CombinedRepositoryEvidence;
   commit_sha: string;
   status_operation_id: 'repos/get-combined-status-for-ref' | 'repos/list-commit-statuses-for-ref';
-  pages: CertifiedGithubStatusPageEvidence[];
+  pages: CertifiedGitHubStatusPageEvidence[];
 }
 
-export interface CertifiedGithubCommitStatusResult {
+export interface CertifiedGitHubCommitStatusResult {
   state: 'present' | 'indeterminate';
   reason:
     | 'AUTHORITATIVE_COLLECTION_MEMBER_MATCHES'
@@ -65,7 +65,7 @@ export interface CertifiedGithubCommitStatusResult {
     | 'COLLECTION_SCAN_LIMIT_REACHED';
   repository_full_name: string;
   actual_state?: 'error' | 'failure' | 'pending' | 'success';
-  evidence: CertifiedGithubStatusEvidence;
+  evidence: CertifiedGitHubStatusEvidence;
 }
 
 interface StatusMember {
@@ -101,11 +101,11 @@ function statusEvidence({
 }: {
   repositoryId: number;
   repositoryFullName: string;
-  repository: CertifiedGithubRepositoryEvidence | CombinedRepositoryEvidence;
+  repository: CertifiedGitHubRepositoryEvidence | CombinedRepositoryEvidence;
   commitSha: string;
-  statusOperationId: CertifiedGithubStatusEvidence['status_operation_id'];
-  pages: CertifiedGithubStatusPageEvidence[];
-}): CertifiedGithubStatusEvidence {
+  statusOperationId: CertifiedGitHubStatusEvidence['status_operation_id'];
+  pages: CertifiedGitHubStatusPageEvidence[];
+}): CertifiedGitHubStatusEvidence {
   return {
     provider: 'github',
     api_version: GITHUB_API_VERSION,
@@ -133,7 +133,7 @@ function validateMembers(members: StatusMember[]): void {
 }
 
 function certifiedMembers(
-  certified: ReturnType<typeof observeCertifiedGithubRead200>['certified'],
+  certified: ReturnType<typeof observeCertifiedGitHubRead200>['certified'],
 ): {
   members: StatusMember[];
   validated_paths: string[];
@@ -162,21 +162,21 @@ function observeCombinedPositive(
     repositoryFullName: string;
     commitSha: string;
     context: string;
-    get: GithubJsonGet;
+    get: GitHubJsonGet;
     clock: () => string;
   },
-): CertifiedGithubCommitStatusResult | null {
+): CertifiedGitHubCommitStatusResult | null {
   const { owner, repo } = githubRepositoryCoordinate(repositoryFullName);
   const pagination = GITHUB_COMBINED_COMMIT_STATUS_OPERATION.pagination;
   if (!pagination) throw new Error('GITHUB_COMBINED_STATUS_PAGINATION_UNAVAILABLE');
-  const request = materializeGithubOperationRequest(GITHUB_COMBINED_COMMIT_STATUS_OPERATION, {
+  const request = materializeGitHubOperationRequest(GITHUB_COMBINED_COMMIT_STATUS_OPERATION, {
     owner,
     repo,
     ref: commitSha,
     [pagination.page_parameter]: pagination.first_page,
     [pagination.page_size_parameter]: 100,
   });
-  const { observed_at: observedAt, certified } = observeCertifiedGithubRead200({
+  const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
     token,
     operation: GITHUB_COMBINED_COMMIT_STATUS_OPERATION,
     request,
@@ -186,7 +186,7 @@ function observeCombinedPositive(
     observerId: 'github-commit-status/v2',
   });
   const value = certified.outcome.value as CombinedStatus;
-  if (!sameGithubObjectId(value.sha, commitSha)) {
+  if (!sameGitHubObjectId(value.sha, commitSha)) {
     throw new Error('GITHUB_STATUS_COMMIT_IDENTITY_MISMATCH');
   }
 
@@ -221,7 +221,7 @@ function observeCombinedPositive(
     validated_paths: validatedPaths,
     optional_absent_paths: optionalAbsentPaths,
   };
-  const pages: [CertifiedGithubStatusPageEvidence] = [
+  const pages: [CertifiedGitHubStatusPageEvidence] = [
     {
       page: pagination.first_page,
       member_count: value.statuses.length,
@@ -247,7 +247,7 @@ function observeCombinedPositive(
   };
 }
 
-function observePaginatedGithubCommitStatus(
+function observePaginatedGitHubCommitStatus(
   token: string,
   {
     repositoryId,
@@ -261,11 +261,11 @@ function observePaginatedGithubCommitStatus(
     repositoryFullName: string;
     commitSha: string;
     context: string;
-    get: GithubJsonGet;
+    get: GitHubJsonGet;
     clock: () => string;
   },
-): CertifiedGithubCommitStatusResult {
-  const repository = observeCertifiedGithubRepository(token, {
+): CertifiedGitHubCommitStatusResult {
+  const repository = observeCertifiedGitHubRepository(token, {
     repositoryId,
     repositoryFullName,
     get,
@@ -276,14 +276,14 @@ function observePaginatedGithubCommitStatus(
   const { owner, repo } = repository.fact.object;
   const canonicalFullName = repository.fact.object.full_name;
   const target = githubStatusContextKey(context);
-  const scan = scanGithubPageCollection<
+  const scan = scanGitHubPageCollection<
     StatusMember,
-    Omit<CertifiedGithubStatusPageEvidence, 'page' | 'member_count'>
+    Omit<CertifiedGitHubStatusPageEvidence, 'page' | 'member_count'>
   >({
     operation: GITHUB_COMMIT_STATUSES_OPERATION,
     parameters: { owner, repo, ref: commitSha },
     readPage: ({ request }) => {
-      const { observed_at: observedAt, certified } = observeCertifiedGithubRead200({
+      const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
         token,
         operation: GITHUB_COMMIT_STATUSES_OPERATION,
         request,
@@ -341,7 +341,7 @@ function observePaginatedGithubCommitStatus(
   };
 }
 
-export function observeCertifiedGithubCommitStatus(
+export function observeCertifiedGitHubCommitStatus(
   token: string,
   {
     repositoryId,
@@ -355,10 +355,10 @@ export function observeCertifiedGithubCommitStatus(
     repositoryFullName: string;
     commitSha: string;
     context: string;
-    get?: GithubJsonGet;
+    get?: GitHubJsonGet;
     clock?: () => string;
   },
-): CertifiedGithubCommitStatusResult {
+): CertifiedGitHubCommitStatusResult {
   const input = {
     repositoryId,
     repositoryFullName,
@@ -368,7 +368,7 @@ export function observeCertifiedGithubCommitStatus(
     clock,
   };
   const combined = observeCombinedPositive(token, input);
-  return combined ?? observePaginatedGithubCommitStatus(token, input);
+  return combined ?? observePaginatedGitHubCommitStatus(token, input);
 }
 
 export {
@@ -384,4 +384,4 @@ export {
   GITHUB_OPENAPI_SHA256,
   GITHUB_OPENAPI_SOURCE_COMMIT,
 } from './contract.ts';
-export type { GithubJsonGet } from './rest.ts';
+export type { GitHubJsonGet } from './rest.ts';

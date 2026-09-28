@@ -4,13 +4,13 @@ import {
   GITHUB_OPENAPI_SOURCE_COMMIT,
 } from './contract.ts';
 import { GITHUB_COMPARE_COMMITS_OPERATION } from './operations.generated.ts';
-import { materializeGithubOperationRequest } from './openapi.ts';
-import { observeCertifiedGithubRead200 } from './certified-observation.ts';
+import { materializeGitHubOperationRequest } from './openapi.ts';
+import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
 import { GITHUB_COMPARE_COMMITS_RESPONSE_SLICE } from './semantics.ts';
-import { isGithubObjectId, sameGithubObjectId, type GithubJsonGet } from './rest.ts';
+import { isGitHubObjectId, sameGitHubObjectId, type GitHubJsonGet } from './rest.ts';
 import { githubRepositoryCoordinate } from './certified-repository.ts';
 
-export interface CertifiedGithubCommitAncestryEvidence {
+export interface CertifiedGitHubCommitAncestryEvidence {
   provider: 'github';
   api_version: string;
   schema_sha256: string;
@@ -31,12 +31,12 @@ export interface CertifiedGithubCommitAncestryEvidence {
   optional_absent_paths: string[];
 }
 
-export interface CertifiedGithubCommitAncestryResult {
+export interface CertifiedGitHubCommitAncestryResult {
   state: 'ancestor' | 'not-ancestor';
-  evidence: CertifiedGithubCommitAncestryEvidence;
+  evidence: CertifiedGitHubCommitAncestryEvidence;
 }
 
-export function observeCertifiedGithubCommitAncestry(
+export function observeCertifiedGitHubCommitAncestry(
   token: string,
   {
     repositoryFullName,
@@ -48,20 +48,20 @@ export function observeCertifiedGithubCommitAncestry(
     repositoryFullName: string;
     ancestorSha: string;
     descendantSha: string;
-    get: GithubJsonGet;
+    get: GitHubJsonGet;
     clock?: () => string;
   },
-): CertifiedGithubCommitAncestryResult {
-  if (!isGithubObjectId(ancestorSha) || !isGithubObjectId(descendantSha)) {
+): CertifiedGitHubCommitAncestryResult {
+  if (!isGitHubObjectId(ancestorSha) || !isGitHubObjectId(descendantSha)) {
     throw new Error('GITHUB_COMMIT_ANCESTRY_SHA_INVALID');
   }
   const { owner, repo } = githubRepositoryCoordinate(repositoryFullName);
-  const request = materializeGithubOperationRequest(GITHUB_COMPARE_COMMITS_OPERATION, {
+  const request = materializeGitHubOperationRequest(GITHUB_COMPARE_COMMITS_OPERATION, {
     owner,
     repo,
     basehead: `${ancestorSha}...${descendantSha}`,
   });
-  const { observed_at: observedAt, certified } = observeCertifiedGithubRead200({
+  const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
     token,
     operation: GITHUB_COMPARE_COMMITS_OPERATION,
     request,
@@ -83,16 +83,16 @@ export function observeCertifiedGithubCommitAncestry(
     value.ahead_by < 0 ||
     !Number.isSafeInteger(value.behind_by) ||
     value.behind_by < 0 ||
-    !isGithubObjectId(value.base_commit?.sha) ||
-    !sameGithubObjectId(value.base_commit.sha, ancestorSha) ||
-    !isGithubObjectId(value.merge_base_commit?.sha)
+    !isGitHubObjectId(value.base_commit?.sha) ||
+    !sameGitHubObjectId(value.base_commit.sha, ancestorSha) ||
+    !isGitHubObjectId(value.merge_base_commit?.sha)
   ) {
     throw new Error('GITHUB_COMMIT_ANCESTRY_OBSERVATION_INVALID');
   }
   const relation =
     (value.status === 'ahead' || value.status === 'identical') &&
     value.behind_by === 0 &&
-    sameGithubObjectId(value.merge_base_commit.sha, ancestorSha)
+    sameGitHubObjectId(value.merge_base_commit.sha, ancestorSha)
       ? ('ancestor' as const)
       : ('not-ancestor' as const);
   return {

@@ -9,14 +9,14 @@ import type { EffectAttemptBinding } from '../../src/effect-release-witness.ts';
 import { OvercenterKernel } from '../../src/authority/kernel.ts';
 import {
   GITHUB_COMMIT_STATUS_EFFECT,
-  performGithubCommitStatusEffect,
-  type GithubStatusPost,
+  performGitHubCommitStatusEffect,
+  type GitHubStatusPost,
 } from '../../src/providers/github/status-effect.ts';
 import {
   githubGet,
   githubGetAsync,
-  type GithubJsonGet,
-  type GithubJsonGetAsync,
+  type GitHubJsonGet,
+  type GitHubJsonGetAsync,
 } from '../../src/providers/github/rest.ts';
 
 type Mode = 'mock' | 'live';
@@ -121,7 +121,7 @@ async function runSample(
   let providerState = false;
   let readbackMs = 0;
 
-  const mockGet: GithubJsonGet = (_token, path) => {
+  const mockGet: GitHubJsonGet = (_token, path) => {
     if (path === '/repos/acme/widget') {
       return repository(repositoryId, repositoryFullName);
     }
@@ -164,8 +164,8 @@ async function runSample(
     throw new Error(`UNEXPECTED_GITHUB_GET:${path}`);
   };
 
-  const rawGetAsync: GithubJsonGetAsync = mode === 'live' ? githubGetAsync : mockGet;
-  const getAsync: GithubJsonGetAsync = async (providerToken, path) => {
+  const rawGetAsync: GitHubJsonGetAsync = mode === 'live' ? githubGetAsync : mockGet;
+  const getAsync: GitHubJsonGetAsync = async (providerToken, path) => {
     const started = performance.now();
     try {
       return await rawGetAsync(providerToken, path);
@@ -176,7 +176,7 @@ async function runSample(
     }
   };
 
-  const post: GithubStatusPost | undefined =
+  const post: GitHubStatusPost | undefined =
     mode === 'mock'
       ? async () => {
           providerState = true;
@@ -218,7 +218,7 @@ async function runSample(
     phase = 'effect';
     const effectStarted = performance.now();
     let identityMs = 0;
-    const identityGet: GithubJsonGetAsync = async (providerToken, path) => {
+    const identityGet: GitHubJsonGetAsync = async (providerToken, path) => {
       const started = performance.now();
       try {
         return await getAsync(providerToken, path);
@@ -226,7 +226,7 @@ async function runSample(
         identityMs += performance.now() - started;
       }
     };
-    await performGithubCommitStatusEffect(kernel, permit, {
+    await performGitHubCommitStatusEffect(kernel, permit, {
       token,
       get: identityGet,
       ...(post ? { post } : {}),

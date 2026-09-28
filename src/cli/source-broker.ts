@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
 import { brokerAssignedSourceProposal } from '../source/source-broker.ts';
-import { appendGithubOutputs, commandOption } from './project-command-runtime.ts';
+import { appendGitHubOutputs, commandOption } from './project-command-runtime.ts';
 
 const assignmentPath = commandOption('--assignment');
 const proposalPath = commandOption('--proposal');
@@ -24,7 +24,7 @@ const outputPath = commandOption('--output');
 if (outputPath) writeFileSync(outputPath, output);
 else process.stdout.write(output);
 
-appendGithubOutputs({
+appendGitHubOutputs({
   authority_head: result.authority_head,
   candidate_sha: result.candidate.commit_sha,
   candidate_ref: result.publication.ref,

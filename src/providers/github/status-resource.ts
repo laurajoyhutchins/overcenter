@@ -2,21 +2,21 @@ import { GITHUB_COMMIT_STATUS_EFFECT } from '../../effect-adapter.ts';
 import type { Data } from '../../model.ts';
 import { defineSemanticEffect } from '../../semantic-effect.ts';
 
-export type GithubCommitStatusTarget = Data & {
+export type GitHubCommitStatusTarget = Data & {
   repository_id: number;
   repository_full_name: string;
   commit_sha: string;
   context: string;
 };
 
-export type GithubCommitStatusDesired = Data & {
+export type GitHubCommitStatusDesired = Data & {
   state: 'error' | 'failure' | 'pending' | 'success';
 };
 
 export const githubCommitStatus = defineSemanticEffect<
   typeof GITHUB_COMMIT_STATUS_EFFECT,
-  GithubCommitStatusTarget,
-  GithubCommitStatusDesired
+  GitHubCommitStatusTarget,
+  GitHubCommitStatusDesired
 >({
   resource: 'github.commit-status',
   effectContract: GITHUB_COMMIT_STATUS_EFFECT,

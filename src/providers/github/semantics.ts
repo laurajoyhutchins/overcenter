@@ -1,6 +1,6 @@
 import type { ResponseFieldSpec } from '../../observation/response-slice.ts';
 
-export type GithubRepositoryReadPermission =
+export type GitHubRepositoryReadPermission =
   | 'actions:read'
   | 'checks:read'
   | 'contents:read'
@@ -9,9 +9,9 @@ export type GithubRepositoryReadPermission =
   | 'pull_requests:read'
   | 'statuses:read';
 
-export interface GithubSemanticOperation {
+export interface GitHubSemanticOperation {
   operation_id: string;
-  required_permissions: readonly GithubRepositoryReadPermission[];
+  required_permissions: readonly GitHubRepositoryReadPermission[];
   response_slice: readonly ResponseFieldSpec[];
 }
 
@@ -36,7 +36,7 @@ function nested(
   ];
 }
 
-function operation<Id extends string, Permission extends GithubRepositoryReadPermission>(
+function operation<Id extends string, Permission extends GitHubRepositoryReadPermission>(
   operation_id: Id,
   required_permission: Permission,
   response_slice: readonly ResponseFieldSpec[],
@@ -451,7 +451,7 @@ export const GITHUB_OPERATION_SEMANTICS = {
     'checks:read',
     nested('check_runs[]', CHECK_RUN_FIELDS, true),
   ),
-} as const satisfies Record<string, GithubSemanticOperation>;
+} as const satisfies Record<string, GitHubSemanticOperation>;
 
 export function githubResponseSlice(operationId: string): readonly ResponseFieldSpec[] {
   const matches = Object.values(GITHUB_OPERATION_SEMANTICS).filter(
@@ -467,7 +467,7 @@ export function githubResponseSlice(operationId: string): readonly ResponseField
   return matches[0]!.response_slice;
 }
 
-export type GithubSemanticOperationName = keyof typeof GITHUB_OPERATION_SEMANTICS;
+export type GitHubSemanticOperationName = keyof typeof GITHUB_OPERATION_SEMANTICS;
 
 export const GITHUB_REPOSITORY_RESPONSE_SLICE =
   GITHUB_OPERATION_SEMANTICS.repository.response_slice;

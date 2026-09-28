@@ -23,19 +23,19 @@ interface OpenApiPathItem extends JsonObject {
   head?: OpenApiOperation;
 }
 
-export interface GithubOpenApiDocument extends JsonObject {
+export interface GitHubOpenApiDocument extends JsonObject {
   paths?: Record<string, OpenApiPathItem>;
   components?: JsonObject;
 }
 
-export interface GithubObservationParameter {
+export interface GitHubObservationParameter {
   name: string;
   in: 'path' | 'query' | 'header';
   required: boolean;
   schema: unknown;
 }
 
-export interface GithubPagePagination {
+export interface GitHubPagePagination {
   kind: 'page-number';
   page_parameter: string;
   page_size_parameter: string;
@@ -43,25 +43,25 @@ export interface GithubPagePagination {
   default_page_size: number;
 }
 
-export interface GithubObservationOperation {
+export interface GitHubObservationOperation {
   provider: 'github';
   api_version: string;
   method: 'GET' | 'HEAD';
   path_template: string;
   operation_id: string;
-  parameters: GithubObservationParameter[];
-  pagination?: GithubPagePagination;
+  parameters: GitHubObservationParameter[];
+  pagination?: GitHubPagePagination;
   outcomes: Array<{ status: string; description: string; schema: unknown }>;
   github_extensions: Record<string, unknown>;
 }
 
-export interface MaterializedGithubOperationRequest {
+export interface MaterializedGitHubOperationRequest {
   path: string;
   parameters: Record<string, string | number | boolean>;
   headers: Record<string, string>;
 }
 
-function resolveLocalRef(document: GithubOpenApiDocument, value: unknown): unknown {
+function resolveLocalRef(document: GitHubOpenApiDocument, value: unknown): unknown {
   let current = value;
   const seen = new Set<string>();
   while (current !== null && typeof current === 'object' && !Array.isArray(current)) {
@@ -84,9 +84,9 @@ function resolveLocalRef(document: GithubOpenApiDocument, value: unknown): unkno
 }
 
 function normalizeParameter(
-  document: GithubOpenApiDocument,
+  document: GitHubOpenApiDocument,
   value: OpenApiParameter | { $ref: string },
-): GithubObservationParameter {
+): GitHubObservationParameter {
   const parameter = resolveLocalRef(document, value) as OpenApiParameter;
   if (
     typeof parameter.name !== 'string' ||
@@ -96,18 +96,18 @@ function normalizeParameter(
   }
   return {
     name: parameter.name,
-    in: parameter.in as GithubObservationParameter['in'],
+    in: parameter.in as GitHubObservationParameter['in'],
     required: parameter.in === 'path' || parameter.required === true,
     schema: resolveLocalRef(document, parameter.schema ?? null),
   };
 }
 
 function mergeParameters(
-  document: GithubOpenApiDocument,
+  document: GitHubOpenApiDocument,
   pathParameters: Array<OpenApiParameter | { $ref: string }> = [],
   operationParameters: Array<OpenApiParameter | { $ref: string }> = [],
-): GithubObservationParameter[] {
-  const merged = new Map<string, GithubObservationParameter>();
+): GitHubObservationParameter[] {
+  const merged = new Map<string, GitHubObservationParameter>();
   for (const parameter of [...pathParameters, ...operationParameters]) {
     const normalized = normalizeParameter(document, parameter);
     merged.set(`${normalized.in}:${normalized.name}`, normalized);
@@ -117,7 +117,7 @@ function mergeParameters(
   );
 }
 
-function integerDefault(parameter: GithubObservationParameter | undefined): number | null {
+function integerDefault(parameter: GitHubObservationParameter | undefined): number | null {
   if (!parameter || parameter.in !== 'query') return null;
   const schema = parameter.schema;
   if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) return null;
@@ -127,8 +127,8 @@ function integerDefault(parameter: GithubObservationParameter | undefined): numb
 }
 
 function derivePagePagination(
-  parameters: GithubObservationParameter[],
-): GithubPagePagination | undefined {
+  parameters: GitHubObservationParameter[],
+): GitHubPagePagination | undefined {
   const page = parameters.find(
     (parameter) => parameter.in === 'query' && parameter.name === 'page',
   );
@@ -152,11 +152,11 @@ function derivePagePagination(
   };
 }
 
-export function deriveGithubObservationOperation(
-  document: GithubOpenApiDocument,
+export function deriveGitHubObservationOperation(
+  document: GitHubOpenApiDocument,
   operationId: string,
   apiVersion: string,
-): GithubObservationOperation {
+): GitHubObservationOperation {
   let found: {
     pathTemplate: string;
     method: 'get' | 'head';
@@ -200,10 +200,10 @@ export function deriveGithubObservationOperation(
   };
 }
 
-export function materializeGithubOperationRequest(
-  operation: GithubObservationOperation,
+export function materializeGitHubOperationRequest(
+  operation: GitHubObservationOperation,
   values: Record<string, string | number | boolean>,
-): MaterializedGithubOperationRequest {
+): MaterializedGitHubOperationRequest {
   const declared = new Set(operation.parameters.map((parameter) => parameter.name));
   for (const name of Object.keys(values)) {
     if (!declared.has(name)) throw new Error(`GITHUB_OPERATION_PARAMETER_UNKNOWN:${name}`);

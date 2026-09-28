@@ -5,8 +5,8 @@ import type { GitHubCommitStatusPostcondition, Obligation } from '../src/model.t
 import { observePostcondition, observePostconditionAsync } from '../src/observation/observe.ts';
 import {
   GITHUB_OPENAPI_SHA256,
-  observeCertifiedGithubCommitStatus,
-  type GithubJsonGet,
+  observeCertifiedGitHubCommitStatus,
+  type GitHubJsonGet,
 } from '../src/providers/github/certified-status.ts';
 import { projectReceipt } from '../src/authority/replay.ts';
 import { effectSemantics, verifiedContentIdentity } from '../src/semantics.ts';
@@ -74,9 +74,9 @@ function provider(
   pages: unknown[][],
   repositoryBody: unknown = repository(),
   combinedBody: unknown = combined(pages[0] ?? [], repositoryBody),
-): { get: GithubJsonGet; calls: string[] } {
+): { get: GitHubJsonGet; calls: string[] } {
   const calls: string[] = [];
-  const get: GithubJsonGet = (_token, path) => {
+  const get: GitHubJsonGet = (_token, path) => {
     calls.push(path);
     if (path.includes(`/commits/${COMMIT}/status?`)) return combinedBody;
     if (path === '/repos/acme/widget') return repositoryBody;
@@ -224,7 +224,7 @@ test('combined response cannot substitute a different commit', () => {
 test('combined miss preserves later-page positive fallback', () => {
   const first = Array.from({ length: 30 }, (_, index) => status(index + 1, `other/${index}`));
   const p = provider([first, [status(31, 'overcenter/proof')]]);
-  const result = observeCertifiedGithubCommitStatus('token', {
+  const result = observeCertifiedGitHubCommitStatus('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     commitSha: COMMIT,

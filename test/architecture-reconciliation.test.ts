@@ -584,17 +584,17 @@ test('function-level effect reachability binds called semantic mutation terminal
       [
         {
           effect: GITHUB_COMMIT_STATUS_EFFECT,
-          terminal: 'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
+          terminal: 'src/providers/github/status-effect.ts#performGitHubCommitStatusEffect',
           root: 'test/fixtures/function-effect-called.ts#<module>',
-          leaf: 'src/providers/github/status-effect.ts#performGithubCommitStatusEffect',
+          leaf: 'src/providers/github/status-effect.ts#performGitHubCommitStatusEffect',
           digest_length: 64,
         },
         {
           effect: GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
           terminal:
-            'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
+            'src/providers/github/pr-update-branch-effect.ts#performGitHubPullRequestUpdateBranchEffect',
           root: 'test/fixtures/function-effect-called.ts#<module>',
-          leaf: 'src/providers/github/pr-update-branch-effect.ts#performGithubPullRequestUpdateBranchEffect',
+          leaf: 'src/providers/github/pr-update-branch-effect.ts#performGitHubPullRequestUpdateBranchEffect',
           digest_length: 64,
         },
         {

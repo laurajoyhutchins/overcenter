@@ -9,8 +9,8 @@ import {
   GITHUB_REF_OPERATION,
   GITHUB_REPOSITORY_OPERATION,
 } from '../src/providers/github/operations.generated.ts';
-import { scanGithubPageCollection } from '../src/providers/github/page-collection.ts';
-import { materializeGithubOperationRequest } from '../src/providers/github/openapi.ts';
+import { scanGitHubPageCollection } from '../src/providers/github/page-collection.ts';
+import { materializeGitHubOperationRequest } from '../src/providers/github/openapi.ts';
 import { GITHUB_OPERATION_SEMANTICS } from '../src/providers/github/semantics.ts';
 
 test('generated GitHub operation catalog is bound to semantic operation IDs', () => {
@@ -64,7 +64,7 @@ test('generated GitHub collection metadata captures page traversal defaults', ()
 });
 
 test('GitHub request materialization is operation-driven', () => {
-  const request = materializeGithubOperationRequest(GITHUB_COMMIT_STATUSES_OPERATION, {
+  const request = materializeGitHubOperationRequest(GITHUB_COMMIT_STATUSES_OPERATION, {
     owner: 'acme',
     repo: 'widget',
     ref: 'heads/main',
@@ -82,7 +82,7 @@ test('GitHub request materialization is operation-driven', () => {
     page: 2,
     per_page: 100,
   });
-  const compare = materializeGithubOperationRequest(GITHUB_COMPARE_COMMITS_OPERATION, {
+  const compare = materializeGitHubOperationRequest(GITHUB_COMPARE_COMMITS_OPERATION, {
     owner: 'acme',
     repo: 'widget',
     basehead: `${'a'.repeat(40)}...${'b'.repeat(40)}`,
@@ -90,12 +90,12 @@ test('GitHub request materialization is operation-driven', () => {
   assert.equal(compare.path, `/repos/acme/widget/compare/${'a'.repeat(40)}...${'b'.repeat(40)}`);
   assert.throws(
     () =>
-      materializeGithubOperationRequest(GITHUB_REF_OPERATION, { owner: 'acme', repo: 'widget' }),
+      materializeGitHubOperationRequest(GITHUB_REF_OPERATION, { owner: 'acme', repo: 'widget' }),
     /GITHUB_OPERATION_PARAMETER_REQUIRED:ref/,
   );
   assert.throws(
     () =>
-      materializeGithubOperationRequest(GITHUB_REF_OPERATION, {
+      materializeGitHubOperationRequest(GITHUB_REF_OPERATION, {
         owner: 'acme',
         repo: 'widget',
         ref: 'heads\/main',
@@ -125,7 +125,7 @@ test('certified providers do not copy GitHub routes or response schemas', () => 
 test('page collection traversal is driven by generated operation metadata', () => {
   const seen: string[] = [];
   const first = Array.from({ length: 30 }, (_, index) => index);
-  const result = scanGithubPageCollection({
+  const result = scanGitHubPageCollection({
     operation: GITHUB_COMMIT_STATUSES_OPERATION,
     parameters: { owner: 'acme', repo: 'widget', ref: 'abc' },
     readPage: ({ request, page }) => {
@@ -151,7 +151,7 @@ test('page collection traversal is driven by generated operation metadata', () =
 test('page collection traversal fails closed on unsupported or hostile shapes', () => {
   assert.throws(
     () =>
-      scanGithubPageCollection({
+      scanGitHubPageCollection({
         operation: GITHUB_REPOSITORY_OPERATION,
         parameters: { owner: 'acme', repo: 'widget' },
         readPage: () => ({ members: [], evidence: {} }),
@@ -162,7 +162,7 @@ test('page collection traversal fails closed on unsupported or hostile shapes', 
 
   assert.throws(
     () =>
-      scanGithubPageCollection({
+      scanGitHubPageCollection({
         operation: GITHUB_COMMIT_STATUSES_OPERATION,
         parameters: { owner: 'acme', repo: 'widget', ref: 'abc', page: 7 },
         readPage: () => ({ members: [], evidence: {} }),
@@ -173,7 +173,7 @@ test('page collection traversal fails closed on unsupported or hostile shapes', 
 
   assert.throws(
     () =>
-      scanGithubPageCollection({
+      scanGitHubPageCollection({
         operation: GITHUB_COMMIT_STATUSES_OPERATION,
         parameters: { owner: 'acme', repo: 'widget', ref: 'abc' },
         readPage: () => ({
@@ -185,7 +185,7 @@ test('page collection traversal fails closed on unsupported or hostile shapes', 
     /GITHUB_PAGE_SCAN_PAGE_OVERSIZED/,
   );
 
-  const ended = scanGithubPageCollection({
+  const ended = scanGitHubPageCollection({
     operation: GITHUB_COMMIT_STATUSES_OPERATION,
     parameters: { owner: 'acme', repo: 'widget', ref: 'abc' },
     readPage: () => ({ members: [], evidence: {} }),
@@ -194,7 +194,7 @@ test('page collection traversal fails closed on unsupported or hostile shapes', 
   assert.equal(ended.state, 'collection-end-observed');
   assert.equal(ended.pages.length, 1);
 
-  const limited = scanGithubPageCollection({
+  const limited = scanGitHubPageCollection({
     operation: GITHUB_COMMIT_STATUSES_OPERATION,
     parameters: { owner: 'acme', repo: 'widget', ref: 'abc' },
     maxPages: 2,

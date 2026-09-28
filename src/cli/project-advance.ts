@@ -1,8 +1,8 @@
 import { advanceProjectForAgent } from '../authority/project-agent-protocol.ts';
 import { DEFAULT_PROJECT_GRAPH_PRODUCERS } from '../authority/default-project-graph.ts';
-import { observeGithubHostileMutationEvidence } from '../providers/github/hostile-mutation-evidence.ts';
+import { observeGitHubHostileMutationEvidence } from '../providers/github/hostile-mutation-evidence.ts';
 import {
-  appendGithubOutputs,
+  appendGitHubOutputs,
   commandOption,
   projectCommandContext,
 } from './project-command-runtime.ts';
@@ -30,15 +30,15 @@ const receipt = advanceProjectForAgent(process.cwd(), projectCommandContext(), {
     githubToken,
     ...(githubToken
       ? {
-          observeGithubHostileMutationEvidence: (postcondition) =>
-            observeGithubHostileMutationEvidence(githubToken, postcondition),
+          observeGitHubHostileMutationEvidence: (postcondition) =>
+            observeGitHubHostileMutationEvidence(githubToken, postcondition),
         }
       : {}),
   },
 });
 console.log(JSON.stringify(receipt, null, 2));
 
-appendGithubOutputs({
+appendGitHubOutputs({
   state: receipt.state,
   authority_head: receipt.authority_head,
   obligation_id: receipt.obligation_id ?? '',

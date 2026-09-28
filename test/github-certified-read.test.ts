@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { observeCertifiedGithubSemanticRead } from '../src/providers/github/certified-read.ts';
+import { observeCertifiedGitHubSemanticRead } from '../src/providers/github/certified-read.ts';
 
 const SHA = 'a'.repeat(40);
 const repository = () => ({
@@ -13,7 +13,7 @@ const repository = () => ({
 
 test('generic certified read turns an issue GET into positive schema-bound evidence', () => {
   const seen: string[] = [];
-  const result = observeCertifiedGithubSemanticRead('token', {
+  const result = observeCertifiedGitHubSemanticRead('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     operation: 'issue',
@@ -49,7 +49,7 @@ test('generic certified read turns an issue GET into positive schema-bound evide
 });
 
 test('workflow run request uses generated parameters and remains positive-only', () => {
-  const result = observeCertifiedGithubSemanticRead('token', {
+  const result = observeCertifiedGitHubSemanticRead('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     operation: 'workflow_run',
@@ -84,7 +84,7 @@ test('workflow run request uses generated parameters and remains positive-only',
 });
 
 test('new pull-request file collection is consumable through the generic certified reader', () => {
-  const result = observeCertifiedGithubSemanticRead('token', {
+  const result = observeCertifiedGitHubSemanticRead('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     operation: 'pull_request_files',
@@ -119,7 +119,7 @@ test('new pull-request file collection is consumable through the generic certifi
 });
 
 test('new wrapped Actions collection is consumable through the generic certified reader', () => {
-  const result = observeCertifiedGithubSemanticRead('token', {
+  const result = observeCertifiedGitHubSemanticRead('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     operation: 'workflow_runs',
@@ -160,7 +160,7 @@ test('new wrapped Actions collection is consumable through the generic certified
 });
 
 test('failed or negative provider reads remain indeterminate rather than proving absence', () => {
-  const result = observeCertifiedGithubSemanticRead('token', {
+  const result = observeCertifiedGitHubSemanticRead('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     operation: 'release',
@@ -181,7 +181,7 @@ test('failed or negative provider reads remain indeterminate rather than proving
 test('caller cannot override repository identity or omit exact path coordinates', () => {
   assert.throws(
     () =>
-      observeCertifiedGithubSemanticRead('token', {
+      observeCertifiedGitHubSemanticRead('token', {
         repositoryId: 42,
         repositoryFullName: 'acme/widget',
         operation: 'issue',
@@ -193,7 +193,7 @@ test('caller cannot override repository identity or omit exact path coordinates'
 
   assert.throws(
     () =>
-      observeCertifiedGithubSemanticRead('token', {
+      observeCertifiedGitHubSemanticRead('token', {
         repositoryId: 42,
         repositoryFullName: 'acme/widget',
         operation: 'workflow_job',
@@ -204,7 +204,7 @@ test('caller cannot override repository identity or omit exact path coordinates'
 });
 
 test('certified generic read projects away provider fields outside the declared slice', () => {
-  const result = observeCertifiedGithubSemanticRead('token', {
+  const result = observeCertifiedGitHubSemanticRead('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     operation: 'issue_comments',
@@ -243,7 +243,7 @@ test('certified generic read projects away provider fields outside the declared 
 });
 
 test('repository issue collection preserves the issue versus pull-request discriminator', () => {
-  const result = observeCertifiedGithubSemanticRead('token', {
+  const result = observeCertifiedGitHubSemanticRead('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     operation: 'issues',
@@ -283,7 +283,7 @@ test('repository issue collection preserves the issue versus pull-request discri
 
 test('generic read fails closed before provider access when credential permissions are insufficient', () => {
   let called = false;
-  const result = observeCertifiedGithubSemanticRead('token', {
+  const result = observeCertifiedGitHubSemanticRead('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
     operation: 'issues',

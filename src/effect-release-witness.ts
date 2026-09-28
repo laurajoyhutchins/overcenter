@@ -6,7 +6,7 @@ import {
   assertNonEmptyString as nonEmptyString,
   isData as data,
 } from './validation.ts';
-import { consumeGithubStatusNotDispatchedWitness } from './providers/github/status-transport.ts';
+import { consumeGitHubStatusNotDispatchedWitness } from './providers/github/status-transport.ts';
 
 export const EFFECT_RELEASE_EVIDENCE_SCHEMA = 'overcenter-effect-release-evidence' as const;
 export const EFFECT_RELEASE_EVIDENCE_SCHEMA_VERSION = 1 as const;
@@ -76,7 +76,7 @@ function validateAttemptBinding(value: unknown): EffectAttemptBinding {
 }
 
 export function validateTrustedEffectReleaseWitness(value: unknown): ValidatedEffectReleaseWitness {
-  const githubStatus = consumeGithubStatusNotDispatchedWitness(value);
+  const githubStatus = consumeGitHubStatusNotDispatchedWitness(value);
   if (githubStatus) return githubStatus;
   throw new Error('EFFECT_RELEASE_EVIDENCE_PROVENANCE_INVALID');
 }
