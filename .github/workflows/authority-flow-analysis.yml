@@ -6,10 +6,16 @@ on:
     paths:
       - .github/workflows/authority-flow-analysis.yml
       - experiments/authority-flow-analysis/**
+      - '!experiments/authority-flow-analysis/README.md'
+      - scripts/plan-hosted-evidence.ts
       - package.json
       - src/authority/engine.ts
       - src/providers/github/status-effect.ts
       - src/providers/github/pr-update-branch-effect.ts
+
+concurrency:
+  group: authority-flow-analysis-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 permissions: {}
 
@@ -29,7 +35,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.SOURCE_SHA }}
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Node from repository
@@ -37,12 +43,21 @@ jobs:
         with:
           node-version-file: '.node-version'
 
+      - id: impact
+        name: Plan hosted evidence
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ env.SOURCE_SHA }}
+        run: node --experimental-strip-types scripts/plan-hosted-evidence.ts authority-flow "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
       - name: Install pinned build toolchain
+        if: steps.impact.outputs.required == 'true'
         run: npm install --ignore-scripts --package-lock=false
 
       - name: Type-check repository
+        if: steps.impact.outputs.required == 'true'
         run: npm run typecheck
 
-
       - name: Authority-flow analysis
+        if: steps.impact.outputs.required == 'true'
         run: npm run test:authority-flow-analysis
