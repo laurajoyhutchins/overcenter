@@ -129,7 +129,6 @@ INSERT INTO capability_depends_on_capability(capability_id, required_capability_
   ('effect-reservation', 'durable-project-facts'),
   ('effect-execution', 'effect-reservation'),
   ('effect-release', 'effect-reservation'),
-  ('effect-settlement', 'effect-reservation'),
   ('effect-settlement', 'authoritative-observation'),
   ('effect-settlement', 'durable-project-facts'),
   ('source-integration', 'effect-authorization'),
