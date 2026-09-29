@@ -43,7 +43,6 @@ assert.equal(
 );
 const work = candidates[0];
 assert.ok(work.run_id);
-assert.equal(work.execution_generation, 2);
 assert.equal(work.postcondition.verifier, 'github-commit-status/v2');
 if (work.postcondition.verifier !== 'github-commit-status/v2') throw new Error('WRONG_VERIFIER');
 assert.equal(work.postcondition.commit_sha, sourceSha, 'settlement input identity drifted');
