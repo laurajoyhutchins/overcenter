@@ -1270,8 +1270,8 @@ try {
   findings.sort((left, right) => left.id.localeCompare(right.id));
 
   const report = {
-    schema: 'overcenter-tcb-report',
-    schema_version: 1,
+    schema: 'overcenter-tcb-report' as const,
+    schema_version: 1 as const,
     generated_from: [...ARCHITECTURE_SQL_PATHS, 'tcb-policy.json'],
     architecture_tcb: architectureTcb,
     properties: reports,
