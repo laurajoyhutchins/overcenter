@@ -13,6 +13,7 @@ import {
   type ObservedArchitecture,
 } from '../src/architecture/reconciliation.ts';
 import { observeArchitecture } from '../scripts/observe-architecture.ts';
+import { semanticArtifactChanged } from '../scripts/plan-semantic-change.ts';
 
 const revision = 'a'.repeat(40);
 
@@ -298,6 +299,30 @@ test('realization impact uses the supplied dependency closure rather than roots 
   } finally {
     db.close();
   }
+});
+
+test('staged semantic delta ignores only safely non-semantic TypeScript line changes', () => {
+  assert.equal(
+    semanticArtifactChanged(
+      'src/example.ts',
+      'export const value = 1;\n// old note\n',
+      'export const value = 1;\n// new note\n',
+    ),
+    false,
+  );
+  assert.equal(
+    semanticArtifactChanged(
+      'src/example.ts',
+      'export const value = 1;\n',
+      'export const value = 2;\n',
+    ),
+    true,
+  );
+  assert.equal(
+    semanticArtifactChanged('architecture/logic.sql', '-- old note\n', '-- new note\n'),
+    true,
+  );
+  assert.equal(semanticArtifactChanged('src/example.ts', null, '// new file\n'), true);
 });
 
 test('maintained relational architecture reconciles against the current repository', () => {
