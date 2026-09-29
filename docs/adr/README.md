@@ -32,3 +32,4 @@ Use one ADR per decision. Do not accumulate unrelated decisions into a rolling a
 | [ADR-0007](./0007-authoritative-merge-gate.md) | Accepted | Require one stable merge gate over the exact core evidence for a source revision. |
 | [ADR-0008](./0008-rust-native-worker-confinement.md) | Accepted | Admit Rust only for a narrow native worker-confinement substrate; keep authority semantics in TypeScript. |
 | [ADR-0010](./0010-controlled-vs-uncontrolled-agent-harnesses.md) | Accepted | Distinguish execution boundaries Overcenter controls from external harness boundaries it does not. |
+| [ADR-0011](./0011-relational-architecture-model.md) | Accepted | Use a three-layer relational SQL model for architectural vocabulary, desired design, and current repository realization. |

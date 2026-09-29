@@ -929,6 +929,52 @@ The research notes are best read as bounded prior-art lenses feeding this one mo
 
 The notes remain useful for detailed prior art. This file is the canonical cross-note architecture.
 
+## Architecture as relational data
+
+The repository's architectural intent and realization are also represented as a three-layer relational model:
+
+```text
+concepts.sql -> logic.sql -> physics.sql
+language        desired      current
+                design       realization
+```
+
+The SQL model is queryable architecture, not a second project-authority store. Deterministic observation reconciles declared physical bindings with the current repository, and uncertainty is reported rather than accepted as compliance. See [`architecture/README.md`](./architecture/README.md) and [ADR-0011](./docs/adr/0011-relational-architecture-model.md).
+
+## Judgment frontier
+
+Before dispatching reasoning work, Overcenter classifies the current work item into one of four routes:
+
+- `deterministic-software-action` for mechanically derivable work;
+- `reasoning-required` when the admitted task genuinely requires judgment;
+- `recovery-required` when effect or realization uncertainty prevents safe forward execution;
+- `unsupported` when the current packet/state combination is not an admitted action.
+
+The decision includes stable reason codes and evidence predicates. This keeps the reasoning boundary explicit rather than allowing every READY item to become an agent prompt.
+
+## Interaction frontier
+
+Concurrency is derived from the smallest currently implemented interaction relation: causal dependency or conflicting effect semantics. Obligations connected by either relation occupy the same interaction component; disconnected components may be considered independently.
+
+This is deliberately narrower than a general scheduler theorem. The frontier does not claim that all unmodeled environmental interactions commute.
+
+## Repository change transactions
+
+Source work follows a transaction-shaped lifecycle:
+
+```text
+semantic intent
+  -> expected write set
+  -> staged candidate
+  -> observed semantic delta
+  -> affected assurance properties
+  -> minimum declared evidence cover
+  -> exact-head verification
+  -> integration or replan
+```
+
+If the observed semantic delta differs from the planned write set, admission returns `REPLAN_REQUIRED` rather than silently widening the transaction. Source integration separately binds worker proposals to exact claims, verifies a canonical candidate read-only, and integrates only the verified tree against the exact source base. See [the source-change protocol](./docs/source-change-protocol.md).
+
 ## Glossary
 
 | Term | Meaning |
