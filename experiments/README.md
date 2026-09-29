@@ -16,6 +16,7 @@ Only maintained executable research lives in this tree. Git history is the archi
 - `github-object-transport` (supported) — Can a worker receive exactly declared GitHub bytes without a checkout or repository credential?
 - `production-criticality-ranking` (mixed) — Can Overcenter maintain a reproducible total ordering of production-code importance from quantitative facts?
 - `production-latency` (supported) — For one successful production GitHub status transaction, how much latency belongs to Overcenter local correctness machinery versus provider I/O?
+- `semantic-scaling` (pending) — Does marginal trusted semantic complexity converge as supported autonomous work becomes more semantic?
 - `substrate-capability-admission` (supported) — Can signed, context-bound substrate capability evidence safely affect admission for one exact provider capability without trusting environment declarations?
 - `verified-generated-output` (supported) — Can trusted validation establish authoritative identity for generated artifact bytes that were not known when the obligation was defined, while downstream work consumes only retained evidence and an authoritative settlement receipt?
 
