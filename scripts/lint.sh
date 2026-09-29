@@ -14,6 +14,13 @@ mapfile -t biome_format_files < <(
 )
 npx --yes "@biomejs/biome@$BIOME_VERSION" format "${biome_format_files[@]}"
 
+go_runtime_version="$(tr -d '\r\n' < .go-version)"
+go_language_version="$(awk '$1 == "go" { print $2; exit }' src/execution/executor/go.mod)"
+if [[ -z "$go_language_version" || "$go_runtime_version" != "$go_language_version".* ]]; then
+  printf 'Go version drift: .go-version=%s, go.mod=%s\n' "$go_runtime_version" "$go_language_version" >&2
+  exit 1
+fi
+
 # TypeScript identifiers use the product's canonical GitHub casing. Lowercase github remains valid
 # in wire values, schema IDs, paths, and filenames.
 if git grep -nE '(^|[^A-Za-z0-9_])Github[A-Z][A-Za-z0-9_]*' -- '*.ts'; then
