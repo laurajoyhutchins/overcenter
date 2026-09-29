@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import { deriveAssuranceChangePlan } from '../src/architecture/change-planner.ts';
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import { deriveRuntimeDispatchBindings, trustRootsForEffect } from '../src/architecture/tcb.ts';
 import {
@@ -154,6 +155,83 @@ test('TCB roots are derived recursively from effect architecture', () => {
           root.artifact_id === 'src/source/source-integration.ts' &&
           root.symbol_id === 'integrateVerifiedSourceCandidate',
       ),
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('assurance proof plan is derived through existing property, effect, obligation, and evidence relations', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const plan = deriveAssuranceChangePlan(db, 'github-commit-status-provider');
+
+    assert.deepEqual(plan.properties, [
+      'broker-mutation-safety',
+      'github-commit-status-provider',
+    ]);
+    assert.deepEqual(plan.effects, [
+      'github-commit-status/create',
+      'github-pull-request/update-branch',
+      'kubernetes-configmap/ensure',
+      'source/integrate',
+    ]);
+    assert.deepEqual(plan.obligations, [
+      'authoritative-settlement',
+      'exact-revision-effect',
+      'reserve-before-effect',
+      'unresolved-effect-no-replay',
+    ]);
+    assert.deepEqual(plan.evidence, [
+      {
+        evidence_id: 'effect-core-loop-proof',
+        obligation_ids: [
+          'exact-revision-effect',
+          'reserve-before-effect',
+          'unresolved-effect-no-replay',
+        ],
+        artifact_ids: ['test/trusted-effect-core-loop.test.ts'],
+      },
+      {
+        evidence_id: 'provider-observation-proof',
+        obligation_ids: ['authoritative-settlement'],
+        artifact_ids: ['test/provider-observation.test.ts'],
+      },
+    ]);
+
+    assert.ok(
+      plan.realization_roots.some(
+        (root) =>
+          root.artifact_id === 'src/authority/engine.ts' &&
+          root.symbol_id === 'KernelCore.authorizeEffect' &&
+          root.basis === 'authority' &&
+          root.requirement_id === 'effect-authority',
+      ),
+    );
+    assert.ok(
+      plan.realization_roots.some(
+        (root) =>
+          root.artifact_id === 'src/providers/github/status-effect.ts' &&
+          root.symbol_id === 'performGitHubCommitStatusEffect' &&
+          root.basis === 'effect' &&
+          root.requirement_id === 'github-commit-status/create',
+      ),
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('assurance proof planning fails closed when a required obligation has no witnessed evidence', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    db.prepare(
+      "DELETE FROM evidence_witnesses_obligation WHERE obligation_id = 'authoritative-settlement'",
+    ).run();
+
+    assert.throws(
+      () => deriveAssuranceChangePlan(db, 'github-commit-status-provider'),
+      /ASSURANCE_EVIDENCE_INCOMPLETE:authoritative-settlement/,
     );
   } finally {
     db.close();
