@@ -25,7 +25,6 @@ interface EvidenceRow {
   artifact_id: string;
 }
 
-
 export interface AssurancePropertyImpact {
   property_id: string;
   changed_artifacts: string[];
@@ -179,7 +178,6 @@ export function deriveAssuranceChangePlan(
     realization_roots: realizationRoots,
   };
 }
-
 
 export function deriveAffectedAssuranceProperties(
   db: DatabaseSync,
