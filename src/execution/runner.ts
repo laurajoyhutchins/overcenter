@@ -9,7 +9,6 @@ import {
   type ProcessSpec,
 } from './protocol.ts';
 import { KernelCore, type Receipt } from '../authority/engine.ts';
-import { isData } from '../validation.ts';
 
 export const REPLAY_SAFE_TEST_COMPUTATION_PACKET_SCHEMA =
   'overcenter-replay-safe-test-computation-v1' as const;
@@ -52,8 +51,12 @@ function errorMessage(error: unknown): string {
   return message.length <= 2048 ? message : message.slice(0, 2048);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
 export function validateTestComputationPacket(value: unknown): TestComputationPacket {
-  if (!isData(value)) throw new Error('TEST_COMPUTATION_PACKET_INVALID');
+  if (!isRecord(value)) throw new Error('TEST_COMPUTATION_PACKET_INVALID');
   if (value.kind !== 'test') throw new Error('TEST_COMPUTATION_PACKET_SCHEMA_MISMATCH');
   if (value.schema !== REPLAY_SAFE_TEST_COMPUTATION_PACKET_SCHEMA) {
     throw new Error('TEST_COMPUTATION_REPLAY_SAFE_PACKET_REQUIRED');
@@ -116,7 +119,7 @@ function readyTestWork(kernel: KernelCore): {
 } | null {
   for (const work of kernel.inspect()) {
     if (work.status !== 'READY') continue;
-    if (!isData(work.packet) || work.packet.kind !== 'test') continue;
+    if (!isRecord(work.packet) || work.packet.kind !== 'test') continue;
     return {
       work,
       packet: validateTestComputationPacket(work.packet),
@@ -246,9 +249,9 @@ export async function resumeTestComputation(
   await assertExecutionContext(packet, executor);
 
   const prior = kernel.receipts(runId).at(-1);
-  const diagnostic = isData(prior?.diagnostic) ? prior.diagnostic : null;
+  const diagnostic = isRecord(prior?.diagnostic) ? prior.diagnostic : null;
   const transportFailure =
-    diagnostic && isData(diagnostic.computation_transport_failure)
+    diagnostic && isRecord(diagnostic.computation_transport_failure)
       ? diagnostic.computation_transport_failure
       : null;
   if (transportFailure) {
