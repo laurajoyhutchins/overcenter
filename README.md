@@ -169,6 +169,7 @@ The safety claim is narrower: an uncertain or even locally hostile worker does n
 ## Repository map
 
 ```text
+architecture/ declarative concepts, desired architecture, and current physical realization
 src/          all production implementation, including operator CLIs and native execution
 contracts/    versioned machine-readable data contracts
 test/         focused invariants of production mechanisms
@@ -176,14 +177,17 @@ scripts/      repository tooling and proof/evidence entrypoints
 experiments/  maintained executable proofs
 formal/       machine-checked safety model and negative controls
 research/     prior art, synthesis, claims, and design arguments
-docs/adr/     durable architecture decisions
+docs/         protocol documentation and durable architecture decisions
 examples/     small runnable demonstrations
 .github/      hosted proof workflows
 ```
 
 Important entry points:
 
+- [`architecture/README.md`](./architecture/README.md) - the relational architecture model, reconciliation boundary, and semantic-change proof planning.
 - [`src/cli/`](./src/cli/) - the two supported semantic operator entrypoints: `project.advance` and `project.submit`.
+- [`docs/source-change-protocol.md`](./docs/source-change-protocol.md) - bounded source proposal, verification, and exact-base integration.
+- [`docs/provider-capabilities.md`](./docs/provider-capabilities.md) - current provider observation, mutation, and negative-evidence boundaries.
 - [`src/authority/kernel.ts`](./src/authority/kernel.ts) - production SQLite-backed kernel entry point.
 - [`src/authority/engine.ts`](./src/authority/engine.ts) - storage-neutral transaction, recovery, and settlement policy.
 - [`src/authority/store.ts`](./src/authority/store.ts) - minimal durable-fact authority contract.
