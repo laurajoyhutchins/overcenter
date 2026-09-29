@@ -50,7 +50,6 @@
     "test:authority-storage-decomposition": "node --experimental-strip-types experiments/authority-storage-decomposition/experiment.ts",
     "test:verified-generated-output": "node --experimental-strip-types experiments/verified-generated-output/experiment.ts",
     "check:tcb": "node --experimental-strip-types scripts/report-tcb.ts",
-    "update:tcb": "node --experimental-strip-types scripts/report-tcb.ts --write",
     "check:experiment-statistics": "node --experimental-strip-types scripts/check-experiment-statistics.ts",
     "check:architecture-reconciliation": "node --experimental-strip-types scripts/check-architecture-reconciliation.ts",
     "plan:hosted-evidence": "node --experimental-strip-types scripts/plan-hosted-evidence.ts",
