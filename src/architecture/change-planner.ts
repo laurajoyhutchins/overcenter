@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 
+import { sha256 } from '../digest.ts';
 import { deriveAssurancePropertyTrustRoots } from './tcb.ts';
 
 export interface AssuranceChangePlan {
@@ -255,4 +256,98 @@ export function deriveAffectedAssuranceProperties(
       via_properties: [...impact.viaProperties].sort(),
     }))
     .sort((left, right) => left.property_id.localeCompare(right.property_id));
+}
+
+
+export interface RepositoryTextReplacementIntent {
+  kind: 'replace_text';
+  summary: string;
+  artifact_id: string;
+  before: string;
+  after: string;
+}
+
+export interface RepositoryTransactionPlan {
+  base_revision: string;
+  semantic_intent: RepositoryTextReplacementIntent;
+  read_assumptions: Array<{ artifact_id: string; sha256: string }>;
+  write_set: string[];
+  mutations: Array<{
+    kind: 'replace_text';
+    artifact_id: string;
+    before: string;
+    after: string;
+    expected_after_sha256: string;
+  }>;
+  preconditions: Array<{
+    kind: 'text_occurrence_count';
+    artifact_id: string;
+    text: string;
+    expected_count: 1;
+  }>;
+  expected_semantic_effects: AssurancePropertyImpact[];
+  proof_plans: AssuranceChangePlan[];
+}
+
+export function deriveRepositoryTransactionPlan(
+  db: DatabaseSync,
+  baseRevision: string,
+  intent: RepositoryTextReplacementIntent,
+  readArtifact: (artifactId: string) => string,
+  dependencyClosure: ArtifactDependencyClosure,
+): RepositoryTransactionPlan {
+  if (!/^[0-9a-f]{40}$/.test(baseRevision)) {
+    throw new Error(`TRANSACTION_BASE_REVISION_INVALID:${baseRevision}`);
+  }
+  if (intent.before === intent.after) throw new Error('TRANSACTION_MUTATION_NOOP');
+
+  const declared = db
+    .prepare('SELECT 1 AS declared FROM artifact WHERE artifact_id = ?')
+    .get(intent.artifact_id) as { declared: number } | undefined;
+  if (!declared) {
+    throw new Error(`TRANSACTION_WRITE_OUTSIDE_ARCHITECTURE:${intent.artifact_id}`);
+  }
+
+  const beforeContent = readArtifact(intent.artifact_id);
+  const occurrences = beforeContent.split(intent.before).length - 1;
+  if (occurrences !== 1) {
+    throw new Error(
+      `TRANSACTION_PRECONDITION_UNSATISFIED:${intent.artifact_id}:expected=1:actual=${occurrences}`,
+    );
+  }
+
+  const afterContent = beforeContent.replace(intent.before, intent.after);
+  const expectedSemanticEffects = deriveAffectedAssuranceProperties(
+    db,
+    [intent.artifact_id],
+    dependencyClosure,
+  );
+
+  return {
+    base_revision: baseRevision,
+    semantic_intent: intent,
+    read_assumptions: [{ artifact_id: intent.artifact_id, sha256: sha256(beforeContent) }],
+    write_set: [intent.artifact_id],
+    mutations: [
+      {
+        kind: 'replace_text',
+        artifact_id: intent.artifact_id,
+        before: intent.before,
+        after: intent.after,
+        expected_after_sha256: sha256(afterContent),
+      },
+    ],
+    preconditions: [
+      {
+        kind: 'text_occurrence_count',
+        artifact_id: intent.artifact_id,
+        text: intent.before,
+        expected_count: 1,
+      },
+    ],
+    expected_semantic_effects: expectedSemanticEffects,
+    proof_plans: expectedSemanticEffects.map((effect) =>
+      deriveAssuranceChangePlan(db, effect.property_id),
+    ),
+  };
 }

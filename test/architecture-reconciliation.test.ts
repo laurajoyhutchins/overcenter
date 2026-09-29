@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   deriveAffectedAssuranceProperties,
   deriveAssuranceChangePlan,
+  deriveRepositoryTransactionPlan,
 } from '../src/architecture/change-planner.ts';
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import { deriveRuntimeDispatchBindings, trustRootsForEffect } from '../src/architecture/tcb.ts';
@@ -326,33 +327,90 @@ test('staged semantic delta ignores only safely non-semantic TypeScript line cha
   assert.equal(semanticArtifactChanged('src/example.ts', null, '// new file\n'), true);
 });
 
-test('golden transaction pins planner and lifecycle expectations', () => {
+test('golden semantic intent derives the bounded repository transaction', () => {
   const golden = GOLDEN_TRANSACTION_CASE;
-  assert.deepEqual(golden.expected_write_set, [golden.candidate.path]);
-  assert.equal(readFileSync(golden.candidate.path, 'utf8').includes(golden.candidate.before), true);
-
-  const actualStagedDelta = semanticArtifactChanged(
-    golden.candidate.path,
-    golden.candidate.before,
-    golden.candidate.after,
-  )
-    ? [golden.candidate.path]
-    : [];
-  assert.deepEqual(actualStagedDelta, golden.expected_staged_delta);
-
   const db = loadArchitectureDatabase();
   try {
-    const impacts = deriveAffectedAssuranceProperties(db, actualStagedDelta, (roots) => roots);
-    assert.deepEqual(impacts, golden.expected_assurance_impacts);
+    const plan = deriveRepositoryTransactionPlan(
+      db,
+      revision,
+      golden.semantic_intent,
+      (artifactId) => readFileSync(artifactId, 'utf8'),
+      (roots) => roots,
+    );
 
-    const evidence = [
-      ...new Map(
-        impacts
-          .flatMap((impact) => deriveAssuranceChangePlan(db, impact.property_id).evidence)
-          .map((item) => [item.evidence_id, item]),
-      ).values(),
-    ].sort((left, right) => left.evidence_id.localeCompare(right.evidence_id));
-    assert.deepEqual(evidence, golden.expected_minimum_evidence);
+    assert.deepEqual(plan.write_set, golden.expected_write_set);
+    assert.deepEqual(plan.expected_semantic_effects, golden.expected_assurance_impacts);
+    assert.deepEqual(plan.proof_plans[0]?.evidence, golden.expected_minimum_evidence);
+    assert.deepEqual(plan.preconditions, [
+      {
+        kind: 'text_occurrence_count',
+        artifact_id: golden.candidate.path,
+        text: golden.candidate.before,
+        expected_count: 1,
+      },
+    ]);
+    assert.match(plan.read_assumptions[0]?.sha256 ?? '', /^[0-9a-f]{64}$/);
+    assert.deepEqual(
+      plan.mutations.map(({ kind, artifact_id, before, after }) => ({
+        kind,
+        artifact_id,
+        before,
+        after,
+      })),
+      [
+        {
+          kind: 'replace_text',
+          artifact_id: golden.candidate.path,
+          before: golden.candidate.before,
+          after: golden.candidate.after,
+        },
+      ],
+    );
+
+    const actualStagedDelta = semanticArtifactChanged(
+      golden.candidate.path,
+      plan.mutations[0]!.before,
+      plan.mutations[0]!.after,
+    )
+      ? [golden.candidate.path]
+      : [];
+    assert.deepEqual(actualStagedDelta, golden.expected_staged_delta);
+  } finally {
+    db.close();
+  }
+});
+
+test('transaction planner fails closed outside its bounded read and write assumptions', () => {
+  const golden = GOLDEN_TRANSACTION_CASE;
+  const db = loadArchitectureDatabase();
+  try {
+    assert.throws(
+      () =>
+        deriveRepositoryTransactionPlan(
+          db,
+          revision,
+          golden.semantic_intent,
+          () => `${golden.candidate.before}\n${golden.candidate.before}`,
+          (roots) => roots,
+        ),
+      /TRANSACTION_PRECONDITION_UNSATISFIED:.*expected=1:actual=2/,
+    );
+
+    assert.throws(
+      () =>
+        deriveRepositoryTransactionPlan(
+          db,
+          revision,
+          {
+            ...golden.semantic_intent,
+            artifact_id: 'README.md',
+          },
+          () => golden.candidate.before,
+          (roots) => roots,
+        ),
+      /TRANSACTION_WRITE_OUTSIDE_ARCHITECTURE:README\.md/,
+    );
   } finally {
     db.close();
   }

@@ -7,8 +7,13 @@
  */
 export const GOLDEN_TRANSACTION_CASE = {
   id: 'github-status-description',
-  semantic_intent:
-    'Change only the descriptive text attached to the trusted GitHub commit-status mutation.',
+  semantic_intent: {
+    kind: 'replace_text',
+    summary: 'Change only the descriptive text attached to the trusted GitHub commit-status mutation.',
+    artifact_id: 'src/providers/github/status-effect.ts',
+    before: "description: 'Overcenter trusted effect broker',",
+    after: "description: 'Overcenter trusted commit-status effect broker',",
+  },
   expected_write_set: ['src/providers/github/status-effect.ts'],
   candidate: {
     path: 'src/providers/github/status-effect.ts',
