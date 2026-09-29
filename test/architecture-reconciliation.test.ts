@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import {
+  deriveAffectedAssuranceProperties,
+  deriveAssuranceChangePlan,
+} from '../src/architecture/change-planner.ts';
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import { deriveRuntimeDispatchBindings, trustRootsForEffect } from '../src/architecture/tcb.ts';
 import {
@@ -9,6 +13,7 @@ import {
   type ObservedArchitecture,
 } from '../src/architecture/reconciliation.ts';
 import { observeArchitecture } from '../scripts/observe-architecture.ts';
+import { semanticArtifactChanged } from '../scripts/plan-semantic-change.ts';
 
 const revision = 'a'.repeat(40);
 
@@ -158,6 +163,166 @@ test('TCB roots are derived recursively from effect architecture', () => {
   } finally {
     db.close();
   }
+});
+
+test('assurance proof plan is derived through existing property, effect, obligation, and evidence relations', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const plan = deriveAssuranceChangePlan(db, 'github-commit-status-provider');
+
+    assert.deepEqual(plan.properties, ['broker-mutation-safety', 'github-commit-status-provider']);
+    assert.deepEqual(plan.effects, [
+      'github-commit-status/create',
+      'github-pull-request/update-branch',
+      'kubernetes-configmap/ensure',
+      'source/integrate',
+    ]);
+    assert.deepEqual(plan.obligations, [
+      'authoritative-settlement',
+      'exact-revision-effect',
+      'reserve-before-effect',
+      'unresolved-effect-no-replay',
+    ]);
+    assert.deepEqual(plan.evidence, [
+      {
+        evidence_id: 'effect-core-loop-proof',
+        obligation_ids: [
+          'exact-revision-effect',
+          'reserve-before-effect',
+          'unresolved-effect-no-replay',
+        ],
+        artifact_ids: ['test/trusted-effect-core-loop.test.ts'],
+      },
+      {
+        evidence_id: 'provider-observation-proof',
+        obligation_ids: ['authoritative-settlement'],
+        artifact_ids: ['test/provider-observation.test.ts'],
+      },
+    ]);
+
+    assert.ok(
+      plan.realization_roots.some(
+        (root) =>
+          root.artifact_id === 'src/authority/engine.ts' &&
+          root.symbol_id === 'KernelCore.authorizeEffect' &&
+          root.basis === 'authority' &&
+          root.requirement_id === 'effect-authority',
+      ),
+    );
+    assert.ok(
+      plan.realization_roots.some(
+        (root) =>
+          root.artifact_id === 'src/providers/github/status-effect.ts' &&
+          root.symbol_id === 'performGitHubCommitStatusEffect' &&
+          root.basis === 'effect' &&
+          root.requirement_id === 'github-commit-status/create',
+      ),
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('assurance proof planning fails closed when a required obligation has no witnessed evidence', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    db.prepare(
+      "DELETE FROM evidence_witnesses_obligation WHERE obligation_id = 'authoritative-settlement'",
+    ).run();
+
+    assert.throws(
+      () => deriveAssuranceChangePlan(db, 'github-commit-status-provider'),
+      /ASSURANCE_EVIDENCE_INCOMPLETE:authoritative-settlement/,
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('realization impact maps changed roots back to assurance properties and composition dependents', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const impacts = deriveAffectedAssuranceProperties(
+      db,
+      ['src/providers/github/status-effect.ts'],
+      (roots) => roots,
+    );
+
+    assert.deepEqual(impacts, [
+      {
+        property_id: 'github-commit-status-provider',
+        changed_artifacts: ['src/providers/github/status-effect.ts'],
+        direct: true,
+        via_properties: [],
+      },
+    ]);
+
+    const authorityImpacts = deriveAffectedAssuranceProperties(
+      db,
+      ['src/authority/engine.ts'],
+      (roots) => roots,
+    );
+    const broker = authorityImpacts.find(
+      (impact) => impact.property_id === 'broker-mutation-safety',
+    );
+    const provider = authorityImpacts.find(
+      (impact) => impact.property_id === 'github-commit-status-provider',
+    );
+
+    assert.equal(broker?.direct, true);
+    assert.equal(provider?.direct, false);
+    assert.deepEqual(provider?.via_properties, ['broker-mutation-safety']);
+    assert.deepEqual(provider?.changed_artifacts, ['src/authority/engine.ts']);
+  } finally {
+    db.close();
+  }
+});
+
+test('realization impact uses the supplied dependency closure rather than roots alone', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const changedDependency = 'src/example-transitive-dependency.ts';
+    const impacts = deriveAffectedAssuranceProperties(db, [changedDependency], (roots) =>
+      roots.includes('src/providers/github/status-effect.ts')
+        ? [...roots, changedDependency]
+        : roots,
+    );
+
+    assert.deepEqual(impacts, [
+      {
+        property_id: 'github-commit-status-provider',
+        changed_artifacts: [changedDependency],
+        direct: true,
+        via_properties: [],
+      },
+    ]);
+  } finally {
+    db.close();
+  }
+});
+
+test('staged semantic delta ignores only safely non-semantic TypeScript line changes', () => {
+  assert.equal(
+    semanticArtifactChanged(
+      'src/example.ts',
+      'export const value = 1;\n// old note\n',
+      'export const value = 1;\n// new note\n',
+    ),
+    false,
+  );
+  assert.equal(
+    semanticArtifactChanged(
+      'src/example.ts',
+      'export const value = 1;\n',
+      'export const value = 2;\n',
+    ),
+    true,
+  );
+  assert.equal(
+    semanticArtifactChanged('architecture/logic.sql', '-- old note\n', '-- new note\n'),
+    true,
+  );
+  assert.equal(semanticArtifactChanged('src/example.ts', null, '// new file\n'), true);
 });
 
 test('maintained relational architecture reconciles against the current repository', () => {
