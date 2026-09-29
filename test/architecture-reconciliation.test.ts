@@ -329,10 +329,7 @@ test('staged semantic delta ignores only safely non-semantic TypeScript line cha
 test('golden transaction pins planner and lifecycle expectations', () => {
   const golden = GOLDEN_TRANSACTION_CASE;
   assert.deepEqual(golden.expected_write_set, [golden.candidate.path]);
-  assert.equal(
-    readFileSync(golden.candidate.path, 'utf8').includes(golden.candidate.before),
-    true,
-  );
+  assert.equal(readFileSync(golden.candidate.path, 'utf8').includes(golden.candidate.before), true);
 
   const actualStagedDelta = semanticArtifactChanged(
     golden.candidate.path,
