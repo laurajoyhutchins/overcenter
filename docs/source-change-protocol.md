@@ -1,87 +1,67 @@
 # Source-change protocol
 
-Source modification is an authority-bearing transaction, not a worker-owned checkout operation.
+Overcenter treats a source change as a controlled repository transaction. A worker may propose file contents, but it does not choose its own write scope or decide that the change has been integrated successfully.
 
-The protocol keeps reasoning about what to change separate from deterministic control of what may be written, what candidate was verified, and what exact source revision may be integrated.
+## Versioned records
 
-## Durable shapes
+`src/source/source-obligation.ts` defines four versioned records:
 
-`src/source/source-obligation.ts` defines four versioned shapes:
-
-| Shape | Purpose |
+| Record | Purpose |
 | --- | --- |
-| `overcenter-source-task/v1` | Trusted objective, exact writable paths, effect contract, optional acceptance predicate, and bounded context. |
-| `overcenter-source-assignment/v1` | Binds one task to an authoritative obligation and claim. |
-| `overcenter-source-proposal/v1` | Worker proposal containing only the requested file bytes or deletions. |
-| `overcenter-source-candidate/v1` | Trusted broker result bound to obligation key, run, claimed revision, claimed source SHA, and candidate commit. |
+| `overcenter-source-task/v1` | Objective, writable paths, effect contract, optional acceptance predicate, and task context. |
+| `overcenter-source-assignment/v1` | Binds a source task to one obligation and one claim. |
+| `overcenter-source-proposal/v1` | Contains the file contents or deletions proposed by the worker. |
+| `overcenter-source-candidate/v1` | Records the canonical candidate produced by the trusted broker. |
 
-Source task definitions are persisted inside authority history. Their schema identifiers and semantics are replay protocol. Refactors may replace implementation machinery, but incompatible changes require an explicit migration or a new discriminator.
+Source tasks are persisted in authority history, so these schemas are part of the replay contract. Incompatible changes require either a migration or a new versioned discriminator.
 
-## Writable scope
+## Write scope
 
-A source task declares exact repository-relative writable paths.
+Each source task lists the exact repository-relative paths that may change.
 
-The source broker rejects:
+The broker rejects malformed or absolute paths, duplicates, files outside the declared write set, `.git`, `.overcenter/**`, and `.github/**`.
 
-- absolute or malformed paths;
-- duplicate paths;
-- paths outside the task's writable set;
-- `.git`;
-- the Overcenter control plane under `.overcenter/**`;
-- GitHub control-plane files under `.github/**`.
+The worker can choose the contents of an allowed change. It cannot enlarge the allowed change itself.
 
-A reasoning worker therefore proposes content. It does not widen its own write authority.
-
-## Transaction lifecycle
+## Lifecycle
 
 ```text
 authoritative source SHA
         |
-        v
 source task + claim
         |
-        v
 worker proposal
         |
-        v
 trusted source broker
-  validate scope + exact claim
-  materialize canonical candidate
         |
-        v
-read-only candidate verification
+canonical candidate
         |
-        v
+read-only verification
+        |
 verified tree
         |
-        v
-fresh authority reconstruction
+exact-base integration
         |
-        v
-exact-base source integration CAS
-        |
-        +-- base moved --> REREALIZE_REQUIRED
-        +-- ambiguous --> RECOVERY_REQUIRED
-        |
-        v
-trusted integration evidence
+integration evidence
 ```
 
-The candidate commit is not project truth merely because it exists. Verification binds the candidate, base, and resulting tree. Integration reconstructs the verified tree and attempts an exact-base Git update rather than trusting a mutable worker branch.
+If the source base has moved, the work returns for a new realization. If the integration outcome is ambiguous, the run moves to recovery instead of retrying the mutation blindly.
+
+Verification binds the candidate to an exact base and tree. Integration uses that verified tree and an exact-base Git compare-and-swap; it does not trust a mutable worker branch.
 
 ## Proposal refs
 
-A worker may prepare a revision descended from the claimed source SHA. `source-broker-ref` reads that revision, derives its final changed file bytes, validates those bytes against the authoritative task and claim, and publishes a canonical candidate owned by the trusted broker.
+A worker may prepare a revision descended from the claimed source SHA. `source-broker-ref` reads the final changed bytes from that revision, validates them against the task and claim, and publishes a canonical candidate.
 
-The proposal ref is transport. It is not authority.
+The ref is only transport. The brokered candidate is the object that enters verification.
 
 ## Verification and integration evidence
 
-`src/source/source-integration.ts` defines:
+`src/source/source-integration.ts` defines two additional records:
 
-- `overcenter-source-verification/v1`, which records whether one exact candidate was verified against one exact base and, when verified, the resulting tree;
-- `overcenter-source-integration-evidence/v1`, which binds the run, obligation key, source SHA, candidate SHA, verified tree, integration commit, and whether integration was newly performed or already present.
+- `overcenter-source-verification/v1` records whether a specific candidate was verified against a specific base and, on success, the resulting tree.
+- `overcenter-source-integration-evidence/v1` records the run, obligation key, source SHA, candidate SHA, verified tree, integration commit, and whether the commit was newly integrated or already present.
 
-These records support settlement, but they do not let a worker declare success. The ordinary authority and observation rules still determine whether the corresponding obligation becomes `DONE`.
+These records support settlement. They do not allow the worker to mark its own work complete.
 
-See [operator commands](./operator-commands.md) for the agent-facing `project.advance` / `project.submit` surface.
+See [operator commands](./operator-commands.md) for the `project.advance` and `project.submit` interface.

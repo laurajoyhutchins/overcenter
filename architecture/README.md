@@ -1,55 +1,50 @@
 # Relational architecture model
 
-Overcenter represents its intended architecture as three ordered SQL layers:
+Overcenter describes its architecture in three SQL files:
 
 ```text
 concepts.sql  ->  logic.sql  ->  physics.sql
-vocabulary       desired         repository
-                 architecture    realization
+vocabulary       intended       repository
+                 design         mapping
 ```
 
-The model is declarative. It describes architectural meaning and the current implementation binding; it does not replace the durable project-authority history or make a SQL row authoritative project state.
+Together they provide a queryable model of the system. They do not replace the authority store or determine project state.
 
-## Layers
+## The three layers
 
 ### `concepts.sql`
 
-Defines the implementation-independent language of architecture: authorities, effects, obligations, evidence, capabilities, assurance properties, artifacts, symbols, principals, and the relations among them.
+Defines the vocabulary used by the model: authorities, effects, obligations, evidence, capabilities, assurance properties, artifacts, symbols, principals, and their relationships.
 
-This layer must not name repository paths, provider products, workflow names, or current implementation symbols.
+It stays implementation-independent. Repository paths, provider names, workflow names, and source symbols do not belong here.
 
 ### `logic.sql`
 
-States what Overcenter intends to remain true independent of the current code layout. It instantiates the conceptual vocabulary with logical authorities, effects, capabilities, obligations, evidence classes, and assurance properties.
+Describes the architecture Overcenter intends to preserve. It instantiates the concepts with the authorities, effects, capabilities, obligations, evidence classes, and assurance properties that matter to the system.
 
-This layer may name semantic provider operations when they are part of the supported architecture, but it must not bind those meanings to source paths, workflow jobs, or implementation symbols.
+It may name supported semantic operations, but it does not bind them to files, symbols, or workflow jobs.
 
 ### `physics.sql`
 
-Binds the logical architecture to the current repository revision. It may name source artifacts, symbols, workflows, jobs, runtime principals, provider operations, and concrete implementation relationships.
+Maps the logical model onto the current repository. This is where source files, symbols, workflows, jobs, runtime principals, and provider operations are named.
 
-A physics row is a declared realization claim. It is not accepted merely because it exists in SQL.
+These mappings are claims about the implementation. The repository checks them against observed code and workflow structure rather than assuming they are correct.
 
 ## Loading and reconciliation
 
-`src/architecture/sql-model.ts` loads the three files in order into one in-memory SQLite database and fails closed on foreign-key violations.
+`src/architecture/sql-model.ts` loads the three files, in order, into an in-memory SQLite database and rejects foreign-key violations.
 
-The repository then observes mechanically recoverable implementation facts and reconciles them against the declared physical model:
+`scripts/observe-architecture.ts` then inspects the repository for facts that can be recovered from source and workflow configuration, including:
 
-```text
-declared architecture
-        +
-observed repository structure
-        |
-        v
-missing / unexpected / unknown findings
-```
+- declared artifacts and symbols;
+- GitHub Actions jobs and write permissions;
+- direct provider calls;
+- transitive effect reachability; and
+- dynamic calls whose effect target cannot be resolved statically.
 
-`scripts/observe-architecture.ts` currently observes declared artifacts and symbols plus GitHub Actions principals, write capabilities, direct provider invocations, transitive effect reachability, and unresolved dynamic effect calls.
+`src/architecture/reconciliation.ts` compares those observations with `physics.sql`. Findings are reported as `missing`, `unexpected`, or `unknown`. An unresolved dynamic call stays unknown instead of being treated as compliant.
 
-`src/architecture/reconciliation.ts` compares those observations with the relational model. Missing and unexpected facts are discrepancies. An unresolved effect call is reported as `unknown`; uncertainty is never silently converted into compliance.
-
-Run:
+Run the check with:
 
 ```sh
 npm run check:architecture-reconciliation
@@ -57,53 +52,38 @@ npm run check:architecture-reconciliation
 
 ## Change planning
 
-The same model supplies assurance impact information for repository changes.
+The architecture model also drives impact analysis for source changes.
 
-`scripts/plan-semantic-change.ts`:
+`scripts/plan-semantic-change.ts` resolves an exact base and head revision, determines which artifacts changed semantically, follows runtime dependency closure, identifies the affected assurance properties, and derives the evidence obligations associated with those properties.
 
-1. resolves an exact base revision and checked-out head revision;
-2. derives the observed semantic artifact delta;
-3. maps changed implementation artifacts through runtime dependency closure to affected assurance properties;
-4. follows assurance-property composition;
-5. derives guarded effects and obligations;
-6. selects a minimum evidence cover for those obligations.
+A change to any architecture SQL file is treated conservatively: because the dependency model itself changed, every declared assurance property is considered affected.
 
-A change to any of the three architecture SQL files conservatively affects every declared assurance property because the model that defines the dependency relation itself changed.
+The planner also compares the expected write set with the staged semantic delta. `admitObservedSemanticDelta()` accepts an exact match. If the candidate changed fewer or more artifacts than planned, it returns `REPLAN_REQUIRED` with `SEMANTIC_TRANSACTION_DIVERGED`.
 
-The planner distinguishes the expected write set from the actual staged semantic delta. `admitObservedSemanticDelta()` accepts only exact agreement. Missing or unexpected artifacts return `REPLAN_REQUIRED` with reason `SEMANTIC_TRANSACTION_DIVERGED`.
-
-This gives repository work a transaction-shaped boundary:
+The resulting flow is:
 
 ```text
-proposed semantic change
-        |
-        v
+proposed change
+    |
 expected write set
-        |
-        v
-stage candidate mutation
-        |
-        v
-observe actual semantic delta
-        |
-        +-- differs --> replan
-        |
-        v
-derive affected assurance properties
-        |
-        v
-derive minimum sufficient evidence
+    |
+staged candidate
+    |
+observed semantic delta
+    |
+affected assurance properties
+    |
+required evidence
 ```
 
-"Minimum" is relative to the declared obligation-to-evidence relations. It does not prove that the architecture model captured every real dependency. Reconciliation, hostile tests, and independent proof mechanisms remain necessary.
+The evidence set is minimal only with respect to the relationships declared in the architecture model. Reconciliation and independent tests still matter because the model itself can be incomplete.
 
-## Authority rules
+## Ownership
 
-- `concepts.sql` owns vocabulary, not implementation policy.
-- `logic.sql` owns desired architecture, not current source binding.
-- `physics.sql` declares current realization, but observation can falsify it.
-- Observed repository facts do not automatically rewrite the desired model.
-- Generated plans are candidates for verification, not verification results.
-- Current project truth remains derived from the durable authority kernel described in `ARCHITECTURE.md`.
+- `concepts.sql` defines the language.
+- `logic.sql` defines the intended architecture.
+- `physics.sql` maps that architecture to the current repository.
+- Repository observation checks the physical mapping.
+- The authority kernel remains the source of project truth.
 
-See [ADR-0011](../docs/adr/0011-relational-architecture-model.md) for the architectural decision.
+See [ADR-0011](../docs/adr/0011-relational-architecture-model.md) for the design decision.

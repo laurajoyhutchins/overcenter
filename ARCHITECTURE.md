@@ -1,10 +1,8 @@
-# Overcenter Architecture Model
+# Overcenter architecture
 
-## One-sentence model
+Overcenter derives project state from durable intent, current authority, observed external state, verification, and settlement. Workers may propose or execute work, but they do not decide project truth.
 
-> Overcenter treats project state as a derived claim over immutable intent, exact authority, externally observed effects, verification evidence, and settlement, while treating execution workers as disposable producers of candidate realizations.
-
-The architecture is split so that reasoning can remain probabilistic while execution correctness is owned by deterministic machinery.
+Reasoning can remain probabilistic because the correctness of execution and settlement is enforced separately by deterministic code.
 
 ```text
 immutable project intent
@@ -35,14 +33,6 @@ durable proof
         |
         v
 derived project truth
-```
-
-The boundary is not "agent versus database." It is:
-
-```text
-producer of candidate effects
-            !=
-authority that decides project truth
 ```
 
 ## Architecture
@@ -929,38 +919,38 @@ The research notes are best read as bounded prior-art lenses feeding this one mo
 
 The notes remain useful for detailed prior art. This file is the canonical cross-note architecture.
 
-## Architecture as relational data
+## Relational architecture model
 
-The repository's architectural intent and realization are also represented as a three-layer relational model:
+The repository also keeps a queryable architecture model in three SQL files:
 
 ```text
 concepts.sql -> logic.sql -> physics.sql
-language        desired      current
-                design       realization
+vocabulary      intended     repository
+                design       mapping
 ```
 
-The SQL model is queryable architecture, not a second project-authority store. Deterministic observation reconciles declared physical bindings with the current repository, and uncertainty is reported rather than accepted as compliance. See [`architecture/README.md`](./architecture/README.md) and [ADR-0011](./docs/adr/0011-relational-architecture-model.md).
+The model supports reconciliation, trust-root derivation, and change planning. It is not a second authority store. Repository observation checks the physical mapping against the current code and workflows. See [`architecture/README.md`](./architecture/README.md) and [ADR-0011](./docs/adr/0011-relational-architecture-model.md).
 
-## Judgment frontier
+## Judgment routing
 
-Before dispatching reasoning work, Overcenter classifies the current work item into one of four routes:
+Before assigning work to a reasoning agent, Overcenter classifies it as one of four cases:
 
-- `deterministic-software-action` for mechanically derivable work;
-- `reasoning-required` when the admitted task genuinely requires judgment;
-- `recovery-required` when effect or realization uncertainty prevents safe forward execution;
-- `unsupported` when the current packet/state combination is not an admitted action.
+- `deterministic-software-action`: software can perform the next step directly;
+- `reasoning-required`: the task genuinely requires judgment;
+- `recovery-required`: uncertainty prevents safe forward execution;
+- `unsupported`: the current state or packet has no admitted action.
 
-The decision includes stable reason codes and evidence predicates. This keeps the reasoning boundary explicit rather than allowing every READY item to become an agent prompt.
+The classifier returns a stable reason code and the evidence behind the decision.
 
 ## Interaction frontier
 
-Concurrency is derived from the smallest currently implemented interaction relation: causal dependency or conflicting effect semantics. Obligations connected by either relation occupy the same interaction component; disconnected components may be considered independently.
+Two obligations are placed in the same interaction component when one depends on the other or their effects conflict. Disconnected components can be considered independently.
 
-This is deliberately narrower than a general scheduler theorem. The frontier does not claim that all unmodeled environmental interactions commute.
+This is a practical scheduling boundary, not a claim that every unmodeled environmental interaction commutes.
 
 ## Repository change transactions
 
-Source work follows a transaction-shaped lifecycle:
+Source changes follow a controlled sequence:
 
 ```text
 semantic intent
@@ -968,12 +958,12 @@ semantic intent
   -> staged candidate
   -> observed semantic delta
   -> affected assurance properties
-  -> minimum declared evidence cover
+  -> required evidence
   -> exact-head verification
   -> integration or replan
 ```
 
-If the observed semantic delta differs from the planned write set, admission returns `REPLAN_REQUIRED` rather than silently widening the transaction. Source integration separately binds worker proposals to exact claims, verifies a canonical candidate read-only, and integrates only the verified tree against the exact source base. See [the source-change protocol](./docs/source-change-protocol.md).
+If the staged change differs from the expected write set, Overcenter returns `REPLAN_REQUIRED` instead of widening the transaction. Source integration separately binds the proposal to an exact claim, verifies a canonical candidate with read-only authority, and integrates only the verified tree against the exact source base. See [the source-change protocol](./docs/source-change-protocol.md).
 
 ## Glossary
 

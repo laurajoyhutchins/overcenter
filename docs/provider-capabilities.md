@@ -1,52 +1,52 @@
-# Provider capability boundaries
+# Provider capabilities
 
-Provider support is intentionally asymmetric. Observation, mutation, negative evidence, and settlement authority are separate capabilities.
+Overcenter treats observation, mutation, negative evidence, and settlement as separate capabilities. Support for one does not imply support for the others.
 
-This table describes the production code currently present in the repository. A provider appearing here does not imply general-purpose support for that provider.
+The table below reflects the production code currently in the repository.
 
-| Resource | Certified observation | Mutation path | Authoritative negative evidence | Boundary |
+| Resource | Observation | Mutation | Authoritative absence | Notes |
 | --- | --- | --- | --- | --- |
-| GitHub commit status | Yes, exact repository/status read machinery | Yes, `github-commit-status/create` | No generic collection-negative authority | Mutation requires kernel-minted effect authority, reservation, provider execution, and authoritative readback. |
-| GitHub pull request update branch | Provider-specific GitHub reads exist | Yes, `github-pull-request/update-branch` | No | Narrow effect profile only; not a general GitHub automation surface. |
-| Kubernetes ConfigMap | Yes, ConfigMap observation including complete LIST/WATCH semantics | Yes, `kubernetes-configmap/ensure` | Yes, only the recognized complete-list absence certificate | Mutation and observation are bound to the exact admitted ConfigMap coordinate and authority identity. |
-| GCP Cloud Run service | Yes, certified REST GET slice | No production mutation profile | No | Observation is positive-state evidence. Read failure or absence is indeterminate. |
-| GCP Cloud SQL instance | Yes, certified REST GET slice | No production mutation profile | No | Observation is positive-state evidence. Read failure or absence is indeterminate. |
+| GitHub commit status | Certified repository/status reads | `github-commit-status/create` | No generic collection-negative proof | Writes require effect authority, a durable reservation, provider execution, and readback. |
+| GitHub pull request update branch | Provider-specific GitHub reads | `github-pull-request/update-branch` | No | Supported as a narrow effect, not as general GitHub automation. |
+| Kubernetes ConfigMap | ConfigMap observation with complete LIST/WATCH handling | `kubernetes-configmap/ensure` | Complete-list absence certificate | Reads and writes are bound to the admitted ConfigMap coordinate and authority identity. |
+| GCP Cloud Run service | Certified REST GET | None | No | Failed or missing reads remain indeterminate. |
+| GCP Cloud SQL instance | Certified REST GET | None | No | Failed or missing reads remain indeterminate. |
 
-## Interpretation
+## How to read the table
 
-A provider credential is a capability, not Overcenter project authority.
+A provider credential gives code access to a provider. It does not, by itself, give that code authority over Overcenter state.
 
-The authority kernel decides whether an effect is eligible. Provider-specific code decides how to materialize or observe one admitted coordinate. Settlement requires evidence whose semantics are recognized by the active verifier.
+The authority kernel decides whether an effect is allowed. Provider code implements or observes a specific admitted operation. Settlement depends on evidence that the active verifier understands.
 
-In particular:
+That means:
 
-- an HTTP success is not automatically settlement;
-- an empty or failed read is not automatically authoritative absence;
-- a provider observer does not gain mutation authority by observing;
-- a mutation adapter does not gain authority to choose its own coordinate;
-- supporting one resource does not imply support for arbitrary operations in that provider.
+- an HTTP success is not enough to settle a run;
+- a missing resource is not authoritative absence unless the verifier recognizes the evidence;
+- observation code does not gain mutation authority by reading;
+- mutation code does not get to choose a different resource coordinate; and
+- support for one resource or operation does not imply general provider support.
 
 ## GCP observation
 
-`src/providers/gcp/certified-observation.ts` provides the common certified GET boundary.
+`src/providers/gcp/certified-observation.ts` implements the shared certified GET path.
 
-Cloud Run observation validates the exact requested service name, stable UID, generation identity, selected readiness/reconciliation fields, and the structural response slice. It explicitly marks negative evidence as non-authoritative.
+For Cloud Run, the observer validates the requested service identity, UID, generation, selected readiness fields, and the structural response slice.
 
-Cloud SQL observation validates the exact project and instance identity, settings version, state, database version, backend type, connection identity, and selected structural response slice. It also marks negative evidence as non-authoritative.
+For Cloud SQL, it validates project and instance identity, settings version, state, database version, backend type, connection identity, and the selected response slice.
 
-These observers establish bounded facts about existing resources. They do not create, update, delete, or settle arbitrary GCP resources.
+Both observers treat read failure and absence as indeterminate. Neither provides a mutation path.
 
-## Extension rule
+## Adding provider support
 
-Add provider support by separating:
+New provider work should specify four things independently:
 
 ```text
-semantic coordinate
-      |
-      +--> observation
-      +--> mutation
-      +--> absence semantics
-      +--> settlement semantics
+resource coordinate
+    |
+    +-- observation
+    +-- mutation
+    +-- absence semantics
+    +-- settlement semantics
 ```
 
-Do not infer one capability from another. Each authority-bearing edge needs its own admitted semantics and evidence.
+Each part needs its own semantics and evidence. Do not derive one capability from the presence of another.
