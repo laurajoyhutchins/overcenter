@@ -237,10 +237,7 @@ INSERT INTO principal_invokes_effect(principal_id, effect_id) VALUES
   ('.github/workflows/substrate-capability-admission.yml#foreign-status-write-denied', 'github-commit-status/create');
 
 INSERT INTO principal_reaches_effect(principal_id, effect_id) VALUES
-  ('.github/workflows/operator-project-advance.yml#command', 'github-source/integrate-verified-tree/v1'),
-  ('.github/workflows/operator-project-submit.yml#command', 'github-source/integrate-verified-tree/v1'),
-  ('.github/workflows/production-criticality-mutation-probe.yml#graph-obligation', 'github-source/integrate-verified-tree/v1'),
-  ('.github/workflows/promote-criticality-mutation-evidence.yml#promote', 'github-source/integrate-verified-tree/v1');
+  ('.github/workflows/operator-project-submit.yml#command', 'github-source/integrate-verified-tree/v1');
 
 INSERT INTO principal_holds_authority(principal_id, authority_id) VALUES
   ('.github/workflows/disposable-agent-proof.yml#agent-b', 'execution-authority'),
