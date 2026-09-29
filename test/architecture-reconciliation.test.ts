@@ -166,10 +166,7 @@ test('assurance proof plan is derived through existing property, effect, obligat
   try {
     const plan = deriveAssuranceChangePlan(db, 'github-commit-status-provider');
 
-    assert.deepEqual(plan.properties, [
-      'broker-mutation-safety',
-      'github-commit-status-provider',
-    ]);
+    assert.deepEqual(plan.properties, ['broker-mutation-safety', 'github-commit-status-provider']);
     assert.deepEqual(plan.effects, [
       'github-commit-status/create',
       'github-pull-request/update-branch',
