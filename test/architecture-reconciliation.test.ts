@@ -14,6 +14,7 @@ import {
 } from '../src/architecture/reconciliation.ts';
 import { observeArchitecture } from '../scripts/observe-architecture.ts';
 import { semanticArtifactChanged } from '../scripts/plan-semantic-change.ts';
+import { GOLDEN_TRANSACTION_CASE } from './fixtures/golden-transaction.ts';
 
 const revision = 'a'.repeat(40);
 
@@ -323,6 +324,38 @@ test('staged semantic delta ignores only safely non-semantic TypeScript line cha
     true,
   );
   assert.equal(semanticArtifactChanged('src/example.ts', null, '// new file\n'), true);
+});
+
+test('golden transaction pins planner and lifecycle expectations', () => {
+  const golden = GOLDEN_TRANSACTION_CASE;
+  assert.deepEqual(golden.expected_write_set, [golden.candidate.path]);
+  assert.equal(readFileSync(golden.candidate.path, 'utf8').includes(golden.candidate.before), true);
+
+  const actualStagedDelta = semanticArtifactChanged(
+    golden.candidate.path,
+    golden.candidate.before,
+    golden.candidate.after,
+  )
+    ? [golden.candidate.path]
+    : [];
+  assert.deepEqual(actualStagedDelta, golden.expected_staged_delta);
+
+  const db = loadArchitectureDatabase();
+  try {
+    const impacts = deriveAffectedAssuranceProperties(db, actualStagedDelta, (roots) => roots);
+    assert.deepEqual(impacts, golden.expected_assurance_impacts);
+
+    const evidence = [
+      ...new Map(
+        impacts
+          .flatMap((impact) => deriveAssuranceChangePlan(db, impact.property_id).evidence)
+          .map((item) => [item.evidence_id, item]),
+      ).values(),
+    ].sort((left, right) => left.evidence_id.localeCompare(right.evidence_id));
+    assert.deepEqual(evidence, golden.expected_minimum_evidence);
+  } finally {
+    db.close();
+  }
 });
 
 test('maintained relational architecture reconciles against the current repository', () => {
