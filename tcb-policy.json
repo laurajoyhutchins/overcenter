@@ -5,7 +5,7 @@
     {
       "id": "broker-mutation-safety",
       "statement": "A broker-owned provider mutation cannot execute through an admitted Overcenter effect path unless execution authority and exact claimed revision are current, a durable effect reservation has succeeded, and no prior unresolved effect exists for that run.",
-      "max_semantic_loc": 1134,
+      "max_semantic_loc": 708,
       "external_assumptions": [
         "Node.js runtime preserves JavaScript/TypeScript execution semantics used by the trusted slice.",
         "node:crypto SHA-256 and randomUUID behave as specified.",
@@ -21,7 +21,7 @@
         "experiments and tests",
         "formal models and proof tools"
       ],
-      "expected_surface_sha256": "85035c67893543424799e9b50bbc6efaca87718b5d203015db062dbbcccd5827",
+      "expected_surface_sha256": "9bb21dc478075892b705c1daece535090938e1a2a0ffcdf839552799cb5fbb7e",
       "max_module_closure_semantic_loc": 9159,
       "expected_module_closure_sha256": "b7c07fc1d5e045809da8e85ce6d4692cf6b4e20a28950072f1ff434b9f270ca0",
       "max_hybrid_closure_semantic_loc": 9286,
@@ -42,7 +42,7 @@
     {
       "id": "no-false-done",
       "statement": "Overcenter cannot derive DONE for a run unless an admitted receipt and exact postcondition observation justify it, and replay cannot reinterpret unresolved or mismatched mutation evidence as success.",
-      "max_semantic_loc": 1572,
+      "max_semantic_loc": 760,
       "external_assumptions": [
         "Node.js runtime preserves JavaScript/TypeScript execution semantics used by the trusted slice.",
         "Provider observations supplied to the verifier obey the provider-profile assumptions documented separately.",
@@ -59,11 +59,11 @@
         "Rust worker confinement",
         "experiments and formal models"
       ],
-      "expected_surface_sha256": "2a5c2253a4e097ec387b52d31042d870acfd89e75f5e586a447b2dd8a8e123c2",
+      "expected_surface_sha256": "16a3817598738dec2957535324a27740ce3d776d0a3414e83a359a98c245c44e",
       "max_module_closure_semantic_loc": 9159,
       "expected_module_closure_sha256": "b7c07fc1d5e045809da8e85ce6d4692cf6b4e20a28950072f1ff434b9f270ca0",
-      "max_hybrid_closure_semantic_loc": 9283,
-      "expected_hybrid_closure_sha256": "b058afdc79f0fa87182ddeb9a96084cd174b7e7d01e92fa67c01293dcf1bb319",
+      "max_hybrid_closure_semantic_loc": 9282,
+      "expected_hybrid_closure_sha256": "d0107f411174a403c472b91476aea091ecadca47d868356f18431f6f92de7045",
       "require_sound_symbol_closure": true,
       "hostile_evidence_probes": [
         "digest-foundation",
@@ -84,7 +84,7 @@
     {
       "id": "github-commit-status-provider",
       "statement": "For the admitted GitHub commit-status mutation profile, repository identity, transport dispatch certainty, authoritative status observation, and exact provider coordinates are interpreted correctly.",
-      "max_semantic_loc": 2377,
+      "max_semantic_loc": 96,
       "external_assumptions": [
         "GitHub repository IDs and commit-status coordinates have the documented API meaning.",
         "GitHub HTTPS responses correspond to the authenticated api.github.com endpoint reached by the transport.",
@@ -99,11 +99,11 @@
         "Kubernetes and GCP providers",
         "worker credentials when they are not broker credentials"
       ],
-      "expected_surface_sha256": "32ad73453c6b70f032b1122c9139185286d419e0776908603978c567897636d5",
-      "max_module_closure_semantic_loc": 2756,
-      "expected_module_closure_sha256": "6fbb53a6669507dd904ad07a50f9cfd6b56b4598bfa567ad27a1fa1ec2efd6bd",
-      "max_hybrid_closure_semantic_loc": 2762,
-      "expected_hybrid_closure_sha256": "098afca43abc48e7a358fad48f00a99d4164f8d6668e232d89862a53a0c98aa0",
+      "expected_surface_sha256": "df668ef04ea287f0ffec03ec8d8e73be7373fd2f7ab7f7335100d2c5e39e2164",
+      "max_module_closure_semantic_loc": 2572,
+      "expected_module_closure_sha256": "a64b9a40756d3fc58bd4a97b6c7881054f85d8af8c63c43797d1cd2ec79f8a42",
+      "max_hybrid_closure_semantic_loc": 2578,
+      "expected_hybrid_closure_sha256": "1d365466a4143678daa5b478cabeb870439b0d8724d4cbd2d793496a1c9de0c5",
       "require_sound_symbol_closure": true,
       "attention_hybrid_closure_semantic_loc": 2746,
       "attention_external_assumptions": [
@@ -124,8 +124,8 @@
         "no-false-done",
         "github-commit-status-provider"
       ],
-      "max_hybrid_union_semantic_loc": 9471,
-      "expected_hybrid_union_sha256": "ef552bea0880b0b7aa97b50a7c9ebc7b064b1ed952790b07c5331c0579c62682",
+      "max_hybrid_union_semantic_loc": 9286,
+      "expected_hybrid_union_sha256": "8d34422950a0e28fd25ad1c17e5920826901579f107ab2e9f48349523837e1de",
       "attention_hybrid_union_semantic_loc": 8348,
       "max_trusted_file_share": 0.1
     }
