@@ -5,63 +5,71 @@
 
 ## Decision
 
-Represent Overcenter architecture as three ordered SQL layers:
+Represent Overcenter architecture in three SQL layers:
 
-1. `architecture/concepts.sql` defines the implementation-independent architectural vocabulary.
-2. `architecture/logic.sql` declares the desired architecture using that vocabulary.
-3. `architecture/physics.sql` binds the desired architecture to the current repository realization.
+1. `architecture/concepts.sql` defines the architecture vocabulary.
+2. `architecture/logic.sql` describes the intended architecture.
+3. `architecture/physics.sql` maps that architecture to the current repository.
 
-Treat the resulting database as a declarative architecture model that deterministic software can query for reconciliation, trust-root derivation, assurance impact, and evidence planning.
+The resulting database is used for reconciliation, trust-root derivation, assurance impact analysis, and evidence planning.
 
-The relational model does not replace the durable project-authority store. Project lifecycle truth continues to come from admitted durable facts, authoritative observation, verification, and settlement.
+It is not a second authority store. Project state still comes from durable facts, observation, verification, and settlement.
 
-## Evidence
+## Why
 
-The current implementation already uses the relational model for four concrete purposes:
+The implementation already needs to answer questions that are awkward to maintain in prose or duplicated configuration:
 
-- `src/architecture/sql-model.ts` loads the model and enforces referential integrity;
-- `src/architecture/reconciliation.ts` compares declared architecture with observed repository facts;
-- `src/architecture/tcb.ts` derives trust roots, runtime dispatch bindings, and assurance-property composition from the model;
-- `src/architecture/change-planner.ts` derives affected assurance properties and a minimum declared evidence cover for semantic changes.
+- Which effects depend on which authorities and capabilities?
+- Which symbols implement those capabilities?
+- Which assurance properties compose with others?
+- Which evidence obligations are affected by a source change?
+- Does the current repository still match the architecture we intended?
 
-Repository observation independently recovers source symbols, workflow principals, provider capabilities, effect invocations, transitive effect reachability, and unresolved dynamic calls. Therefore the SQL is not accepted as self-certifying documentation.
+A relational model makes those relationships explicit and queryable.
 
-## Boundaries
+The current implementation uses it in four places:
 
-The three files have different naming authority.
+- `src/architecture/sql-model.ts` loads the model and checks referential integrity.
+- `src/architecture/reconciliation.ts` compares the declared model with observed repository facts.
+- `src/architecture/tcb.ts` derives trust roots, dispatch bindings, and assurance-property composition.
+- `src/architecture/change-planner.ts` derives assurance impact and the evidence required by the declared model.
 
-`concepts.sql` may define only reusable architectural concepts and relations. It must not contain current paths, provider names, workflow names, or implementation bindings.
+Repository observation remains independent of the SQL declaration. The model says what should exist; observation checks what the code and workflows actually expose.
 
-`logic.sql` may name semantic authorities, effects, obligations, capabilities, evidence classes, and assurance properties. It must not bind them to current files, symbols, or execution principals.
+## Layer boundaries
 
-`physics.sql` is the only layer that binds logical meaning to the current repository realization.
+`concepts.sql` contains reusable concepts and relations. It does not name repository paths, providers, workflows, or implementation symbols.
 
-Changing the architecture model is itself an architecture-affecting repository change and therefore conservatively invalidates all declared assurance properties for change planning.
+`logic.sql` may name semantic authorities, effects, obligations, capabilities, evidence classes, and assurance properties. It does not bind them to source files or runtime principals.
 
-## Rejected alternatives
+`physics.sql` contains the current implementation mapping.
 
-### Prose as the architecture authority
+If any architecture SQL file changes, change planning treats all assurance properties as affected. That is intentionally conservative because the dependency model used to calculate impact has changed.
 
-Prose remains necessary for explanation, but it is a poor substrate for deterministic reconciliation, transitive queries, impact analysis, and exact review of architecture changes.
+## Alternatives considered
 
-### One unconstrained SQL file
+### Prose only
 
-A single schema/data file would blur the distinction between vocabulary, desired design, and current realization. That would make a source rename look too similar to an architectural policy change.
+Prose is useful for explanation, but poor at exact reconciliation, transitive queries, and impact analysis.
 
-### Generate the model entirely from source
+### One SQL file
 
-Source observation can establish current structure but cannot infer desired architecture, intended authority boundaries, or which assurance properties are supposed to compose. Observation is evidence about realization, not the owner of architectural intent.
+A single file would mix vocabulary, design intent, and current implementation details. Keeping them separate makes review easier: a source rename should not look like a policy change.
 
-### Store current project lifecycle state in the architecture database
+### Generate everything from source
 
-That would create a second authority system. The relational model describes architecture; the authority kernel owns project transitions and derived project state.
+Source analysis can recover implementation structure, but it cannot determine intent. It cannot tell us which authority boundaries or assurance relationships the system is supposed to have.
+
+### Store lifecycle state here
+
+That would create competing sources of project truth. The architecture database describes the system; the authority kernel owns project transitions.
 
 ## Consequences
 
-Architecture changes become ordinary reviewable data changes. Deterministic software can ask which effects depend on which authorities, which implementation symbols realize those capabilities, and which evidence obligations are affected by a candidate source change.
+Architecture changes are explicit, reviewable data changes, and the same model can support reconciliation and change planning.
 
-The cost is model drift risk. Overcenter therefore must continue to expand independent observation and fail closed on missing, unexpected, or unresolved architectural facts rather than treating the SQL declaration as proof.
+The main risk is model drift. The repository therefore needs independent observation and should report missing, unexpected, or unresolved facts rather than treating the SQL declaration as proof.
 
 ## Revisit when
 
-Revisit this decision if the relational model cannot express a required architectural invariant without embedding procedural logic, if reconciliation cannot independently observe the relationships on which safety depends, or if another representation provides the same queryability and separation of concepts, intent, and realization with a smaller trusted surface.
+Revisit this decision if important invariants cannot be expressed without procedural logic, if the relationships needed for safety cannot be observed independently, or if another representation provides the same separation and queryability with a smaller trusted surface.

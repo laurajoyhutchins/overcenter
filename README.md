@@ -1,10 +1,10 @@
-# Overcenter Research
+# Overcenter
 
-Overcenter asks a narrow question:
+Overcenter is an executable research prototype built around one question:
 
 > How little trusted mechanism is required to turn uncertain agent activity into verified project truth?
 
-This repository is an executable research prototype for that question. It is not a production orchestrator.
+It is not a production orchestrator.
 
 The core loop is:
 
@@ -32,26 +32,21 @@ The worker does not decide that its work succeeded.
 
 ## Resolution frontier
 
-Overcenter's goal is not merely to fail closed when certainty ends. It is to push the boundary of deterministic resolution outward as far as software can safely prove.
+Overcenter resolves uncertainty in a fixed order:
 
 ```text
 deterministic software
-  known reconciliation, evidence acquisition, recovery, and retry rules
         ↓ unresolved
 reasoning agent
-  discover additional evidence or execute a bounded one-off recovery procedure
         ↓ unresolved
 human operator
-  decide the precise residual ambiguity
 ```
 
-Deterministic software gets the first and widest opportunity to resolve uncertainty. Known reconciliation paths, authoritative observations, proof validation, replay rules, recovery procedures, and other mechanically knowable work belong in the kernel or in provider-specific deterministic machinery.
+Known reconciliation, evidence collection, retry, and recovery rules belong in software. A reasoning agent is used when the remaining problem requires investigation or a one-off procedure that has not yet been encoded. Its result still has to pass the normal evidence and settlement checks.
 
-When those paths are exhausted, Overcenter may deploy a reasoning agent to investigate the remaining ambiguity. The agent may gather information, discover an unmodeled evidence source, synthesize a one-off procedure, or carry out a narrowly authorized recovery step that was not practical to model in advance. The agent does not become the authority on success: any resulting claim must still be grounded in retained evidence, independently verified where verification is possible, and settled through the normal authority boundary.
+Repeated agent recoveries are useful design feedback. If the same ambiguity keeps being resolved the same way, that procedure is a candidate for deterministic implementation and hostile-case testing.
 
-Agent recovery is also a learning signal. If agents repeatedly resolve the same class of ambiguity with materially the same procedure, Overcenter should treat that repetition as evidence of missing deterministic machinery. The recurring recovery path should be captured, tested against hostile cases, and promoted into software when its preconditions and outcome can be mechanically recognized. A mature system should therefore make its agent-recovery frontier retreat over time.
-
-If deterministic machinery and bounded agent recovery both fail to resolve an ambiguity, Overcenter should escalate the exact residual problem to a human operator: what is known, what remains unknown, what procedures were attempted, which actions remain unsafe, and what consequences follow from the available decisions. Humans are the final decision-makers for genuinely unresolved cases, not a substitute for recovery logic that software could own.
+Human escalation is reserved for the residue: what is known, what remains uncertain, what has already been tried, and which actions are still unsafe.
 
 ## Current production slice
 
