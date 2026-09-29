@@ -9,10 +9,7 @@ import {
   deriveAssuranceChangePlan,
   type AssurancePropertyImpact,
 } from '../src/architecture/change-planner.ts';
-import {
-  ARCHITECTURE_SQL_PATHS,
-  loadArchitectureDatabase,
-} from '../src/architecture/sql-model.ts';
+import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import { deriveAssurancePropertyTrustRoots } from '../src/architecture/tcb.ts';
 import { runtimeModuleClosure } from '../src/analysis/typescript-runtime.ts';
 
@@ -86,11 +83,7 @@ export function observeGitSemanticDelta(baseRevision: string, headRevision: stri
     .split('\n')
     .filter(Boolean)
     .filter((path) =>
-      semanticArtifactChanged(
-        path,
-        gitFile(baseRevision, path),
-        gitFile(headRevision, path),
-      ),
+      semanticArtifactChanged(path, gitFile(baseRevision, path), gitFile(headRevision, path)),
     )
     .sort();
 }
@@ -108,9 +101,7 @@ export function planSemanticChange(baseRef: string, headRef = 'HEAD'): SemanticC
   const headRevision = revision(headRef);
   const checkedOutRevision = revision('HEAD');
   if (headRevision !== checkedOutRevision) {
-    throw new Error(
-      `SEMANTIC_CHANGE_HEAD_NOT_CHECKED_OUT:${headRevision}:${checkedOutRevision}`,
-    );
+    throw new Error(`SEMANTIC_CHANGE_HEAD_NOT_CHECKED_OUT:${headRevision}:${checkedOutRevision}`);
   }
 
   const changedArtifacts = observeGitSemanticDelta(baseRevision, headRevision);
@@ -134,13 +125,15 @@ export function planSemanticChange(baseRef: string, headRef = 'HEAD'): SemanticC
 
     try {
       const dependencyClosure = (rootArtifacts: readonly string[]): readonly string[] => {
-        const TypeScriptRoots = rootArtifacts.filter((path) => /\.(?:[cm]?ts|tsx)$/.test(path));
+        const typeScriptRoots = rootArtifacts.filter((path) => /\.(?:[cm]?ts|tsx)$/.test(path));
         const otherRoots = rootArtifacts.filter((path) => !/\.(?:[cm]?ts|tsx)$/.test(path));
-        if (TypeScriptRoots.length === 0) return [...otherRoots].sort();
+        if (typeScriptRoots.length === 0) return [...otherRoots].sort();
 
-        const closure = runtimeModuleClosure(process.cwd(), TypeScriptRoots, (path) => {
+        const closure = runtimeModuleClosure(process.cwd(), typeScriptRoots, (path) => {
           const absolute = resolve(path);
-          return snapshot.getDefaultProjectForFile(absolute)?.program.getSourceFile(absolute) ?? null;
+          return (
+            snapshot.getDefaultProjectForFile(absolute)?.program.getSourceFile(absolute) ?? null
+          );
         });
         return [...new Set([...otherRoots, ...closure.files])].sort();
       };
