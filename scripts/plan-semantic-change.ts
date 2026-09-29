@@ -88,7 +88,6 @@ export function observeGitSemanticDelta(baseRevision: string, headRevision: stri
     .sort();
 }
 
-
 export type SemanticDeltaAdmission =
   | { state: 'ADMITTED'; changed_artifacts: string[] }
   | {
