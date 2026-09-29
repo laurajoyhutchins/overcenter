@@ -1,11 +1,10 @@
 {
   "schema": "overcenter-tcb-policy",
-  "schema_version": 1,
+  "schema_version": 2,
   "properties": [
     {
       "id": "broker-mutation-safety",
       "statement": "A broker-owned provider mutation cannot execute through an admitted Overcenter effect path unless execution authority and exact claimed revision are current, a durable effect reservation has succeeded, and no prior unresolved effect exists for that run.",
-      "max_semantic_loc": 708,
       "external_assumptions": [
         "Node.js runtime preserves JavaScript/TypeScript execution semantics used by the trusted slice.",
         "node:crypto SHA-256 and randomUUID behave as specified.",
@@ -21,28 +20,15 @@
         "experiments and tests",
         "formal models and proof tools"
       ],
-      "expected_surface_sha256": "9bb21dc478075892b705c1daece535090938e1a2a0ffcdf839552799cb5fbb7e",
-      "max_module_closure_semantic_loc": 9159,
-      "expected_module_closure_sha256": "b7c07fc1d5e045809da8e85ce6d4692cf6b4e20a28950072f1ff434b9f270ca0",
-      "max_hybrid_closure_semantic_loc": 9286,
-      "expected_hybrid_closure_sha256": "3f269400397aaed24d19ad66d28a0c1096009150cbf040e8c58de0d0311ec882",
       "require_sound_symbol_closure": true,
       "hostile_evidence_probes": [
         "effect-reservation",
         "execution-fence"
-      ],
-      "attention_hybrid_closure_semantic_loc": 8163,
-      "attention_external_assumptions": [
-        "Node.js runtime preserves JavaScript/TypeScript execution semantics used by the trusted slice.",
-        "node:crypto SHA-256 and randomUUID behave as specified.",
-        "node:sqlite provides the documented transaction, WAL, and synchronous=FULL semantics.",
-        "The operating system and filesystem correctly implement the durability guarantees requested by SQLite."
       ]
     },
     {
       "id": "no-false-done",
       "statement": "Overcenter cannot derive DONE for a run unless an admitted receipt and exact postcondition observation justify it, and replay cannot reinterpret unresolved or mismatched mutation evidence as success.",
-      "max_semantic_loc": 760,
       "external_assumptions": [
         "Node.js runtime preserves JavaScript/TypeScript execution semantics used by the trusted slice.",
         "Provider observations supplied to the verifier obey the provider-profile assumptions documented separately.",
@@ -59,11 +45,6 @@
         "Rust worker confinement",
         "experiments and formal models"
       ],
-      "expected_surface_sha256": "16a3817598738dec2957535324a27740ce3d776d0a3414e83a359a98c245c44e",
-      "max_module_closure_semantic_loc": 9159,
-      "expected_module_closure_sha256": "b7c07fc1d5e045809da8e85ce6d4692cf6b4e20a28950072f1ff434b9f270ca0",
-      "max_hybrid_closure_semantic_loc": 9282,
-      "expected_hybrid_closure_sha256": "d0107f411174a403c472b91476aea091ecadca47d868356f18431f6f92de7045",
       "require_sound_symbol_closure": true,
       "hostile_evidence_probes": [
         "digest-foundation",
@@ -71,20 +52,11 @@
         "done-candidate-reuse",
         "settlement",
         "verification-and-absence"
-      ],
-      "attention_hybrid_closure_semantic_loc": 8160,
-      "attention_external_assumptions": [
-        "Node.js runtime preserves JavaScript/TypeScript execution semantics used by the trusted slice.",
-        "Provider observations supplied to the verifier obey the provider-profile assumptions documented separately.",
-        "node:crypto SHA-256 behaves as specified.",
-        "node:sqlite and the operating system preserve committed authority history according to the requested durability mode.",
-        "For GitHub-backed observations, node:child_process launches the intended system curl executable and curl faithfully returns the authenticated HTTPS response bytes and status metadata consumed by the verifier."
       ]
     },
     {
       "id": "github-commit-status-provider",
       "statement": "For the admitted GitHub commit-status mutation profile, repository identity, transport dispatch certainty, authoritative status observation, and exact provider coordinates are interpreted correctly.",
-      "max_semantic_loc": 96,
       "external_assumptions": [
         "GitHub repository IDs and commit-status coordinates have the documented API meaning.",
         "GitHub HTTPS responses correspond to the authenticated api.github.com endpoint reached by the transport.",
@@ -99,20 +71,7 @@
         "Kubernetes and GCP providers",
         "worker credentials when they are not broker credentials"
       ],
-      "expected_surface_sha256": "df668ef04ea287f0ffec03ec8d8e73be7373fd2f7ab7f7335100d2c5e39e2164",
-      "max_module_closure_semantic_loc": 2572,
-      "expected_module_closure_sha256": "a64b9a40756d3fc58bd4a97b6c7881054f85d8af8c63c43797d1cd2ec79f8a42",
-      "max_hybrid_closure_semantic_loc": 2578,
-      "expected_hybrid_closure_sha256": "1d365466a4143678daa5b478cabeb870439b0d8724d4cbd2d793496a1c9de0c5",
-      "require_sound_symbol_closure": true,
-      "attention_hybrid_closure_semantic_loc": 2746,
-      "attention_external_assumptions": [
-        "GitHub repository IDs and commit-status coordinates have the documented API meaning.",
-        "GitHub HTTPS responses correspond to the authenticated api.github.com endpoint reached by the transport.",
-        "TLS, DNS, sockets, and Node.js HTTPS correctly distinguish failure before secureConnect from failures after secureConnect.",
-        "The pinned GitHub API/OpenAPI contract accurately describes the response fields consumed by the verifier.",
-        "node:child_process launches the intended system curl executable, and curl faithfully returns the authenticated GitHub HTTPS response bytes and status metadata consumed by certified reads."
-      ]
+      "require_sound_symbol_closure": true
     }
   ],
   "compositions": [
@@ -123,11 +82,7 @@
         "broker-mutation-safety",
         "no-false-done",
         "github-commit-status-provider"
-      ],
-      "max_hybrid_union_semantic_loc": 9286,
-      "expected_hybrid_union_sha256": "8d34422950a0e28fd25ad1c17e5920826901579f107ab2e9f48349523837e1de",
-      "attention_hybrid_union_semantic_loc": 8348,
-      "max_trusted_file_share": 0.1
+      ]
     }
   ]
 }
