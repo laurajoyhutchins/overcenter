@@ -1,5 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
+import { deriveAssurancePropertyTrustRoots } from './tcb.ts';
+
 export interface AssuranceChangePlan {
   properties: string[];
   effects: string[];
@@ -23,13 +25,6 @@ interface EvidenceRow {
   artifact_id: string;
 }
 
-interface RootRow {
-  artifact_id: string;
-  symbol_id: string;
-  basis: 'authority' | 'capability' | 'effect';
-  requirement_id: string;
-}
-
 function placeholders(values: readonly string[]): string {
   return values.map(() => '?').join(', ');
 }
@@ -49,8 +44,7 @@ function minimumEvidenceCover(
   }
 
   const uncovered = obligations.filter(
-    (obligation) =>
-      ![...coverage.values()].some((covered) => covered.has(obligation)),
+    (obligation) => ![...coverage.values()].some((covered) => covered.has(obligation)),
   );
   if (uncovered.length > 0) {
     throw new Error(`ASSURANCE_EVIDENCE_INCOMPLETE:${uncovered.join(',')}`);
@@ -58,19 +52,20 @@ function minimumEvidenceCover(
 
   const candidates = [...coverage.keys()].sort();
   let best: string[] | null = null;
-
   const search = (index: number, selected: string[], covered: Set<string>): void => {
     if (best && selected.length >= best.length) return;
     if ([...required].every((obligation) => covered.has(obligation))) {
-      best = [...selected];
+      best = selected;
       return;
     }
     if (index >= candidates.length) return;
 
     const evidenceId = candidates[index]!;
-    const withEvidence = new Set(covered);
-    for (const obligation of coverage.get(evidenceId) ?? []) withEvidence.add(obligation);
-    search(index + 1, [...selected, evidenceId], withEvidence);
+    search(
+      index + 1,
+      [...selected, evidenceId],
+      new Set([...covered, ...(coverage.get(evidenceId) ?? [])]),
+    );
     search(index + 1, selected, covered);
   };
 
@@ -104,16 +99,14 @@ export function deriveAssuranceChangePlan(
       `)
       .all(propertyId) as unknown as Array<{ property_id: string }>
   ).map((row) => row.property_id);
-
   if (properties.length === 0) throw new Error(`ASSURANCE_PROPERTY_UNKNOWN:${propertyId}`);
 
-  const propertyMarks = placeholders(properties);
   const effects = (
     db
       .prepare(`
         SELECT DISTINCT effect_id
         FROM assurance_property_guards_effect
-        WHERE property_id IN (${propertyMarks})
+        WHERE property_id IN (${placeholders(properties)})
         ORDER BY effect_id
       `)
       .all(...properties) as unknown as Array<{ effect_id: string }>
@@ -143,8 +136,7 @@ export function deriveAssuranceChangePlan(
               witness.obligation_id,
               artifact.artifact_id
             FROM evidence_witnesses_obligation AS witness
-            JOIN artifact_witnesses_evidence AS artifact
-              ON artifact.evidence_id = witness.evidence_id
+            JOIN artifact_witnesses_evidence AS artifact USING(evidence_id)
             WHERE witness.obligation_id IN (${placeholders(obligations)})
             ORDER BY witness.evidence_id, witness.obligation_id, artifact.artifact_id
           `)
@@ -152,77 +144,25 @@ export function deriveAssuranceChangePlan(
 
   const selectedEvidence = minimumEvidenceCover(obligations, evidenceRows);
   const evidence = selectedEvidence.map((evidenceId) => {
-    const rowsForEvidence = evidenceRows.filter((row) => row.evidence_id === evidenceId);
+    const rows = evidenceRows.filter((row) => row.evidence_id === evidenceId);
     return {
       evidence_id: evidenceId,
-      obligation_ids: [...new Set(rowsForEvidence.map((row) => row.obligation_id))].sort(),
-      artifact_ids: [...new Set(rowsForEvidence.map((row) => row.artifact_id))].sort(),
+      obligation_ids: [...new Set(rows.map((row) => row.obligation_id))].sort(),
+      artifact_ids: [...new Set(rows.map((row) => row.artifact_id))].sort(),
     };
   });
 
-  const realizationRoots = db
-    .prepare(`
-      WITH RECURSIVE
-      required_property(property_id) AS (
-        SELECT property_id
-        FROM assurance_property
-        WHERE property_id = ?
-
-        UNION
-
-        SELECT composition.required_property_id
-        FROM assurance_property_composes_with AS composition
-        JOIN required_property AS current
-          ON composition.property_id = current.property_id
-      ),
-      required_authority(authority_id) AS (
-        SELECT requirement.authority_id
-        FROM assurance_property_requires_authority AS requirement
-        JOIN required_property USING(property_id)
-
-        UNION
-
-        SELECT dependency.required_authority_id
-        FROM required_authority
-        JOIN authority_depends_on_authority AS dependency USING(authority_id)
-      ),
-      required_capability(capability_id) AS (
-        SELECT requirement.capability_id
-        FROM assurance_property_requires_capability AS requirement
-        JOIN required_property USING(property_id)
-
-        UNION
-
-        SELECT dependency.required_capability_id
-        FROM required_capability
-        JOIN capability_depends_on_capability AS dependency USING(capability_id)
-      ),
-      roots(artifact_id, symbol_id, basis, requirement_id) AS (
-        SELECT symbol.artifact_id, implementation.symbol_id, 'authority', required_authority.authority_id
-        FROM required_authority
-        JOIN symbol_implements_authority AS implementation USING(authority_id)
-        JOIN symbol USING(symbol_id)
-
-        UNION
-
-        SELECT symbol.artifact_id, implementation.symbol_id, 'capability', required_capability.capability_id
-        FROM required_capability
-        JOIN symbol_implements_capability AS implementation USING(capability_id)
-        JOIN symbol USING(symbol_id)
-
-        UNION
-
-        SELECT symbol.artifact_id, implementation.symbol_id, 'effect', requirement.effect_id
-        FROM required_property
-        JOIN assurance_property_requires_effect_implementation AS requirement USING(property_id)
-        JOIN symbol_performs_effect AS implementation USING(effect_id)
-        JOIN symbol USING(symbol_id)
-      )
-      SELECT artifact_id, symbol_id, basis, requirement_id
-      FROM roots
-      ORDER BY artifact_id, symbol_id, basis, requirement_id
-    `)
-    .all(propertyId) as unknown as RootRow[];
+  const propertySet = new Set(properties);
+  const realizationRoots = [
+    ...new Map(
+      deriveAssurancePropertyTrustRoots(db)
+        .filter((root) => propertySet.has(root.property_id))
+        .map(({ property_id: _propertyId, ...root }) => [
+          JSON.stringify(root),
+          root,
+        ]),
+    ).values(),
+  ].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
 
   return {
     properties,
