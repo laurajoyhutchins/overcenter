@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { deriveAssuranceChangePlan } from '../src/architecture/change-planner.ts';
+import {
+  deriveAffectedAssuranceProperties,
+  deriveAssuranceChangePlan,
+} from '../src/architecture/change-planner.ts';
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import { deriveRuntimeDispatchBindings, trustRootsForEffect } from '../src/architecture/tcb.ts';
 import {
@@ -230,6 +233,68 @@ test('assurance proof planning fails closed when a required obligation has no wi
       () => deriveAssuranceChangePlan(db, 'github-commit-status-provider'),
       /ASSURANCE_EVIDENCE_INCOMPLETE:authoritative-settlement/,
     );
+  } finally {
+    db.close();
+  }
+});
+
+test('realization impact maps changed roots back to assurance properties and composition dependents', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const impacts = deriveAffectedAssuranceProperties(
+      db,
+      ['src/providers/github/status-effect.ts'],
+      (roots) => roots,
+    );
+
+    assert.deepEqual(impacts, [
+      {
+        property_id: 'github-commit-status-provider',
+        changed_artifacts: ['src/providers/github/status-effect.ts'],
+        direct: true,
+        via_properties: [],
+      },
+    ]);
+
+    const authorityImpacts = deriveAffectedAssuranceProperties(
+      db,
+      ['src/authority/engine.ts'],
+      (roots) => roots,
+    );
+    const broker = authorityImpacts.find(
+      (impact) => impact.property_id === 'broker-mutation-safety',
+    );
+    const provider = authorityImpacts.find(
+      (impact) => impact.property_id === 'github-commit-status-provider',
+    );
+
+    assert.equal(broker?.direct, true);
+    assert.equal(provider?.direct, false);
+    assert.deepEqual(provider?.via_properties, ['broker-mutation-safety']);
+    assert.deepEqual(provider?.changed_artifacts, ['src/authority/engine.ts']);
+  } finally {
+    db.close();
+  }
+});
+
+test('realization impact uses the supplied dependency closure rather than roots alone', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const changedDependency = 'src/example-transitive-dependency.ts';
+    const impacts = deriveAffectedAssuranceProperties(db, [changedDependency], (roots) =>
+      roots.includes('src/providers/github/status-effect.ts')
+        ? [...roots, changedDependency]
+        : roots,
+    );
+
+    assert.deepEqual(impacts, [
+      {
+        property_id: 'github-commit-status-provider',
+        changed_artifacts: [changedDependency],
+        direct: true,
+        via_properties: [],
+      },
+    ]);
   } finally {
     db.close();
   }
