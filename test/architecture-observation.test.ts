@@ -69,10 +69,10 @@ test('GitHub Actions effect observer recognizes direct provider mutations only',
 steps:
   - run: git push origin HEAD:refs/heads/topic
   - run: git push --quiet origin ":refs/heads/obsolete"
-  - run: api_post "/repos/${REPOSITORY}/git/blobs" "{}"
-  - run: api_post "/repos/${REPOSITORY}/git/trees" "{}"
-  - run: api_post "/repos/${REPOSITORY}/git/commits" "{}"
-  - run: api_post "/repos/${REPOSITORY}/git/refs" "{}"
+  - run: api_post "/repos/\${REPOSITORY}/git/blobs" "{}"
+  - run: api_post "/repos/\${REPOSITORY}/git/trees" "{}"
+  - run: api_post "/repos/\${REPOSITORY}/git/commits" "{}"
+  - run: api_post "/repos/\${REPOSITORY}/git/refs" "{}"
   - run: |
       curl --request POST \
         "https://api.github.com/repos/$REPOSITORY/statuses/$SOURCE_SHA"
