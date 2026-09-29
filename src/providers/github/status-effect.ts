@@ -58,7 +58,7 @@ export async function performGitHubCommitStatusEffect(
   const body: GitHubStatusMutationBody = {
     state: p.expected_state,
     context: p.context,
-    description: 'Overcenter trusted effect broker',
+    description: 'Overcenter trusted commit-status effect broker',
   };
 
   try {
