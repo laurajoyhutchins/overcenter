@@ -516,12 +516,12 @@ export function integrateVerifiedSourceCandidate(
     }
     const task = validateSourceTaskPacket(taskValue);
     if (task.acceptance?.verifier === 'tcb-finding-absent/v1') {
-      const normalizer = resolve(repo, 'scripts/normalize-tcb-candidate.ts');
-      const normalized = spawnSync(
+      const verifier = resolve(repo, 'scripts/verify-tcb-remediation.ts');
+      const verified = spawnSync(
         process.execPath,
         [
           '--experimental-strip-types',
-          normalizer,
+          verifier,
           '--root',
           candidateTree.root,
           '--finding',
@@ -531,13 +531,12 @@ export function integrateVerifiedSourceCandidate(
         ],
         { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
       );
-      if (normalized.status !== 0) {
+      if (verified.status !== 0) {
         return {
           state: 'REJECTED',
-          reason: `SOURCE_TCB_ACCEPTANCE_FAILED:${(normalized.stderr || normalized.stdout || '').trim()}`,
+          reason: `SOURCE_TCB_ACCEPTANCE_FAILED:${(verified.stderr || verified.stdout || '').trim()}`,
         };
       }
-      git(candidateTree.root, ['add', '-A']);
     }
     const tree = git(candidateTree.root, ['write-tree']);
     if (tree !== verification.tree_sha) {
