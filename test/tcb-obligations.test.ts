@@ -11,7 +11,7 @@ import {
   compileTcbObligations,
   tcbObligationsGraphProducer,
   TCB_OBLIGATION_PREFIX,
-  TCB_OBLIGATIONS_PATH,
+  TCB_POLICY_PATH,
 } from '../src/authority/tcb-obligations.ts';
 import { deriveProjectProjection } from '../src/authority/project-state.ts';
 import { observePostcondition } from '../src/observation/observe.ts';
@@ -42,7 +42,7 @@ const manifest = {
 } as const;
 
 test('executable TCB findings compile into bounded source-change obligations', () => {
-  assert.deepEqual(tcbObligationsGraphProducer.input_paths, [TCB_OBLIGATIONS_PATH]);
+  assert.deepEqual(tcbObligationsGraphProducer.input_paths, [TCB_POLICY_PATH]);
   assert.deepEqual(tcbObligationsGraphProducer.managed_prefixes, [TCB_OBLIGATION_PREFIX]);
   const [compiled] = compileTcbObligations(manifest);
   assert.ok(compiled);

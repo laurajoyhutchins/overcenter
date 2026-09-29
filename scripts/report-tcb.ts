@@ -1,6 +1,9 @@
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { API, SymbolFlags, type Symbol as TypeScriptSymbol } from 'typescript/unstable/sync';
 import {
@@ -52,14 +55,6 @@ interface RuntimeDispatchBinding {
 interface TcbProperty {
   id: string;
   statement: string;
-  max_semantic_loc: number;
-  expected_surface_sha256?: string;
-  max_module_closure_semantic_loc?: number;
-  expected_module_closure_sha256?: string;
-  max_hybrid_closure_semantic_loc?: number;
-  expected_hybrid_closure_sha256?: string;
-  attention_hybrid_closure_semantic_loc?: number;
-  attention_external_assumptions?: string[];
   require_sound_symbol_closure?: boolean;
   hostile_evidence_probes?: string[];
   entries: SymbolEntry[];
@@ -74,10 +69,6 @@ interface TcbComposition {
   id: string;
   statement: string;
   properties: string[];
-  max_hybrid_union_semantic_loc?: number;
-  expected_hybrid_union_sha256?: string;
-  attention_hybrid_union_semantic_loc?: number;
-  max_trusted_file_share?: number;
 }
 
 type TcbPolicyProperty = Omit<
@@ -87,7 +78,7 @@ type TcbPolicyProperty = Omit<
 
 interface TcbPolicy {
   schema: 'overcenter-tcb-policy';
-  schema_version: 1;
+  schema_version: 1 | 2;
   properties: TcbPolicyProperty[];
   compositions?: TcbComposition[];
 }
@@ -114,9 +105,227 @@ interface Slice {
   sha256: string;
 }
 
+function optionValue(name: string): string | null {
+  const index = process.argv.indexOf(name);
+  if (index < 0) return null;
+  const value = process.argv[index + 1];
+  if (!value || value.startsWith('--')) throw new Error(`TCB_OPTION_VALUE_REQUIRED:${name}`);
+  return value;
+}
+
 const policy = JSON.parse(readFileSync('tcb-policy.json', 'utf8')) as TcbPolicy;
-if (policy.schema !== 'overcenter-tcb-policy' || policy.schema_version !== 1) {
+if (
+  policy.schema !== 'overcenter-tcb-policy' ||
+  (policy.schema_version !== 1 && policy.schema_version !== 2)
+) {
   throw new Error('TCB_POLICY_SCHEMA_UNSUPPORTED');
+}
+
+function scopeDigest(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function propertyScopeDigest(property: TcbProperty): string {
+  return scopeDigest({
+    entries: property.entries
+      .map((entry) => ({
+        path: entry.path,
+        symbol: entry.symbol ?? null,
+        whole_file: entry.whole_file ?? false,
+      }))
+      .sort((left, right) =>
+        `${left.path}#${left.symbol ?? (left.whole_file ? '*' : '')}`.localeCompare(
+          `${right.path}#${right.symbol ?? (right.whole_file ? '*' : '')}`,
+        ),
+      ),
+    runtime_dispatch_bindings: (property.runtime_dispatch_bindings ?? [])
+      .map((binding) => ({
+        target: binding.target,
+        implementation: binding.implementation,
+      }))
+      .sort((left, right) => left.target.localeCompare(right.target)),
+    composes_with: [...(property.composes_with ?? [])].sort(),
+    trusted_symbol_boundaries: [...(property.trusted_symbol_boundaries ?? [])].sort(),
+    external_assumptions: [...property.external_assumptions].sort(),
+  });
+}
+
+function compositionScopeDigest(composition: TcbComposition): string {
+  return scopeDigest({ properties: [...composition.properties].sort() });
+}
+
+interface ComparableTcbProperty {
+  id: string;
+  scope_sha256: string;
+  hybrid_closure_semantic_loc: number;
+  external_module_imports: string[];
+  symbol_closure_external_symbols: string[];
+}
+
+interface ComparableTcbComposition {
+  id: string;
+  scope_sha256: string;
+  properties: string[];
+  hybrid_union_semantic_loc: number;
+}
+
+interface ComparableTcbReport {
+  schema: 'overcenter-tcb-report';
+  schema_version: 1;
+  properties: ComparableTcbProperty[];
+  compositions: ComparableTcbComposition[];
+}
+
+interface TcbDelta {
+  scope: string;
+  classification: 'unchanged' | 'reduction' | 'architectural-growth' | 'scope-change';
+  baseline_semantic_loc: number | null;
+  accepted_scope_semantic_loc: number | null;
+  candidate_semantic_loc: number | null;
+  delta_semantic_loc: number | null;
+  accepted_scope_delta_semantic_loc: number | null;
+  added_external_modules_under_accepted_scope: string[];
+  added_external_symbols_under_accepted_scope: string[];
+  growth_under_accepted_scope: boolean;
+}
+
+interface TcbReconciliation {
+  baseline_revision: string;
+  admitted: boolean;
+  properties: TcbDelta[];
+  compositions: TcbDelta[];
+}
+
+function reconcileTcb(
+  baseline: ComparableTcbReport,
+  candidateUnderAcceptedScope: ComparableTcbReport,
+  candidate: ComparableTcbReport,
+  baselineRevision: string,
+): TcbReconciliation {
+  const baseProperties = new Map(baseline.properties.map((property) => [property.id, property]));
+  const acceptedScopeProperties = new Map(
+    candidateUnderAcceptedScope.properties.map((property) => [property.id, property]),
+  );
+  const candidateProperties = new Map(
+    candidate.properties.map((property) => [property.id, property]),
+  );
+  const propertyIds = [
+    ...new Set([
+      ...baseProperties.keys(),
+      ...acceptedScopeProperties.keys(),
+      ...candidateProperties.keys(),
+    ]),
+  ].sort();
+  const scopeChanged = new Set<string>();
+  const properties = propertyIds.map((id): TcbDelta => {
+    const baseProperty = baseProperties.get(id);
+    const acceptedScope = acceptedScopeProperties.get(id);
+    const next = candidateProperties.get(id);
+    const changed =
+      !baseProperty || !acceptedScope || !next || acceptedScope.scope_sha256 !== next.scope_sha256;
+    if (changed) scopeChanged.add(id);
+    const acceptedScopeDelta =
+      baseProperty && acceptedScope
+        ? acceptedScope.hybrid_closure_semantic_loc - baseProperty.hybrid_closure_semantic_loc
+        : null;
+    const delta =
+      baseProperty && next
+        ? next.hybrid_closure_semantic_loc - baseProperty.hybrid_closure_semantic_loc
+        : null;
+    const baseExternalModules = new Set(baseProperty?.external_module_imports ?? []);
+    const baseExternalSymbols = new Set(baseProperty?.symbol_closure_external_symbols ?? []);
+    const addedExternalModules = (acceptedScope?.external_module_imports ?? []).filter(
+      (module) => !baseExternalModules.has(module),
+    );
+    const addedExternalSymbols = (acceptedScope?.symbol_closure_external_symbols ?? []).filter(
+      (symbol) => !baseExternalSymbols.has(symbol),
+    );
+    return {
+      scope: id,
+      classification: changed
+        ? 'scope-change'
+        : delta !== null && delta > 0
+          ? 'architectural-growth'
+          : delta !== null && delta < 0
+            ? 'reduction'
+            : 'unchanged',
+      baseline_semantic_loc: baseProperty?.hybrid_closure_semantic_loc ?? null,
+      accepted_scope_semantic_loc: acceptedScope?.hybrid_closure_semantic_loc ?? null,
+      candidate_semantic_loc: next?.hybrid_closure_semantic_loc ?? null,
+      delta_semantic_loc: delta,
+      accepted_scope_delta_semantic_loc: acceptedScopeDelta,
+      added_external_modules_under_accepted_scope: addedExternalModules,
+      added_external_symbols_under_accepted_scope: addedExternalSymbols,
+      growth_under_accepted_scope:
+        (acceptedScopeDelta !== null && acceptedScopeDelta > 0) ||
+        addedExternalModules.length > 0 ||
+        addedExternalSymbols.length > 0,
+    };
+  });
+
+  const baseCompositions = new Map(
+    baseline.compositions.map((composition) => [composition.id, composition]),
+  );
+  const acceptedScopeCompositions = new Map(
+    candidateUnderAcceptedScope.compositions.map((composition) => [composition.id, composition]),
+  );
+  const candidateCompositions = new Map(
+    candidate.compositions.map((composition) => [composition.id, composition]),
+  );
+  const compositionIds = [
+    ...new Set([
+      ...baseCompositions.keys(),
+      ...acceptedScopeCompositions.keys(),
+      ...candidateCompositions.keys(),
+    ]),
+  ].sort();
+  const compositions = compositionIds.map((id): TcbDelta => {
+    const baseComposition = baseCompositions.get(id);
+    const acceptedScope = acceptedScopeCompositions.get(id);
+    const next = candidateCompositions.get(id);
+    const memberScopeChanged =
+      acceptedScope?.properties.some((property) => scopeChanged.has(property)) === true ||
+      next?.properties.some((property) => scopeChanged.has(property)) === true;
+    const changed =
+      !baseComposition ||
+      !acceptedScope ||
+      !next ||
+      acceptedScope.scope_sha256 !== next.scope_sha256 ||
+      memberScopeChanged;
+    const acceptedScopeDelta =
+      baseComposition && acceptedScope
+        ? acceptedScope.hybrid_union_semantic_loc - baseComposition.hybrid_union_semantic_loc
+        : null;
+    const delta =
+      baseComposition && next
+        ? next.hybrid_union_semantic_loc - baseComposition.hybrid_union_semantic_loc
+        : null;
+    return {
+      scope: id,
+      classification: changed
+        ? 'scope-change'
+        : delta !== null && delta > 0
+          ? 'architectural-growth'
+          : delta !== null && delta < 0
+            ? 'reduction'
+            : 'unchanged',
+      baseline_semantic_loc: baseComposition?.hybrid_union_semantic_loc ?? null,
+      accepted_scope_semantic_loc: acceptedScope?.hybrid_union_semantic_loc ?? null,
+      candidate_semantic_loc: next?.hybrid_union_semantic_loc ?? null,
+      delta_semantic_loc: delta,
+      accepted_scope_delta_semantic_loc: acceptedScopeDelta,
+      added_external_modules_under_accepted_scope: [],
+      added_external_symbols_under_accepted_scope: [],
+      growth_under_accepted_scope: acceptedScopeDelta !== null && acceptedScopeDelta > 0,
+    };
+  });
+
+  return {
+    baseline_revision: baselineRevision,
+    admitted: ![...properties, ...compositions].some((delta) => delta.growth_under_accepted_scope),
+    properties,
+    compositions,
+  };
 }
 const mutationEvidence = JSON.parse(
   readFileSync('experiments/production-criticality-ranking/mutation-evidence.json', 'utf8'),
@@ -804,61 +1013,25 @@ try {
     const hybrid = hybridClosure(closure, symbols, property);
     const moduleFiles = new Set(closure.files);
     const symbolFilesOutsideModuleClosure = symbols.files.filter((path) => !moduleFiles.has(path));
-    if (semanticLoc > property.max_semantic_loc) failed = true;
-    if (property.expected_surface_sha256 && property.expected_surface_sha256 !== surfaceSha256) {
-      failed = true;
-    }
-    if (
-      property.max_module_closure_semantic_loc !== undefined &&
-      closure.semantic_loc > property.max_module_closure_semantic_loc
-    ) {
-      failed = true;
-    }
-    if (
-      property.expected_module_closure_sha256 &&
-      property.expected_module_closure_sha256 !== closure.sha256
-    ) {
-      failed = true;
-    }
-    if (
-      property.max_hybrid_closure_semantic_loc !== undefined &&
-      hybrid.semantic_loc > property.max_hybrid_closure_semantic_loc
-    ) {
-      failed = true;
-    }
-    if (
-      property.expected_hybrid_closure_sha256 &&
-      property.expected_hybrid_closure_sha256 !== hybrid.sha256
-    ) {
-      failed = true;
-    }
     if (property.require_sound_symbol_closure && symbols.status !== 'sound') {
       failed = true;
     }
     return {
       id: property.id,
       statement: property.statement,
+      scope_sha256: propertyScopeDigest(property),
       semantic_loc: semanticLoc,
-      max_semantic_loc: property.max_semantic_loc,
-      budget_remaining: property.max_semantic_loc - semanticLoc,
       surface_sha256: surfaceSha256,
-      expected_surface_sha256: property.expected_surface_sha256 ?? null,
       module_closure_semantic_loc: closure.semantic_loc,
-      max_module_closure_semantic_loc: property.max_module_closure_semantic_loc ?? null,
       module_closure_bytes: closure.bytes,
       module_closure_sha256: closure.sha256,
-      expected_module_closure_sha256: property.expected_module_closure_sha256 ?? null,
       module_closure_files: closure.files,
       external_module_imports: closure.external_modules,
       symbol_closure_status: symbols.status,
       symbol_closure_semantic_loc: symbols.semantic_loc,
       require_sound_symbol_closure: property.require_sound_symbol_closure ?? false,
       hybrid_closure_semantic_loc: hybrid.semantic_loc,
-      max_hybrid_closure_semantic_loc: property.max_hybrid_closure_semantic_loc ?? null,
       hybrid_closure_sha256: hybrid.sha256,
-      expected_hybrid_closure_sha256: property.expected_hybrid_closure_sha256 ?? null,
-      attention_hybrid_closure_semantic_loc: property.attention_hybrid_closure_semantic_loc ?? null,
-      attention_external_assumptions: property.attention_external_assumptions ?? [],
       hybrid_closure_files: hybrid.files,
       symbol_closure_files: symbols.files,
       symbol_closure_files_outside_module_closure: symbolFilesOutsideModuleClosure,
@@ -913,18 +1086,6 @@ try {
     }
     const semanticLoc = [...trusted.values()].reduce((sum, lines) => sum + lines.size, 0);
     const sha256 = createHash('sha256').update(fingerprintMaterial.join('\n')).digest('hex');
-    if (
-      composition.max_hybrid_union_semantic_loc !== undefined &&
-      semanticLoc > composition.max_hybrid_union_semantic_loc
-    ) {
-      failed = true;
-    }
-    if (
-      composition.expected_hybrid_union_sha256 &&
-      composition.expected_hybrid_union_sha256 !== sha256
-    ) {
-      failed = true;
-    }
     const memberEvidence = members.map((member) => member.hostile_evidence);
     const hasStaleEvidence = memberEvidence.some((evidence) => evidence.status === 'stale');
     const hasUnconfiguredEvidence = memberEvidence.some(
@@ -941,13 +1102,10 @@ try {
     return {
       id: composition.id,
       statement: composition.statement,
+      scope_sha256: compositionScopeDigest(composition),
       properties: composition.properties,
       hybrid_union_semantic_loc: semanticLoc,
-      max_hybrid_union_semantic_loc: composition.max_hybrid_union_semantic_loc ?? null,
       hybrid_union_sha256: sha256,
-      expected_hybrid_union_sha256: composition.expected_hybrid_union_sha256 ?? null,
-      attention_hybrid_union_semantic_loc: composition.attention_hybrid_union_semantic_loc ?? null,
-      max_trusted_file_share: composition.max_trusted_file_share ?? null,
       hybrid_union_files: [...trusted.keys()].sort(),
       hybrid_union_file_semantic_loc: [...trusted.entries()]
         .map(([path, lines]) => ({ path, semantic_loc: lines.size }))
@@ -1017,7 +1175,6 @@ try {
       const candidate: TcbProperty = {
         id: `architecture-effect:${effectId}`,
         statement: `Architecture-derived trusted computation required for ${effectId}.`,
-        max_semantic_loc: Number.MAX_SAFE_INTEGER,
         entries,
         runtime_dispatch_bindings: architectureDispatchBindings,
         external_assumptions: [],
@@ -1074,262 +1231,47 @@ try {
     }),
   };
 
-  type TcbFindingKind =
-    | 'tcb-growth'
-    | 'hostile-evidence-stale'
-    | 'hostile-evidence-missing'
-    | 'external-assumption-added'
-    | 'trust-concentration';
+  type TcbFindingKind = 'hostile-evidence-stale' | 'hostile-evidence-missing';
 
   interface TcbFinding {
     id: string;
     kind: TcbFindingKind;
     scope: string;
-    task: {
-      schema: 'overcenter-source-task/v1';
-      kind: 'source-change';
-      objective: string;
-      writable_paths: string[];
-    };
     evidence: Record<string, unknown>;
   }
 
-  const finding = (
-    id: string,
-    kind: TcbFindingKind,
-    scope: string,
-    objective: string,
-    writablePaths: string[],
-    evidence: Record<string, unknown>,
-  ): TcbFinding => ({
-    id,
-    kind,
-    scope,
-    task: {
-      schema: 'overcenter-source-task/v1',
-      kind: 'source-change',
-      objective,
-      writable_paths: [...new Set(writablePaths)].sort(),
-    },
-    evidence,
-  });
-
   const findings: TcbFinding[] = [];
   for (const property of reports) {
-    if (
-      property.attention_hybrid_closure_semantic_loc !== null &&
-      property.hybrid_closure_semantic_loc > property.attention_hybrid_closure_semantic_loc
-    ) {
-      findings.push(
-        finding(
-          `tcb:growth:${property.id}`,
-          'tcb-growth',
-          property.id,
-          `Reduce the ${property.id} hybrid TCB to at most ${property.attention_hybrid_closure_semantic_loc} semantic LOC without weakening its stated safety property or symbol-closure soundness.`,
-          property.hybrid_closure_files,
-          {
-            measured_semantic_loc: property.hybrid_closure_semantic_loc,
-            attention_semantic_loc: property.attention_hybrid_closure_semantic_loc,
-            hybrid_sha256: property.hybrid_closure_sha256,
-          },
-        ),
-      );
-    }
-
     for (const probe of property.hostile_evidence.probes) {
       if (probe.status !== 'stale') continue;
-      findings.push(
-        finding(
-          `tcb:hostile-evidence-stale:${property.id}:${probe.id}`,
-          'hostile-evidence-stale',
-          property.id,
-          `Refresh hostile mutation evidence for ${property.id} probe ${probe.id} against the current trusted source and preserve the probe's falsification purpose.`,
-          [
-            'experiments/production-criticality-ranking/mutation-evidence.json',
-            ...probe.sources.map((source) => source.path),
-          ],
-          {
-            probe_id: probe.id,
-            mutation_score: probe.mutation_score,
-            stale_sources: probe.sources.filter((source) => !source.current),
-          },
-        ),
-      );
-    }
-
-    if (property.hostile_evidence.status === 'unconfigured') {
-      findings.push(
-        finding(
-          `tcb:hostile-evidence-missing:${property.id}`,
-          'hostile-evidence-missing',
-          property.id,
-          `Add a hostile mutation probe that can falsify the ${property.id} property at its current trusted boundary.`,
-          [
-            'experiments/production-criticality-ranking/mutation-evidence.json',
-            'experiments/production-criticality-ranking/mutation-probes.json',
-            ...property.hybrid_closure_files,
-          ],
-          {
-            property_id: property.id,
-            hybrid_sha256: property.hybrid_closure_sha256,
-          },
-        ),
-      );
-    }
-
-    const acceptedAssumptions = new Set(property.attention_external_assumptions);
-    for (const assumption of property.external_assumptions) {
-      if (acceptedAssumptions.has(assumption)) continue;
-      const assumptionId = createHash('sha256').update(assumption).digest('hex').slice(0, 16);
-      findings.push(
-        finding(
-          `tcb:external-assumption-added:${property.id}:${assumptionId}`,
-          'external-assumption-added',
-          property.id,
-          `Remove or explicitly justify the newly introduced external assumption in ${property.id}: ${assumption}`,
-          property.hybrid_closure_files,
-          {
-            assumption,
-            assumption_sha256: createHash('sha256').update(assumption).digest('hex'),
-          },
-        ),
-      );
-    }
-  }
-
-  for (const composition of compositions) {
-    if (
-      composition.attention_hybrid_union_semantic_loc !== null &&
-      composition.hybrid_union_semantic_loc > composition.attention_hybrid_union_semantic_loc
-    ) {
-      findings.push(
-        finding(
-          `tcb:growth:${composition.id}`,
-          'tcb-growth',
-          composition.id,
-          `Reduce the ${composition.id} composed TCB to at most ${composition.attention_hybrid_union_semantic_loc} semantic LOC while preserving every member property.`,
-          composition.hybrid_union_files,
-          {
-            measured_semantic_loc: composition.hybrid_union_semantic_loc,
-            attention_semantic_loc: composition.attention_hybrid_union_semantic_loc,
-            hybrid_union_sha256: composition.hybrid_union_sha256,
-          },
-        ),
-      );
-    }
-
-    if (composition.max_trusted_file_share !== null) {
-      for (const file of composition.hybrid_union_file_semantic_loc) {
-        const share =
-          composition.hybrid_union_semantic_loc === 0
-            ? 0
-            : file.semantic_loc / composition.hybrid_union_semantic_loc;
-        if (share <= composition.max_trusted_file_share) continue;
-        const pathId = createHash('sha256').update(file.path).digest('hex').slice(0, 16);
-        findings.push(
-          finding(
-            `tcb:trust-concentration:${composition.id}:${pathId}`,
-            'trust-concentration',
-            composition.id,
-            `Reduce the trusted concentration of ${file.path} below ${(
-              composition.max_trusted_file_share * 100
-            ).toFixed(
-              1,
-            )}% of the ${composition.id} composed TCB without hiding dependencies from the analysis.`,
-            composition.hybrid_union_files,
-            {
-              path: file.path,
-              semantic_loc: file.semantic_loc,
-              union_semantic_loc: composition.hybrid_union_semantic_loc,
-              share,
-              max_share: composition.max_trusted_file_share,
-            },
-          ),
-        );
-      }
-    }
-  }
-
-  findings.sort((left, right) => left.id.localeCompare(right.id));
-  const tcbObligationManifest = {
-    schema: 'overcenter-tcb-obligations/v1',
-    obligations: findings,
-  };
-  const tcbObligationManifestText = `${JSON.stringify(tcbObligationManifest, null, 2)}\n`;
-  const tcbObligationPath = '.overcenter/tcb-obligations.json';
-  const writeGeneratedArtifacts =
-    process.argv.includes('--write') || process.argv.includes('--write-doc');
-  if (writeGeneratedArtifacts) {
-    writeFileSync(tcbObligationPath, tcbObligationManifestText, 'utf8');
-  } else if (
-    !existsSync(tcbObligationPath) ||
-    readFileSync(tcbObligationPath, 'utf8') !== tcbObligationManifestText
-  ) {
-    failed = true;
-    console.error(
-      JSON.stringify(
-        {
-          check: 'tcb-obligation-drift',
-          expected: tcbObligationManifest,
+      findings.push({
+        id: `tcb:hostile-evidence-stale:${property.id}:${probe.id}`,
+        kind: 'hostile-evidence-stale',
+        scope: property.id,
+        evidence: {
+          probe_id: probe.id,
+          mutation_score: probe.mutation_score,
+          stale_sources: probe.sources.filter((source) => !source.current),
         },
-        null,
-        2,
-      ),
-    );
-  }
-
-  const number = (value: number): string => value.toLocaleString('en-US');
-  const shortHash = (value: string): string => `${value.slice(0, 12)}…${value.slice(-5)}`;
-  const generatedBaseline = [
-    '<!-- BEGIN GENERATED TCB BASELINE -->',
-    '| Property | Explicit slice | Runtime symbols | Import envelope | Hybrid TCB | Hostile evidence | Hybrid SHA-256 |',
-    '| --- | ---: | ---: | ---: | ---: | --- | --- |',
-    ...reports.map(
-      (property) =>
-        `| \`${property.id}\` | ${number(property.semantic_loc)} | ${number(property.symbol_closure_semantic_loc)} | ${number(property.module_closure_semantic_loc)} | **${number(property.hybrid_closure_semantic_loc)}** | ${property.hostile_evidence.status} | \`${shortHash(property.hybrid_closure_sha256)}\` |`,
-    ),
-    '',
-    '| Composition | Deduplicated hybrid union | Hostile evidence | Union SHA-256 |',
-    '| --- | ---: | --- | --- |',
-    ...compositions.map(
-      (composition) =>
-        `| \`${composition.id}\` | **${number(composition.hybrid_union_semantic_loc)}** | ${composition.hostile_evidence_status} | \`${shortHash(composition.hybrid_union_sha256)}\` |`,
-    ),
-    '<!-- END GENERATED TCB BASELINE -->',
-  ].join('\n');
-  const documentationPath = 'docs/trusted-computing-base.md';
-  const documentation = readFileSync(documentationPath, 'utf8');
-  const generatedBlockPattern =
-    /<!-- BEGIN GENERATED TCB BASELINE -->[\s\S]*?<!-- END GENERATED TCB BASELINE -->/;
-  if (!generatedBlockPattern.test(documentation)) {
-    throw new Error('TCB_DOC_GENERATED_BLOCK_MISSING');
-  }
-  if (process.argv.includes('--write') || process.argv.includes('--write-doc')) {
-    writeFileSync(
-      documentationPath,
-      documentation.replace(generatedBlockPattern, generatedBaseline),
-      'utf8',
-    );
-  } else {
-    const currentBaseline = documentation.match(generatedBlockPattern)?.[0];
-    if (currentBaseline !== generatedBaseline) {
-      failed = true;
-      console.error(
-        JSON.stringify(
-          {
-            check: 'tcb-doc-drift',
-            expected: generatedBaseline,
-          },
-          null,
-          2,
-        ),
-      );
+      });
+    }
+    if (property.hostile_evidence.status === 'unconfigured') {
+      findings.push({
+        id: `tcb:hostile-evidence-missing:${property.id}`,
+        kind: 'hostile-evidence-missing',
+        scope: property.id,
+        evidence: {
+          property_id: property.id,
+          hybrid_sha256: property.hybrid_closure_sha256,
+        },
+      });
     }
   }
+  findings.sort((left, right) => left.id.localeCompare(right.id));
 
   const report = {
-    schema: 'overcenter-tcb-report',
-    schema_version: 1,
+    schema: 'overcenter-tcb-report' as const,
+    schema_version: 1 as const,
     generated_from: [...ARCHITECTURE_SQL_PATHS, 'tcb-policy.json'],
     architecture_tcb: architectureTcb,
     properties: reports,
@@ -1337,43 +1279,96 @@ try {
     obligations: findings,
   };
 
-  const optionValue = (name: string): string | null => {
-    const index = process.argv.indexOf(name);
-    if (index < 0) return null;
-    const value = process.argv[index + 1];
-    if (!value || value.startsWith('--')) throw new Error(`TCB_OPTION_VALUE_REQUIRED:${name}`);
-    return value;
-  };
+  const baselineRevision = optionValue('--baseline');
+  let reconciliation: TcbReconciliation | null = null;
+  if (baselineRevision !== null) {
+    if (!/^[0-9a-f]{40}$/.test(baselineRevision)) {
+      throw new Error('TCB_BASELINE_REVISION_INVALID');
+    }
+    const scratch = mkdtempSync(join(tmpdir(), 'overcenter-tcb-baseline-'));
+    const baselineRoot = join(scratch, 'baseline');
+    const acceptedScopeRoot = join(scratch, 'accepted-scope');
+    const baselineOutput = join(scratch, 'baseline.json');
+    const acceptedScopeOutput = join(scratch, 'accepted-scope.json');
+    try {
+      const candidateRevision = execFileSync('git', ['rev-parse', 'HEAD'], {
+        encoding: 'utf8',
+      }).trim();
+      execFileSync('git', ['worktree', 'add', '--detach', baselineRoot, baselineRevision], {
+        stdio: 'ignore',
+      });
+      execFileSync('git', ['worktree', 'add', '--detach', acceptedScopeRoot, candidateRevision], {
+        stdio: 'ignore',
+      });
+      const installedModules = resolve('node_modules');
+      if (existsSync(installedModules)) {
+        for (const root of [baselineRoot, acceptedScopeRoot]) {
+          symlinkSync(
+            installedModules,
+            join(root, 'node_modules'),
+            process.platform === 'win32' ? 'junction' : 'dir',
+          );
+        }
+      }
+      for (const path of ['tcb-policy.json', ...ARCHITECTURE_SQL_PATHS]) {
+        const accepted = execFileSync('git', ['show', `${baselineRevision}:${path}`], {
+          encoding: 'utf8',
+        });
+        writeFileSync(join(acceptedScopeRoot, path), accepted, 'utf8');
+      }
+      const trustedScript = fileURLToPath(import.meta.url);
+      const runReport = (cwd: string, output: string, label: string): ComparableTcbReport => {
+        const run = spawnSync(
+          process.execPath,
+          ['--experimental-strip-types', trustedScript, '--output', output],
+          { cwd, encoding: 'utf8' },
+        );
+        if (run.status !== 0 || !existsSync(output)) {
+          throw new Error(
+            `TCB_${label}_ANALYSIS_FAILED:${String(run.stderr || run.stdout || '').trim()}`,
+          );
+        }
+        return JSON.parse(readFileSync(output, 'utf8')) as ComparableTcbReport;
+      };
+      const baseline = runReport(baselineRoot, baselineOutput, 'BASELINE');
+      const candidateUnderAcceptedScope = runReport(
+        acceptedScopeRoot,
+        acceptedScopeOutput,
+        'ACCEPTED_SCOPE',
+      );
+      reconciliation = reconcileTcb(
+        baseline,
+        candidateUnderAcceptedScope,
+        report,
+        baselineRevision,
+      );
+      if (!reconciliation.admitted) failed = true;
+    } finally {
+      for (const root of [acceptedScopeRoot, baselineRoot]) {
+        spawnSync('git', ['worktree', 'remove', '--force', root], { stdio: 'ignore' });
+      }
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+
+  const finalReport = { ...report, reconciliation };
+
   const outputPath = optionValue('--output');
   if (outputPath) {
-    writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+    writeFileSync(outputPath, `${JSON.stringify(finalReport, null, 2)}\n`, 'utf8');
   }
 
   const summaryPath = optionValue('--summary');
   if (summaryPath) {
-    const signed = (value: number): string => (value > 0 ? `+${number(value)}` : number(value));
-    const propertyStatus = (property: (typeof reports)[number]): string => {
-      const sizeCurrent =
-        property.max_hybrid_closure_semantic_loc === null ||
-        property.hybrid_closure_semantic_loc <= property.max_hybrid_closure_semantic_loc;
-      const fingerprintCurrent =
-        property.expected_hybrid_closure_sha256 === null ||
-        property.hybrid_closure_sha256 === property.expected_hybrid_closure_sha256;
-      const symbolsCurrent =
-        !property.require_sound_symbol_closure || property.symbol_closure_status === 'sound';
-      return sizeCurrent && fingerprintCurrent && symbolsCurrent ? 'current' : 'changed';
-    };
-    const compositionStatus = (composition: (typeof compositions)[number]): string => {
-      const sizeCurrent =
-        composition.max_hybrid_union_semantic_loc === null ||
-        composition.hybrid_union_semantic_loc <= composition.max_hybrid_union_semantic_loc;
-      const fingerprintCurrent =
-        composition.expected_hybrid_union_sha256 === null ||
-        composition.hybrid_union_sha256 === composition.expected_hybrid_union_sha256;
-      return sizeCurrent && fingerprintCurrent ? 'current' : 'changed';
-    };
-    const assumptionCount = new Set(reports.flatMap((property) => property.external_assumptions))
-      .size;
+    const number = (value: number): string => value.toLocaleString('en-US');
+    const signed = (value: number | null): string =>
+      value === null ? 'n/a' : value > 0 ? `+${number(value)}` : number(value);
+    const propertyDelta = new Map(
+      (reconciliation?.properties ?? []).map((delta) => [delta.scope, delta]),
+    );
+    const compositionDelta = new Map(
+      (reconciliation?.compositions ?? []).map((delta) => [delta.scope, delta]),
+    );
     const staleProbeRows = reports.flatMap((property) =>
       property.hostile_evidence.probes
         .filter((probe) => probe.status !== 'current')
@@ -1382,38 +1377,25 @@ try {
             `| \`${property.id}\` | \`${probe.id}\` | ${probe.status} | ${probe.mutation_score.toFixed(3)} |`,
         ),
     );
-    const hotspotRows = compositions.flatMap((composition) =>
-      composition.hybrid_union_file_semantic_loc.slice(0, 10).map((file) => {
-        const share =
-          composition.hybrid_union_semantic_loc === 0
-            ? '0.0%'
-            : `${((100 * file.semantic_loc) / composition.hybrid_union_semantic_loc).toFixed(1)}%`;
-        return `| \`${composition.id}\` | \`${file.path}\` | ${number(file.semantic_loc)} | ${share} |`;
-      }),
-    );
     const summary = [
       '## Trusted computing base analysis',
       '',
-      `Overall ratchet: **${failed ? 'changed' : 'current'}**. Unique external assumptions: **${assumptionCount}**.`,
+      reconciliation
+        ? `Accepted-base comparison: **${reconciliation.admitted ? 'admitted' : 'rejected'}** against \`${reconciliation.baseline_revision}\`.`
+        : 'Observation only: no accepted-base revision was supplied.',
       '',
-      '| Property | Hybrid TCB | Ratchet | Delta | Symbol closure | Hostile evidence |',
-      '| --- | ---: | ---: | ---: | --- | --- |',
+      '| Property | Hybrid TCB | Δ total | Δ under accepted scope | Classification | Symbol closure | Hostile evidence |',
+      '| --- | ---: | ---: | ---: | --- | --- | --- |',
       ...reports.map((property) => {
-        const baseline = property.max_hybrid_closure_semantic_loc;
-        const delta =
-          baseline === null ? 'n/a' : signed(property.hybrid_closure_semantic_loc - baseline);
-        const ratchet = baseline === null ? 'n/a' : number(baseline);
-        return `| \`${property.id}\` | **${number(property.hybrid_closure_semantic_loc)}** | ${ratchet} | ${delta} | ${property.symbol_closure_status} | ${property.hostile_evidence.status} |`;
+        const delta = propertyDelta.get(property.id);
+        return `| \`${property.id}\` | **${number(property.hybrid_closure_semantic_loc)}** | ${signed(delta?.delta_semantic_loc ?? null)} | ${signed(delta?.accepted_scope_delta_semantic_loc ?? null)} | ${delta?.classification ?? 'observation-only'} | ${property.symbol_closure_status} | ${property.hostile_evidence.status} |`;
       }),
       '',
-      '| Composition | Deduplicated hybrid union | Ratchet | Delta | Hostile evidence |',
-      '| --- | ---: | ---: | ---: | --- |',
+      '| Composition | Deduplicated hybrid union | Δ total | Δ under accepted scope | Classification | Hostile evidence |',
+      '| --- | ---: | ---: | ---: | --- | --- |',
       ...compositions.map((composition) => {
-        const baseline = composition.max_hybrid_union_semantic_loc;
-        const delta =
-          baseline === null ? 'n/a' : signed(composition.hybrid_union_semantic_loc - baseline);
-        const ratchet = baseline === null ? 'n/a' : number(baseline);
-        return `| \`${composition.id}\` | **${number(composition.hybrid_union_semantic_loc)}** | ${ratchet} | ${delta} | ${composition.hostile_evidence_status} |`;
+        const delta = compositionDelta.get(composition.id);
+        return `| \`${composition.id}\` | **${number(composition.hybrid_union_semantic_loc)}** | ${signed(delta?.delta_semantic_loc ?? null)} | ${signed(delta?.accepted_scope_delta_semantic_loc ?? null)} | ${delta?.classification ?? 'observation-only'} | ${composition.hostile_evidence_status} |`;
       }),
       '',
       '### Architecture-derived trust roots',
@@ -1425,81 +1407,38 @@ try {
           `| \`${effect.effect_id}\` | ${effect.roots.length} | **${number(effect.hybrid_closure_semantic_loc)}** | ${effect.symbol_closure_status} | ${effect.covered_by_compositions.length > 0 ? effect.covered_by_compositions.map((id) => `\`${id}\``).join(', ') : '_none_'} |`,
       ),
       '',
-      '### Largest trusted files in composed properties',
-      '',
-      '| Composition | File | Semantic LOC | Share |',
-      '| --- | --- | ---: | ---: |',
-      ...(hotspotRows.length > 0 ? hotspotRows : ['| _none_ | _none_ | 0 | 0.0% |']),
-      '',
       '### Hostile-evidence debt',
       '',
       '| Property | Probe | Freshness | Mutation score |',
       '| --- | --- | --- | ---: |',
       ...(staleProbeRows.length > 0 ? staleProbeRows : ['| _none_ | _none_ | current | 1.000 |']),
       '',
-      '### Active TCB obligations',
-      '',
-      `Active findings: **${findings.length}**.`,
-      '',
-      '| Obligation | Kind | Scope |',
-      '| --- | --- | --- |',
-      ...(findings.length > 0
-        ? findings.map((item) => `| \`${item.id}\` | ${item.kind} | \`${item.scope}\` |`)
-        : ['| _none_ | _none_ | _none_ |']),
-      '',
-      '### Ratchet state',
-      '',
-      ...reports.map(
-        (property) =>
-          `- \`${property.id}\`: ${propertyStatus(property)}; hybrid fingerprint \`${shortHash(property.hybrid_closure_sha256)}\`.`,
-      ),
-      ...compositions.map(
-        (composition) =>
-          `- \`${composition.id}\`: ${compositionStatus(composition)}; union fingerprint \`${shortHash(composition.hybrid_union_sha256)}\`.`,
-      ),
-      '',
     ].join('\n');
     writeFileSync(summaryPath, summary, { encoding: 'utf8', flag: 'a' });
   }
+
   if (failed) {
     console.error(
       JSON.stringify(
         {
-          check: 'tcb-ratchet-mismatch',
-          properties: reports.map((property) => ({
-            id: property.id,
-            semantic_loc: property.semantic_loc,
-            max_semantic_loc: property.max_semantic_loc,
-            surface_sha256: property.surface_sha256,
-            expected_surface_sha256: property.expected_surface_sha256,
-            module_closure_semantic_loc: property.module_closure_semantic_loc,
-            max_module_closure_semantic_loc: property.max_module_closure_semantic_loc,
-            module_closure_sha256: property.module_closure_sha256,
-            expected_module_closure_sha256: property.expected_module_closure_sha256,
-            symbol_closure_status: property.symbol_closure_status,
-            hybrid_closure_semantic_loc: property.hybrid_closure_semantic_loc,
-            max_hybrid_closure_semantic_loc: property.max_hybrid_closure_semantic_loc,
-            hybrid_closure_sha256: property.hybrid_closure_sha256,
-            expected_hybrid_closure_sha256: property.expected_hybrid_closure_sha256,
-          })),
-          compositions: compositions.map((composition) => ({
-            id: composition.id,
-            hybrid_union_semantic_loc: composition.hybrid_union_semantic_loc,
-            max_hybrid_union_semantic_loc: composition.max_hybrid_union_semantic_loc,
-            hybrid_union_sha256: composition.hybrid_union_sha256,
-            expected_hybrid_union_sha256: composition.expected_hybrid_union_sha256,
-            hostile_evidence_status: composition.hostile_evidence_status,
-          })),
+          check: 'tcb-admission-failed',
+          reconciliation,
+          unsound_properties: reports
+            .filter(
+              (property) =>
+                property.require_sound_symbol_closure && property.symbol_closure_status !== 'sound',
+            )
+            .map((property) => property.id),
         },
         null,
         2,
       ),
     );
   }
-  console.log(JSON.stringify(report, null, 2));
+  console.log(JSON.stringify(finalReport, null, 2));
 
   if (failed) {
-    throw new Error('TCB_BUDGET_EXCEEDED');
+    throw new Error('TCB_ADMISSION_FAILED');
   }
 } finally {
   snapshot.dispose();

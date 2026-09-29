@@ -7,6 +7,7 @@ import type { ProjectGraphProducer } from './project-graph.ts';
 
 export const TCB_OBLIGATIONS_SCHEMA = 'overcenter-tcb-obligations/v1' as const;
 export const TCB_OBLIGATIONS_PATH = '.overcenter/tcb-obligations.json' as const;
+export const TCB_POLICY_PATH = 'tcb-policy.json' as const;
 export const TCB_OBLIGATION_PREFIX = 'tcb:' as const;
 
 const FINDING_KINDS = new Set([
@@ -100,15 +101,11 @@ export function compileTcbObligations(value: unknown): ObligationInput[] {
 
 export const tcbObligationsGraphProducer: ProjectGraphProducer = Object.freeze({
   id: 'tcb-obligations',
-  input_paths: [TCB_OBLIGATIONS_PATH],
+  input_paths: [TCB_POLICY_PATH],
   managed_prefixes: [TCB_OBLIGATION_PREFIX],
-  produce(snapshot: RepositorySnapshot) {
-    let value: unknown;
-    try {
-      value = JSON.parse(snapshot.bytes(TCB_OBLIGATIONS_PATH).toString('utf8'));
-    } catch {
-      throw new Error('TCB_OBLIGATIONS_JSON_INVALID');
-    }
-    return compileTcbObligations(value);
+  produce(_snapshot: RepositorySnapshot) {
+    // TCB growth is an exact-base admission decision, not repository-owned generated state.
+    // Keep ownership of the legacy namespace so project reconciliation retires old tcb:* work.
+    return [];
   },
 });

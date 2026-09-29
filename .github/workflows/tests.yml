@@ -26,6 +26,7 @@ jobs:
     timeout-minutes: 4
     env:
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -33,6 +34,13 @@ jobs:
           persist-credentials: false
       - name: Verify exact evidence revision
         run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - name: Fetch accepted TCB baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: '.node-version'
@@ -55,7 +63,14 @@ jobs:
       - name: Type-check repository
         run: npm run typecheck
       - name: Analyze trusted computing base
-        run: npm run check:tcb -- --summary "$GITHUB_STEP_SUMMARY" --output "$RUNNER_TEMP/overcenter-tcb-report.json"
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--summary "$GITHUB_STEP_SUMMARY" --output "$RUNNER_TEMP/overcenter-tcb-report.json")
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            args+=(--baseline "$BASE_SHA")
+          fi
+          npm run check:tcb -- "${args[@]}"
       - name: Analyze production code witnesses
         run: npm run check:code-witnesses -- --summary "$GITHUB_STEP_SUMMARY" --output "$RUNNER_TEMP/overcenter-code-witness-report.json"
       - name: Check adapter diagnosability
