@@ -22,7 +22,7 @@ function observedArchitecture(): ObservedArchitecture {
   if (baselineObservation === null) {
     const db = loadArchitectureDatabase();
     try {
-      baselineObservation = observedArchitecture();
+      baselineObservation = observeArchitecture(db, revision);
     } finally {
       db.close();
     }
