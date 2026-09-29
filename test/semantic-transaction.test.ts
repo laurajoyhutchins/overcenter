@@ -18,15 +18,12 @@ test('golden semantic transaction admits only its exact observed write set', () 
 });
 
 test('semantic transaction replans when a planned write is absent', () => {
-  assert.deepEqual(
-    admitObservedSemanticDelta(GOLDEN_TRANSACTION_CASE.expected_write_set, []),
-    {
-      state: 'REPLAN_REQUIRED',
-      reason: 'SEMANTIC_TRANSACTION_DIVERGED',
-      missing_artifacts: ['src/providers/github/status-effect.ts'],
-      unexpected_artifacts: [],
-    },
-  );
+  assert.deepEqual(admitObservedSemanticDelta(GOLDEN_TRANSACTION_CASE.expected_write_set, []), {
+    state: 'REPLAN_REQUIRED',
+    reason: 'SEMANTIC_TRANSACTION_DIVERGED',
+    missing_artifacts: ['src/providers/github/status-effect.ts'],
+    unexpected_artifacts: [],
+  });
 });
 
 test('semantic transaction replans when observation widens the write set', () => {
