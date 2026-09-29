@@ -157,10 +157,7 @@ export function deriveAssuranceChangePlan(
     ...new Map(
       deriveAssurancePropertyTrustRoots(db)
         .filter((root) => propertySet.has(root.property_id))
-        .map(({ property_id: _propertyId, ...root }) => [
-          JSON.stringify(root),
-          root,
-        ]),
+        .map(({ property_id: _propertyId, ...root }) => [JSON.stringify(root), root]),
     ).values(),
   ].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
 
