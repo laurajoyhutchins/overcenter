@@ -9,7 +9,7 @@ import {
   type ProcessSpec,
 } from './protocol.ts';
 import { KernelCore, type Receipt } from '../authority/engine.ts';
-import { isData, isSha256Tagged } from '../validation.ts';
+import { isData } from '../validation.ts';
 
 export const REPLAY_SAFE_TEST_COMPUTATION_PACKET_SCHEMA =
   'overcenter-replay-safe-test-computation-v1' as const;
@@ -64,7 +64,10 @@ export function validateTestComputationPacket(value: unknown): TestComputationPa
   if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) {
     throw new Error('TEST_COMPUTATION_PACKET_SHAPE_INVALID');
   }
-  if (!isSha256Tagged(value.execution_context_sha256)) {
+  if (
+    typeof value.execution_context_sha256 !== 'string' ||
+    !/^sha256:[0-9a-f]{64}$/.test(value.execution_context_sha256)
+  ) {
     throw new Error('TEST_COMPUTATION_EXECUTION_CONTEXT_INVALID');
   }
   return {
