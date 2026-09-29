@@ -129,7 +129,8 @@ export function validatePostcondition(p: Postcondition): void {
   if (
     p?.verifier === 'github-commit-status/v2' &&
     p.provider === 'github' &&
-    isPositiveSafeInteger(p.repository_id) &&
+    Number.isSafeInteger(p.repository_id) &&
+    p.repository_id > 0 &&
     typeof p.repository_full_name === 'string' &&
     /^[^/]+\/[^/]+$/.test(p.repository_full_name) &&
     isGitHubObjectId(p.commit_sha) &&
@@ -141,10 +142,12 @@ export function validatePostcondition(p: Postcondition): void {
   if (
     p?.verifier === 'github-pull-request-branch-updated/v1' &&
     p.provider === 'github' &&
-    isPositiveSafeInteger(p.repository_id) &&
+    Number.isSafeInteger(p.repository_id) &&
+    p.repository_id > 0 &&
     typeof p.repository_full_name === 'string' &&
     /^[^/]+\/[^/]+$/.test(p.repository_full_name) &&
-    isPositiveSafeInteger(p.pull_number) &&
+    Number.isSafeInteger(p.pull_number) &&
+    p.pull_number > 0 &&
     typeof p.pull_node_id === 'string' &&
     p.pull_node_id.length > 0 &&
     isGitHubObjectId(p.expected_previous_head_sha) &&
