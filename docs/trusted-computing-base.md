@@ -10,7 +10,7 @@ The machine-readable policy is [`tcb-policy.json`](../tcb-policy.json). Reproduc
 npm run check:tcb
 ```
 
-CI runs the same reporter on every evidence candidate and writes a compact analysis to the GitHub job summary: property and composition sizes, ratchet deltas, symbol-closure status, hostile-evidence freshness, and the largest files in each composed trust surface. The workflow also materializes the complete JSON report at `$RUNNER_TEMP/overcenter-tcb-report.json` for later steps without introducing a second analysis implementation.
+CI runs the same reporter on every evidence candidate and writes a compact analysis to the GitHub job summary: property and composition sizes, accepted-base deltas, transition classifications, symbol-closure status, and hostile-evidence freshness. The workflow also materializes the complete JSON report at `$RUNNER_TEMP/overcenter-tcb-report.json` for later steps without introducing a second analysis implementation.
 
 The report gives every trusted slice an exact path, symbol or whole-file boundary, source-line range, semantic LOC count, and SHA-256 fingerprint. It then computes two independent dependency views: a transitive runtime-import envelope and a TypeScript-checker runtime-symbol closure. The import envelope is **not** an upper bound: hosted measurement falsified that assumption because injected runtime objects can call trusted code without importing its module. The ratcheted hybrid envelope therefore charges whole runtime-imported files plus runtime declarations reached across those non-import symbol edges.
 
@@ -30,43 +30,19 @@ A run must not become `DONE` from worker assertion. `DONE` must arise from an ad
 
 The generic core depends on provider-specific facts being interpreted correctly. GitHub commit status therefore has a separately charged provider TCB covering repository identity, request dispatch certainty, response certification, pagination, and status-coordinate semantics.
 
-## Budget rule
+## Derived ratchet
 
-Each property has explicit-slice, import-envelope, and hybrid semantic-LOC ceilings. CI also requires the symbol closure to have zero unresolved runtime-dispatch obligations. The hybrid SHA-256 fingerprint covers the import-envelope fingerprint, cross-envelope trusted declaration slices, runtime dispatch bindings, and property-composition cuts, so a same-LOC trust-edge change still requires an explicit policy update.
+The policy declares safety meaning, external assumptions, exclusions, and hostile-evidence requirements. The architecture SQL derives trusted roots, runtime bindings, and assurance composition. Neither encodes an allowed TCB size.
 
-A LOC ceiling or static dependency closure is not a proof. It is an architectural ratchet. The stronger evidence comes from combining this inventory with hostile tests, authority-flow analysis, exact-head CI, differential backends, and formal models.
+For candidate admission, Overcenter measures three views with the same analyzer: the accepted source under the accepted policy, the candidate source under the accepted policy, and the candidate source under the candidate policy. Growth already visible under the accepted policy is architectural growth and is rejected. Growth that appears only after an explicit roots, runtime-binding, composition, or external-assumption change is attributed to that declared scope change. A smaller surface is a reduction.
 
-Hard ratchets and attention baselines are different. Hard ratchets fence the exact trusted surface admitted by the current revision. Attention baselines preserve the architectural target across intentional ratchet updates. If the measured TCB grows above an attention baseline, updating the hard fingerprint does not erase the debt: the reporter derives a stable `tcb-growth` obligation until the trusted surface is reduced or the attention baseline is changed.
+This also handles analyzer improvements without copying measurements into policy. The candidate analyzer is applied to both source revisions, so newly discovered trust in the accepted base is treated as corrected measurement before candidate changes are compared. Changing prose alone does not create a growth exemption because the ratchet is keyed to structural trust inputs, not the property description.
 
-## Current baseline
+The hybrid SHA-256 fingerprint remains evidence of the exact measured surface, but it is not a checked-in expected value. Semantic LOC remains a useful complexity projection, not an authority source. The accepted Git revision is the baseline.
 
-The table below and `.overcenter/tcb-obligations.json` are generated from the executable report. Run `npm run update:tcb` after an intentional ratchet change; `npm run check:tcb` fails if either generated artifact drifts from the measured policy.
+CI writes the current report and accepted-base reconciliation to the job summary and an ephemeral JSON report. No generated TCB baseline or obligation manifest is committed to the repository.
 
-<!-- BEGIN GENERATED TCB BASELINE -->
-| Property | Explicit slice | Runtime symbols | Import envelope | Hybrid TCB | Hostile evidence | Hybrid SHA-256 |
-| --- | ---: | ---: | ---: | ---: | --- | --- |
-| `broker-mutation-safety` | 708 | 3,273 | 9,159 | **9,286** | stale | `3f269400397a…ec882` |
-| `no-false-done` | 760 | 5,089 | 9,159 | **9,282** | stale | `d0107f411174…e7045` |
-| `github-commit-status-provider` | 96 | 1,656 | 2,572 | **2,578** | unconfigured | `1d365466a414…de0c5` |
-
-| Composition | Deduplicated hybrid union | Hostile evidence | Union SHA-256 |
-| --- | ---: | --- | --- |
-| `github-status-safe-settlement` | **9,286** | stale-and-incomplete | `8d34422950a0…7e1de` |
-<!-- END GENERATED TCB BASELINE -->
-
-The property scopes overlap and must not be summed. The composed GitHub status path is the deduplicated end-to-end trust surface for mutation admission through authoritative settlement. The two core properties share most of the same broad authority, graph, observation, and provider cone; adding the GitHub commit-status profile increases the composed hybrid surface by only 185 semantic lines above broker mutation safety.
-
-Hostile-evidence freshness is separate from the TCB size ratchet. A stale mutation probe remains visible as debt but does not make unrelated source changes fail the merge gate; an unknown configured probe still fails closed. `unconfigured` means the property does not yet have a dedicated hostile mutation probe.
-
-## Derived obligations
-
-The reporter deterministically projects actionable TCB findings into `.overcenter/tcb-obligations.json`. Current finding classes are TCB growth above an attention baseline, stale or missing hostile evidence, newly introduced external assumptions, and excessive trusted-file concentration.
-
-The TCB manifest is an ordinary managed project-graph producer. `project.advance` reconciles only its `tcb:` namespace when that exact-source manifest is present. A finding that disappears from the executable analysis is retired; unrelated project obligations remain ensure-only and are never retired by this mechanism.
-
-These findings are **judgment work**, not executable effect packets. They use the `operator-judgment/v1` postcondition, project as `BLOCKED` with `JUDGMENT_REQUIRED`, and automatic observation rejects them. The deterministic layer therefore decides that evidence requires attention and preserves the evidence; a reasoning agent or operator decides what source change, if any, is the right remedy.
-
-The core properties explicitly bind the `DurableFactStore.append` dispatch edge to `SqliteFactStore.append`. The GitHub provider profile composes with broker mutation safety at `KernelCore.authorizeEffect`, `performEffect`, and `releaseEffectReservation`; those core methods are not charged again to the provider-specific delta.
+Hostile-evidence freshness remains separate from TCB-size admission. A stale mutation probe remains visible in the report but does not make unrelated source changes fail the merge gate; an unknown configured probe still fails closed. `unconfigured` means the property does not yet have a dedicated hostile mutation probe.
 
 ## External assumptions
 
