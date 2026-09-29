@@ -206,12 +206,16 @@ function reconcileTcb(
   const acceptedScopeProperties = new Map(
     candidateUnderAcceptedScope.properties.map((property) => [property.id, property]),
   );
-  const candidateProperties = new Map(candidate.properties.map((property) => [property.id, property]));
-  const propertyIds = [...new Set([
-    ...baseProperties.keys(),
-    ...acceptedScopeProperties.keys(),
-    ...candidateProperties.keys(),
-  ])].sort();
+  const candidateProperties = new Map(
+    candidate.properties.map((property) => [property.id, property]),
+  );
+  const propertyIds = [
+    ...new Set([
+      ...baseProperties.keys(),
+      ...acceptedScopeProperties.keys(),
+      ...candidateProperties.keys(),
+    ]),
+  ].sort();
   const scopeChanged = new Set<string>();
   const properties = propertyIds.map((id): TcbDelta => {
     const baseProperty = baseProperties.get(id);
@@ -268,11 +272,13 @@ function reconcileTcb(
   const candidateCompositions = new Map(
     candidate.compositions.map((composition) => [composition.id, composition]),
   );
-  const compositionIds = [...new Set([
-    ...baseCompositions.keys(),
-    ...acceptedScopeCompositions.keys(),
-    ...candidateCompositions.keys(),
-  ])].sort();
+  const compositionIds = [
+    ...new Set([
+      ...baseCompositions.keys(),
+      ...acceptedScopeCompositions.keys(),
+      ...candidateCompositions.keys(),
+    ]),
+  ].sort();
   const compositions = compositionIds.map((id): TcbDelta => {
     const baseComposition = baseCompositions.get(id);
     const acceptedScope = acceptedScopeCompositions.get(id);
@@ -1305,11 +1311,9 @@ try {
         }
       }
       for (const path of ['tcb-policy.json', ...ARCHITECTURE_SQL_PATHS]) {
-        const accepted = execFileSync(
-          'git',
-          ['show', `${baselineRevision}:${path}`],
-          { encoding: 'utf8' },
-        );
+        const accepted = execFileSync('git', ['show', `${baselineRevision}:${path}`], {
+          encoding: 'utf8',
+        });
         writeFileSync(join(acceptedScopeRoot, path), accepted, 'utf8');
       }
       const trustedScript = fileURLToPath(import.meta.url);
