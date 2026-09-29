@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto';
-import { canonicalDigest } from '../digest.ts';
+import { canonicalDigest, sha256 } from '../digest.ts';
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type {
@@ -53,7 +52,6 @@ export interface ObservationContext {
   clock?: () => string;
 }
 
-const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function data(value: unknown): value is Record<string, unknown> {
@@ -129,8 +127,7 @@ export function validatePostcondition(p: Postcondition): void {
   if (
     p?.verifier === 'github-commit-status/v2' &&
     p.provider === 'github' &&
-    Number.isSafeInteger(p.repository_id) &&
-    p.repository_id > 0 &&
+    isPositiveSafeInteger(p.repository_id) &&
     typeof p.repository_full_name === 'string' &&
     /^[^/]+\/[^/]+$/.test(p.repository_full_name) &&
     isGitHubObjectId(p.commit_sha) &&
@@ -142,12 +139,10 @@ export function validatePostcondition(p: Postcondition): void {
   if (
     p?.verifier === 'github-pull-request-branch-updated/v1' &&
     p.provider === 'github' &&
-    Number.isSafeInteger(p.repository_id) &&
-    p.repository_id > 0 &&
+    isPositiveSafeInteger(p.repository_id) &&
     typeof p.repository_full_name === 'string' &&
     /^[^/]+\/[^/]+$/.test(p.repository_full_name) &&
-    Number.isSafeInteger(p.pull_number) &&
-    p.pull_number > 0 &&
+    isPositiveSafeInteger(p.pull_number) &&
     typeof p.pull_node_id === 'string' &&
     p.pull_node_id.length > 0 &&
     isGitHubObjectId(p.expected_previous_head_sha) &&
