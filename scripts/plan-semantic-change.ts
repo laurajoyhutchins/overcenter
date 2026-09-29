@@ -127,7 +127,11 @@ function allAssuranceProperties(db: ReturnType<typeof loadArchitectureDatabase>)
   ).map((row) => row.property_id);
 }
 
-export function planSemanticChange(baseRef: string, headRef = 'HEAD'): SemanticChangePlan {
+export function planSemanticChange(
+  baseRef: string,
+  headRef = 'HEAD',
+  expectedWriteSet?: readonly string[],
+): SemanticChangePlan {
   const baseRevision = revision(baseRef);
   const headRevision = revision(headRef);
   const checkedOutRevision = revision('HEAD');
@@ -135,7 +139,17 @@ export function planSemanticChange(baseRef: string, headRef = 'HEAD'): SemanticC
     throw new Error(`SEMANTIC_CHANGE_HEAD_NOT_CHECKED_OUT:${headRevision}:${checkedOutRevision}`);
   }
 
-  const changedArtifacts = observeGitSemanticDelta(baseRevision, headRevision);
+  const observedArtifacts = observeGitSemanticDelta(baseRevision, headRevision);
+  const admission =
+    expectedWriteSet === undefined
+      ? { state: 'ADMITTED' as const, changed_artifacts: observedArtifacts }
+      : admitObservedSemanticDelta(expectedWriteSet, observedArtifacts);
+  if (admission.state === 'REPLAN_REQUIRED') {
+    throw new Error(
+      `${admission.reason}:missing=${admission.missing_artifacts.join(',')}:unexpected=${admission.unexpected_artifacts.join(',')}`,
+    );
+  }
+  const changedArtifacts = admission.changed_artifacts;
   const architectureModelChanged = changedArtifacts.some((path) =>
     ARCHITECTURE_SQL_PATHS.includes(path as (typeof ARCHITECTURE_SQL_PATHS)[number]),
   );
@@ -198,9 +212,15 @@ export function planSemanticChange(baseRef: string, headRef = 'HEAD'): SemanticC
 }
 
 function main(): void {
-  const [base, head = 'HEAD'] = process.argv.slice(2);
+  const [base, head = 'HEAD', ...expectedWriteSet] = process.argv.slice(2);
   if (!base) throw new Error('SEMANTIC_CHANGE_BASE_REQUIRED');
-  process.stdout.write(`${JSON.stringify(planSemanticChange(base, head), null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify(
+      planSemanticChange(base, head, expectedWriteSet.length > 0 ? expectedWriteSet : undefined),
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
