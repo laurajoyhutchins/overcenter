@@ -16,6 +16,20 @@ function cloneObserved(observed: ObservedArchitecture): ObservedArchitecture {
   return structuredClone(observed);
 }
 
+let baselineObservation: ObservedArchitecture | null = null;
+
+function observedArchitecture(): ObservedArchitecture {
+  if (baselineObservation === null) {
+    const db = loadArchitectureDatabase();
+    try {
+      baselineObservation = observedArchitecture();
+    } finally {
+      db.close();
+    }
+  }
+  return cloneObserved(baselineObservation);
+}
+
 test('architecture SQL separates language, logic, and physics', () => {
   assert.deepEqual(ARCHITECTURE_SQL_PATHS, [
     'architecture/concepts.sql',
@@ -149,7 +163,7 @@ test('TCB roots are derived recursively from effect architecture', () => {
 test('maintained relational architecture reconciles against the current repository', () => {
   const db = loadArchitectureDatabase();
   try {
-    const observed = observeArchitecture(db, revision);
+    const observed = observedArchitecture();
     const reconciliation = reconcileArchitecture(db, observed);
     assert.deepEqual(reconciliation.findings, []);
   } finally {
@@ -160,7 +174,7 @@ test('maintained relational architecture reconciles against the current reposito
 test('missing declared write capability is a SQL reconciliation finding', () => {
   const db = loadArchitectureDatabase();
   try {
-    const observed = cloneObserved(observeArchitecture(db, revision));
+    const observed = observedArchitecture();
     const principal =
       '.github/workflows/substrate-capability-admission-treatment.yml#foreign-ambient-status-write';
     observed.principal_capabilities = observed.principal_capabilities.filter(
@@ -189,7 +203,7 @@ test('missing declared write capability is a SQL reconciliation finding', () => 
 test('undeclared write capability is a SQL reconciliation finding', () => {
   const db = loadArchitectureDatabase();
   try {
-    const observed = cloneObserved(observeArchitecture(db, revision));
+    const observed = observedArchitecture();
     observed.principal_capabilities.push({
       principal_id: '.github/workflows/tests.yml#unit',
       capability_id: 'github-actions/permission/statuses/write',
@@ -213,7 +227,7 @@ test('undeclared write capability is a SQL reconciliation finding', () => {
 test('effect invocation and authority-bearing capability remain independent relations', () => {
   const db = loadArchitectureDatabase();
   try {
-    const observed = observeArchitecture(db, revision);
+    const observed = observedArchitecture();
     const denied =
       '.github/workflows/substrate-capability-admission-treatment.yml#foreign-status-write-denied';
     const ambient =
@@ -247,7 +261,7 @@ test('effect invocation and authority-bearing capability remain independent rela
 test('missing physical symbol is detected without treating its declared semantics as observed', () => {
   const db = loadArchitectureDatabase();
   try {
-    const observed = cloneObserved(observeArchitecture(db, revision));
+    const observed = observedArchitecture();
     observed.symbols = observed.symbols.filter(
       (row) =>
         !(
@@ -277,7 +291,7 @@ test('logical authority without a physical implementation fails closed', () => {
     db.prepare(
       "DELETE FROM symbol_implements_authority WHERE authority_id = 'effect-authority'",
     ).run();
-    const observed = observeArchitecture(db, revision);
+    const observed = observedArchitecture();
     const reconciliation = reconcileArchitecture(db, observed);
     assert.ok(
       reconciliation.findings.some(
@@ -295,7 +309,7 @@ test('logical authority without a physical implementation fails closed', () => {
 test('unresolved dynamic effect reachability is unknown rather than silently accepted', () => {
   const db = loadArchitectureDatabase();
   try {
-    const observed = cloneObserved(observeArchitecture(db, revision));
+    const observed = observedArchitecture();
     observed.unresolved_effect_calls.push({
       principal_id: '.github/workflows/operator-project-submit.yml#command',
       call_site_path: 'src/example.ts',
