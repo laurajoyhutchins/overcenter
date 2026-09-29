@@ -25,6 +25,16 @@ interface EvidenceRow {
   artifact_id: string;
 }
 
+
+export interface AssurancePropertyImpact {
+  property_id: string;
+  changed_artifacts: string[];
+  direct: boolean;
+  via_properties: string[];
+}
+
+export type ArtifactDependencyClosure = (rootArtifacts: readonly string[]) => readonly string[];
+
 function placeholders(values: readonly string[]): string {
   return values.map(() => '?').join(', ');
 }
@@ -168,4 +178,83 @@ export function deriveAssuranceChangePlan(
     evidence,
     realization_roots: realizationRoots,
   };
+}
+
+
+export function deriveAffectedAssuranceProperties(
+  db: DatabaseSync,
+  changedArtifacts: readonly string[],
+  dependencyClosure: ArtifactDependencyClosure,
+): AssurancePropertyImpact[] {
+  const changed = new Set(changedArtifacts);
+  if (changed.size === 0) return [];
+
+  const rootsByProperty = new Map<string, Set<string>>();
+  for (const root of deriveAssurancePropertyTrustRoots(db)) {
+    const roots = rootsByProperty.get(root.property_id) ?? new Set<string>();
+    roots.add(root.artifact_id);
+    rootsByProperty.set(root.property_id, roots);
+  }
+
+  const direct = new Map<string, string[]>();
+  for (const [propertyId, rootArtifacts] of rootsByProperty) {
+    const closure = new Set(dependencyClosure([...rootArtifacts].sort()));
+    const affected = [...changed].filter((artifact) => closure.has(artifact)).sort();
+    if (affected.length > 0) direct.set(propertyId, affected);
+  }
+
+  const compositions = db
+    .prepare(`
+      SELECT property_id, required_property_id
+      FROM assurance_property_composes_with
+      ORDER BY property_id, required_property_id
+    `)
+    .all() as unknown as Array<{ property_id: string; required_property_id: string }>;
+
+  const affected = new Map<
+    string,
+    { changedArtifacts: Set<string>; direct: boolean; viaProperties: Set<string> }
+  >();
+  for (const [propertyId, artifacts] of direct) {
+    affected.set(propertyId, {
+      changedArtifacts: new Set(artifacts),
+      direct: true,
+      viaProperties: new Set(),
+    });
+  }
+
+  let changedImpact = true;
+  while (changedImpact) {
+    changedImpact = false;
+    for (const composition of compositions) {
+      const required = affected.get(composition.required_property_id);
+      if (!required) continue;
+
+      const current = affected.get(composition.property_id) ?? {
+        changedArtifacts: new Set<string>(),
+        direct: false,
+        viaProperties: new Set<string>(),
+      };
+      const beforeArtifacts = current.changedArtifacts.size;
+      const beforeVia = current.viaProperties.size;
+      for (const artifact of required.changedArtifacts) current.changedArtifacts.add(artifact);
+      current.viaProperties.add(composition.required_property_id);
+      affected.set(composition.property_id, current);
+      if (
+        current.changedArtifacts.size !== beforeArtifacts ||
+        current.viaProperties.size !== beforeVia
+      ) {
+        changedImpact = true;
+      }
+    }
+  }
+
+  return [...affected.entries()]
+    .map(([property_id, impact]) => ({
+      property_id,
+      changed_artifacts: [...impact.changedArtifacts].sort(),
+      direct: impact.direct,
+      via_properties: [...impact.viaProperties].sort(),
+    }))
+    .sort((left, right) => left.property_id.localeCompare(right.property_id));
 }
