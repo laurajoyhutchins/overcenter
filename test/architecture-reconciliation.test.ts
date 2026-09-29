@@ -2,799 +2,332 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
+import { deriveRuntimeDispatchBindings, trustRootsForEffect } from '../src/architecture/tcb.ts';
 import {
-  ARCHITECTURE_INTENT_SCHEMA,
-  architectureReconciliationWork,
-  type ArchitectureIntent,
-  type ArchitectureObservedFact,
   reconcileArchitecture,
-  validateArchitectureIntent,
-} from '../src/authority/architecture-reconciliation.ts';
-import {
-  GITHUB_COMMIT_STATUS_EFFECT,
-  GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
-  GITHUB_SOURCE_INTEGRATION_EFFECT,
-} from '../src/effect-adapter.ts';
-import { classifyJudgmentFrontier } from '../src/authority/judgment-frontier.ts';
-import type { ProjectExplanation } from '../src/authority/project-state.ts';
-import type { Work } from '../src/model.ts';
-import { observeArchitectureIntent } from '../scripts/observe-architecture.ts';
-import { createTypeScriptFunctionEffectProbe } from '../scripts/typescript-effect-reachability.ts';
-import {
-  explicitGitHubActionsWritePermissions,
-  observeGitHubActionsSources,
-} from '../src/observation/github-actions-capabilities.ts';
-import {
-  observeGitHubActionsProviderEffects,
-  recognizedGitHubActionsProviderEffects,
-} from '../src/observation/github-actions-effects.ts';
-import { workflowTypeScriptEntrypoints } from '../src/observation/workflow-transitive-effects.ts';
+  type ObservedArchitecture,
+} from '../src/architecture/reconciliation.ts';
+import { observeArchitecture } from '../scripts/observe-architecture.ts';
 
 const revision = 'a'.repeat(40);
 
-function intent(): ArchitectureIntent {
-  return {
-    schema: ARCHITECTURE_INTENT_SCHEMA,
-    claims: [
-      {
-        kind: 'authority-role',
-        concept: 'fixture',
-        authority: 'src/authority.ts',
-        projections: ['src/view.ts'],
-        verifiers: ['test/authority.test.ts'],
-      },
-    ],
-  };
+function cloneObserved(observed: ObservedArchitecture): ObservedArchitecture {
+  return structuredClone(observed);
 }
 
-function observations(
-  overrides: Partial<
-    Record<'authority' | 'projection' | 'verifier' | 'forward' | 'reverse', boolean>
-  > = {},
-): ArchitectureObservedFact[] {
-  return [
-    {
-      kind: 'path-state',
-      source_revision: revision,
-      path: 'src/authority.ts',
-      present: overrides.authority ?? true,
-    },
-    {
-      kind: 'path-state',
-      source_revision: revision,
-      path: 'src/view.ts',
-      present: overrides.projection ?? true,
-    },
-    {
-      kind: 'path-state',
-      source_revision: revision,
-      path: 'test/authority.test.ts',
-      present: overrides.verifier ?? true,
-    },
-    {
-      kind: 'typescript-reference-state',
-      source_revision: revision,
-      from_path: 'src/authority.ts',
-      to_path: 'src/view.ts',
-      present: overrides.forward ?? false,
-    },
-    {
-      kind: 'typescript-reference-state',
-      source_revision: revision,
-      from_path: 'src/view.ts',
-      to_path: 'src/authority.ts',
-      present: overrides.reverse ?? true,
-    },
-  ];
-}
+let baselineObservation: ObservedArchitecture | null = null;
 
-test('maintained architecture intent reconciles against observed production flow', () => {
-  const maintained = validateArchitectureIntent(
-    JSON.parse(readFileSync('.overcenter/architecture-intent.json', 'utf8')),
-  );
-  const observed = observeArchitectureIntent(maintained, revision);
-  const result = reconcileArchitecture({
-    intent: maintained,
-    source_revision: revision,
-    observations: observed,
-  });
-  assert.deepEqual(
-    result.resolutions.filter((resolution) => resolution.state !== 'established'),
-    [],
-  );
-});
-
-test('agreement is established only from exact-revision observations', () => {
-  const result = reconcileArchitecture({
-    intent: intent(),
-    source_revision: revision,
-    observations: observations(),
-  });
-  assert.equal(result.resolutions.length, 1);
-  assert.equal(result.resolutions[0]?.state, 'established');
-
-  const stale = observations();
-  stale[0] = { ...stale[0]!, source_revision: 'b'.repeat(40) };
-  assert.throws(
-    () =>
-      reconcileArchitecture({
-        intent: intent(),
-        source_revision: revision,
-        observations: stale,
-      }),
-    /ARCHITECTURE_OBSERVATION_REVISION_MISMATCH/,
-  );
-});
-
-test('declared authority cannot override an observed missing path', () => {
-  const result = reconcileArchitecture({
-    intent: intent(),
-    source_revision: revision,
-    observations: observations({ authority: false }),
-  });
-  const resolution = result.resolutions[0]!;
-  assert.equal(resolution.state, 'conflict');
-  if (resolution.state !== 'conflict') return;
-  assert.equal(resolution.reason_code, 'AUTHORITY_PATH_MISSING');
-  assert.equal(resolution.contradicting_facts[0]?.kind, 'path-state');
-});
-
-test('missing observation coverage stays unknown instead of becoming false certainty', () => {
-  const incomplete = observations().filter(
-    (fact) =>
-      !(
-        fact.kind === 'typescript-reference-state' &&
-        fact.from_path === 'src/view.ts' &&
-        fact.to_path === 'src/authority.ts'
-      ),
-  );
-  const forward = incomplete.find(
-    (fact) =>
-      fact.kind === 'typescript-reference-state' &&
-      fact.from_path === 'src/authority.ts' &&
-      fact.to_path === 'src/view.ts',
-  );
-  if (forward?.kind === 'typescript-reference-state') forward.present = false;
-
-  const result = reconcileArchitecture({
-    intent: intent(),
-    source_revision: revision,
-    observations: incomplete,
-  });
-  const resolution = result.resolutions[0]!;
-  assert.equal(resolution.state, 'unknown');
-  if (resolution.state !== 'unknown') return;
-  assert.deepEqual(resolution.missing_evidence, [
-    'typescript-reference-state:src/view.ts->src/authority.ts',
-  ]);
-});
-
-test('observed disagreement becomes bounded reasoning work with no mutation authority', () => {
-  const result = reconcileArchitecture({
-    intent: intent(),
-    source_revision: revision,
-    observations: observations({ forward: false, reverse: false }),
-  });
-  const resolution = result.resolutions[0]!;
-  assert.equal(resolution.state, 'conflict');
-  if (resolution.state !== 'conflict') return;
-  assert.equal(resolution.reason_code, 'DECLARED_PROJECTION_FLOW_MISSING');
-
-  const obligation = architectureReconciliationWork(resolution, revision);
-  const work: Work = {
-    ...obligation,
-    dependencies: obligation.dependencies ?? [],
-    packet: obligation.packet ?? {},
-    status: 'BLOCKED',
-    revision,
-    blocked_reason: 'JUDGMENT_REQUIRED',
-  };
-  const explanation: ProjectExplanation = {
-    obligation_id: work.id,
-    status: 'BLOCKED',
-    reason: {
-      kind: 'judgment-required',
-      subject:
-        work.postcondition.verifier === 'operator-judgment/v1' ? work.postcondition.subject : {},
-    },
-  };
-  const dispatch = classifyJudgmentFrontier({
-    work,
-    explanation,
-    unresolved_effect: false,
-  });
-  assert.equal(dispatch.route, 'reasoning-required');
-  assert.equal(dispatch.reason_code, 'ARCHITECTURE_RECONCILIATION_REQUIRED');
-  assert.ok(dispatch.evidence_predicates.includes('packet.kind=architecture-reconciliation'));
-});
-
-test('duplicate authority ownership is a conflict rather than silently accepted reality', () => {
-  const duplicated: ArchitectureIntent = {
-    schema: ARCHITECTURE_INTENT_SCHEMA,
-    claims: [
-      {
-        kind: 'authority-role',
-        concept: 'first',
-        authority: 'src/shared.ts',
-        projections: [],
-        verifiers: [],
-      },
-      {
-        kind: 'authority-role',
-        concept: 'second',
-        authority: 'src/shared.ts',
-        projections: [],
-        verifiers: [],
-      },
-    ],
-  };
-  const result = reconcileArchitecture({
-    intent: duplicated,
-    source_revision: revision,
-    observations: [
-      {
-        kind: 'path-state',
-        source_revision: revision,
-        path: 'src/shared.ts',
-        present: true,
-      },
-    ],
-  });
-  assert.deepEqual(
-    result.resolutions.map((resolution) =>
-      resolution.state === 'conflict' ? resolution.reason_code : resolution.state,
-    ),
-    ['DUPLICATE_AUTHORITY_OWNER', 'DUPLICATE_AUTHORITY_OWNER'],
-  );
-});
-
-test('GitHub Actions observer finds explicit write grants without inferring inherited writes', () => {
-  const source = `
-permissions:
-  contents: read
-jobs:
-  publish:
-    permissions:
-      contents: write
-      statuses: read
-  propose:
-    permissions: { pull-requests: write, contents: read }
-  broad:
-    permissions: write-all
-`;
-  assert.deepEqual(explicitGitHubActionsWritePermissions(source), [
-    '*',
-    'contents',
-    'pull-requests',
-  ]);
-
-  const observed = observeGitHubActionsSources(
-    {
-      '.github/workflows/inherited.yml': `jobs:
-  publish:
-    permissions:
-      contents: write
-`,
-    },
-    revision,
-  );
-  assert.equal(
-    observed.some((fact) => fact.kind === 'github-actions-inherited-permissions'),
-    true,
-  );
-  assert.equal(
-    observed.some(
-      (fact) =>
-        fact.kind === 'github-actions-explicit-write-capability' &&
-        fact.workflow_path === '.github/workflows/inherited.yml' &&
-        fact.permission === 'contents',
-    ),
-    true,
-  );
-});
-
-test('undeclared GitHub Actions write capability becomes an architecture conflict', () => {
-  const policy: ArchitectureIntent = {
-    schema: ARCHITECTURE_INTENT_SCHEMA,
-    claims: [
-      {
-        kind: 'github-actions-explicit-write-authority',
-        concept: 'workflow-write-authority',
-        allowed: [
-          {
-            workflow: '.github/workflows/allowed.yml',
-            permissions: ['contents'],
-          },
-        ],
-      },
-    ],
-  };
-  const observed = observeGitHubActionsSources(
-    {
-      '.github/workflows/allowed.yml': `permissions:
-  contents: write
-`,
-      '.github/workflows/rogue.yml': `permissions:
-  statuses: write
-`,
-    },
-    revision,
-  );
-  const result = reconcileArchitecture({
-    intent: policy,
-    source_revision: revision,
-    observations: observed,
-  });
-  const resolution = result.resolutions[0]!;
-  assert.equal(resolution.state, 'conflict');
-  if (resolution.state !== 'conflict') return;
-  assert.equal(resolution.reason_code, 'UNDECLARED_GITHUB_ACTIONS_EXPLICIT_WRITE_CAPABILITY');
-  assert.deepEqual(
-    resolution.contradicting_facts.map((fact) =>
-      fact.kind === 'github-actions-explicit-write-capability'
-        ? `${fact.workflow_path}:${fact.permission}`
-        : fact.kind,
-    ),
-    ['.github/workflows/rogue.yml:statuses'],
-  );
-});
-
-test('GitHub Actions write policy stays unknown when workflow scan evidence is absent', () => {
-  const policy: ArchitectureIntent = {
-    schema: ARCHITECTURE_INTENT_SCHEMA,
-    claims: [
-      {
-        kind: 'github-actions-explicit-write-authority',
-        concept: 'workflow-write-authority',
-        allowed: [
-          {
-            workflow: '.github/workflows/allowed.yml',
-            permissions: ['contents'],
-          },
-        ],
-      },
-    ],
-  };
-  const result = reconcileArchitecture({
-    intent: policy,
-    source_revision: revision,
-    observations: [],
-  });
-  const resolution = result.resolutions[0]!;
-  assert.equal(resolution.state, 'unknown');
-  if (resolution.state !== 'unknown') return;
-  assert.deepEqual(resolution.missing_evidence, ['github-actions-workflow-scan']);
-});
-
-test('GitHub Actions effect observer recognizes direct provider mutations only', () => {
-  const source = `
-steps:
-  - run: git push origin HEAD:refs/heads/topic
-  - run: git push --quiet origin ":refs/heads/obsolete"
-  - run: api_post "/repos/\${REPOSITORY}/git/blobs" "{}"
-  - run: api_post "/repos/\${REPOSITORY}/git/trees" "{}"
-  - run: api_post "/repos/\${REPOSITORY}/git/commits" "{}"
-  - run: api_post "/repos/\${REPOSITORY}/git/refs" "{}"
-  - run: |
-      curl --request POST \
-        "https://api.github.com/repos/$REPOSITORY/statuses/$SOURCE_SHA"
-  - run: |
-      curl -X POST \
-        "https://api.github.com/repos/$REPOSITORY/pulls"
-  - run: curl "https://api.github.com/repos/$REPOSITORY/pulls/123"
-`;
-  assert.deepEqual(
-    recognizedGitHubActionsProviderEffects(source).map((fact) => fact.effect),
-    [
-      'github-git-ref/update',
-      'github-git-ref/delete',
-      'github-git-blob/create',
-      'github-git-tree/create',
-      'github-git-commit/create',
-      'github-git-ref/create',
-      'github-commit-status/create',
-      'github-pull-request/create',
-    ],
-  );
-});
-
-test('provider effect observations are exact-source facts with statement digests', () => {
-  const observed = observeGitHubActionsProviderEffects(
-    {
-      '.github/workflows/publish.yml': `jobs:
-  publish:
-    steps:
-      - run: git push origin HEAD:main
-`,
-    },
-    revision,
-  );
-  assert.equal(observed.length, 1);
-  assert.deepEqual(
-    {
-      kind: observed[0]?.kind,
-      revision: observed[0]?.source_revision,
-      workflow: observed[0]?.workflow_path,
-      effect: observed[0]?.effect,
-      line: observed[0]?.line_number,
-      digest_length: observed[0]?.statement_sha256.length,
-    },
-    {
-      kind: 'github-actions-provider-effect-invocation',
-      revision,
-      workflow: '.github/workflows/publish.yml',
-      effect: 'github-git-ref/update',
-      line: 4,
-      digest_length: 64,
-    },
-  );
-});
-
-test('undeclared direct provider effect becomes architecture reconciliation work', () => {
-  const policy: ArchitectureIntent = {
-    schema: ARCHITECTURE_INTENT_SCHEMA,
-    claims: [
-      {
-        kind: 'github-actions-provider-effect-authority',
-        concept: 'workflow-provider-effects',
-        allowed: [
-          {
-            workflow: '.github/workflows/allowed.yml',
-            effects: ['github-git-ref/update'],
-          },
-        ],
-      },
-    ],
-  };
-  const sources = {
-    '.github/workflows/allowed.yml': `steps:
-  - run: git push origin HEAD:main
-`,
-    '.github/workflows/rogue.yml': `steps:
-  - run: |
-      curl -X POST "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls"
-`,
-  };
-  const observed: ArchitectureObservedFact[] = [
-    ...observeGitHubActionsSources(sources, revision),
-    ...observeGitHubActionsProviderEffects(sources, revision),
-  ];
-  const result = reconcileArchitecture({
-    intent: policy,
-    source_revision: revision,
-    observations: observed,
-  });
-  const resolution = result.resolutions[0]!;
-  assert.equal(resolution.state, 'conflict');
-  if (resolution.state !== 'conflict') return;
-  assert.equal(resolution.reason_code, 'UNDECLARED_GITHUB_ACTIONS_PROVIDER_EFFECT');
-  assert.deepEqual(
-    resolution.contradicting_facts.map((fact) =>
-      fact.kind === 'github-actions-provider-effect-invocation'
-        ? `${fact.workflow_path}:${fact.effect}`
-        : fact.kind,
-    ),
-    ['.github/workflows/rogue.yml:github-pull-request/create'],
-  );
-
-  const work = architectureReconciliationWork(resolution, revision);
-  assert.equal(work.packet?.kind, 'architecture-reconciliation');
-  assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
-});
-
-test('effect invocation is observed even when write capability is absent', () => {
-  const source = `permissions:
-  contents: read
-steps:
-  - run: |
-      curl --request POST \
-        "https://api.github.com/repos/$REPOSITORY/statuses/$SOURCE_SHA"
-`;
-  assert.deepEqual(explicitGitHubActionsWritePermissions(source), []);
-  assert.deepEqual(
-    recognizedGitHubActionsProviderEffects(source).map((fact) => fact.effect),
-    ['github-commit-status/create'],
-  );
-});
-
-test('workflow TypeScript entrypoints are observed without treating npm scripts as direct entrypoints', () => {
-  const source = `steps:
-  - run: node --experimental-strip-types src/cli/project-submit.ts --receipt out.json
-  - run: npm run test
-`;
-  assert.deepEqual(workflowTypeScriptEntrypoints(source), [
-    { entrypoint: 'src/cli/project-submit.ts', line_number: 2 },
-  ]);
-});
-
-test('undeclared transitive effect reachability becomes bounded architecture reconciliation work', () => {
-  const policy: ArchitectureIntent = {
-    schema: ARCHITECTURE_INTENT_SCHEMA,
-    claims: [
-      {
-        kind: 'workflow-transitive-effect-authority',
-        concept: 'workflow-transitive-effects',
-        allowed: [],
-      },
-    ],
-  };
-  const result = reconcileArchitecture({
-    intent: policy,
-    source_revision: revision,
-    observations: [
-      {
-        kind: 'github-actions-workflow-scan',
-        source_revision: revision,
-        workflow_paths: ['.github/workflows/rogue.yml'],
-      },
-      {
-        kind: 'github-actions-typescript-entrypoint',
-        source_revision: revision,
-        workflow_path: '.github/workflows/rogue.yml',
-        entrypoint: 'src/cli/rogue.ts',
-        line_number: 1,
-      },
-      {
-        kind: 'github-actions-transitive-effect-reachability',
-        source_revision: revision,
-        workflow_path: '.github/workflows/rogue.yml',
-        entrypoint: 'src/cli/rogue.ts',
-        effect: GITHUB_SOURCE_INTEGRATION_EFFECT,
-        terminal_path: 'src/provider.ts',
-        import_chain: ['src/cli/rogue.ts', 'src/provider.ts'],
-        terminal_statement_sha256: 'b'.repeat(64),
-      },
-    ],
-  });
-  const resolution = result.resolutions[0]!;
-  assert.equal(resolution.state, 'conflict');
-  if (resolution.state !== 'conflict') return;
-  assert.equal(resolution.reason_code, 'UNDECLARED_WORKFLOW_TRANSITIVE_EFFECT');
-  const work = architectureReconciliationWork(resolution, revision);
-  assert.equal(work.packet?.kind, 'architecture-reconciliation');
-  assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
-});
-
-test('function-level effect reachability ignores imported but uncalled mutation APIs', () => {
-  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
-  try {
-    assert.deepEqual(probe('test/fixtures/function-effect-import-only.ts'), {
-      effects: [],
-      unresolved_calls: [],
-    });
-  } finally {
-    probe.dispose?.();
-  }
-});
-
-test('function-level effect reachability binds called semantic mutation terminals', () => {
-  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
-  try {
-    const analysis = probe('test/fixtures/function-effect-called.ts');
-    const effects = analysis.effects;
-    assert.deepEqual(analysis.unresolved_calls, []);
-    assert.deepEqual(
-      effects.map((fact) => ({
-        effect: fact.effect,
-        terminal: `${fact.terminal_path}#${fact.terminal_symbol}`,
-        root: fact.call_chain[0],
-        leaf: fact.call_chain.at(-1),
-        digest_length: fact.terminal_statement_sha256.length,
-      })),
-      [
-        {
-          effect: GITHUB_COMMIT_STATUS_EFFECT,
-          terminal: 'src/providers/github/status-effect.ts#performGitHubCommitStatusEffect',
-          root: 'test/fixtures/function-effect-called.ts#<module>',
-          leaf: 'src/providers/github/status-effect.ts#performGitHubCommitStatusEffect',
-          digest_length: 64,
-        },
-        {
-          effect: GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
-          terminal:
-            'src/providers/github/pr-update-branch-effect.ts#performGitHubPullRequestUpdateBranchEffect',
-          root: 'test/fixtures/function-effect-called.ts#<module>',
-          leaf: 'src/providers/github/pr-update-branch-effect.ts#performGitHubPullRequestUpdateBranchEffect',
-          digest_length: 64,
-        },
-        {
-          effect: GITHUB_SOURCE_INTEGRATION_EFFECT,
-          terminal: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
-          root: 'test/fixtures/function-effect-called.ts#<module>',
-          leaf: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
-          digest_length: 64,
-        },
-      ],
-    );
-  } finally {
-    probe.dispose?.();
-  }
-});
-
-test('real operator entrypoints do not inherit uncalled GitHub HTTP effects', () => {
-  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
-  try {
-    for (const entrypoint of ['src/cli/project-advance.ts', 'src/cli/project-submit.ts']) {
-      const analysis = probe(entrypoint);
-      const effects = analysis.effects;
-      assert.equal(
-        analysis.unresolved_calls.some((fact) => fact.candidate_effects.length > 0),
-        false,
-      );
-      assert.equal(
-        effects.some(
-          (fact) =>
-            fact.effect === GITHUB_COMMIT_STATUS_EFFECT ||
-            fact.effect === GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
-        ),
-        false,
-      );
+function observedArchitecture(): ObservedArchitecture {
+  if (baselineObservation === null) {
+    const db = loadArchitectureDatabase();
+    try {
+      baselineObservation = observeArchitecture(db, revision);
+    } finally {
+      db.close();
     }
-  } finally {
-    probe.dispose?.();
   }
+  return cloneObserved(baselineObservation);
+}
+
+test('architecture SQL separates language, logic, and physics', () => {
+  assert.deepEqual(ARCHITECTURE_SQL_PATHS, [
+    'architecture/concepts.sql',
+    'architecture/logic.sql',
+    'architecture/physics.sql',
+  ]);
+
+  const concepts = readFileSync('architecture/concepts.sql', 'utf8');
+  const logic = readFileSync('architecture/logic.sql', 'utf8');
+  const physics = readFileSync('architecture/physics.sql', 'utf8');
+  const loader = readFileSync('src/architecture/sql-model.ts', 'utf8');
+
+  assert.doesNotMatch(concepts, /src\/|\.github\/|github|kubernetes/i);
+  assert.doesNotMatch(logic, /src\/|\.github\/workflows\//);
+  assert.doesNotMatch(physics, /\bCREATE\s+TABLE\b/i);
+  assert.doesNotMatch(loader, /\.read\b/);
 });
 
-test('inline higher-order callbacks resolve through actual argument bindings', () => {
-  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+test('layered architecture loads as one foreign-key-valid relational model', () => {
+  const db = loadArchitectureDatabase();
   try {
-    assert.deepEqual(probe('test/fixtures/function-effect-callback.ts'), {
-      effects: [],
-      unresolved_calls: [],
-    });
-  } finally {
-    probe.dispose?.();
-  }
-});
-
-test('effect calls inside inline callbacks remain reachable', () => {
-  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
-  try {
-    const analysis = probe('test/fixtures/function-effect-callback-effect.ts');
-    assert.deepEqual(analysis.unresolved_calls, []);
-    assert.deepEqual(
-      analysis.effects.map((fact) => fact.effect),
-      [GITHUB_COMMIT_STATUS_EFFECT],
-    );
+    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
     assert.equal(
-      analysis.effects[0]?.call_chain.some((entry) =>
-        entry.includes('function-effect-callback-effect.ts#<anonymous>'),
+      Number(
+        (
+          db.prepare('SELECT COUNT(*) AS count FROM authority').get() as {
+            count: number | bigint;
+          }
+        ).count,
       ),
-      true,
+      3,
+    );
+    assert.ok(
+      Number(
+        (
+          db.prepare('SELECT COUNT(*) AS count FROM principal').get() as {
+            count: number | bigint;
+          }
+        ).count,
+      ) > 0,
     );
   } finally {
-    probe.dispose?.();
+    db.close();
   }
 });
 
-test('interface dispatch becomes explicit unresolved dynamic target', () => {
-  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
+test('TCB runtime dispatch authority comes from architecture physics', () => {
+  const db = loadArchitectureDatabase();
   try {
-    const analysis = probe('test/fixtures/function-effect-interface.ts');
-    assert.deepEqual(analysis.effects, []);
-    assert.equal(analysis.unresolved_calls.length, 1);
-    assert.equal(
-      analysis.unresolved_calls[0]?.call_site_path,
-      'test/fixtures/function-effect-interface.ts',
-    );
-    assert.equal(analysis.unresolved_calls[0]?.declaration_symbol, 'plugin.run');
-    assert.deepEqual(analysis.unresolved_calls[0]?.candidate_effects, []);
-  } finally {
-    probe.dispose?.();
-  }
-});
-
-test('unresolved dynamic target becomes bounded architecture reconciliation work', () => {
-  const policy: ArchitectureIntent = {
-    schema: ARCHITECTURE_INTENT_SCHEMA,
-    claims: [
+    assert.deepEqual(deriveRuntimeDispatchBindings(db), [
       {
-        kind: 'workflow-transitive-effect-authority',
-        concept: 'workflow-transitive-effects',
-        allowed: [],
-      },
-    ],
-  };
-  const result = reconcileArchitecture({
-    intent: policy,
-    source_revision: revision,
-    observations: [
-      {
-        kind: 'github-actions-workflow-scan',
-        source_revision: revision,
-        workflow_paths: ['.github/workflows/dynamic.yml'],
+        target: {
+          artifact_id: 'src/authority/store.ts',
+          symbol_id: 'DurableFactStore.append',
+        },
+        implementation: {
+          artifact_id: 'src/storage/sqlite.ts',
+          symbol_id: 'SqliteFactStore.append',
+        },
       },
       {
-        kind: 'github-actions-typescript-entrypoint',
-        source_revision: revision,
-        workflow_path: '.github/workflows/dynamic.yml',
-        entrypoint: 'src/cli/dynamic.ts',
-        line_number: 1,
+        target: {
+          artifact_id: 'src/authority/store.ts',
+          symbol_id: 'DurableFactStore.head',
+        },
+        implementation: {
+          artifact_id: 'src/storage/sqlite.ts',
+          symbol_id: 'SqliteFactStore.head',
+        },
       },
       {
-        kind: 'github-actions-unresolved-dynamic-call-target',
-        source_revision: revision,
-        workflow_path: '.github/workflows/dynamic.yml',
-        entrypoint: 'src/cli/dynamic.ts',
-        call_site_path: 'src/cli/dynamic.ts',
-        call_site_line: 7,
-        call_expression_sha256: 'c'.repeat(64),
-        declaration_path: 'src/plugin.ts',
-        declaration_symbol: 'run',
-        call_chain: ['src/cli/dynamic.ts#<module>', 'src/plugin.ts#run'],
-        candidate_effects: [GITHUB_COMMIT_STATUS_EFFECT],
+        target: {
+          artifact_id: 'src/authority/store.ts',
+          symbol_id: 'DurableFactStore.history',
+        },
+        implementation: {
+          artifact_id: 'src/storage/sqlite.ts',
+          symbol_id: 'SqliteFactStore.history',
+        },
       },
-    ],
-  });
-  const resolution = result.resolutions[0]!;
-  assert.equal(resolution.state, 'conflict');
-  if (resolution.state !== 'conflict') return;
-  assert.equal(resolution.reason_code, 'UNKNOWN_DYNAMIC_CALL_TARGET');
-  assert.equal(
-    resolution.contradicting_facts[0]?.kind,
-    'github-actions-unresolved-dynamic-call-target',
-  );
-  const work = architectureReconciliationWork(resolution, revision);
-  assert.equal(work.packet?.kind, 'architecture-reconciliation');
-  assert.equal(work.postcondition.verifier, 'operator-judgment/v1');
-});
-
-test('effect-bearing dynamic dispatch carries candidate effect families', () => {
-  const probe = createTypeScriptFunctionEffectProbe(process.cwd());
-  try {
-    const analysis = probe('test/fixtures/function-effect-dynamic-effect.ts');
-    assert.deepEqual(analysis.effects, []);
-    assert.equal(analysis.unresolved_calls.length, 1);
-    assert.deepEqual(analysis.unresolved_calls[0]?.candidate_effects, [
-      GITHUB_COMMIT_STATUS_EFFECT,
     ]);
+
+    const policy = JSON.parse(readFileSync('tcb-policy.json', 'utf8')) as {
+      properties: Array<Record<string, unknown>>;
+    };
+    assert.equal(
+      policy.properties.some(
+        (property) =>
+          'entries' in property ||
+          'runtime_dispatch_bindings' in property ||
+          'composes_with' in property ||
+          'trusted_symbol_boundaries' in property,
+      ),
+      false,
+    );
   } finally {
-    probe.dispose?.();
+    db.close();
   }
 });
 
-test('unresolved dynamic calls without an effect-bearing module remain supporting evidence', () => {
-  const policy: ArchitectureIntent = {
-    schema: ARCHITECTURE_INTENT_SCHEMA,
-    claims: [
-      {
-        kind: 'workflow-transitive-effect-authority',
-        concept: 'workflow-transitive-effects',
-        allowed: [],
-      },
-    ],
-  };
-  const result = reconcileArchitecture({
-    intent: policy,
-    source_revision: revision,
-    observations: [
-      {
-        kind: 'github-actions-workflow-scan',
-        source_revision: revision,
-        workflow_paths: ['.github/workflows/dynamic.yml'],
-      },
-      {
-        kind: 'github-actions-unresolved-dynamic-call-target',
-        source_revision: revision,
-        workflow_path: '.github/workflows/dynamic.yml',
-        entrypoint: 'src/cli/dynamic.ts',
-        call_site_path: 'src/cli/dynamic.ts',
-        call_site_line: 7,
-        call_expression_sha256: 'd'.repeat(64),
-        declaration_path: 'src/store.ts',
-        declaration_symbol: 'store.read',
-        call_chain: ['src/cli/dynamic.ts#<module>', 'src/store.ts#store.read'],
-        candidate_effects: [],
-      },
-    ],
-  });
-  const resolution = result.resolutions[0]!;
-  assert.equal(resolution.state, 'established');
-  if (resolution.state !== 'established') return;
-  assert.equal(
-    resolution.supporting_facts.some(
-      (fact) => fact.kind === 'github-actions-unresolved-dynamic-call-target',
-    ),
-    true,
-  );
+test('TCB roots are derived recursively from effect architecture', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const roots = trustRootsForEffect(db, 'github-commit-status/create');
+    const identities = new Set(roots.map((root) => `${root.artifact_id}#${root.symbol_id}`));
+
+    assert.ok(identities.has('src/authority/engine.ts#KernelCore.claim'));
+    assert.ok(identities.has('src/authority/engine.ts#KernelCore.acquireExecution'));
+    assert.ok(identities.has('src/authority/engine.ts#KernelCore.authorizeEffect'));
+    assert.ok(identities.has('src/authority/engine.ts#KernelCore.beginEffect'));
+    assert.ok(identities.has('src/authority/engine.ts#KernelCore.resolve'));
+    assert.ok(identities.has('src/storage/sqlite.ts#SqliteFactStore.append'));
+    assert.ok(identities.has('src/observation/observe.ts#observationVerified'));
+    assert.ok(
+      identities.has('src/providers/github/status-effect.ts#performGitHubCommitStatusEffect'),
+    );
+
+    const sourceRoots = trustRootsForEffect(db, 'source/integrate');
+    assert.ok(
+      sourceRoots.some(
+        (root) =>
+          root.artifact_id === 'src/source/source-integration.ts' &&
+          root.symbol_id === 'integrateVerifiedSourceCandidate',
+      ),
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('maintained relational architecture reconciles against the current repository', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const observed = observedArchitecture();
+    const reconciliation = reconcileArchitecture(db, observed);
+    assert.deepEqual(reconciliation.findings, []);
+  } finally {
+    db.close();
+  }
+});
+
+test('missing declared write capability is a SQL reconciliation finding', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const observed = observedArchitecture();
+    const principal =
+      '.github/workflows/substrate-capability-admission-treatment.yml#foreign-ambient-status-write';
+    observed.principal_capabilities = observed.principal_capabilities.filter(
+      (row) =>
+        !(
+          row.principal_id === principal &&
+          row.capability_id === 'github-actions/permission/statuses/write'
+        ),
+    );
+
+    const reconciliation = reconcileArchitecture(db, observed);
+    assert.ok(
+      reconciliation.findings.some(
+        (finding) =>
+          finding.state === 'missing' &&
+          finding.relation === 'principal_has_capability' &&
+          finding.key.principal_id === principal &&
+          finding.key.capability_id === 'github-actions/permission/statuses/write',
+      ),
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('undeclared write capability is a SQL reconciliation finding', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const observed = observedArchitecture();
+    observed.principal_capabilities.push({
+      principal_id: '.github/workflows/tests.yml#unit',
+      capability_id: 'github-actions/permission/statuses/write',
+    });
+
+    const reconciliation = reconcileArchitecture(db, observed);
+    assert.ok(
+      reconciliation.findings.some(
+        (finding) =>
+          finding.state === 'unexpected' &&
+          finding.relation === 'principal_has_capability' &&
+          finding.key.principal_id === '.github/workflows/tests.yml#unit' &&
+          finding.key.capability_id === 'github-actions/permission/statuses/write',
+      ),
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('effect invocation and authority-bearing capability remain independent relations', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const observed = observedArchitecture();
+    const denied =
+      '.github/workflows/substrate-capability-admission-treatment.yml#foreign-status-write-denied';
+    const ambient =
+      '.github/workflows/substrate-capability-admission-treatment.yml#foreign-ambient-status-write';
+
+    assert.ok(
+      observed.principal_invocations.some(
+        (row) => row.principal_id === denied && row.effect_id === 'github-commit-status/create',
+      ),
+    );
+    assert.equal(
+      observed.principal_capabilities.some(
+        (row) =>
+          row.principal_id === denied &&
+          row.capability_id === 'github-actions/permission/statuses/write',
+      ),
+      false,
+    );
+    assert.ok(
+      observed.principal_capabilities.some(
+        (row) =>
+          row.principal_id === ambient &&
+          row.capability_id === 'github-actions/permission/statuses/write',
+      ),
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('missing physical symbol is detected without treating its declared semantics as observed', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const observed = observedArchitecture();
+    observed.symbols = observed.symbols.filter(
+      (row) =>
+        !(
+          row.symbol_id === 'KernelCore.authorizeEffect' &&
+          row.artifact_id === 'src/authority/engine.ts'
+        ),
+    );
+
+    const reconciliation = reconcileArchitecture(db, observed);
+    assert.ok(
+      reconciliation.findings.some(
+        (finding) =>
+          finding.state === 'missing' &&
+          finding.relation === 'symbol' &&
+          finding.key.symbol_id === 'KernelCore.authorizeEffect' &&
+          finding.key.artifact_id === 'src/authority/engine.ts',
+      ),
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('logical authority without a physical implementation fails closed', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    db.prepare(
+      "DELETE FROM symbol_implements_authority WHERE authority_id = 'effect-authority'",
+    ).run();
+    const observed = observedArchitecture();
+    const reconciliation = reconcileArchitecture(db, observed);
+    assert.ok(
+      reconciliation.findings.some(
+        (finding) =>
+          finding.state === 'missing' &&
+          finding.relation === 'authority_implementation' &&
+          finding.key.authority_id === 'effect-authority',
+      ),
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test('unresolved dynamic effect reachability is unknown rather than silently accepted', () => {
+  const db = loadArchitectureDatabase();
+  try {
+    const observed = observedArchitecture();
+    observed.unresolved_effect_calls.push({
+      principal_id: '.github/workflows/operator-project-submit.yml#command',
+      call_site_path: 'src/example.ts',
+      call_site_line: 17,
+      call_expression_sha256: 'b'.repeat(64),
+      candidate_effects: ['github-source/integrate-verified-tree/v1'],
+    });
+
+    const reconciliation = reconcileArchitecture(db, observed);
+    assert.ok(
+      reconciliation.findings.some(
+        (finding) =>
+          finding.state === 'unknown' &&
+          finding.relation === 'principal_reaches_effect' &&
+          finding.key.principal_id === '.github/workflows/operator-project-submit.yml#command',
+      ),
+    );
+  } finally {
+    db.close();
+  }
 });

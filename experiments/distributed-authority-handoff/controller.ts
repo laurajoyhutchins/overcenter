@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
 import {
   GITHUB_COMMIT_STATUS_EFFECT,
-  performGithubCommitStatusEffect,
+  performGitHubCommitStatusEffect,
 } from '../../src/providers/github/status-effect.ts';
 
 const OBLIGATION_ID = 'distributed-authority-status';
@@ -145,7 +145,7 @@ async function hostedReserve(args: string[]): Promise<void> {
   const work = kernel.inspect().find((candidate) => candidate.id === OBLIGATION_ID);
   assert.ok(work?.run_id);
   const permit = kernel.acquireExecution(work.run_id);
-  const effect = await performGithubCommitStatusEffect(kernel, permit, { token });
+  const effect = await performGitHubCommitStatusEffect(kernel, permit, { token });
 
   assert.equal(effect.state, 'success');
   assert.equal(kernel.hasUnresolvedEffect(permit.id), true);

@@ -66,43 +66,6 @@
       }
     },
     {
-      "id": "tcb:growth:github-commit-status-provider",
-      "kind": "tcb-growth",
-      "scope": "github-commit-status-provider",
-      "task": {
-        "schema": "overcenter-source-task/v1",
-        "kind": "source-change",
-        "objective": "Reduce the github-commit-status-provider hybrid TCB to at most 2746 semantic LOC without weakening its stated safety property or symbol-closure soundness.",
-        "writable_paths": [
-          "src/authority/engine.ts",
-          "src/digest.ts",
-          "src/effect-adapter.ts",
-          "src/model.ts",
-          "src/observation/provider.ts",
-          "src/observation/response-slice.ts",
-          "src/providers/curl-json.ts",
-          "src/providers/github/certified-observation.ts",
-          "src/providers/github/certified-read.ts",
-          "src/providers/github/certified-repository.ts",
-          "src/providers/github/certified-status.ts",
-          "src/providers/github/contract.ts",
-          "src/providers/github/openapi.ts",
-          "src/providers/github/operations.generated.ts",
-          "src/providers/github/page-collection.ts",
-          "src/providers/github/rest.ts",
-          "src/providers/github/semantics.ts",
-          "src/providers/github/status-effect.ts",
-          "src/providers/github/status-transport.ts",
-          "src/validation.ts"
-        ]
-      },
-      "evidence": {
-        "measured_semantic_loc": 2762,
-        "attention_semantic_loc": 2746,
-        "hybrid_sha256": "098afca43abc48e7a358fad48f00a99d4164f8d6668e232d89862a53a0c98aa0"
-      }
-    },
-    {
       "id": "tcb:growth:github-status-safe-settlement",
       "kind": "tcb-growth",
       "scope": "github-status-safe-settlement",
@@ -140,7 +103,6 @@
           "src/providers/github/certified-ancestry.ts",
           "src/providers/github/certified-observation.ts",
           "src/providers/github/certified-pr.ts",
-          "src/providers/github/certified-read.ts",
           "src/providers/github/certified-repository.ts",
           "src/providers/github/certified-status.ts",
           "src/providers/github/contract.ts",
@@ -162,9 +124,9 @@
         ]
       },
       "evidence": {
-        "measured_semantic_loc": 9471,
+        "measured_semantic_loc": 9286,
         "attention_semantic_loc": 8348,
-        "hybrid_union_sha256": "ef552bea0880b0b7aa97b50a7c9ebc7b064b1ed952790b07c5331c0579c62682"
+        "hybrid_union_sha256": "8d34422950a0e28fd25ad1c17e5920826901579f107ab2e9f48349523837e1de"
       }
     },
     {
@@ -226,9 +188,9 @@
         ]
       },
       "evidence": {
-        "measured_semantic_loc": 9283,
+        "measured_semantic_loc": 9282,
         "attention_semantic_loc": 8160,
-        "hybrid_sha256": "b058afdc79f0fa87182ddeb9a96084cd174b7e7d01e92fa67c01293dcf1bb319"
+        "hybrid_sha256": "d0107f411174a403c472b91476aea091ecadca47d868356f18431f6f92de7045"
       }
     },
     {
@@ -250,7 +212,6 @@
           "src/observation/response-slice.ts",
           "src/providers/curl-json.ts",
           "src/providers/github/certified-observation.ts",
-          "src/providers/github/certified-read.ts",
           "src/providers/github/certified-repository.ts",
           "src/providers/github/certified-status.ts",
           "src/providers/github/contract.ts",
@@ -266,7 +227,7 @@
       },
       "evidence": {
         "property_id": "github-commit-status-provider",
-        "hybrid_sha256": "098afca43abc48e7a358fad48f00a99d4164f8d6668e232d89862a53a0c98aa0"
+        "hybrid_sha256": "1d365466a4143678daa5b478cabeb870439b0d8724d4cbd2d793496a1c9de0c5"
       }
     },
     {

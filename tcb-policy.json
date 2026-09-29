@@ -5,84 +5,7 @@
     {
       "id": "broker-mutation-safety",
       "statement": "A broker-owned provider mutation cannot execute through an admitted Overcenter effect path unless execution authority and exact claimed revision are current, a durable effect reservation has succeeded, and no prior unresolved effect exists for that run.",
-      "max_semantic_loc": 1134,
-      "entries": [
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.claimedWork",
-          "reason": "reconstruct the exact claimed work before minting effect authority"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.authorizeEffect",
-          "reason": "mint non-forgeable in-process effect authority from the exact claim"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.claim",
-          "reason": "mint initial execution authority bound to the exact authority head"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.acquireExecution",
-          "reason": "rotate execution generation while invalidating stale permits"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.beginEffect",
-          "reason": "revalidate authority and durably reserve before mutation"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.performEffect",
-          "reason": "make reservation dominate the provider callback"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.releaseEffectReservation",
-          "reason": "permit retry only from trusted not-dispatched evidence"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.#requireExecutionPermit",
-          "reason": "reject forged or stale execution capabilities"
-        },
-        {
-          "path": "src/authority/transaction-admission.ts",
-          "whole_file": true,
-          "reason": "authority-generation, exact-revision, reservation, release, and receipt admission predicates"
-        },
-        {
-          "path": "src/authority/replay.ts",
-          "symbol": "replayProjection",
-          "reason": "reconstruct current execution generation and unresolved reservations from durable facts"
-        },
-        {
-          "path": "src/effect-adapter.ts",
-          "whole_file": true,
-          "reason": "effect-specific replay and reservation-release semantics"
-        },
-        {
-          "path": "src/effect-release-witness.ts",
-          "whole_file": true,
-          "reason": "trusted release witness validation and exact-attempt binding"
-        },
-        {
-          "path": "src/storage/sqlite.ts",
-          "symbol": "SqliteFactStore.head",
-          "reason": "read current durable authority head"
-        },
-        {
-          "path": "src/storage/sqlite.ts",
-          "symbol": "SqliteFactStore.append",
-          "reason": "atomic expected-head append is the durable serialization point"
-        },
-        {
-          "path": "src/storage/sqlite.ts",
-          "symbol": "SqliteFactStore.history",
-          "reason": "reconstruct the durable fact chain consumed by replay"
-        }
-      ],
+      "max_semantic_loc": 708,
       "external_assumptions": [
         "Node.js runtime preserves JavaScript/TypeScript execution semantics used by the trusted slice.",
         "node:crypto SHA-256 and randomUUID behave as specified.",
@@ -98,19 +21,9 @@
         "experiments and tests",
         "formal models and proof tools"
       ],
-      "expected_surface_sha256": "85035c67893543424799e9b50bbc6efaca87718b5d203015db062dbbcccd5827",
+      "expected_surface_sha256": "9bb21dc478075892b705c1daece535090938e1a2a0ffcdf839552799cb5fbb7e",
       "max_module_closure_semantic_loc": 9159,
       "expected_module_closure_sha256": "b7c07fc1d5e045809da8e85ce6d4692cf6b4e20a28950072f1ff434b9f270ca0",
-      "runtime_dispatch_bindings": [
-        {
-          "target": "src/authority/store.ts#append",
-          "implementation": {
-            "path": "src/storage/sqlite.ts",
-            "symbol": "SqliteFactStore.append"
-          },
-          "reason": "production authority persistence is the SQLite durable fact store"
-        }
-      ],
       "max_hybrid_closure_semantic_loc": 9286,
       "expected_hybrid_closure_sha256": "3f269400397aaed24d19ad66d28a0c1096009150cbf040e8c58de0d0311ec882",
       "require_sound_symbol_closure": true,
@@ -129,104 +42,7 @@
     {
       "id": "no-false-done",
       "statement": "Overcenter cannot derive DONE for a run unless an admitted receipt and exact postcondition observation justify it, and replay cannot reinterpret unresolved or mismatched mutation evidence as success.",
-      "max_semantic_loc": 1572,
-      "entries": [
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.resolve",
-          "reason": "synchronous authoritative observation and settlement entrypoint"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.resolveAsync",
-          "reason": "asynchronous authoritative observation and settlement entrypoint"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.#resolutionCandidate",
-          "reason": "require the current resolvable run and execution permit"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.#commitObservation",
-          "reason": "settle observation only through expected-head durable append"
-        },
-        {
-          "path": "src/authority/engine.ts",
-          "symbol": "KernelCore.#receiptFact",
-          "reason": "bind receipts to exact run, generation, and execution authority"
-        },
-        {
-          "path": "src/authority/replay.ts",
-          "symbol": "projectReceipt",
-          "reason": "the only receipt-to-DONE decision"
-        },
-        {
-          "path": "src/authority/replay.ts",
-          "symbol": "replayProjection",
-          "reason": "validate durable history before projecting terminal state"
-        },
-        {
-          "path": "src/authority/project-state.ts",
-          "symbol": "deriveRealizationRelations",
-          "reason": "select only DONE receipts matching current semantic identity and realization judgment"
-        },
-        {
-          "path": "src/authority/project-state.ts",
-          "symbol": "deriveProjectProjection",
-          "reason": "derive public project state from validated history"
-        },
-        {
-          "path": "src/authority/realization-reuse.ts",
-          "whole_file": true,
-          "reason": "fresh-authority admissibility for historical mutable realizations"
-        },
-        {
-          "path": "src/authority/facts.ts",
-          "whole_file": true,
-          "reason": "runtime validation of claims, authority facts, reservations, releases, and receipts"
-        },
-        {
-          "path": "src/observation/observe.ts",
-          "symbol": "validateObservationEnvelope",
-          "reason": "reject structurally invalid observations"
-        },
-        {
-          "path": "src/observation/observe.ts",
-          "symbol": "assertObservationCoordinate",
-          "reason": "bind observation to the exact postcondition coordinate"
-        },
-        {
-          "path": "src/observation/observe.ts",
-          "symbol": "authoritativeAbsenceEvidence",
-          "reason": "recognize only verifier-specific authoritative absence"
-        },
-        {
-          "path": "src/observation/observe.ts",
-          "symbol": "observationVerified",
-          "reason": "exact postcondition verification gate for DONE"
-        },
-        {
-          "path": "src/semantics.ts",
-          "symbol": "settlementSemantics",
-          "reason": "define verifier-specific accepted negative evidence"
-        },
-        {
-          "path": "src/graph/identity.ts",
-          "whole_file": true,
-          "reason": "semantic obligation identity controls historical realization reuse"
-        },
-        {
-          "path": "src/storage/sqlite.ts",
-          "symbol": "SqliteFactStore.append",
-          "reason": "atomic settlement append against the expected authority head"
-        },
-        {
-          "path": "src/storage/sqlite.ts",
-          "symbol": "SqliteFactStore.history",
-          "reason": "history integrity is required for replay correctness"
-        }
-      ],
+      "max_semantic_loc": 760,
       "external_assumptions": [
         "Node.js runtime preserves JavaScript/TypeScript execution semantics used by the trusted slice.",
         "Provider observations supplied to the verifier obey the provider-profile assumptions documented separately.",
@@ -243,21 +59,11 @@
         "Rust worker confinement",
         "experiments and formal models"
       ],
-      "expected_surface_sha256": "2a5c2253a4e097ec387b52d31042d870acfd89e75f5e586a447b2dd8a8e123c2",
+      "expected_surface_sha256": "16a3817598738dec2957535324a27740ce3d776d0a3414e83a359a98c245c44e",
       "max_module_closure_semantic_loc": 9159,
       "expected_module_closure_sha256": "b7c07fc1d5e045809da8e85ce6d4692cf6b4e20a28950072f1ff434b9f270ca0",
-      "runtime_dispatch_bindings": [
-        {
-          "target": "src/authority/store.ts#append",
-          "implementation": {
-            "path": "src/storage/sqlite.ts",
-            "symbol": "SqliteFactStore.append"
-          },
-          "reason": "production authority persistence is the SQLite durable fact store"
-        }
-      ],
-      "max_hybrid_closure_semantic_loc": 9283,
-      "expected_hybrid_closure_sha256": "b058afdc79f0fa87182ddeb9a96084cd174b7e7d01e92fa67c01293dcf1bb319",
+      "max_hybrid_closure_semantic_loc": 9282,
+      "expected_hybrid_closure_sha256": "d0107f411174a403c472b91476aea091ecadca47d868356f18431f6f92de7045",
       "require_sound_symbol_closure": true,
       "hostile_evidence_probes": [
         "digest-foundation",
@@ -278,69 +84,7 @@
     {
       "id": "github-commit-status-provider",
       "statement": "For the admitted GitHub commit-status mutation profile, repository identity, transport dispatch certainty, authoritative status observation, and exact provider coordinates are interpreted correctly.",
-      "max_semantic_loc": 2377,
-      "entries": [
-        {
-          "path": "src/providers/github/status-effect.ts",
-          "whole_file": true,
-          "reason": "admitted GitHub status mutation boundary"
-        },
-        {
-          "path": "src/providers/github/status-transport.ts",
-          "whole_file": true,
-          "reason": "fresh-HTTPS dispatch certainty and trusted not-dispatched witness minting"
-        },
-        {
-          "path": "src/providers/github/certified-status.ts",
-          "whole_file": true,
-          "reason": "authoritative commit-status observation and pagination interpretation"
-        },
-        {
-          "path": "src/providers/github/certified-repository.ts",
-          "whole_file": true,
-          "reason": "canonical repository identity certification"
-        },
-        {
-          "path": "src/providers/github/certified-observation.ts",
-          "whole_file": true,
-          "reason": "certified response envelope and structural evidence"
-        },
-        {
-          "path": "src/providers/github/certified-read.ts",
-          "whole_file": true,
-          "reason": "schema-bound GitHub read interpretation used by certified observations"
-        },
-        {
-          "path": "src/providers/github/page-collection.ts",
-          "whole_file": true,
-          "reason": "complete paginated collection semantics"
-        },
-        {
-          "path": "src/providers/github/openapi.ts",
-          "whole_file": true,
-          "reason": "materialize pinned operation coordinates from the generated contract"
-        },
-        {
-          "path": "src/providers/github/semantics.ts",
-          "whole_file": true,
-          "reason": "provider response-slice semantics used by certification"
-        },
-        {
-          "path": "src/providers/github/rest.ts",
-          "whole_file": true,
-          "reason": "GitHub request boundary used by certified observation"
-        },
-        {
-          "path": "src/observation/provider.ts",
-          "whole_file": true,
-          "reason": "provider observation envelope validation"
-        },
-        {
-          "path": "src/observation/response-slice.ts",
-          "whole_file": true,
-          "reason": "structural response projection validated before semantic use"
-        }
-      ],
+      "max_semantic_loc": 96,
       "external_assumptions": [
         "GitHub repository IDs and commit-status coordinates have the documented API meaning.",
         "GitHub HTTPS responses correspond to the authenticated api.github.com endpoint reached by the transport.",
@@ -355,19 +99,11 @@
         "Kubernetes and GCP providers",
         "worker credentials when they are not broker credentials"
       ],
-      "expected_surface_sha256": "32ad73453c6b70f032b1122c9139185286d419e0776908603978c567897636d5",
-      "max_module_closure_semantic_loc": 2756,
-      "expected_module_closure_sha256": "6fbb53a6669507dd904ad07a50f9cfd6b56b4598bfa567ad27a1fa1ec2efd6bd",
-      "composes_with": [
-        "broker-mutation-safety"
-      ],
-      "trusted_symbol_boundaries": [
-        "src/authority/engine.ts#authorizeEffect",
-        "src/authority/engine.ts#performEffect",
-        "src/authority/engine.ts#releaseEffectReservation"
-      ],
-      "max_hybrid_closure_semantic_loc": 2762,
-      "expected_hybrid_closure_sha256": "098afca43abc48e7a358fad48f00a99d4164f8d6668e232d89862a53a0c98aa0",
+      "expected_surface_sha256": "df668ef04ea287f0ffec03ec8d8e73be7373fd2f7ab7f7335100d2c5e39e2164",
+      "max_module_closure_semantic_loc": 2572,
+      "expected_module_closure_sha256": "a64b9a40756d3fc58bd4a97b6c7881054f85d8af8c63c43797d1cd2ec79f8a42",
+      "max_hybrid_closure_semantic_loc": 2578,
+      "expected_hybrid_closure_sha256": "1d365466a4143678daa5b478cabeb870439b0d8724d4cbd2d793496a1c9de0c5",
       "require_sound_symbol_closure": true,
       "attention_hybrid_closure_semantic_loc": 2746,
       "attention_external_assumptions": [
@@ -388,8 +124,8 @@
         "no-false-done",
         "github-commit-status-provider"
       ],
-      "max_hybrid_union_semantic_loc": 9471,
-      "expected_hybrid_union_sha256": "ef552bea0880b0b7aa97b50a7c9ebc7b064b1ed952790b07c5331c0579c62682",
+      "max_hybrid_union_semantic_loc": 9286,
+      "expected_hybrid_union_sha256": "8d34422950a0e28fd25ad1c17e5920826901579f107ab2e9f48349523837e1de",
       "attention_hybrid_union_semantic_loc": 8348,
       "max_trusted_file_share": 0.1
     }
