@@ -88,6 +88,38 @@ export function observeGitSemanticDelta(baseRevision: string, headRevision: stri
     .sort();
 }
 
+
+export type SemanticDeltaAdmission =
+  | { state: 'ADMITTED'; changed_artifacts: string[] }
+  | {
+      state: 'REPLAN_REQUIRED';
+      reason: 'SEMANTIC_TRANSACTION_DIVERGED';
+      missing_artifacts: string[];
+      unexpected_artifacts: string[];
+    };
+
+export function admitObservedSemanticDelta(
+  expectedWriteSet: readonly string[],
+  observedDelta: readonly string[],
+): SemanticDeltaAdmission {
+  const expected = [...new Set(expectedWriteSet)].sort();
+  const observed = [...new Set(observedDelta)].sort();
+  const expectedSet = new Set(expected);
+  const observedSet = new Set(observed);
+  const missing = expected.filter((path) => !observedSet.has(path));
+  const unexpected = observed.filter((path) => !expectedSet.has(path));
+
+  if (missing.length > 0 || unexpected.length > 0) {
+    return {
+      state: 'REPLAN_REQUIRED',
+      reason: 'SEMANTIC_TRANSACTION_DIVERGED',
+      missing_artifacts: missing,
+      unexpected_artifacts: unexpected,
+    };
+  }
+  return { state: 'ADMITTED', changed_artifacts: observed };
+}
+
 function allAssuranceProperties(db: ReturnType<typeof loadArchitectureDatabase>): string[] {
   return (
     db
