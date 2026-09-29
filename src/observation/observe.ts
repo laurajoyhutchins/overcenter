@@ -1,4 +1,5 @@
-import { canonicalDigest, sha256 } from '../digest.ts';
+import { createHash } from 'node:crypto';
+import { canonicalDigest } from '../digest.ts';
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type {
@@ -52,6 +53,7 @@ export interface ObservationContext {
   clock?: () => string;
 }
 
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function data(value: unknown): value is Record<string, unknown> {
