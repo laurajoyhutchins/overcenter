@@ -65,16 +65,10 @@ export function observeCertifiedGitHubRead(
     observerId?: string;
   },
 ): CertifiedGitHubReadResult {
-  if (Object.hasOwn(parameters, 'owner')) {
-    throw new Error('GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:owner');
-  }
-  if (Object.hasOwn(parameters, 'repo')) {
-    throw new Error('GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:repo');
-  }
   const { owner, repo } = githubRepositoryCoordinate(repositoryFullName);
   const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
   const semantic = GITHUB_OPERATION_SEMANTICS[operationName];
-  const request = materializeGitHubOperationRequest(operation, { owner, repo, ...parameters });
+  const request = materializeGitHubOperationRequest(operation, { ...parameters, owner, repo });
   const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
     token,
     operation,
