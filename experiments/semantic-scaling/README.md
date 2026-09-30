@@ -26,6 +26,30 @@ npm run experiment:semantic-scaling
 
 The CLI emits a deterministic comparison artifact to stdout. Surface order does not affect the result.
 
+
+## First empirical ladder
+
+The first revision-bound measurement was produced at `7f95ca1c23ca089f7990e864d84ea61aaa4f6fc8` from the ordinary merge-gate TCB report.
+
+| Task family | Trusted semantic LOC | Marginal LOC vs prior rung | Task-specific marginal | Provider-specific marginal |
+| --- | ---: | ---: | ---: | ---: |
+| Pure computation with independent observation | 9,281 | +9,281 baseline | 0 | 0 |
+| Exact-base source integration | 9,285 | +4 | 0 | 0 |
+| GitHub commit-status safe settlement | 9,285 | +0 | 0 | 0 |
+
+The source-integration rung introduced the `source/integrate` architecture-effect scope and `broker-mutation-safety`; its four new trusted semantic lines are in `src/model.ts`. The GitHub rung added no new trusted source lines relative to the preceding union, but it introduced the provider-specific `github-commit-status-provider` property, the `github-commit-status/create` effect scope, and five GitHub/transport assumptions.
+
+That distinction is important. A zero marginal LOC result means the measured trusted source lines were already present in the prior union. It does **not** mean the later task has zero additional semantics or assumptions. The generated result therefore records scope identities, authority roles, fingerprints, observation support, and external-assumption deltas separately from LOC.
+
+This is evidence of strong reuse across the three exercised paths, not yet evidence that trusted semantic complexity generally converges. Behavioral bug repair, broader migrations, and additional provider families remain useful attempts to falsify the apparent plateau.
+
+To reproduce the marginal measurement:
+
+```sh
+npm run check:tcb -- --output /tmp/overcenter-tcb-report.json
+npm run experiment:semantic-scaling:measure -- --tcb-report /tmp/overcenter-tcb-report.json
+```
+
 ## Promotion boundary
 
 This experiment is pending. A positive research claim requires real tasks from materially different families, exact revision-bound property-scoped TCB attribution, observation-support evidence, and the constant hostile controls described in issue #460. Synthetic fixtures exist only to prove that the measurement vocabulary can distinguish the intended outcomes, including a known failure.

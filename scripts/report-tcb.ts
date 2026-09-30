@@ -914,6 +914,10 @@ interface HybridClosure {
   semantic_loc: number;
   files: string[];
   sha256: string;
+  semantic_line_ranges: Array<{
+    path: string;
+    ranges: Array<[number, number]>;
+  }>;
 }
 
 function hybridClosure(
@@ -967,10 +971,26 @@ function hybridClosure(
     fingerprintMaterial.push(`composes-with:${propertyId}`);
   }
 
+  const semanticLineRanges = [...trusted.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([path, selected]) => {
+      const ranges: Array<[number, number]> = [];
+      for (const line of [...selected].sort((left, right) => left - right)) {
+        const current = ranges.at(-1);
+        if (current && line === current[1] + 1) {
+          current[1] = line;
+        } else {
+          ranges.push([line, line]);
+        }
+      }
+      return { path, ranges };
+    });
+
   return {
     semantic_loc: [...trusted.values()].reduce((sum, lines) => sum + lines.size, 0),
     files: [...trusted.keys()].sort(),
     sha256: createHash('sha256').update(fingerprintMaterial.sort().join('\n')).digest('hex'),
+    semantic_line_ranges: semanticLineRanges,
   };
 }
 
@@ -1196,6 +1216,7 @@ try {
         hybrid_closure_semantic_loc: hybrid.semantic_loc,
         hybrid_closure_sha256: hybrid.sha256,
         hybrid_closure_files: hybrid.files,
+        hybrid_closure_semantic_line_ranges: hybrid.semantic_line_ranges,
       };
     })
     .sort((left, right) => left.effect_id.localeCompare(right.effect_id));
@@ -1321,7 +1342,7 @@ try {
         const run = spawnSync(
           process.execPath,
           ['--experimental-strip-types', trustedScript, '--output', output],
-          { cwd, encoding: 'utf8' },
+          { cwd, encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] },
         );
         if (run.status !== 0 || !existsSync(output)) {
           throw new Error(
