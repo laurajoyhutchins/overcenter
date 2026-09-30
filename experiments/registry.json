@@ -707,14 +707,16 @@
       ],
       "evidence": {
         "status": "evaluated",
-        "evaluated_revision": "7f95ca1c23ca089f7990e864d84ea61aaa4f6fc8",
+        "evaluated_revision": "284bfdc891339dbf9fd26dc00675254d2004a671",
         "artifacts": [
           "Issue #460 preregisters the falsification criterion, experimental ladder, anti-cheating rule, and allowed outcomes.",
           "GitHub Actions run 36653875173: exact-head TCB reconciliation and semantic-scaling measurement passed for pure computation, exact-base source integration, and GitHub commit-status safe settlement.",
-          "At revision 7f95ca1c23ca089f7990e864d84ea61aaa4f6fc8 the measured ladder was 9,281 baseline trusted semantic LOC, +4 marginal LOC for source integration, and +0 marginal LOC for GitHub commit-status settlement; the GitHub rung still introduced two provider-specific scopes and five external assumptions."
+          "At revision 7f95ca1c23ca089f7990e864d84ea61aaa4f6fc8 the measured ladder was 9,281 baseline trusted semantic LOC, +4 marginal LOC for source integration, and +0 marginal LOC for GitHub commit-status settlement; the GitHub rung still introduced two provider-specific scopes and five external assumptions.",
+          "GitHub Actions run 36655390866: exact-head TCB reconciliation, semantic-scaling measurement, and 424/424 deterministic regressions passed for the behavioral conflicting-effect rung.",
+          "At revision 284bfdc891339dbf9fd26dc00675254d2004a671 the behavioral bug-repair rung remained at 9,285 trusted semantic LOC with +0 marginal LOC, +0 new scopes, and +0 new external assumptions, while retaining an explicit residual judgment about generalizing the regression to all relevant conflict behavior."
         ]
       },
-      "interpretation": "The first three-rung measurement shows heavy trusted-source reuse: source integration adds four trusted semantic lines beyond the pure-computation settlement baseline, while GitHub commit-status settlement adds no new trusted source lines beyond that union. This is only an initial reuse result because provider-specific scopes and external assumptions still grow even when LOC does not, and harder task families have not yet challenged the apparent plateau.",
+      "interpretation": "The first four exercised rungs show a source-line plateau after source integration, but the behavioral bug-repair rung is frontier-limited rather than convergent: existing trusted machinery can bind and verify the exact regression without adding task-specific trusted semantics, while the stronger universal bug-absence claim remains judgment. This supports reuse for the exercised paths without establishing general semantic convergence.",
       "non_claims": [
         "Synthetic fixtures demonstrate that Overcenter's trusted semantic complexity has converged.",
         "Raw LOC is a sufficient proxy for semantic trust.",
@@ -727,7 +729,7 @@
       },
       "outcome": {
         "state": "pending",
-        "summary": "Three materially different rungs now have revision-bound marginal TCB measurements. The observed source-line plateau is promising but is not promoted to a general convergence claim."
+        "summary": "Four exercised rungs now have revision-bound marginal TCB measurements. Behavioral bug repair adds no trusted source lines or scopes only because the authoritative claim remains explicitly narrower than universal semantic correctness."
       }
     }
   ]
