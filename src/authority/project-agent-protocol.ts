@@ -1,4 +1,8 @@
-import { admitSourceProof, trustedSourceProof } from '../source/source-proof.ts';
+import {
+  admitSourceProof,
+  SourceProofRejected,
+  trustedSourceProof,
+} from '../source/source-proof.ts';
 import { githubGet } from '../providers/github/rest.ts';
 import {
   sourceTransactionContextFromEnvironment,
@@ -836,9 +840,14 @@ export function submitProjectCandidate(
       };
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : String(error);
-      const recovered = kernel.recoverInterrupted(permit, {
-        source_verification: { reason, candidate_sha: candidateSha },
-      });
+      const settled =
+        error instanceof SourceProofRejected
+          ? kernel.retrySourceIntegration(permit, reason, {
+              source_verification: { reason, candidate_sha: candidateSha },
+            })
+          : kernel.recoverInterrupted(permit, {
+              source_verification: { reason, candidate_sha: candidateSha },
+            });
       return sourceSubmitReceipt(
         context,
         authorityRef,
@@ -846,7 +855,7 @@ export function submitProjectCandidate(
         assigned.id,
         claim.claimed_revision,
         candidateSha,
-        recovered,
+        settled,
         false,
       );
     }

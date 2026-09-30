@@ -206,5 +206,7 @@ test('source candidate evidence uses the immutable claimed baseline rather than 
     'utf8',
   );
   assert.match(handoff, /accepted_baseline_sha: \$\{\{ needs.classify.outputs.base_sha \}\}/);
+  assert.match(handoff, /CANDIDATE_SHA_INPUT: \$\{\{ inputs.candidate_sha \}\}/);
+  assert.match(handoff, /test "\$CANDIDATE_SHA_INPUT" = "\$GITHUB_SHA"/);
   assert.match(evidenceWorkflow, /BASE_SHA: \$\{\{ inputs.accepted_baseline_sha \|\|/);
 });
