@@ -87,9 +87,15 @@ export function deriveCurrentRealizationJudgments({
     );
     if (candidates.length === 0) continue;
 
-    const historicalSource = candidates.filter(
-      (run) => receiptsByRun.get(run.id)?.kind === 'source-integration',
-    );
+    const historicalSource = candidates.filter((run) => {
+      const receipt = receiptsByRun.get(run.id);
+      return (
+        run.obligation.postcondition.verifier === 'source-integration/v1' &&
+        receipt?.kind === 'observation' &&
+        receipt.verified &&
+        receipt.observed?.verifier === 'source-integration/v1'
+      );
+    });
     for (const run of historicalSource) {
       judgments.set(run.id, {
         state: 'admissible',
@@ -98,7 +104,7 @@ export function deriveCurrentRealizationJudgments({
     }
 
     const observable = candidates.filter(
-      (run) => receiptsByRun.get(run.id)?.kind !== 'source-integration',
+      (run) => run.obligation.postcondition.verifier !== 'source-integration/v1',
     );
     if (observable.length === 0) continue;
 
