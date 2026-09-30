@@ -3,8 +3,8 @@ import {
   trustedSourceProof,
   validateAdmittedSourceProof,
   type TrustedSourceProofWitness,
-  type AdmittedSourceProof,
 } from './source-proof.ts';
+import type { AdmittedSourceProof } from './source-proof-record.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
