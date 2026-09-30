@@ -236,7 +236,7 @@ export function inspectSourceCandidate(
   return { task, candidate, changed_paths: changedPaths };
 }
 
-function worktree(repo: string, revision: string): { root: string; dispose: () => void } {
+function worktree(repo: string, revision: string): string {
   const root = mkdtempSync(join(tmpdir(), 'overcenter-source-integrate-'));
   try {
     git(repo, ['worktree', 'add', '--detach', root, revision]);
@@ -244,13 +244,12 @@ function worktree(repo: string, revision: string): { root: string; dispose: () =
     rmSync(root, { recursive: true, force: true });
     throw error;
   }
-  return {
-    root,
-    dispose: () => {
-      gitStatus(repo, ['worktree', 'remove', '--force', root]);
-      rmSync(root, { recursive: true, force: true });
-    },
-  };
+  return root;
+}
+
+function disposeWorktree(repo: string, root: string): void {
+  gitStatus(repo, ['worktree', 'remove', '--force', root]);
+  rmSync(root, { recursive: true, force: true });
 }
 
 function integrationMessage(
@@ -380,7 +379,7 @@ export function prepareVerifiedSourceIntegration(
   const candidateTree = worktree(repo, current);
   let integrated = '';
   try {
-    if (gitStatus(candidateTree.root, ['cherry-pick', '--no-commit', candidateSha]) !== 0) {
+    if (gitStatus(candidateTree, ['cherry-pick', '--no-commit', candidateSha]) !== 0) {
       return { state: 'REREALIZE_REQUIRED', reason: 'SOURCE_APPLY_CONFLICT' };
     }
     const task = validateSourceTaskPacket(taskValue);
@@ -392,7 +391,7 @@ export function prepareVerifiedSourceIntegration(
           '--experimental-strip-types',
           verifier,
           '--root',
-          candidateTree.root,
+          candidateTree,
           '--finding',
           task.acceptance.finding_id,
           '--baseline',
@@ -407,12 +406,12 @@ export function prepareVerifiedSourceIntegration(
         };
       }
     }
-    const tree = git(candidateTree.root, ['write-tree']);
+    const tree = git(candidateTree, ['write-tree']);
     if (tree !== verification.tree_sha) {
       return { state: 'REJECTED', reason: 'SOURCE_VERIFICATION_TREE_MISMATCH' };
     }
 
-    git(candidateTree.root, [
+    git(candidateTree, [
       '-c',
       'user.name=Overcenter Source Integrator',
       '-c',
@@ -421,9 +420,9 @@ export function prepareVerifiedSourceIntegration(
       '-m',
       integrationMessage(claim, candidateSha, verification.tree_sha),
     ]);
-    integrated = git(candidateTree.root, ['rev-parse', 'HEAD']);
+    integrated = git(candidateTree, ['rev-parse', 'HEAD']);
   } finally {
-    candidateTree.dispose();
+    disposeWorktree(repo, candidateTree);
   }
 
   return {
