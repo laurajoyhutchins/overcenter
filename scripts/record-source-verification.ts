@@ -3,7 +3,7 @@ import { githubRepositoryPath } from '../src/providers/github/evidence-primitive
 import { isData, isPositiveSafeInteger } from '../src/validation.ts';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../src/authority/kernel.ts';
 import { sourceTransactionContextFromEnvironment } from '../src/source/transaction-baseline.ts';
 import { inspectSourceCandidate } from '../src/source/source-integration.ts';
 import { sourceProofRecord } from '../src/source/source-proof-record.ts';
@@ -12,7 +12,7 @@ import { buildSourceTransactionPlan } from '../src/source/transaction.ts';
 const repo = process.cwd();
 const runId = process.env.CANDIDATE_RUN_ID ?? '';
 const candidateSha = process.env.CANDIDATE_SHA ?? '';
-const kernel = new GitOvercenterKernel(repo, {
+const kernel = new OvercenterKernel(repo, {
   ref: process.env.OVERCENTER_PROJECT_AUTHORITY_REF ?? 'refs/overcenter/state',
 });
 const assigned = kernel.claimedWork(runId);

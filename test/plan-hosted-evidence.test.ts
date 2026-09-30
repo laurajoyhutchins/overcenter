@@ -4,38 +4,15 @@ import test from 'node:test';
 
 import { deriveInvalidatedEvidence } from '../src/architecture/change-planner.ts';
 import { loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
-import { planHostedEvidence, type HostedEvidenceKey } from '../scripts/plan-hosted-evidence.ts';
 
-const LEGACY_KEYS: HostedEvidenceKey[] = [
-  'authority-flow',
-  'authority-storage',
-  'distributed-handoff',
-  'distributed-chaos',
-  'substrate',
-];
-
-const EVIDENCE_BY_LEGACY_KEY: Record<HostedEvidenceKey, string> = {
-  'authority-flow': 'authority-flow-proof',
-  'authority-storage': 'authority-storage-proof',
-  'distributed-handoff': 'distributed-authority-handoff-proof',
-  'distributed-chaos': 'distributed-authority-chaos-proof',
-  substrate: 'substrate-capability-admission-proof',
-};
-
-const HOSTED_EVIDENCE = new Set(Object.values(EVIDENCE_BY_LEGACY_KEY));
+const HOSTED_EVIDENCE = new Set([
+  'authority-flow-proof',
+  'authority-storage-proof',
+  'distributed-authority-handoff-proof',
+  'distributed-authority-chaos-proof',
+  'substrate-capability-admission-proof',
+]);
 const ALL_HOSTED = [...HOSTED_EVIDENCE].sort();
-
-function legacySet(
-  changedPaths: readonly string[],
-  basePackage?: Record<string, unknown>,
-  headPackage?: Record<string, unknown>,
-): string[] {
-  return LEGACY_KEYS.filter(
-    (key) => planHostedEvidence(key, changedPaths, basePackage, headPackage).required,
-  )
-    .map((key) => EVIDENCE_BY_LEGACY_KEY[key])
-    .sort();
-}
 
 function relationalSet(
   changedPaths: readonly string[],
@@ -56,18 +33,42 @@ function relationalSet(
   }
 }
 
-test('legacy and relational hosted evidence planners agree for every tracked artifact', () => {
-  const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
-    .split('\0')
-    .filter(Boolean)
-    .sort();
+test('hosted evidence dependencies remain bound to tracked repository artifacts', () => {
+  const tracked = new Set(
+    execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean),
+  );
+  const db = loadArchitectureDatabase();
+  try {
+    const rows = db
+      .prepare(`
+        SELECT evidence_id, artifact_id
+        FROM evidence_depends_on_artifact
+        WHERE evidence_id IN (
+          'authority-flow-proof',
+          'authority-storage-proof',
+          'distributed-authority-handoff-proof',
+          'distributed-authority-chaos-proof',
+          'substrate-capability-admission-proof'
+        )
+        ORDER BY evidence_id, artifact_id
+      `)
+      .all() as unknown as Array<{ evidence_id: string; artifact_id: string }>;
 
-  for (const path of tracked) {
-    assert.deepEqual(relationalSet([path]), legacySet([path]), path);
+    for (const evidenceId of ALL_HOSTED) {
+      assert.ok(
+        rows.some((row) => row.evidence_id === evidenceId),
+        evidenceId,
+      );
+    }
+    for (const row of rows) {
+      assert.ok(tracked.has(row.artifact_id), row.artifact_id);
+    }
+  } finally {
+    db.close();
   }
 });
 
-test('path hostile matrix compares complete proof sets rather than booleans', () => {
+test('relational path invalidation preserves the hosted hostile matrix', () => {
   const cases: Array<{ name: string; paths: string[]; expected: string[] }> = [
     {
       name: 'implementation file changed',
@@ -136,14 +137,11 @@ test('path hostile matrix compares complete proof sets rather than booleans', ()
   ];
 
   for (const fixture of cases) {
-    const legacy = legacySet(fixture.paths);
-    const relational = relationalSet(fixture.paths);
-    assert.deepEqual(legacy, fixture.expected, fixture.name + ': legacy');
-    assert.deepEqual(relational, fixture.expected, fixture.name + ': relational');
+    assert.deepEqual(relationalSet(fixture.paths), fixture.expected, fixture.name);
   }
 });
 
-test('package perturbation matrix preserves conservative fail-closed semantics', () => {
+test('package perturbation matrix remains conservative and fail-closed', () => {
   const before = {
     name: 'overcenter',
     private: true,
@@ -211,14 +209,14 @@ test('package perturbation matrix preserves conservative fail-closed semantics',
   ];
 
   for (const fixture of cases) {
-    const legacy = legacySet(['package.json'], before, fixture.after);
-    const relational = relationalSet(['package.json'], before, fixture.after);
-    assert.deepEqual(legacy, fixture.expected, fixture.name + ': legacy');
-    assert.deepEqual(relational, fixture.expected, fixture.name + ': relational');
+    assert.deepEqual(
+      relationalSet(['package.json'], before, fixture.after),
+      fixture.expected,
+      fixture.name,
+    );
   }
 });
 
 test('missing package snapshots fail closed for every hosted proof', () => {
-  assert.deepEqual(legacySet(['package.json']), ALL_HOSTED);
   assert.deepEqual(relationalSet(['package.json']), ALL_HOSTED);
 });

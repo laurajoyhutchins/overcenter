@@ -6,7 +6,11 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../src/effect-adapter.ts';
-import { admitSourceProof, trustedSourceProof } from '../src/source/source-proof.ts';
+import {
+  admitSourceProof,
+  SourceProofRejected,
+  trustedSourceProof,
+} from '../src/source/source-proof.ts';
 import { sourceProofRecord, type SourceProofRecord } from '../src/source/source-proof-record.ts';
 import {
   buildSourceTransactionPlan,
@@ -112,6 +116,23 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
   const witness = admitSourceProof(plan, record, options);
   assert.equal(trustedSourceProof(witness).plan_digest, sourceTransactionPlanDigest(plan));
   assert.throws(() => trustedSourceProof(record as never), /SOURCE_PROOF_WITNESS_INVALID/);
+
+  const rejectedRecord = sourceProofRecord(plan, producer, 'failure');
+  assert.throws(
+    () =>
+      admitSourceProof(plan, rejectedRecord, {
+        ...options,
+        get: (token, path) => {
+          if (path.endsWith('/actions/runs/123')) return { ...run, conclusion: 'failure' };
+          if (path.endsWith('/attempts/2/jobs?per_page=100'))
+            return {
+              jobs: [{ ...jobs.jobs[0], conclusion: 'failure' }, jobs.jobs[1]],
+            };
+          return get(token, path);
+        },
+      }),
+    SourceProofRejected,
+  );
 
   for (const changed of [
     { plan_digest: '0'.repeat(64) },

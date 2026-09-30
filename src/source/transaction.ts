@@ -297,7 +297,7 @@ export function buildSourceTransactionPlan({
     candidate_sha: candidateSha,
     candidate_tree: delta.candidate_tree,
     authorized_write_set: task.writable_paths,
-    expected_write_set: delta.entries.map((entry) => entry.path),
+    expected_write_set: task.writable_paths,
     observed_write_set: delta.entries.map((entry) => entry.path),
     assurance,
   });

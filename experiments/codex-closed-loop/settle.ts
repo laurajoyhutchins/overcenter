@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 
 const ASSIGNMENT_SCHEMA = 'overcenter-codex-closed-loop-assignment/v1';
 const CANDIDATE_SCHEMA = 'overcenter-codex-closed-loop-candidate/v1';
@@ -57,7 +57,7 @@ rmSync(root, { recursive: true, force: true });
 mkdirSync(root, { recursive: true });
 writeFileSync(postcondition.path, target, { flag: 'wx' });
 
-const kernel = new GitOvercenterKernel(database, { observationContext: { localFileRoot: root } });
+const kernel = new OvercenterKernel(database, { observationContext: { localFileRoot: root } });
 {
   const before = kernel.inspect().find((work) => work.id === assignment.work.id);
   if (!before || before.status !== 'EXECUTING')

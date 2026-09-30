@@ -15,7 +15,9 @@ on:
       - src/observation/observe.ts
       - src/authority/engine.ts
       - src/storage/git-store.ts
-      - src/storage/git-kernel.ts
+      - src/storage/git-facts.ts
+      - src/storage/sqlite.ts
+      - src/authority/kernel.ts
       - src/authority/project-state.ts
       - src/authority/replay.ts
       - src/execution/runner.ts
@@ -35,7 +37,9 @@ on:
       - src/observation/observe.ts
       - src/authority/engine.ts
       - src/storage/git-store.ts
-      - src/storage/git-kernel.ts
+      - src/storage/git-facts.ts
+      - src/storage/sqlite.ts
+      - src/authority/kernel.ts
       - src/authority/project-state.ts
       - src/authority/replay.ts
       - src/execution/runner.ts

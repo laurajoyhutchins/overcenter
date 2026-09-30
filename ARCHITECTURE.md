@@ -117,11 +117,11 @@ append(expected head, durable fact transition)
 history(head)
 ```
 
-The production implementation is `GitFactStore`. Immutable Git objects contain facts, and one remote authority ref selects the authoritative head. Trusted command runners on independent hosts advance that ref with an exact lease. The managed source branch is a separate responsibility.
+The sole production implementation is `SqliteFactStore`. Each independent command runner stores verified immutable object bytes in its own SQLite database; history reconstruction and replay read that materialization. `GitAuthorityJournal` publishes immutable objects and advances one remote authority ref with an exact lease. SQLite contains no authority-head row. There is no central Overcenter service. The managed source branch is a separate responsibility.
 
 History reconstruction verifies object identity and linear ancestry before replay. A remote push failure is an explicit rejection, a commitment established by authoritative readback, or `AUTHORITY_COMMIT_UNCERTAIN`. An unavailable remote never grants authority to a local replica.
 
-There is no privileged lifecycle/status table. `READY`, `EXECUTING`, `WAITING`, `BLOCKED`, `RECOVERY_REQUIRED`, and `DONE` remain projections over durable facts plus current authoritative observation. SQLite remains only an independent test oracle. The [durable-authority decision](docs/adr/0004-durable-authority.md) records the deployment requirement, rejected service alternative, and existing-history boundary.
+There is no privileged lifecycle/status table. `READY`, `EXECUTING`, `WAITING`, `BLOCKED`, `RECOVERY_REQUIRED`, and `DONE` remain projections over durable facts plus current authoritative observation. An independent transactional SQLite head implementation remains only as a test oracle. The [durable-authority decision](docs/adr/0004-durable-authority.md) records the deployment requirement, rejected service alternative, and existing-history boundary.
 
 ## 1. Immutable project intent
 

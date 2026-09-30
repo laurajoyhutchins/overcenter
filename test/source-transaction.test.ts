@@ -145,6 +145,17 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
   assert.deepEqual(second, first);
   assert.deepEqual(first.observed_write_set, ['value.ts']);
   validateSourceTransactionTask(first, task);
+  assert.throws(
+    () =>
+      buildSourceTransactionPlan({
+        repo,
+        taskValue: { ...task, writable_paths: ['value.ts', 'extra.ts'] },
+        claim,
+        candidateSha: candidate,
+        context,
+      }),
+    /SOURCE_TRANSACTION_DIVERGED/,
+  );
   const alternateRuntime = buildSourceTransactionPlan({
     repo,
     taskValue: task,

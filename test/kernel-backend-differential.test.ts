@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 
 import { SqliteFactStore } from './fixtures/sqlite-store.ts';
-import { GitFactStore } from '../src/storage/git-store.ts';
+import { SqliteFactStore as ProductionFactStore } from '../src/storage/sqlite.ts';
 import type { DurableFactStore } from '../src/authority/store.ts';
 import {
   effectReleaseEvidenceRef,
@@ -292,7 +292,7 @@ test('Git and SQLite kernels derive the same logical project transitions', async
   execFileSync('git', ['init', '--bare', repoPath], { stdio: 'ignore' });
 
   const sqliteStore = new SqliteFactStore(database);
-  const gitStore = new GitFactStore(repoPath, { ref: 'refs/overcenter/state' });
+  const gitStore = new ProductionFactStore(repoPath, { ref: 'refs/overcenter/state' });
   function recording(store: DurableFactStore) {
     const prefixes: unknown[] = [];
     const kernel = new KernelCore({

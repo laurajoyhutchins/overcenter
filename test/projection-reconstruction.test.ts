@@ -7,7 +7,7 @@ import { controlDependency, GitKernelFixture } from './support/git-kernel-fixtur
 const STATE_REF = 'refs/overcenter/state';
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
-test('GitOvercenterKernel reconstructs the same projection after every materialization is deleted', () => {
+test('OvercenterKernel reconstructs the same projection after every materialization is deleted', () => {
   const f = new GitKernelFixture('overcenter-kernel-rebuild-');
   const cache = f.path('materialized');
   const world = f.path('provider-state.txt');

@@ -1,9 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
-import { canonicalDigest } from '../digest.ts';
-
-import { factCommitFromFiles, type DurableFactStore } from '../authority/store.ts';
-import type { FactCommit } from '../authority/facts.ts';
+import { randomUUID } from 'node:crypto';
+import { readFactHistory, verifyObject } from './git-facts.ts';
+import { resolve } from 'node:path';
 
 interface GitResult {
   ok: boolean;
@@ -13,16 +11,17 @@ interface GitResult {
 
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
-export class GitFactStore implements DurableFactStore {
+export class GitAuthorityJournal {
   readonly repo: string;
   readonly ref: string;
   readonly remote: string | null;
+  readonly directory: string;
 
   constructor(repo: string, { ref, remote = null }: { ref: string; remote?: string | null }) {
     this.repo = repo;
     this.ref = ref;
     this.remote = remote;
-    this.#git(['rev-parse', '--git-dir']);
+    this.directory = resolve(repo, this.#git(['rev-parse', '--git-dir']).stdout.trim());
   }
 
   head(): string | null {
@@ -46,80 +45,31 @@ export class GitFactStore implements DurableFactStore {
     return this.#git(['rev-parse', '--verify', this.ref]).stdout.trim();
   }
 
-  append(
+  publish(
     expectedHead: string | null,
     message: string,
     files: Record<string, unknown> = {},
-  ): string | null {
-    const commit = this.createCommit(
-      expectedHead,
-      `${message}\n\nappend-attempt: ${randomUUID()}`,
-      files,
-    );
-    const expected = expectedHead ?? this.zeroObjectId();
-    return this.cas(commit, expected) ? commit : null;
-  }
-
-  history(head: string): FactCommit[] {
-    let expectedParent: string | null = null;
-    return this.revisions(head).map((commit) => {
-      const parent = this.parent(commit);
-      if (parent !== expectedParent) throw new Error('FACT_HISTORY_PARENT_MISMATCH');
-      expectedParent = commit;
-      const files: Record<string, unknown> = {};
-      const entries = this.#git(['ls-tree', '-z', commit]).stdout.split('\0').filter(Boolean);
-      for (const entry of entries) {
-        const match =
-          /^100644 blob ([0-9a-f]+)\t((?:graph-patch|claim|source-revision|execution-authority|effect-reservation|effect-release|receipt|state)\.json)$/.exec(
-            entry,
-          );
-        if (!match?.[1] || !match[2]) throw new Error('FACT_PAYLOAD_ENTRY_INVALID');
-        files[match[2]] = JSON.parse(this.#readObject(match[1], 'blob').toString('utf8'));
-        if (match[2] === 'state.json') {
-          const initial = files[match[2]];
-          if (
-            parent !== null ||
-            entries.length !== 1 ||
-            canonicalDigest(initial) !==
-              canonicalDigest({
-                schema: 'overcenter-git-state-v2',
-                obligations: {},
-                active_run: null,
-              })
-          ) {
-            throw new Error('FACT_HISTORY_NONEMPTY_LEGACY_SNAPSHOT');
-          }
-        }
-      }
-      return factCommitFromFiles(commit, parent, files);
-    });
-  }
-
-  revisions(head: string): string[] {
-    return this.#git(['rev-list', '--reverse', head]).stdout.trim().split(/\n+/).filter(Boolean);
+  ): string {
+    return this.createCommit(expectedHead, `${message}\n\nappend-attempt: ${randomUUID()}`, files);
   }
 
   parent(commit: string): string | null {
-    const body = this.#readObject(commit, 'commit').toString('utf8');
+    const body = this.readObject(commit, 'commit').toString('utf8');
     const parents = body
       .split('\n\n', 1)[0]!
       .split('\n')
       .filter((line) => line.startsWith('parent '));
     if (parents.length > 1) throw new Error('FACT_HISTORY_MULTIPLE_PARENTS');
     const tree = body.split('\n', 1)[0]!.replace(/^tree /, '');
-    this.#readObject(tree, 'tree');
+    this.readObject(tree, 'tree');
     return parents[0]?.slice(7) ?? null;
   }
 
-  #readObject(id: string, type: 'commit' | 'tree' | 'blob'): Buffer {
+  readObject(id: string, type: 'commit' | 'tree' | 'blob'): Buffer {
     const bytes = execFileSync('git', ['-C', this.repo, 'cat-file', type, id], {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-    const digest = createHash(id.length === 64 ? 'sha256' : 'sha1')
-      .update(`${type} ${bytes.length}\0`)
-      .update(bytes)
-      .digest('hex');
-    if (digest !== id) throw new Error('FACT_OBJECT_DIGEST_MISMATCH');
+    verifyObject(id, type, bytes);
     return bytes;
   }
 
@@ -167,7 +117,9 @@ export class GitFactStore implements DurableFactStore {
           observed === next ||
           (observed &&
             (this.parent(next) === expected || (expected === zero && this.parent(next) === null)) &&
-            this.history(observed).some((fact) => fact.commit === next))
+            readFactHistory(observed, (id, type) => this.readObject(id, type)).some(
+              (fact) => fact.commit === next,
+            ))
         )
           return true;
       } catch {}

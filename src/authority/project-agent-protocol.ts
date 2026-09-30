@@ -1,4 +1,8 @@
-import { admitSourceProof, trustedSourceProof } from '../source/source-proof.ts';
+import {
+  admitSourceProof,
+  SourceProofRejected,
+  trustedSourceProof,
+} from '../source/source-proof.ts';
 import { githubGet } from '../providers/github/rest.ts';
 import {
   sourceTransactionContextFromEnvironment,
@@ -30,7 +34,7 @@ import {
   validateSourceIntegrationEvidence,
   type SourceVerification,
 } from '../source/source-integration.ts';
-import { GitOvercenterKernel } from '../storage/git-kernel.ts';
+import { OvercenterKernel } from '../authority/kernel.ts';
 import { compileProjectGraph } from './project-graph.ts';
 import { planGraphReconciliation } from '../graph/reconciliation.ts';
 import { repositorySnapshot } from '../evidence/repository-snapshot.ts';
@@ -359,7 +363,7 @@ export function advanceProjectForAgent(
   }: AdvanceOptions,
 ): ProjectAdvanceReceipt {
   validateCommandContext(context);
-  const kernel = new GitOvercenterKernel(repo, {
+  const kernel = new OvercenterKernel(repo, {
     ref: authorityRef,
     remote,
     githubToken,
@@ -640,11 +644,11 @@ function assertNonEmptyCandidateRun(value: string): void {
 function sourceSubmitReceipt(
   context: ProjectSubmitContext,
   authorityRef: string,
-  kernel: GitOvercenterKernel,
+  kernel: OvercenterKernel,
   obligationId: string,
   claimedRevision: string,
   candidateSha: string,
-  settled: ReturnType<GitOvercenterKernel['recoverInterrupted']>,
+  settled: ReturnType<OvercenterKernel['recoverInterrupted']>,
   alreadySettled: boolean,
   integrationCommit?: string,
 ): ProjectSubmitReceipt {
@@ -696,7 +700,7 @@ export function submitProjectCandidate(
     throw new Error('PROJECT_SUBMIT_CANDIDATE_SHA_INVALID');
   }
 
-  const kernel = new GitOvercenterKernel(repo, {
+  const kernel = new OvercenterKernel(repo, {
     ref: authorityRef,
     remote,
     githubToken,
@@ -836,9 +840,14 @@ export function submitProjectCandidate(
       };
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : String(error);
-      const recovered = kernel.recoverInterrupted(permit, {
-        source_verification: { reason, candidate_sha: candidateSha },
-      });
+      const settled =
+        error instanceof SourceProofRejected
+          ? kernel.retrySourceIntegration(permit, reason, {
+              source_verification: { reason, candidate_sha: candidateSha },
+            })
+          : kernel.recoverInterrupted(permit, {
+              source_verification: { reason, candidate_sha: candidateSha },
+            });
       return sourceSubmitReceipt(
         context,
         authorityRef,
@@ -846,7 +855,7 @@ export function submitProjectCandidate(
         assigned.id,
         claim.claimed_revision,
         candidateSha,
-        recovered,
+        settled,
         false,
       );
     }
@@ -994,7 +1003,7 @@ export function submitProjectCandidate(
   }
   writeFileSync(postcondition.path, output, { flag: 'wx' });
 
-  const settlementKernel = new GitOvercenterKernel(repo, {
+  const settlementKernel = new OvercenterKernel(repo, {
     ref: authorityRef,
     remote,
     githubToken,

@@ -2,16 +2,6 @@ name: Distributed authority handoff
 
 on:
   pull_request:
-    paths:
-      - 'experiments/distributed-authority-handoff/**'
-      - '!experiments/distributed-authority-handoff/README.md'
-      - '.github/workflows/distributed-authority-handoff.yml'
-      - 'src/authority/**'
-      - 'src/storage/git-kernel.ts'
-      - 'src/storage/git-store.ts'
-      - 'src/providers/github/status-effect.ts'
-      - 'scripts/plan-hosted-evidence.ts'
-      - 'package.json'
   workflow_dispatch:
 
 concurrency:
@@ -32,7 +22,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 4
     outputs:
-      required: ${{ steps.impact.outputs.required }}
+      required: ${{ contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-handoff-proof') }}
       initial_revision: ${{ steps.setup.outputs.initial_revision }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -46,19 +36,19 @@ jobs:
         with:
           node-version-file: '.node-version'
       - id: impact
-        name: Plan hosted evidence
+        name: Plan assurance evidence
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
           HEAD_SHA: ${{ env.SOURCE_SHA }}
-        run: node --experimental-strip-types scripts/plan-hosted-evidence.ts distributed-handoff "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+        run: node --experimental-strip-types scripts/plan-assurance-evidence.ts "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
       - name: Install runtime dependencies
-        if: steps.impact.outputs.required == 'true'
+        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-handoff-proof')
         run: npm install --ignore-scripts --package-lock=false
       - name: Run deterministic local contract
-        if: steps.impact.outputs.required == 'true'
+        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-handoff-proof')
         run: npm run test:distributed-authority-handoff
       - name: Initialize remote authority
-        if: steps.impact.outputs.required == 'true'
+        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-handoff-proof')
         id: setup
         shell: bash
         run: |

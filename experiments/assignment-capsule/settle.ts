@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 import { validateAssignment, validateCandidate } from '../../src/execution/assignment-capsule.ts';
 
 const [database, assignmentPath, candidatePath] = process.argv.slice(2);
@@ -32,7 +32,7 @@ rmSync(root, { recursive: true, force: true });
 mkdirSync(root, { recursive: true });
 writeFileSync(postcondition.path, output, { flag: 'wx' });
 
-const kernel = new GitOvercenterKernel(database, { observationContext: { localFileRoot: root } });
+const kernel = new OvercenterKernel(database, { observationContext: { localFileRoot: root } });
 {
   const before = kernel.inspect().find((work) => work.id === assignment.work.id);
   if (!before || before.status !== 'EXECUTING') throw new Error('ASSIGNMENT_RUN_NOT_EXECUTING');

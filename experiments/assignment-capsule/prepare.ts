@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 import {
   assignmentFile,
   buildAssignment,
@@ -36,7 +36,7 @@ mkdirSync(capsuleDir, { recursive: true });
 mkdirSync(dirname(database), { recursive: true });
 
 execFileSync('git', ['init', '--bare', database], { stdio: 'ignore' });
-const kernel = new GitOvercenterKernel(database);
+const kernel = new OvercenterKernel(database);
 {
   kernel.initialize();
   kernel.define({

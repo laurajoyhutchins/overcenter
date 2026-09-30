@@ -16,13 +16,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../src/authority/kernel.ts';
 import {
   advanceProjectForAgent,
   submitProjectCandidate,
 } from '../src/authority/project-agent-protocol.ts';
 import { compileProjectIntent } from '../src/authority/project-intent.ts';
-import { SOURCE_VERIFICATION_SCHEMA } from '../src/source/source-integration.ts';
 import { brokerAssignedSourceProposal } from '../src/source/source-broker.ts';
 import { SOURCE_PROPOSAL_SCHEMA } from '../src/source/source-obligation.ts';
 import { buildSourceTransactionPlan } from '../src/source/transaction.ts';
@@ -97,8 +96,8 @@ function workerClientFixture(root: string): string {
   return path;
 }
 
-function defineAgentWork(work: string, postconditionPath: string): GitOvercenterKernel {
-  const kernel = new GitOvercenterKernel(work, { remote: 'origin', ref: AUTHORITY_REF });
+function defineAgentWork(work: string, postconditionPath: string): OvercenterKernel {
+  const kernel = new OvercenterKernel(work, { remote: 'origin', ref: AUTHORITY_REF });
   kernel.initialize();
   kernel.define({
     id: 'real-frontier-work',
@@ -183,7 +182,7 @@ test('checked-in project intent is source-agnostic until trusted compilation', (
 test('project.advance separates pinned command implementation from project source revision', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
 
     const projectSourceSha = commitProjectIntent(f.work, [
@@ -209,7 +208,7 @@ test('project.advance separates pinned command implementation from project sourc
     assert.equal(receipt.candidate_branch_base_sha, projectSourceSha);
     assert.equal(receipt.obligation_id, 'external-project-work');
     assert.equal(
-      new GitOvercenterKernel(f.work, {
+      new OvercenterKernel(f.work, {
         remote: 'origin',
         ref: AUTHORITY_REF,
       }).claimedSourceRevision(receipt.run_id!),
@@ -258,7 +257,7 @@ test('project.advance binds bounded source intent to the exact project revision'
     assert.equal(assignment.task.kind, 'source-change');
     assert.equal(assignment.claim.source_sha, projectSourceSha);
 
-    const authoritative = new GitOvercenterKernel(f.work, {
+    const authoritative = new OvercenterKernel(f.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
@@ -273,7 +272,7 @@ test('project.advance binds bounded source intent to the exact project revision'
 test('project.advance reconciles trusted project intent before frontier selection', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
 
     const sourceSha = commitProjectIntent(f.work, [
@@ -293,7 +292,7 @@ test('project.advance reconciles trusted project intent before frontier selectio
     assert.equal(assignment.source_revision, sourceSha);
     assert.equal(JSON.stringify(assignment.work.packet).includes('source_sha'), false);
 
-    const authoritative = new GitOvercenterKernel(f.work, {
+    const authoritative = new OvercenterKernel(f.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
@@ -311,7 +310,7 @@ test('project.advance reconciles trusted project intent before frontier selectio
 test('project.advance surfaces READY system evidence without claiming agent work', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
 
     const evidenceRoot = join(f.work, 'experiments', 'production-criticality-ranking');
@@ -366,7 +365,7 @@ test('project.advance surfaces READY system evidence without claiming agent work
     assert.equal(receipt.assignment_sha256, undefined);
     assert.equal(existsSync(outputDir), false);
 
-    const current = new GitOvercenterKernel(f.work, {
+    const current = new OvercenterKernel(f.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     }).inspect();
@@ -397,7 +396,7 @@ test('project intent is an ensure-set and does not retire unmentioned obligation
     assert.ok(receipt.obligation_id);
     assert.ok(['intent-work', 'real-frontier-work'].includes(receipt.obligation_id));
 
-    const current = new GitOvercenterKernel(f.work, {
+    const current = new OvercenterKernel(f.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     }).inspect();
@@ -414,7 +413,7 @@ test('project intent is an ensure-set and does not retire unmentioned obligation
 test('invalid trusted project intent fails before authority movement', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
     const before = kernel.head();
 
@@ -450,7 +449,7 @@ test('invalid trusted project intent fails before authority movement', () => {
       /PROJECT_INTENT_OBLIGATION_INVALID:0:UNKNOWN_FIELD:retire/,
     );
 
-    const after = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const after = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     assert.equal(after.head(), before);
     assert.deepEqual(after.inspect(), []);
   } finally {
@@ -498,7 +497,7 @@ test('project.advance selects and claims real READY work, then emits a bounded p
       Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x00, 0x01, 0x02, 0x03]),
     );
 
-    const current = new GitOvercenterKernel(f.work, {
+    const current = new OvercenterKernel(f.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     }).inspect();
@@ -532,7 +531,7 @@ test('project.advance materializes an exact tracked repository tree into a concr
     // Ambient workspace bytes are deliberately not authority for the packet.
     writeFileSync(join(f.work, 'untracked-secret.txt'), 'must-not-cross-boundary\n');
 
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
     kernel.define({
       id: 'repository-tree-work',
@@ -634,7 +633,7 @@ test('project intent accepts repository-tree selectors without embedding a sourc
 test('project.advance emits a source assignment without a worker executable', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
     const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
     const outputDir = join(f.root, 'source-packet');
@@ -669,7 +668,7 @@ test('project.advance emits a source assignment without a worker executable', ()
 test('source proposal broker rejects control-plane mutation before candidate publication', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
     const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
     const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
@@ -716,7 +715,7 @@ test('source proposal broker rejects control-plane mutation before candidate pub
 test('generic source proposal broker reproduces a worker revision tree exactly', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
     const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
     const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
@@ -775,7 +774,7 @@ test('generic source proposal broker reproduces a worker revision tree exactly',
 test('project.submit integrates a verified source candidate and settles the source obligation', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
     const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
     const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
@@ -854,7 +853,7 @@ test('project.submit integrates a verified source candidate and settles the sour
     assert.equal(remoteMain, settled.integration_commit);
     assert.equal(git(f.work, ['show', `${remoteMain}:src/feature.txt`]), 'feature:integrated');
 
-    const authoritative = new GitOvercenterKernel(f.work, {
+    const authoritative = new OvercenterKernel(f.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
@@ -878,10 +877,10 @@ test('project.submit integrates a verified source candidate and settles the sour
   }
 });
 
-test('rejected source verification releases the obligation without moving source authority', () => {
+test('certified source verification rejection returns work to READY without moving source authority', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
     const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
     const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
@@ -914,58 +913,65 @@ test('rejected source verification releases the obligation without moving source
     );
     assert.equal(brokered.publication.state, 'PUBLISHED');
     const candidateSha = brokered.candidate.commit_sha;
+    const plan = buildSourceTransactionPlan({
+      repo: f.work,
+      taskValue: assignment.task,
+      claim,
+      candidateSha,
+      context: transactionContext,
+    });
     const verificationPath = join(f.root, 'source-verification.json');
     writeFileSync(
       verificationPath,
-      `${JSON.stringify(
-        {
-          schema: SOURCE_VERIFICATION_SCHEMA,
-          state: 'rejected',
-          run_id: acquired.run_id,
-          candidate_sha: candidateSha,
-          base_sha: sourceSha,
-          tree_sha: null,
-          reason: 'SOURCE_VERIFICATION_FAILED',
-        },
-        null,
-        2,
-      )}\n`,
+      JSON.stringify(
+        sourceProofRecord(
+          plan,
+          { workflow_run_id: 123, workflow_run_attempt: 1, job_id: 11 },
+          'failure',
+        ),
+      ),
     );
 
     const result = submitProjectCandidate(
       f.work,
       {
-        ...commandContext('e'.repeat(40), 9200),
+        ...commandContext(transactionContext.runtime_sha, 9200),
         candidate_sha: candidateSha,
         candidate_run_id: acquired.run_id,
+        candidate_workflow_run_id: 123,
+        candidate_workflow_run_attempt: 1,
       },
       {
         authorityRef: AUTHORITY_REF,
         remote: 'origin',
         sourceVerificationPath: verificationPath,
+        githubToken: 'fixture',
+        transactionContext,
+        observationContext: {
+          githubGet: sourceProofProvider(candidateSha, acquired.run_id, 'failure'),
+        },
       },
     );
 
-    assert.equal(result.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(result.disposition, 'READY');
     assert.equal(result.verified, false);
     const remoteMain = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
     assert.equal(remoteMain, sourceSha);
-    const authoritative = new GitOvercenterKernel(f.work, {
+    const authoritative = new OvercenterKernel(f.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
-    assert.equal(authoritative.inspect()[0]?.status, 'RECOVERY_REQUIRED');
+    assert.equal(authoritative.inspect()[0]?.status, 'READY');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
   }
 });
-
 test('project.advance requires native client bytes before claiming reasoning work', () => {
   const f = fixture();
   try {
     defineAgentWork(f.work, f.postconditionPath);
-    const before = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const before = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     const head = before.head();
 
     assert.throws(
@@ -978,7 +984,7 @@ test('project.advance requires native client bytes before claiming reasoning wor
       /PROJECT_ADVANCE_WORKER_CLIENT_REQUIRED/,
     );
 
-    const after = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const after = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     assert.equal(after.head(), head);
     assert.equal(after.inspect()[0]?.status, 'READY');
   } finally {
@@ -990,7 +996,7 @@ test('project.advance requires native client bytes before claiming reasoning wor
 test('unsupported READY work reports a blocked frontier without claiming authority', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
     kernel.define({
       id: 'deterministic-effect',
@@ -1014,7 +1020,7 @@ test('unsupported READY work reports a blocked frontier without claiming authori
     assert.equal(receipt.dispatch?.route, 'unsupported');
     assert.equal(receipt.dispatch?.reason_code, 'PACKET_UNSUPPORTED');
 
-    const after = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const after = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     assert.equal(after.head(), before);
     assert.equal(after.inspect()[0]?.status, 'READY');
     assert.equal(after.inspect()[0]?.run_id, undefined);
@@ -1075,7 +1081,7 @@ test('project.submit validates exact packet identity and settles independently',
     assert.equal(settled.run_id, acquired.run_id);
     assert.ok(settled.settlement_commit);
 
-    const current = new GitOvercenterKernel(f.work, {
+    const current = new OvercenterKernel(f.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     }).inspect();
@@ -1103,7 +1109,7 @@ test('project.submit validates exact packet identity and settles independently',
 test('project.advance reports DONE for an empty authoritative graph', () => {
   const f = fixture();
   try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    const kernel = new OvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
     const receipt = advanceProjectForAgent(f.work, commandContext(f.sourceSha), {
       outputDir: join(f.root, 'packet'),
@@ -1121,7 +1127,7 @@ test('project.advance reports DONE for an empty authoritative graph', () => {
 test('project.advance keeps mechanically derivable hostile-evidence debt out of agent packets', () => {
   const fixtureState = fixture();
   try {
-    const kernel = new GitOvercenterKernel(fixtureState.work, {
+    const kernel = new OvercenterKernel(fixtureState.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
@@ -1176,7 +1182,7 @@ test('project.advance keeps mechanically derivable hostile-evidence debt out of 
     assert.equal(receipt.dispatch?.reason_code, 'DERIVABLE_HOSTILE_EVIDENCE_DEBT');
     assert.equal(existsSync(outputDir), false);
 
-    const current = new GitOvercenterKernel(fixtureState.work, {
+    const current = new OvercenterKernel(fixtureState.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     }).inspect();
@@ -1191,7 +1197,7 @@ test('project.advance keeps mechanically derivable hostile-evidence debt out of 
 test('ambiguous reserved source mutation blocks otherwise READY agent work', () => {
   const fixtureState = fixture();
   try {
-    const kernel = new GitOvercenterKernel(fixtureState.work, {
+    const kernel = new OvercenterKernel(fixtureState.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
@@ -1211,7 +1217,7 @@ test('ambiguous reserved source mutation blocks otherwise READY agent work', () 
     assert.equal(first.obligation_id, 'a-source-work');
     assert.ok(first.run_id);
 
-    const interruptedKernel = new GitOvercenterKernel(fixtureState.work, {
+    const interruptedKernel = new OvercenterKernel(fixtureState.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
@@ -1239,7 +1245,7 @@ test('ambiguous reserved source mutation blocks otherwise READY agent work', () 
     assert.ok(second.dispatch?.evidence_predicates.includes('effect_reservation=unresolved'));
     assert.equal(existsSync(secondOutput), false);
 
-    const current = new GitOvercenterKernel(fixtureState.work, {
+    const current = new OvercenterKernel(fixtureState.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     }).inspect();
@@ -1252,7 +1258,11 @@ test('ambiguous reserved source mutation blocks otherwise READY agent work', () 
   }
 });
 
-function sourceProofProvider(candidateSha: string, runId: string) {
+function sourceProofProvider(
+  candidateSha: string,
+  runId: string,
+  evidenceConclusion: 'success' | 'failure' = 'success',
+) {
   return (_token: string, path: string): unknown => {
     if (path.endsWith('/actions/runs/123'))
       return {
@@ -1261,9 +1271,9 @@ function sourceProofProvider(candidateSha: string, runId: string) {
         run_attempt: 1,
         head_sha: candidateSha,
         head_branch: `overcenter/candidate/${runId}`,
-        event: 'push',
+        event: 'workflow_dispatch',
         status: 'completed',
-        conclusion: 'success',
+        conclusion: evidenceConclusion,
         repository: { id: 42 },
         head_repository: { id: 42 },
       };
@@ -1276,7 +1286,7 @@ function sourceProofProvider(candidateSha: string, runId: string) {
             run_id: 123,
             head_sha: candidateSha,
             name: 'Verify source candidate / Candidate evidence',
-            conclusion: 'success',
+            conclusion: evidenceConclusion,
           },
           {
             id: 11,

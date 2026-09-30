@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { deflateSync } from 'node:zlib';
-import { GitFactStore } from '../src/storage/git-store.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { GitFactStore } from './fixtures/git-fact-store.ts';
 import test from 'node:test';
 
 import { LocalGitKernel, runCoreLoop } from './fixtures/local-git-kernel.ts';
@@ -27,13 +27,9 @@ function corruptGraphFact(repo: string): void {
   const blob = execFileSync('git', ['-C', repo, 'rev-parse', `${commit}:graph-patch.json`], {
     encoding: 'utf8',
   }).trim();
-  const payload = Buffer.from('{}');
-  const path = join(repo, 'objects', blob.slice(0, 2), blob.slice(2));
-  rmSync(path);
-  writeFileSync(
-    path,
-    deflateSync(Buffer.concat([Buffer.from(`blob ${payload.length}\0`), payload])),
-  );
+  const db = new DatabaseSync(join(repo, 'overcenter.sqlite'));
+  db.prepare('UPDATE objects SET bytes = ? WHERE id = ?').run(Buffer.from('{}'), blob);
+  db.close();
 }
 
 function reconcileGraphTransaction(

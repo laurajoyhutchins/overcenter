@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 
 import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../src/effect-adapter.ts';
-import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../src/authority/kernel.ts';
 import { brokerAssignedSourceProposal } from '../src/source/source-broker.ts';
 import {
   SOURCE_VERIFICATION_SCHEMA,
@@ -46,13 +46,13 @@ function fixture(t: TestContext) {
   git('remote', 'add', 'origin', remote);
   git('push', 'origin', 'main');
 
-  const kernel = new GitOvercenterKernel(repo, { remote: 'origin' });
+  const kernel = new OvercenterKernel(repo, { remote: 'origin' });
   kernel.initialize();
   const task = validateSourceTaskPacket({
     schema: 'overcenter-source-task/v1',
     kind: 'source-change',
     objective: 'Update value',
-    writable_paths: ['value.ts', 'extra.ts'],
+    writable_paths: ['value.ts'],
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
   });
   kernel.define({
@@ -104,7 +104,7 @@ function fixture(t: TestContext) {
         run_attempt: 1,
         head_sha: plan.candidate_sha,
         head_branch: `overcenter/candidate/${claim.run_id}`,
-        event: 'push',
+        event: 'workflow_dispatch',
         status: 'completed',
         conclusion: 'success',
         repository: { id: 42 },
@@ -202,7 +202,7 @@ for (const boundary of [
     });
     assert.equal(initial.state, 'RECOVERY_REQUIRED');
     f.kernel.recoverInterrupted(permit, { interrupted_at: boundary });
-    const replayed = new GitOvercenterKernel(f.repo, { remote: 'origin' });
+    const replayed = new OvercenterKernel(f.repo, { remote: 'origin' });
     assert.equal(replayed.inspect()[0]?.status, 'RECOVERY_REQUIRED');
     assert.equal(mutations, boundary === 'timeout-after-commit' ? 1 : 0);
     if (boundary === 'timeout-after-commit') assert.notEqual(f.head(), f.base);

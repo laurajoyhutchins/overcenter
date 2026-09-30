@@ -3,9 +3,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const schemaPath = 'contracts/observation-evidence/schema.json';
 const generatedPath = 'src/generated/settlement-observation-schema.ts';
-const defaultSource = 'contracts/observation-evidence/settlement-observation.typebox.ts';
+const defaultSource = 'schema/settlement-observation.typebox.ts';
 
 let mode = '--check';
 let sourcePath = defaultSource;
@@ -44,34 +43,27 @@ assert.equal(
   'provider evidence ownership marker must remain explicit',
 );
 
-const generated = `// Generated from contracts/observation-evidence/settlement-observation.typebox.ts.
+const generated = `// Generated from schema/settlement-observation.typebox.ts.
 // Do not edit by hand.
 export const SettlementObservationSchema=${JSON.stringify(projected, null, 2)} as const;
 `;
 
-const document = JSON.parse(readFileSync(schemaPath, 'utf8'));
-assert.ok(document.$defs?.SettlementObservation, 'production SettlementObservation missing');
-
 if (mode === '--check') {
   try {
-    assert.deepEqual(document.$defs.SettlementObservation, projected);
     assert.equal(readFileSync(generatedPath, 'utf8'), generated);
   } catch {
     process.stderr.write(
-      'SettlementObservation projections are stale for ' +
+      'SettlementObservation projection is stale for ' +
         sourcePath +
-        '\n' +
-        'Expected definition:\n' +
+        '\nExpected definition:\n' +
         JSON.stringify(projected, null, 2) +
         '\n',
     );
     process.exit(1);
   }
-  console.log('SettlementObservation projections match TypeBox structural source');
+  console.log('SettlementObservation projection matches TypeBox structural source');
   process.exit(0);
 }
 
-document.$defs.SettlementObservation = projected;
-writeFileSync(schemaPath, JSON.stringify(document, null, 2) + '\n');
 writeFileSync(generatedPath, generated);
-console.log('Updated SettlementObservation projections from ' + sourcePath);
+console.log('Updated SettlementObservation projection from ' + sourcePath);

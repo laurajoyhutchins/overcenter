@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../src/authority/kernel.ts';
 import type { KubernetesConfigMapExistsPostcondition } from '../src/model.ts';
 import {
   carryKubernetesAbsenceThroughWatch,
@@ -149,7 +149,7 @@ function fixture(list: KubernetesListConfigMaps) {
   execFileSync('git', ['init', repo], { stdio: 'ignore' });
   execFileSync('git', ['-C', repo, 'config', 'user.email', 'test@example.com']);
   execFileSync('git', ['-C', repo, 'config', 'user.name', 'Test']);
-  const kernel = new GitOvercenterKernel(repo, {
+  const kernel = new OvercenterKernel(repo, {
     observationContext: { kubernetesListConfigMaps: list },
   });
   kernel.initialize();

@@ -111,7 +111,7 @@ deterministic kernel
 authoritative project truth
 ```
 
-The production authority store is Git: immutable fact objects plus one remote compare-and-swap authority ref. Independent trusted command runners share that head; task workers receive bounded commands and evidence contracts. SQLite remains an independent test oracle. The SQL architectural model is separate from durable storage. See the [storage decision](docs/adr/0004-durable-authority.md).
+The production fact path is SQLite: each trusted command runner materializes verified immutable facts locally. Existing Git objects transport facts between sandboxes, and one remote compare-and-swap ref selects authority. No central Overcenter service or shared SQLite file is required. Task workers receive bounded commands and evidence contracts. The SQL architectural model is separate from durable storage. See the [storage decision](docs/adr/0004-durable-authority.md).
 
 Project state such as `READY`, `EXECUTING`, `BLOCKED`, `RECOVERY_REQUIRED`, and `DONE` is reconstructed from durable facts and current authority. It is not stored as a privileged lifecycle document.
 
@@ -147,7 +147,7 @@ The repository does **not** establish that:
 
 - Overcenter is a complete production orchestration system;
 - SQLite is a final distributed/HA authority substrate or suitable for every future deployment scale;
-- arbitrary existing histories can be moved byte-for-byte between Git and SQLite without remapping backend-local authority identities;
+- independent local SQLite heads can coordinate authority without a shared CAS boundary;
 - every project eventually makes progress or completes;
 - external providers are correct, available, strongly consistent, or recoverable;
 - one generic adapter can safely describe arbitrary external mutations;
@@ -166,7 +166,6 @@ The safety claim is narrower: an uncertain or even locally hostile worker does n
 ```text
 architecture/ declarative concepts, desired architecture, and current physical realization
 src/          all production implementation, including operator CLIs and native execution
-contracts/    versioned machine-readable data contracts
 test/         focused invariants of production mechanisms
 scripts/      repository tooling and proof/evidence entrypoints
 experiments/  maintained executable proofs
@@ -183,7 +182,7 @@ Important entry points:
 - [`src/cli/`](./src/cli/) - the two supported semantic operator entrypoints: `project.advance` and `project.submit`.
 - [`docs/source-change-protocol.md`](./docs/source-change-protocol.md) - bounded source proposal, verification, and exact-base integration.
 - [`docs/provider-capabilities.md`](./docs/provider-capabilities.md) - current provider observation, mutation, and negative-evidence boundaries.
-- [`src/storage/git-kernel.ts`](./src/storage/git-kernel.ts) - production authority kernel entry point.
+- [`src/authority/kernel.ts`](./src/authority/kernel.ts) - production authority kernel entry point.
 - [`src/authority/engine.ts`](./src/authority/engine.ts) - storage-neutral transaction, recovery, and settlement policy.
 - [`src/authority/store.ts`](./src/authority/store.ts) - minimal durable-fact authority contract.
 - [`src/storage/git-store.ts`](./src/storage/git-store.ts) - production durable facts and remote authority CAS.
@@ -207,7 +206,7 @@ Important entry points:
 - [`src/execution/manifest.ts`](./src/execution/manifest.ts) - canonical exact-byte manifest for the Rust confinement launcher.
 - [`src/execution/confined-executor.ts`](./src/execution/confined-executor.ts) - trusted TypeScript transport that sends exactly the hashed manifest bytes to the native launcher.
 - [`src/execution/confinement/`](./src/execution/confinement/README.md) - Rust Landlock/seccomp worker-confinement substrate; physical confinement only, with no project-state authority.
-- [`contracts/computation-execution/`](./contracts/computation-execution/) - shared versioned wire contract and conformance corpus.
+- [`src/execution/protocol.ts`](./src/execution/protocol.ts) - trusted TypeScript execution protocol; cross-language and hostile boundary fixtures live under [`test/fixtures/`](./test/fixtures/).
 - [`src/execution/executor/`](./src/execution/executor/README.md) - Go physical computation executor, containment boundary, and recovery rules.
 - [`experiments/README.md`](./experiments/README.md) - maintained proof inventory.
 - [`formal/`](./formal/) - TLA+ transaction/recovery kernel.

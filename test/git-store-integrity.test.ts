@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { GitFactStore } from '../src/storage/git-store.ts';
+import { GitFactStore } from './fixtures/git-fact-store.ts';
 
 function fixture() {
   const repo = mkdtempSync(join(tmpdir(), 'git-store-integrity-'));

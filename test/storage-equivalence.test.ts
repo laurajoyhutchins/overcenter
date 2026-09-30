@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { GitFactStore } from '../src/storage/git-store.ts';
+import { SqliteFactStore as ProductionStore } from '../src/storage/sqlite.ts';
 import { SqliteFactStore } from './fixtures/sqlite-store.ts';
 import type { FactCommit } from '../src/authority/facts.ts';
 
@@ -22,7 +22,7 @@ test('all durable fact fields agree after every prefix, stale append, and reopen
   const repo = join(root, 'facts.git');
   const path = join(root, 'facts.sqlite');
   execFileSync('git', ['init', '--bare', repo], { stdio: 'ignore' });
-  const git = new GitFactStore(repo, { ref: 'refs/overcenter/state' });
+  const git = new ProductionStore(repo, { ref: 'refs/overcenter/state' });
   const sqlite = new SqliteFactStore(path);
   try {
     assert.equal(git.head(), sqlite.head());
@@ -53,15 +53,18 @@ test('all durable fact fields agree after every prefix, stale append, and reopen
       }
     }
     sqlite.close();
+    git.close();
     const reopened = new SqliteFactStore(path);
-    const reopenedGit = new GitFactStore(repo, { ref: 'refs/overcenter/state' });
+    const reopenedGit = new ProductionStore(repo, { ref: 'refs/overcenter/state' });
     try {
       for (const [a, b] of old)
         assert.deepEqual(normalize(reopenedGit.history(a)), normalize(reopened.history(b)));
     } finally {
       reopened.close();
+      reopenedGit.close();
     }
   } finally {
+    git.close();
     try {
       sqlite.close();
     } catch {}

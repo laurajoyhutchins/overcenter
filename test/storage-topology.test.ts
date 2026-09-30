@@ -5,9 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
+import { SqliteFactStore as ProductionStore } from '../src/storage/sqlite.ts';
+import { OvercenterKernel } from '../src/authority/kernel.ts';
 import { recoverInvalidDoneClaimTail } from '../src/storage/git-authority-recovery.ts';
-import { GitFactStore } from '../src/storage/git-store.ts';
+import { GitFactStore } from './fixtures/git-fact-store.ts';
 import { SqliteFactStore } from './fixtures/sqlite-store.ts';
 
 const ref = 'refs/overcenter/state';
@@ -132,18 +133,23 @@ for (const mode of ['accepted', 'unavailable', 'before'] as const) {
   });
 }
 
-for (const backend of ['git', 'sqlite'] as const) {
+for (const backend of ['git', 'sqlite', 'composed'] as const) {
   for (const phase of ['before', 'after'] as const) {
     test(`${backend} process death ${phase} authority advance reconstructs exactly the durable prefix`, async () => {
       const root = mkdtempSync(join(tmpdir(), 'fact-crash-'));
-      const path = join(root, backend === 'git' ? 'facts.git' : 'facts.sqlite');
-      if (backend === 'git') execFileSync('git', ['init', '--bare', path], { stdio: 'ignore' });
+      const path = join(root, backend !== 'sqlite' ? 'facts.git' : 'facts.sqlite');
+      if (backend !== 'sqlite') execFileSync('git', ['init', '--bare', path], { stdio: 'ignore' });
       const open = () =>
-        backend === 'git' ? new GitFactStore(path, { ref }) : new SqliteFactStore(path);
+        backend === 'composed'
+          ? new ProductionStore(path, { ref })
+          : backend === 'git'
+            ? new GitFactStore(path, { ref })
+            : new SqliteFactStore(path);
       const original = open();
       const expected = original.append(null, 'initialize');
       assert.ok(expected);
-      if (original instanceof SqliteFactStore) original.close();
+      if (original instanceof SqliteFactStore || original instanceof ProductionStore)
+        original.close();
       try {
         await new Promise<void>((resolve, reject) => {
           const child = spawn(
@@ -181,7 +187,8 @@ for (const backend of ['git', 'sqlite'] as const) {
           if (phase === 'before') assert.equal(head, expected);
           else assert.equal(reopened.append(expected, 'stale recovery'), null);
         } finally {
-          if (reopened instanceof SqliteFactStore) reopened.close();
+          if (reopened instanceof SqliteFactStore || reopened instanceof ProductionStore)
+            reopened.close();
         }
       } finally {
         rmSync(root, { recursive: true, force: true });
@@ -230,7 +237,7 @@ for (const mode of ['before', 'accepted'] as const) {
     execFileSync('git', ['init', '--bare', remote], { stdio: 'ignore' });
     execFileSync('git', ['clone', remote, clone], { stdio: 'ignore' });
     const actualGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
-    const kernel = new GitOvercenterKernel(clone, { ref, remote: 'origin' });
+    const kernel = new OvercenterKernel(clone, { ref, remote: 'origin' });
     kernel.initialize();
     const path = join(root, 'result');
     kernel.define({
@@ -275,3 +282,49 @@ for (const mode of ['before', 'accepted'] as const) {
     }
   });
 }
+
+test('independent SQLite sandboxes coordinate only through remote CAS and recover stale materialization', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'sqlite-independent-'));
+  const remote = join(root, 'remote.git');
+  execFileSync('git', ['init', '--bare', remote], { stdio: 'ignore' });
+  const clones = [join(root, 'a'), join(root, 'b')];
+  for (const clone of clones) execFileSync('git', ['clone', remote, clone], { stdio: 'ignore' });
+  const open = (clone: string) => new ProductionStore(clone, { ref, remote: 'origin' });
+  const initial = open(clones[0]!);
+  const head = initial.append(null, 'initialize')!;
+  const old = initial.history(head);
+  const cache = initial.cachePath;
+  initial.close();
+  const backup = join(root, 'old.sqlite');
+  copyFileSync(cache, backup);
+  try {
+    const results = await Promise.all(
+      clones.map((clone, i) => contender(['composed', clone, head, String(i), 'origin'])),
+    );
+    assert.equal(results.filter(Boolean).length, 1);
+    const winner = results.find(Boolean)!;
+    copyFileSync(backup, cache);
+    for (const clone of clones) {
+      const store = open(clone);
+      try {
+        assert.equal(store.head(), winner);
+        assert.equal(store.append(head, 'stale'), null);
+        assert.equal(store.append(head, 'repeated stale'), null);
+        assert.deepEqual(store.history(head), old);
+        assert.equal(store.history(winner).length, 2);
+        const unavailable = join(root, 'unavailable.git');
+        execFileSync('git', ['-C', clone, 'remote', 'set-url', 'origin', unavailable]);
+        assert.throws(() => store.head(), /AUTHORITY_UNREACHABLE/);
+        assert.deepEqual(
+          store.history(head),
+          old,
+          'verified facts remain readable but cannot elect authority',
+        );
+      } finally {
+        store.close();
+      }
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

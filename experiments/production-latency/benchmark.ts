@@ -7,7 +7,7 @@ import { performance } from 'node:perf_hooks';
 
 import type { EffectAttemptBinding } from '../../src/effect-release-witness.ts';
 
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 import {
   GITHUB_COMMIT_STATUS_EFFECT,
   performGitHubCommitStatusEffect,
@@ -23,12 +23,12 @@ import {
 type Mode = 'mock' | 'live';
 type Phase = 'idle' | 'effect' | 'settlement';
 
-class TimedKernel extends GitOvercenterKernel {
+class TimedKernel extends OvercenterKernel {
   reservationMs = 0;
   effectBoundaryMs = 0;
 
   override async performEffect<T>(
-    permit: Parameters<GitOvercenterKernel['performEffect']>[0],
+    permit: Parameters<OvercenterKernel['performEffect']>[0],
     effect: (attempt: EffectAttemptBinding) => Promise<T> | T,
   ): Promise<T> {
     const started = performance.now();

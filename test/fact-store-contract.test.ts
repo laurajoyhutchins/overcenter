@@ -10,7 +10,7 @@ import test from 'node:test';
 
 import type { DurableFactStore } from '../src/authority/store.ts';
 import type { FactCommit } from '../src/authority/facts.ts';
-import { GitFactStore } from '../src/storage/git-store.ts';
+import { GitFactStore } from './fixtures/git-fact-store.ts';
 import { SqliteFactStore } from './fixtures/sqlite-store.ts';
 
 function normalized(history: FactCommit[]) {

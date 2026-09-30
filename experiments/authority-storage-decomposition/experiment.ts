@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { FactCommit } from '../../src/authority/facts.ts';
 import { KernelCore, runCoreLoop } from '../../src/authority/engine.ts';
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 import { DirectoryFactObjects, GitAuthorityHead, SplitAuthorityFactStore } from './split-store.ts';
 
 const REF = 'refs/overcenter/state';
@@ -215,7 +215,7 @@ async function kernelDifferentialCase(root: string): Promise<void> {
   initBare(monolithicRepo);
   initBare(splitHeadRepo);
 
-  const monolithic = new GitOvercenterKernel(monolithicRepo, { ref: REF });
+  const monolithic = new OvercenterKernel(monolithicRepo, { ref: REF });
   const splitStore = new SplitAuthorityFactStore(
     new DirectoryFactObjects(splitObjects),
     new GitAuthorityHead(splitHeadRepo, REF),

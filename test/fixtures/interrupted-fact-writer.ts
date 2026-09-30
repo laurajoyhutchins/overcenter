@@ -1,9 +1,19 @@
 import { DatabaseSync } from 'node:sqlite';
-import { GitFactStore } from '../../src/storage/git-store.ts';
+import { SqliteFactStore as ProductionStore } from '../../src/storage/sqlite.ts';
+import { GitFactStore } from './git-fact-store.ts';
 import { SqliteFactStore } from './sqlite-store.ts';
 const [backend, path, expected, phase] = process.argv.slice(2);
 if (!path || !expected) throw new Error('WRITER_ARGUMENTS');
-if (backend === 'git') {
+if (backend === 'composed') {
+  const store = new ProductionStore(path, { ref: 'refs/overcenter/state' });
+  if (phase === 'after') store.append(expected, 'winner');
+  else {
+    const orphan = store.journal.publish(expected, 'unpublished', {
+      'claim.json': { orphan: true },
+    });
+    store.history(orphan);
+  }
+} else if (backend === 'git') {
   const store = new GitFactStore(path, { ref: 'refs/overcenter/state' });
   if (phase === 'after') store.append(expected, 'winner');
   else store.createCommit(expected, 'unpublished', { 'claim.json': { orphan: true } });

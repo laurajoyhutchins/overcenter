@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GitFactStore } from '../src/storage/git-store.ts';
+import { GitFactStore } from './fixtures/git-fact-store.ts';
 import test from 'node:test';
 
 import { LocalGitKernel, runCoreLoop } from './fixtures/local-git-kernel.ts';

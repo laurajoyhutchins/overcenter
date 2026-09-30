@@ -1,0 +1,11 @@
+# SQLite hot path with shared head CAS
+
+The user requires SQLite in disposable agent sandboxes to be the Overcenter fact/replay hot path, without introducing a central Overcenter authority service. Preserve exact-head fencing, unresolved effects, immutable identities and independent recovery. One production DurableFactStore implementation must remain.
+
+SQLite stores immutable Git-format objects by object identity. Every read verifies the object hash, type, tree membership, parent chain and fact envelope. It is a retained, reconstructible materialization, not a second authority election mechanism. Git supplies existing immutable publication/transport and ref compare-and-swap; Git objects and revisions remain byte-identical. No production ledger migration, remapping or dual-write synchronization is needed.
+
+The shared ref decides admission across independent controllers; local SQLite never supplies a fallback authoritative head. Remote authority outage fails closed even with a complete materialization. Cache loss is repaired from retained immutable transport objects. Cache corruption fails closed. A valid cached immutable object can survive corruption/loss of another replica. Copying an old cache does not roll back the shared head.
+
+Selected boundaries: GitAuthorityJournal owns object publication and head CAS; SqliteFactStore alone implements DurableFactStore; OvercenterKernel uses that composition. Raw-object decoding/hash verification is shared pure code, not a second implementation of lifecycle semantics. A direct Git reader and standalone SQLite-head implementation may remain only as independent test oracles.
+
+Evidence: warm history reads invoke no Git commands; two independent local databases race the same remote head with one winner; stale/duplicate attempts fail; copied/restored/deleted caches reconstruct the same projection; SQL corruption cannot alter facts; interruption before/after head CAS retains exact committed prefixes; remote failures retain uncertainty classifications. Compare measured replay cost at matching histories separately from authority-network latency. Do not claim consensus-free operation or eliminate the shared serialization requirement.

@@ -17,8 +17,8 @@ import {
   runReadyTestComputation,
   type ComputationExecutor,
 } from '../src/execution/runner.ts';
-import { GitFactStore } from '../src/storage/git-store.ts';
-import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
+import { SqliteFactStore } from '../src/storage/sqlite.ts';
+import { OvercenterKernel } from '../src/authority/kernel.ts';
 import { GoExecutorClient } from '../src/execution/go-client.ts';
 import {
   executionContextSha256 as hashExecutionContext,
@@ -264,7 +264,7 @@ function attestingExecutor(
 }
 
 function assertNoEffectReservations(): void {
-  const store = new GitFactStore(stateDatabase, { ref: 'refs/overcenter/state' });
+  const store = new SqliteFactStore(stateDatabase, { ref: 'refs/overcenter/state' });
   const head = store.head();
   if (!head) throw new Error('SELF_APPLICATION_AUTHORITY_MISSING');
   if (store.history(head).some((fact) => fact.effect_reservation !== null)) {
@@ -272,7 +272,7 @@ function assertNoEffectReservations(): void {
   }
 }
 
-function summarize(kernel: GitOvercenterKernel) {
+function summarize(kernel: OvercenterKernel) {
   return kernel.inspect().map((work) => ({
     id: work.id,
     status: work.status,
@@ -290,7 +290,7 @@ const selfApplicationSourceTreeSha256 = sourceTreeSha256(sourceRoot);
 const selfApplicationExecutionContextSha256 = executionContextSha256();
 
 execFileSync('git', ['init', '--bare', stateDatabase], { stdio: 'ignore' });
-const kernel = new GitOvercenterKernel(stateDatabase);
+const kernel = new OvercenterKernel(stateDatabase);
 kernel.initialize();
 kernel.define({
   id: 'self-regression',
@@ -401,7 +401,7 @@ try {
   await executor.close();
   executor = null;
 
-  const reconstructed = new GitOvercenterKernel(stateDatabase);
+  const reconstructed = new OvercenterKernel(stateDatabase);
   assert.equal(reconstructed.head(), authorityHead);
   const reconstructedWork = summarize(reconstructed);
   assert.ok(reconstructedWork.every((work) => work.status === 'DONE'));

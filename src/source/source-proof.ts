@@ -14,6 +14,13 @@ import {
 } from './transaction.ts';
 export type { AdmittedSourceProof } from './source-proof-record.ts';
 
+export class SourceProofRejected extends Error {
+  constructor() {
+    super('SOURCE_VERIFICATION_FAILED');
+    this.name = 'SourceProofRejected';
+  }
+}
+
 const WORKFLOW = '.github/workflows/agent-candidate-signal.yml';
 const RECORD_JOB = 'Record source verification';
 const REQUIRED_JOB = 'Verify source candidate / Candidate evidence';
@@ -56,14 +63,17 @@ export function admitSourceProof(
     throw new Error('SOURCE_PROOF_RECORD_INVALID');
   const producer = recordValue.producer;
   const assurance = plan.assurance;
+  const rejected = recordValue.state === 'rejected';
   if (
     recordValue.schema !== 'overcenter-source-verification' ||
     recordValue.schema_version !== 2 ||
-    recordValue.state !== 'verified' ||
-    recordValue.reason !== null ||
+    (rejected
+      ? recordValue.reason !== 'SOURCE_VERIFICATION_FAILED'
+      : recordValue.state !== 'verified' || recordValue.reason !== null) ||
     recordValue.run_id !== plan.claim.run_id ||
     recordValue.candidate_sha !== plan.candidate_sha ||
     recordValue.base_sha !== plan.claim.source_sha ||
+    recordValue.tree_sha !== plan.candidate_tree ||
     recordValue.runtime_sha !== plan.runtime_sha ||
     recordValue.plan_digest !== planDigest ||
     recordValue.model_sha256 !== assurance.model_sha256 ||
@@ -100,9 +110,9 @@ export function admitSourceProof(
     run.path !== WORKFLOW ||
     run.head_sha !== plan.candidate_sha ||
     run.head_branch !== `overcenter/candidate/${plan.claim.run_id}` ||
-    !['push', 'workflow_dispatch'].includes(run.event as string) ||
+    run.event !== 'workflow_dispatch' ||
     run.status !== 'completed' ||
-    run.conclusion !== 'success' ||
+    run.conclusion !== (rejected ? 'failure' : 'success') ||
     !isData(run.repository) ||
     run.repository.id !== plan.repository_id ||
     !isData(run.head_repository) ||
@@ -125,11 +135,13 @@ export function admitSourceProof(
       job.run_id !== expectedWorkflowRunId ||
       job.head_sha !== plan.candidate_sha ||
       job.status !== 'completed' ||
-      job.conclusion !== 'success' ||
+      job.conclusion !== (name === REQUIRED_JOB && rejected ? 'failure' : 'success') ||
       (name === RECORD_JOB && job.id !== producer.job_id)
     )
       throw new Error(`SOURCE_PROOF_JOB_INVALID:${name}`);
   }
+
+  if (rejected) throw new SourceProofRejected();
 
   const proof = validateAdmittedSourceProof({
     schema: 'overcenter-admitted-source-proof/v1',
