@@ -1,8 +1,3 @@
-import {
-  SOURCE_TRANSACTION_BINDING_SCHEMA,
-  validateSourceTransactionBindingFact,
-  type SourceTransactionBindingFact,
-} from '../source/transaction.ts';
 import type {
   Data,
   Dependency,
@@ -31,6 +26,7 @@ import {
 export const GRAPH_PATCH_SCHEMA = 'overcenter-graph-patch-v1' as const;
 export const CLAIM_SCHEMA = 'overcenter-git-claim-v3' as const;
 export const SOURCE_REVISION_BINDING_SCHEMA = 'overcenter-source-revision-binding/v1' as const;
+export const SOURCE_TRANSACTION_BINDING_SCHEMA = 'overcenter-source-transaction-binding' as const;
 export const EXECUTION_AUTHORITY_SCHEMA = 'overcenter-git-execution-authority-v1' as const;
 export const EFFECT_RESERVATION_SCHEMA = 'overcenter-git-effect-reservation-v1' as const;
 export const EFFECT_RELEASE_SCHEMA = 'overcenter-effect-release' as const;
@@ -86,6 +82,35 @@ export interface SourceRevisionBindingFact {
   run_id: string;
   obligation_id: string;
   source_revision: string;
+}
+
+export interface BoundSourceTransactionPlan extends Data {
+  schema: 'overcenter-source-transaction';
+  schema_version: 1;
+  repository_id: number;
+  repository_full_name: string;
+  runtime_sha: string;
+  claim: Data & {
+    obligation_key: string;
+    run_id: string;
+    claimed_revision: string;
+    source_sha: string;
+  };
+  execution_generation: number;
+  execution_authority_commit: string;
+  candidate_sha: string;
+  candidate_tree: string;
+}
+
+export interface SourceTransactionBindingFact {
+  schema: typeof SOURCE_TRANSACTION_BINDING_SCHEMA;
+  schema_version: 1;
+  run_id: string;
+  obligation_id: string;
+  execution_generation: number;
+  execution_authority_commit: string;
+  plan: BoundSourceTransactionPlan;
+  plan_digest: string;
 }
 
 export interface ExecutionAuthorityFact {
@@ -368,6 +393,61 @@ export function validateSourceRevisionBindingFact(value: unknown): SourceRevisio
   nonEmptyString(value.obligation_id, 'INVALID_OBLIGATION_ID');
   gitObjectId(value.source_revision, 'INVALID_SOURCE_REVISION');
   return structuredClone(value) as unknown as SourceRevisionBindingFact;
+}
+
+export function validateSourceTransactionBindingFact(
+  value: unknown,
+): SourceTransactionBindingFact {
+  if (!data(value)) throw new Error('SOURCE_TRANSACTION_INVALID');
+  exactKeys(
+    value,
+    [
+      'schema',
+      'schema_version',
+      'run_id',
+      'obligation_id',
+      'execution_generation',
+      'execution_authority_commit',
+      'plan',
+      'plan_digest',
+    ],
+    [],
+    'SOURCE_TRANSACTION_INVALID',
+  );
+  if (!data(value.plan) || !data(value.plan.claim)) throw new Error('SOURCE_TRANSACTION_INVALID');
+  const plan = value.plan;
+  const claim = plan.claim;
+  if (
+    value.schema !== SOURCE_TRANSACTION_BINDING_SCHEMA ||
+    value.schema_version !== 1 ||
+    plan.schema !== 'overcenter-source-transaction' ||
+    plan.schema_version !== 1 ||
+    value.run_id !== claim.run_id ||
+    value.execution_generation !== plan.execution_generation ||
+    value.execution_authority_commit !== plan.execution_authority_commit
+  )
+    throw new Error('SOURCE_TRANSACTION_INVALID');
+  nonEmptyString(value.run_id, 'SOURCE_TRANSACTION_INVALID');
+  nonEmptyString(value.obligation_id, 'SOURCE_TRANSACTION_INVALID');
+  positiveSafeInteger(value.execution_generation, 'SOURCE_TRANSACTION_INVALID');
+  nonEmptyString(value.execution_authority_commit, 'SOURCE_TRANSACTION_INVALID');
+  positiveSafeInteger(plan.repository_id, 'SOURCE_TRANSACTION_INVALID');
+  if (
+    typeof plan.repository_full_name !== 'string' ||
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(plan.repository_full_name)
+  )
+    throw new Error('SOURCE_TRANSACTION_INVALID');
+  for (const field of [plan.runtime_sha, plan.candidate_sha, plan.candidate_tree, claim.source_sha])
+    gitObjectId(field, 'SOURCE_TRANSACTION_INVALID');
+  for (const field of [claim.obligation_key, claim.run_id, claim.claimed_revision])
+    nonEmptyString(field, 'SOURCE_TRANSACTION_INVALID');
+  sha256Hex(value.plan_digest, 'SOURCE_TRANSACTION_INVALID');
+  if (
+    value.plan_digest !==
+    canonicalDigest({ domain: 'overcenter-source-transaction/v1', plan: value.plan })
+  )
+    throw new Error('SOURCE_TRANSACTION_INVALID');
+  return structuredClone(value) as unknown as SourceTransactionBindingFact;
 }
 
 export function validateExecutionAuthorityFact(value: unknown): ExecutionAuthorityFact {
