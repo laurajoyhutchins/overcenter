@@ -25,7 +25,7 @@ INSERT INTO evidence(evidence_id) VALUES
   ('projection-reconstruction-proof'),
   ('provider-observation-proof'),
   ('effect-core-loop-proof'),
-  ('review-attestation-proof');
+  ('judgment-attestation-proof');
 
 INSERT INTO capability(capability_id) VALUES
   ('canonical-content-identity'),
@@ -40,13 +40,13 @@ INSERT INTO capability(capability_id) VALUES
   ('source-integration'),
   ('github-commit-status-mutation'),
   ('github-commit-status-observation'),
-  ('review-attestation-observation');
+  ('judgment-attestation-observation');
 
 INSERT INTO assurance_property(property_id) VALUES
   ('broker-mutation-safety'),
   ('no-false-done'),
   ('github-commit-status-provider'),
-  ('review-attestation-integrity');
+  ('judgment-attestation-integrity');
 
 INSERT INTO assurance_property_requires_authority(property_id, authority_id) VALUES
   ('broker-mutation-safety', 'effect-authority');
@@ -60,7 +60,7 @@ INSERT INTO assurance_property_requires_capability(property_id, capability_id) V
   ('no-false-done', 'project-lifecycle-projection'),
   ('no-false-done', 'authoritative-observation'),
   ('no-false-done', 'effect-settlement'),
-  ('review-attestation-integrity', 'review-attestation-observation'),
+  ('judgment-attestation-integrity', 'judgment-attestation-observation'),
   ('github-commit-status-provider', 'github-commit-status-mutation'),
   ('github-commit-status-provider', 'github-commit-status-observation');
 
@@ -121,7 +121,7 @@ INSERT INTO evidence_witnesses_capability(evidence_id, capability_id) VALUES
   ('projection-reconstruction-proof', 'durable-project-facts'),
   ('projection-reconstruction-proof', 'project-lifecycle-projection'),
   ('provider-observation-proof', 'authoritative-observation'),
-  ('review-attestation-proof', 'review-attestation-observation'),
+  ('judgment-attestation-proof', 'judgment-attestation-observation'),
   ('effect-core-loop-proof', 'effect-authorization'),
   ('effect-core-loop-proof', 'effect-reservation'),
   ('effect-core-loop-proof', 'effect-settlement');
