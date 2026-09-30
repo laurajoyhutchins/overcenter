@@ -481,6 +481,9 @@ export class KernelCore {
       }
       const reservation = history.unresolvedReservationsByRun.get(run.id);
       if (!reservation) throw new Error('NO_UNRESOLVED_EFFECT');
+      if (!('effect_identity_sha256' in reservation)) {
+        throw new Error('EFFECT_RELEASE_LEGACY_RESERVATION_UNSUPPORTED');
+      }
       const effectContract = binding.effect_contract;
       const validatedWitness = validateTrustedEffectReleaseWitness(witness);
       const attemptBinding = validatedWitness.attempt;
