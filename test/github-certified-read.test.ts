@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { observeCertifiedGitHubRead } from '../src/providers/github/certified-read.ts';
+import { observeCertifiedGitHubSemanticRead } from '../src/providers/github/semantic-read.ts';
 import {
   evaluateCertifiedGitHubCommitAncestry,
   evaluateCertifiedGitHubPullRequestIdentity,
   evaluateCertifiedGitHubRef,
   observeCertifiedGitHubCommitAncestry,
   observeCertifiedGitHubPullRequestIdentity,
-  observeCertifiedGitHubRead,
   observeCertifiedGitHubRefFence,
-  observeCertifiedGitHubSemanticRead,
-} from '../src/providers/github/certified-read.ts';
+} from '../src/providers/github/certified-predicates.ts';
 
 const SHA = 'a'.repeat(40);
 const repository = () => ({
