@@ -1,5 +1,4 @@
 import { advanceProjectForAgent } from '../authority/project-agent-protocol.ts';
-import { DEFAULT_PROJECT_GRAPH_PRODUCERS } from '../authority/default-project-graph.ts';
 import { observeGitHubHostileMutationEvidence } from '../providers/github/hostile-mutation-evidence.ts';
 import {
   appendGitHubOutputs,
@@ -25,7 +24,6 @@ const receipt = advanceProjectForAgent(process.cwd(), projectCommandContext(), {
     ? {}
     : { remote: process.env.OVERCENTER_PROJECT_REMOTE }),
   githubToken,
-  graphProducers: DEFAULT_PROJECT_GRAPH_PRODUCERS,
   observationContext: {
     githubToken,
     ...(githubToken
