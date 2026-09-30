@@ -11,16 +11,18 @@ import {
   githubRepositoryPath,
 } from '../providers/github/evidence-primitives.ts';
 import { githubGet, type GitHubJsonGet } from '../providers/github/rest.ts';
-import { observeRepositoryDelta, assertSupportedSourceDelta } from './repository-delta.ts';
-import {
-  baselineSourceTransactionPlan,
-  type SourceTransactionContext,
-} from './transaction-baseline.ts';
 import {
   sourceTransactionPlanDigest,
   validateSourceTransactionPlan,
   type SourceTransactionPlan,
 } from './transaction.ts';
+
+export interface SourceProofContext {
+  repository_id: number;
+  repository_full_name: string;
+  runtime_sha: string;
+  baseline_id: string;
+}
 
 export interface SourceProofRecord {
   schema: 'overcenter-source-verification';
@@ -116,7 +118,7 @@ export function admitSourceProof(
     githubToken: string;
     expectedWorkflowRunId: number;
     expectedWorkflowRunAttempt: number;
-    context: SourceTransactionContext;
+    context: SourceProofContext;
     get?: GitHubJsonGet;
   },
 ): TrustedSourceProofWitness {
@@ -177,20 +179,6 @@ export function admitSourceProof(
     context.baseline_id !== plan.assurance.baseline_id
   )
     throw new Error('SOURCE_PROOF_CONTEXT_MISMATCH');
-  const delta = observeRepositoryDelta(repo, plan.claim.source_sha, plan.candidate_sha);
-  assertSupportedSourceDelta(delta);
-  if (
-    delta.candidate_tree !== plan.candidate_tree ||
-    canonicalDigest(delta.entries.map((entry) => entry.path).sort()) !==
-      canonicalDigest([...plan.observed_write_set].sort())
-  )
-    throw new Error('SOURCE_PROOF_SOURCE_MISMATCH');
-  const assurance = baselineSourceTransactionPlan(repo, delta, context);
-  if (
-    canonicalDigest(assurance) !== canonicalDigest(plan.assurance) ||
-    assurance.validation_mode !== 'baseline'
-  )
-    throw new Error('SOURCE_PROOF_BASELINE_MISMATCH');
   verifyGitHubRepositoryIdentity(githubToken, {
     repositoryId: plan.repository_id,
     repositoryFullName: plan.repository_full_name,
