@@ -1,5 +1,5 @@
 import { canonicalDigest, canonicalJson } from '../digest.ts';
-import { evidenceRef, validateEvidenceRef, type EvidenceRef } from '../evidence/reference.ts';
+import { evidenceRef, type EvidenceRef } from '../evidence/reference.ts';
 import {
   assertExactKeys,
   assertNonEmptyString,
@@ -31,18 +31,6 @@ export interface SourceTransactionPlan {
   assurance: TransactionAssurancePlan;
 }
 
-export const SOURCE_TRANSACTION_BINDING_SCHEMA = 'overcenter-source-transaction-binding' as const;
-export interface SourceTransactionBindingFact {
-  schema: typeof SOURCE_TRANSACTION_BINDING_SCHEMA;
-  schema_version: 1;
-  run_id: string;
-  obligation_id: string;
-  execution_generation: number;
-  execution_authority_commit: string;
-  plan: SourceTransactionPlan;
-  plan_digest: string;
-  plan_ref: EvidenceRef;
-}
 
 const INVALID = 'SOURCE_TRANSACTION_INVALID';
 function record(value: unknown, keys: readonly string[]): Record<string, unknown> {
@@ -240,34 +228,6 @@ export function sourceTransactionPlanDigest(plan: SourceTransactionPlan): string
 export function sourceTransactionPlanRef(plan: SourceTransactionPlan): EvidenceRef {
   return evidenceRef(Buffer.from(canonicalJson(validateSourceTransactionPlan(plan))));
 }
-export function validateSourceTransactionBindingFact(value: unknown): SourceTransactionBindingFact {
-  const fact = record(value, [
-    'schema',
-    'schema_version',
-    'run_id',
-    'obligation_id',
-    'execution_generation',
-    'execution_authority_commit',
-    'plan',
-    'plan_digest',
-    'plan_ref',
-  ]);
-  const plan = validateSourceTransactionPlan(fact.plan);
-  const ref = validateEvidenceRef(fact.plan_ref);
-  assertNonEmptyString(fact.obligation_id, INVALID);
-  if (
-    fact.schema !== SOURCE_TRANSACTION_BINDING_SCHEMA ||
-    fact.schema_version !== 1 ||
-    fact.run_id !== plan.claim.run_id ||
-    fact.execution_generation !== plan.execution_generation ||
-    fact.execution_authority_commit !== plan.execution_authority_commit ||
-    fact.plan_digest !== sourceTransactionPlanDigest(plan) ||
-    canonicalDigest(ref) !== canonicalDigest(sourceTransactionPlanRef(plan))
-  )
-    throw new Error(INVALID);
-  return structuredClone(fact) as unknown as SourceTransactionBindingFact;
-}
-
 export function validateSourceTransactionTask(
   plan: SourceTransactionPlan,
   taskValue: unknown,
