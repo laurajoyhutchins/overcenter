@@ -554,39 +554,20 @@ export class KernelCore {
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const candidate = this.#resolutionCandidate(permit);
       if ('receipt' in candidate) return candidate.receipt;
-      const settled = this.#commitObservation(
-        candidate,
-        this.#observe(candidate.work.postcondition),
-        diagnostic,
-      );
+      const settled = this.#commitObservation(candidate, this.#observeCandidate(candidate), diagnostic);
       if (settled) return settled;
     }
     throw new Error('RESOLVE_CONTENTION_EXHAUSTED');
-  }
-
-  resolveObservedEffect(
-    permit: ExecutionPermit,
-    observed: Observation,
-    diagnostic: Data = {},
-  ): Receipt {
-    for (let attempt = 0; attempt < 16; attempt += 1) {
-      const candidate = this.#resolutionCandidate(permit);
-      if ('receipt' in candidate) return candidate.receipt;
-      const settled = this.#commitObservation(candidate, observed, diagnostic);
-      if (settled) return settled;
-    }
-    throw new Error('RESOLVE_OBSERVED_CONTENTION_EXHAUSTED');
   }
 
   async resolveAsync(permit: ExecutionPermit, diagnostic: Data = {}): Promise<Receipt> {
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const candidate = this.#resolutionCandidate(permit);
       if ('receipt' in candidate) return candidate.receipt;
-      const settled = this.#commitObservation(
-        candidate,
-        await this.#observeAsync(candidate.work.postcondition),
-        diagnostic,
-      );
+      const observed =
+        this.#observeReservedEffect(candidate) ??
+        (await this.#observeAsync(candidate.work.postcondition));
+      const settled = this.#commitObservation(candidate, observed, diagnostic);
       if (settled) return settled;
     }
     throw new Error('RESOLVE_CONTENTION_EXHAUSTED');
@@ -741,6 +722,34 @@ export class KernelCore {
       work,
       reservation: history.unresolvedReservationsByRun.get(runId) ?? null,
     };
+  }
+
+  #effectObservationBinding(reservation: EffectReservation) {
+    return {
+      effect_contract: reservation.effect_contract,
+      effect_identity: structuredClone(reservation.effect_identity),
+      effect_identity_sha256: reservation.effect_identity_sha256,
+    };
+  }
+
+  #observeReservedEffect(candidate: {
+    work: HistoricalRun['obligation'];
+    reservation: EffectReservation | null;
+  }): Observation | null {
+    if (!candidate.reservation || !this.observationContext.observeReservedEffect) return null;
+    return this.observationContext.observeReservedEffect(
+      candidate.work.postcondition,
+      this.#effectObservationBinding(candidate.reservation),
+    );
+  }
+
+  #observeCandidate(candidate: {
+    work: HistoricalRun['obligation'];
+    reservation: EffectReservation | null;
+  }): Observation {
+    return (
+      this.#observeReservedEffect(candidate) ?? this.#observe(candidate.work.postcondition)
+    );
   }
 
   #commitObservation(
