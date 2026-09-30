@@ -12,9 +12,7 @@ import {
   validateSourceRevisionBindingFact,
 } from './facts.ts';
 import type {
-  ClaimFact,
   EffectReservation,
-  ExecutionAuthorityFact,
   FactCommit,
   HistoricalRun,
   ObligationDefinition,
@@ -305,9 +303,7 @@ export function replayProjection(
       if (release.effect_contract !== run.obligation.packet.effect_contract) {
         throw new Error('EFFECT_RELEASE_CONTRACT_MISMATCH');
       }
-      if (
-        release.evidence.attempt.effect_identity_sha256 !== reservation.effect_identity_sha256
-      ) {
+      if (release.evidence.attempt.effect_identity_sha256 !== reservation.effect_identity_sha256) {
         throw new Error('EFFECT_RELEASE_IDENTITY_MISMATCH');
       }
       if (
