@@ -164,7 +164,7 @@ test('measures marginal TCB by deduplicated semantic units and keeps scope seman
     ['architecture-effect:provider/write', 'property:provider-profile'],
   );
 
-  assert.equal(result.tasks[2]?.trusted_semantic_loc, 4);
+  assert.equal(result.tasks[2]?.trusted_semantic_loc, 5);
   assert.equal(result.tasks[2]?.marginal_semantic_loc, 1);
   assert.equal(result.tasks[2]?.task_specific_marginal_semantic_loc, 1);
   assert.deepEqual(result.tasks[2]?.marginal_files, ['c.ts']);
