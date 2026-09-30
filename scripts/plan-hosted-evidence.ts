@@ -16,10 +16,21 @@ interface EvidenceSpec {
   packageScripts: readonly string[];
 }
 
+const RELATIONAL_PLANNER_PATHS = [
+  'scripts/plan-assurance-evidence.ts',
+  'src/architecture/change-planner.ts',
+  'src/architecture/sql-model.ts',
+  'src/source/transaction-planner.ts',
+  'architecture/concepts.sql',
+  'architecture/logic.sql',
+  'architecture/physics.sql',
+] as const;
+
 const SPECS: Record<HostedEvidenceKey, EvidenceSpec> = {
   'authority-flow': {
     exact: [
       'scripts/plan-hosted-evidence.ts',
+      ...RELATIONAL_PLANNER_PATHS,
       '.github/workflows/authority-flow-analysis.yml',
       'src/authority/engine.ts',
       'src/providers/github/status-effect.ts',
@@ -32,6 +43,7 @@ const SPECS: Record<HostedEvidenceKey, EvidenceSpec> = {
   'authority-storage': {
     exact: [
       'scripts/plan-hosted-evidence.ts',
+      ...RELATIONAL_PLANNER_PATHS,
       '.github/workflows/authority-storage-decomposition.yml',
       'src/storage/git-store.ts',
       'src/storage/git-kernel.ts',
@@ -43,6 +55,7 @@ const SPECS: Record<HostedEvidenceKey, EvidenceSpec> = {
   'distributed-handoff': {
     exact: [
       'scripts/plan-hosted-evidence.ts',
+      ...RELATIONAL_PLANNER_PATHS,
       '.github/workflows/distributed-authority-handoff.yml',
       'src/storage/git-kernel.ts',
       'src/storage/git-store.ts',
@@ -55,6 +68,7 @@ const SPECS: Record<HostedEvidenceKey, EvidenceSpec> = {
   'distributed-chaos': {
     exact: [
       'scripts/plan-hosted-evidence.ts',
+      ...RELATIONAL_PLANNER_PATHS,
       '.github/workflows/distributed-authority-chaos.yml',
       'src/storage/git-kernel.ts',
       'src/storage/git-store.ts',
@@ -66,6 +80,7 @@ const SPECS: Record<HostedEvidenceKey, EvidenceSpec> = {
   substrate: {
     exact: [
       'scripts/plan-hosted-evidence.ts',
+      ...RELATIONAL_PLANNER_PATHS,
       '.github/workflows/substrate-capability-admission.yml',
       '.github/workflows/substrate-capability-admission-treatment.yml',
     ],

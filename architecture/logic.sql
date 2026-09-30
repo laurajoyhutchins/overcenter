@@ -25,7 +25,12 @@ INSERT INTO evidence(evidence_id) VALUES
   ('projection-reconstruction-proof'),
   ('provider-observation-proof'),
   ('effect-core-loop-proof'),
-  ('judgment-attestation-proof');
+  ('judgment-attestation-proof'),
+  ('authority-flow-proof'),
+  ('authority-storage-proof'),
+  ('distributed-authority-handoff-proof'),
+  ('distributed-authority-chaos-proof'),
+  ('substrate-capability-admission-proof');
 
 INSERT INTO capability(capability_id) VALUES
   ('canonical-content-identity'),
@@ -46,7 +51,12 @@ INSERT INTO assurance_property(property_id) VALUES
   ('broker-mutation-safety'),
   ('no-false-done'),
   ('github-commit-status-provider'),
-  ('judgment-attestation-integrity');
+  ('judgment-attestation-integrity'),
+  ('authority-flow-integrity'),
+  ('durable-authority-storage-integrity'),
+  ('distributed-authority-handoff-integrity'),
+  ('distributed-authority-chaos-integrity'),
+  ('substrate-capability-admission-integrity');
 
 INSERT INTO assurance_property_requires_authority(property_id, authority_id) VALUES
   ('broker-mutation-safety', 'effect-authority');
@@ -115,6 +125,13 @@ INSERT INTO evidence_witnesses_obligation(evidence_id, obligation_id) VALUES
   ('effect-core-loop-proof', 'reserve-before-effect'),
   ('provider-observation-proof', 'authoritative-settlement'),
   ('effect-core-loop-proof', 'unresolved-effect-no-replay');
+
+INSERT INTO evidence_witnesses_assurance_property(evidence_id, property_id) VALUES
+  ('authority-flow-proof', 'authority-flow-integrity'),
+  ('authority-storage-proof', 'durable-authority-storage-integrity'),
+  ('distributed-authority-handoff-proof', 'distributed-authority-handoff-integrity'),
+  ('distributed-authority-chaos-proof', 'distributed-authority-chaos-integrity'),
+  ('substrate-capability-admission-proof', 'substrate-capability-admission-integrity');
 
 INSERT INTO evidence_witnesses_capability(evidence_id, capability_id) VALUES
   ('canonical-content-identity-proof', 'canonical-content-identity'),

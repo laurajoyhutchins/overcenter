@@ -97,6 +97,22 @@ CREATE TABLE evidence_witnesses_capability (
   PRIMARY KEY (evidence_id, capability_id)
 ) STRICT;
 
+CREATE TABLE evidence_witnesses_assurance_property (
+  evidence_id TEXT NOT NULL REFERENCES evidence(evidence_id) ON DELETE CASCADE,
+  property_id TEXT NOT NULL REFERENCES assurance_property(property_id) ON DELETE CASCADE,
+  PRIMARY KEY (evidence_id, property_id)
+) STRICT;
+
+CREATE TABLE evidence_uses_package_runtime (
+  evidence_id TEXT PRIMARY KEY REFERENCES evidence(evidence_id) ON DELETE CASCADE
+) STRICT;
+
+CREATE TABLE evidence_uses_package_script (
+  evidence_id TEXT NOT NULL REFERENCES evidence(evidence_id) ON DELETE CASCADE,
+  script_name TEXT NOT NULL CHECK (length(trim(script_name)) > 0),
+  PRIMARY KEY (evidence_id, script_name)
+) STRICT;
+
 CREATE TABLE capability_depends_on_capability (
   capability_id TEXT NOT NULL REFERENCES capability(capability_id) ON DELETE CASCADE,
   required_capability_id TEXT NOT NULL REFERENCES capability(capability_id) ON DELETE CASCADE,
@@ -106,6 +122,12 @@ CREATE TABLE capability_depends_on_capability (
 
 CREATE TABLE artifact (
   artifact_id TEXT PRIMARY KEY CHECK (length(trim(artifact_id)) > 0)
+) STRICT;
+
+CREATE TABLE evidence_depends_on_artifact (
+  evidence_id TEXT NOT NULL REFERENCES evidence(evidence_id) ON DELETE CASCADE,
+  artifact_id TEXT NOT NULL REFERENCES artifact(artifact_id) ON DELETE CASCADE,
+  PRIMARY KEY (evidence_id, artifact_id)
 ) STRICT;
 
 CREATE TABLE symbol (
