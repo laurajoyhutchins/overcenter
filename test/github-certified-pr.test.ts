@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { observeCertifiedGitHubPullRequestIdentity } from '../src/providers/github/certified-read.ts';
+import { observeCertifiedGitHubPullRequestIdentity } from '../src/providers/github/certified-predicates.ts';
 import type { GitHubJsonGet } from '../src/providers/github/rest.ts';
 
 const HEAD = 'a'.repeat(40);
