@@ -196,9 +196,9 @@ test('function-level effect reachability binds called semantic mutation terminal
         },
         {
           effect: GITHUB_SOURCE_INTEGRATION_EFFECT,
-          terminal: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
+          terminal: 'src/source/source-integration.ts#performPreparedSourceIntegration',
           root: 'test/fixtures/function-effect-called.ts#<module>',
-          leaf: 'src/source/source-integration.ts#integrateVerifiedSourceCandidate',
+          leaf: 'src/source/source-integration.ts#performPreparedSourceIntegration',
           digest_length: 64,
         },
       ],

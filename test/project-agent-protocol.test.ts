@@ -21,7 +21,12 @@ import {
   submitProjectCandidate,
 } from '../src/authority/project-agent-protocol.ts';
 import { compileProjectIntent } from '../src/authority/project-intent.ts';
-import { SOURCE_VERIFICATION_SCHEMA } from '../src/source/source-integration.ts';
+import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../src/effect-adapter.ts';
+import {
+  SOURCE_VERIFICATION_SCHEMA,
+  performPreparedSourceIntegration,
+  prepareVerifiedSourceIntegration,
+} from '../src/source/source-integration.ts';
 import { brokerAssignedSourceProposal } from '../src/source/source-broker.ts';
 import { SOURCE_PROPOSAL_SCHEMA } from '../src/source/source-obligation.ts';
 
@@ -656,7 +661,8 @@ test('source proposal broker rejects control-plane mutation before candidate pub
       authorityRef: AUTHORITY_REF,
       remote: 'origin',
     });
-    assert.ok(acquired.run_id);
+    const runId = acquired.run_id;
+    if (!runId) throw new Error('SOURCE_RUN_ID_MISSING');
 
     const assignment = JSON.parse(
       readFileSync(join(f.root, 'source-packet', 'assignment.json'), 'utf8'),
@@ -762,7 +768,8 @@ test('project.submit integrates a verified source candidate and settles the sour
       authorityRef: AUTHORITY_REF,
       remote: 'origin',
     });
-    assert.ok(acquired.run_id);
+    const runId = acquired.run_id;
+    if (!runId) throw new Error('SOURCE_RUN_ID_MISSING');
 
     const assignment = JSON.parse(
       readFileSync(join(f.root, 'source-packet', 'assignment.json'), 'utf8'),
@@ -795,7 +802,7 @@ test('project.submit integrates a verified source candidate and settles the sour
         {
           schema: SOURCE_VERIFICATION_SCHEMA,
           state: 'verified',
-          run_id: acquired.run_id,
+          run_id: runId,
           candidate_sha: candidateSha,
           base_sha: sourceSha,
           tree_sha: treeSha,
@@ -811,7 +818,7 @@ test('project.submit integrates a verified source candidate and settles the sour
       {
         ...commandContext('e'.repeat(40), 9100),
         candidate_sha: candidateSha,
-        candidate_run_id: acquired.run_id,
+        candidate_run_id: runId,
       },
       {
         authorityRef: AUTHORITY_REF,
@@ -839,13 +846,258 @@ test('project.submit integrates a verified source candidate and settles the sour
       {
         ...commandContext('f'.repeat(40), 9101),
         candidate_sha: candidateSha,
-        candidate_run_id: acquired.run_id,
+        candidate_run_id: runId,
       },
       { authorityRef: AUTHORITY_REF, remote: 'origin' },
     );
     assert.equal(replay.disposition, 'DONE');
     assert.equal(replay.already_settled, true);
     assert.equal(replay.integration_commit, settled.integration_commit);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+    rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
+test('reserved source effect is fenced to candidate identity and recovered by observation', () => {
+  const f = fixture();
+  try {
+    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    kernel.initialize();
+    const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
+    const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
+      outputDir: join(f.root, 'source-recovery-packet'),
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+    const runId = acquired.run_id;
+    const obligationId = acquired.obligation_id;
+    if (!runId || !obligationId) throw new Error('SOURCE_ASSIGNMENT_IDENTITY_MISSING');
+
+    const assignment = JSON.parse(
+      readFileSync(join(f.root, 'source-recovery-packet', 'assignment.json'), 'utf8'),
+    );
+    const claim = assignment.claim;
+    const brokered = brokerAssignedSourceProposal(
+      f.work,
+      assignment,
+      {
+        schema: SOURCE_PROPOSAL_SCHEMA,
+        run_id: claim.run_id,
+        claimed_revision: claim.claimed_revision,
+        claimed_source_sha: claim.source_sha,
+        files: [
+          {
+            path: 'src/feature.txt',
+            content_base64: Buffer.from('feature:reserved-recovery\n').toString('base64'),
+          },
+        ],
+      },
+      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+    );
+    assert.equal(brokered.publication.state, 'PUBLISHED');
+    const candidateSha = brokered.candidate.commit_sha;
+    const treeSha = git(f.work, ['rev-parse', `${candidateSha}^{tree}`]);
+    const verification = {
+      schema: SOURCE_VERIFICATION_SCHEMA,
+      state: 'verified' as const,
+      run_id: acquired.run_id,
+      candidate_sha: candidateSha,
+      base_sha: sourceSha,
+      tree_sha: treeSha,
+      reason: null,
+    };
+
+    const interrupted = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    const permit = interrupted.acquireExecution(runId);
+    const sourceClaim = interrupted.sourceClaimBinding(runId);
+    const prepared = prepareVerifiedSourceIntegration(
+      f.work,
+      assignment.task,
+      sourceClaim,
+      obligationId,
+      candidateSha,
+      verification,
+      { remote: 'origin' },
+    );
+    assert.equal(prepared.state, 'READY');
+    if (prepared.state !== 'READY') throw new Error('SOURCE_PREPARATION_NOT_READY');
+    const authority = interrupted.authorizeEffect(
+      permit,
+      GITHUB_SOURCE_INTEGRATION_EFFECT,
+      prepared.effect_identity,
+    );
+    interrupted.performEffectSync(authority, () =>
+      performPreparedSourceIntegration(f.work, prepared, { remote: 'origin' }),
+    );
+    assert.equal(interrupted.hasUnresolvedEffect(runId), true);
+
+    const integratedHead = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0]!;
+    assert.notEqual(integratedHead, candidateSha);
+    assert.notEqual(integratedHead, sourceSha);
+    const reservation = interrupted.unresolvedEffectReservation(runId);
+    assert.ok(reservation);
+    assert.ok('effect_identity' in reservation);
+    if (!('effect_identity' in reservation)) throw new Error('SOURCE_EFFECT_IDENTITY_MISSING');
+    assert.equal(reservation.effect_identity.integration_commit, integratedHead);
+
+    assert.throws(
+      () =>
+        submitProjectCandidate(
+          f.work,
+          {
+            ...commandContext('d'.repeat(40), 9150),
+            candidate_sha: 'd'.repeat(40),
+            candidate_run_id: runId,
+          },
+          { authorityRef: AUTHORITY_REF, remote: 'origin' },
+        ),
+      /PROJECT_SUBMIT_RESERVED_SOURCE_MISMATCH/,
+    );
+
+    const afterWrongIdentity = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    assert.equal(afterWrongIdentity.hasUnresolvedEffect(runId), true);
+    assert.equal(
+      git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0],
+      integratedHead,
+    );
+
+    const recovered = submitProjectCandidate(
+      f.work,
+      {
+        ...commandContext('e'.repeat(40), 9151),
+        candidate_sha: candidateSha,
+        candidate_run_id: runId,
+      },
+      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+    );
+    assert.equal(recovered.disposition, 'DONE');
+    assert.equal(recovered.verified, true);
+    assert.equal(recovered.integration_commit, integratedHead);
+    assert.equal(
+      git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0],
+      integratedHead,
+    );
+
+    const authoritative = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    assert.equal(authoritative.hasUnresolvedEffect(runId), false);
+    assert.equal(authoritative.inspect()[0]?.status, 'DONE');
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+    rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
+test('authoritative source readback of a different effect remains recovery-required', () => {
+  const f = fixture();
+  try {
+    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    kernel.initialize();
+    const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
+    const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
+      outputDir: join(f.root, 'source-contradiction-packet'),
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+    const runId = acquired.run_id;
+    const obligationId = acquired.obligation_id;
+    if (!runId || !obligationId) throw new Error('SOURCE_ASSIGNMENT_IDENTITY_MISSING');
+
+    const assignment = JSON.parse(
+      readFileSync(join(f.root, 'source-contradiction-packet', 'assignment.json'), 'utf8'),
+    );
+    const claim = assignment.claim;
+    const brokered = brokerAssignedSourceProposal(
+      f.work,
+      assignment,
+      {
+        schema: SOURCE_PROPOSAL_SCHEMA,
+        run_id: claim.run_id,
+        claimed_revision: claim.claimed_revision,
+        claimed_source_sha: claim.source_sha,
+        files: [
+          {
+            path: 'src/feature.txt',
+            content_base64: Buffer.from('feature:intended\n').toString('base64'),
+          },
+        ],
+      },
+      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+    );
+    assert.equal(brokered.publication.state, 'PUBLISHED');
+    const candidateSha = brokered.candidate.commit_sha;
+    const treeSha = git(f.work, ['rev-parse', `${candidateSha}^{tree}`]);
+
+    const interrupted = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    const permit = interrupted.acquireExecution(runId);
+    const prepared = prepareVerifiedSourceIntegration(
+      f.work,
+      assignment.task,
+      interrupted.sourceClaimBinding(runId),
+      obligationId,
+      candidateSha,
+      {
+        schema: SOURCE_VERIFICATION_SCHEMA,
+        state: 'verified',
+        run_id: runId,
+        candidate_sha: candidateSha,
+        base_sha: sourceSha,
+        tree_sha: treeSha,
+        reason: null,
+      },
+      { remote: 'origin' },
+    );
+    assert.equal(prepared.state, 'READY');
+    if (prepared.state !== 'READY') throw new Error('SOURCE_PREPARATION_NOT_READY');
+
+    interrupted.beginEffect(permit, prepared.effect_identity);
+
+    writeFileSync(join(f.work, 'src', 'feature.txt'), 'feature:competing\n');
+    execFileSync('git', ['-C', f.work, 'add', 'src/feature.txt'], { stdio: 'ignore' });
+    execFileSync('git', ['-C', f.work, 'commit', '-m', 'competing source effect'], {
+      stdio: 'ignore',
+    });
+    const competingHead = git(f.work, ['rev-parse', 'HEAD']);
+    execFileSync('git', ['-C', f.work, 'push', 'origin', 'HEAD:refs/heads/main'], {
+      stdio: 'ignore',
+    });
+
+    const recovered = submitProjectCandidate(
+      f.work,
+      {
+        ...commandContext('e'.repeat(40), 9152),
+        candidate_sha: candidateSha,
+        candidate_run_id: runId,
+      },
+      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+    );
+
+    assert.equal(recovered.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(recovered.verified, false);
+    assert.equal(recovered.integration_commit, undefined);
+    assert.equal(
+      git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0],
+      competingHead,
+    );
+
+    const authoritative = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    assert.equal(authoritative.hasUnresolvedEffect(runId), true);
+    assert.equal(authoritative.inspect()[0]?.status, 'RECOVERY_REQUIRED');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });

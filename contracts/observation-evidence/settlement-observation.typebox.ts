@@ -11,6 +11,7 @@ export const VerifierKind = stringEnum([
   'github-commit-status/v2',
   'github-pull-request-branch-updated/v1',
   'github-hostile-mutation-evidence/v1',
+  'source-integration/v1',
   'kubernetes-configmap-exists/v1',
 ] as const);
 
@@ -45,6 +46,11 @@ export const SettlementObservation = Type.Object(
     ref: Type.Optional(Type.String()),
     evidence_path: Type.Optional(Type.String()),
     source_binding_sha256: Type.Optional(Type.String()),
+    effect_identity_sha256: Type.Optional(Type.String()),
+    source_sha: Type.Optional(Type.String()),
+    candidate_sha: Type.Optional(Type.String()),
+    verified_tree_sha: Type.Optional(Type.String()),
+    integration_commit: Type.Optional(Type.String()),
     commit_sha: Type.Optional(Type.String()),
     context: Type.Optional(Type.String()),
     expected_state: Type.Optional(Type.String()),

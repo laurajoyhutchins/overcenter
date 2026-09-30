@@ -167,11 +167,14 @@
         "run_id",
         "obligation_id",
         "execution_generation",
-        "execution_authority_commit"
+        "execution_authority_commit",
+        "effect_contract",
+        "effect_identity",
+        "effect_identity_sha256"
       ],
       "properties": {
         "schema": {
-          "const": "overcenter-git-effect-reservation-v1"
+          "const": "overcenter-git-effect-reservation-v2"
         },
         "run_id": {
           "type": "string",
@@ -192,6 +195,20 @@
           "type": "string",
           "minLength": 1,
           "pattern": "^[^\\u0000]+$"
+        },
+        "effect_contract": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\u0000]+$"
+        },
+        "effect_identity": {
+          "type": "object",
+          "x-overcenter-openBoundary": true,
+          "additionalProperties": true,
+          "description": "Adapter-owned exact effect identity, authoritative by value."
+        },
+        "effect_identity_sha256": {
+          "$ref": "#/$defs/Sha256Hex"
         }
       }
     },
@@ -287,6 +304,9 @@
         },
         {
           "$ref": "#/$defs/ExecutionAuthorityFact"
+        },
+        {
+          "$ref": "#/$defs/EffectReservationFactV1"
         },
         {
           "$ref": "#/$defs/EffectReservationFact"
@@ -416,6 +436,42 @@
           }
         }
       ]
+    },
+    "EffectReservationFactV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "run_id",
+        "obligation_id",
+        "execution_generation",
+        "execution_authority_commit"
+      ],
+      "properties": {
+        "schema": {
+          "const": "overcenter-git-effect-reservation-v1"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\u0000]+$"
+        },
+        "obligation_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\u0000]+$"
+        },
+        "execution_generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "execution_authority_commit": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\u0000]+$"
+        }
+      }
     }
   }
 }

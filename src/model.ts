@@ -130,6 +130,12 @@ export interface ExecutionPermit extends Run {
   execution_capability: string;
 }
 
+export interface EffectObservationBinding {
+  effect_contract: string;
+  effect_identity: Data;
+  effect_identity_sha256: string;
+}
+
 export interface ExecuteOutcome extends Data {
   kind?: string;
   may_have_mutated?: boolean;

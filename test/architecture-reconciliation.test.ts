@@ -158,7 +158,7 @@ test('TCB roots are derived recursively from effect architecture', () => {
       sourceRoots.some(
         (root) =>
           root.artifact_id === 'src/source/source-integration.ts' &&
-          root.symbol_id === 'integrateVerifiedSourceCandidate',
+          root.symbol_id === 'performPreparedSourceIntegration',
       ),
     );
   } finally {

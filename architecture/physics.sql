@@ -63,7 +63,8 @@ INSERT INTO symbol(symbol_id, artifact_id) VALUES
   ('SqliteFactStore.append', 'src/storage/sqlite.ts'),
   ('SqliteFactStore.history', 'src/storage/sqlite.ts'),
   ('observationVerified', 'src/observation/observe.ts'),
-  ('integrateVerifiedSourceCandidate', 'src/source/source-integration.ts'),
+  ('observeSourceIntegration', 'src/source/source-integration.ts'),
+  ('performPreparedSourceIntegration', 'src/source/source-integration.ts'),
   ('observeCertifiedGitHubCommitStatus', 'src/providers/github/certified-status.ts'),
   ('observeCertifiedGitHubIssueCommentAttestation', 'src/providers/github/comment-attestation.ts'),
   ('performGitHubCommitStatusEffect', 'src/providers/github/status-effect.ts'),
@@ -93,7 +94,7 @@ INSERT INTO symbol_implements_capability(symbol_id, capability_id) VALUES
   ('KernelCore.releaseEffectReservation', 'effect-release'),
   ('KernelCore.resolve', 'effect-settlement'),
   ('settlementSemantics', 'effect-settlement'),
-  ('integrateVerifiedSourceCandidate', 'source-integration'),
+  ('observeSourceIntegration', 'authoritative-observation'),
   ('performGitHubCommitStatusEffect', 'github-commit-status-mutation'),
   ('observeCertifiedGitHubCommitStatus', 'github-commit-status-observation'),
   ('observeCertifiedGitHubIssueCommentAttestation', 'judgment-attestation-observation');
@@ -107,7 +108,7 @@ INSERT INTO symbol_performs_effect(symbol_id, effect_id) VALUES
   ('performGitHubCommitStatusEffect', 'github-commit-status/create'),
   ('performGitHubPullRequestUpdateBranchEffect', 'github-pull-request/update-branch'),
   ('performKubernetesConfigMapEffect', 'kubernetes-configmap/ensure'),
-  ('integrateVerifiedSourceCandidate', 'source/integrate');
+  ('performPreparedSourceIntegration', 'source/integrate');
 
 INSERT INTO symbol_dispatches_to_symbol(symbol_id, implementation_symbol_id) VALUES
   ('DurableFactStore.head', 'SqliteFactStore.head'),

@@ -39,6 +39,10 @@ The outer fact envelopes reject unknown fields. Four nested payloads remain open
 
 Open does not mean ungoverned. The first three can affect identity or settlement and therefore need their own referenced contracts. They are not extension buckets for arbitrary outer fact fields.
 
+## Effect reservation schema
+
+New reservations use `overcenter-git-effect-reservation-v2`. In addition to run and execution-authority fencing, v2 records the effect contract, adapter-owned exact effect identity, and its canonical digest. Historical `overcenter-git-effect-reservation-v1` facts remain readable; because they did not record effect identity, recovery must not invent one or use them to authorize a replay.
+
 ## Receipt schema
 
 Overcenter accepts and writes `overcenter-git-receipt-v5`. Observation evidence is validated against the current observation/evidence contract before replay.

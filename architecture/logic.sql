@@ -42,7 +42,6 @@ INSERT INTO capability(capability_id) VALUES
   ('effect-execution'),
   ('effect-release'),
   ('effect-settlement'),
-  ('source-integration'),
   ('github-commit-status-mutation'),
   ('github-commit-status-observation'),
   ('judgment-attestation-observation');
@@ -112,9 +111,6 @@ CROSS JOIN (
   UNION ALL SELECT 'effect-settlement'
 );
 
-INSERT INTO effect_requires_capability(effect_id, capability_id) VALUES
-  ('source/integrate', 'source-integration');
-
 INSERT INTO obligation_guards_effect(obligation_id, effect_id)
 SELECT obligation_id, effect_id
 FROM obligation
@@ -152,7 +148,4 @@ INSERT INTO capability_depends_on_capability(capability_id, required_capability_
   ('effect-execution', 'effect-reservation'),
   ('effect-release', 'effect-reservation'),
   ('effect-settlement', 'authoritative-observation'),
-  ('effect-settlement', 'durable-project-facts'),
-  ('source-integration', 'effect-authorization'),
-  ('source-integration', 'effect-reservation'),
-  ('source-integration', 'effect-settlement');
+  ('effect-settlement', 'durable-project-facts');

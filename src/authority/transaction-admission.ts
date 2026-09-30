@@ -1,7 +1,7 @@
 import type {
   EffectReleaseFact,
   EffectReservation,
-  EffectReservationFact,
+  StoredEffectReservationFact,
   ExecutionAuthorityFact,
   ReceiptFact,
 } from './facts.ts';
@@ -41,7 +41,7 @@ export type EffectReservationAuthorityError =
 
 export function effectReservationAuthorityError(
   run: Run,
-  fact: EffectReservationFact,
+  fact: StoredEffectReservationFact,
   unresolvedEffect: boolean,
 ): EffectReservationAuthorityError {
   if (fact.run_id !== run.id) return 'EFFECT_RESERVATION_RUN_MISMATCH';

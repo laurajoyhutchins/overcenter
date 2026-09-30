@@ -18,12 +18,7 @@ export const EFFECT_IMPLEMENTATION_BINDINGS = [
   {
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
     path: 'src/source/source-integration.ts',
-    symbol: 'brokerSourceProposal',
-  },
-  {
-    effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
-    path: 'src/source/source-integration.ts',
-    symbol: 'integrateVerifiedSourceCandidate',
+    symbol: 'performPreparedSourceIntegration',
   },
 ] as const;
 

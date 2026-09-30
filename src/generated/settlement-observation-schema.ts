@@ -14,6 +14,7 @@ export const SettlementObservationSchema={
         "github-commit-status/v2",
         "github-pull-request-branch-updated/v1",
         "github-hostile-mutation-evidence/v1",
+        "source-integration/v1",
         "kubernetes-configmap-exists/v1"
       ]
     },
@@ -81,6 +82,21 @@ export const SettlementObservationSchema={
       "type": "string"
     },
     "source_binding_sha256": {
+      "type": "string"
+    },
+    "effect_identity_sha256": {
+      "type": "string"
+    },
+    "source_sha": {
+      "type": "string"
+    },
+    "candidate_sha": {
+      "type": "string"
+    },
+    "verified_tree_sha": {
+      "type": "string"
+    },
+    "integration_commit": {
       "type": "string"
     },
     "commit_sha": {

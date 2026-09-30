@@ -79,6 +79,20 @@
       }
     },
     {
+      "name": "effect-reservation-v2-valid",
+      "valid": true,
+      "fact": {
+        "schema": "overcenter-git-effect-reservation-v2",
+        "run_id": "run-1",
+        "obligation_id": "alpha",
+        "execution_generation": 2,
+        "execution_authority_commit": "authority-2",
+        "effect_contract": "test/effect",
+        "effect_identity": {},
+        "effect_identity_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+      }
+    },
+    {
       "name": "receipt-v5-valid",
       "valid": true,
       "fact": {

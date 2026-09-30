@@ -18,8 +18,10 @@ import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import { isData, isPositiveSafeInteger } from '../validation.ts';
 import { buildSourceAssignment, validateSourceTaskPacket } from '../source/source-obligation.ts';
 import {
-  integrateVerifiedSourceCandidate,
-  validateSourceIntegrationEvidence,
+  observeSourceIntegration,
+  performPreparedSourceIntegration,
+  prepareVerifiedSourceIntegration,
+  validateSourceIntegrationEffectIdentity,
   validateSourceVerification,
 } from '../source/source-integration.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
@@ -686,6 +688,17 @@ export function submitProjectCandidate(
     ref: authorityRef,
     remote,
     githubToken,
+    observationContext: {
+      observeReservedEffect: (postcondition, binding) => {
+        if (
+          postcondition.verifier !== 'source-integration/v1' ||
+          binding.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT
+        ) {
+          return null;
+        }
+        return observeSourceIntegration(repo, binding.effect_identity, { remote });
+      },
+    },
   });
   if (!kernel.head()) throw new Error('PROJECT_SUBMIT_AUTHORITY_MISSING');
 
@@ -697,11 +710,17 @@ export function submitProjectCandidate(
   if (assigned.packet.kind === 'source-change') {
     const claim = kernel.sourceClaimBinding(runId);
     const prior = kernel.receipts(runId).at(-1);
-    if (prior?.disposition === 'DONE' && prior.kind === 'source-integration') {
-      const diagnostic = isData(prior.diagnostic) ? prior.diagnostic.source_integration : null;
-      const evidence = validateSourceIntegrationEvidence(diagnostic);
-      if (evidence.candidate_sha !== candidateSha) {
+    if (
+      prior?.disposition === 'DONE' &&
+      prior.kind === 'observation' &&
+      prior.observed?.verifier === 'source-integration/v1'
+    ) {
+      if (prior.observed.candidate_sha !== candidateSha) {
         throw new Error('PROJECT_SUBMIT_SETTLED_SOURCE_MISMATCH');
+      }
+      const integrationCommit = prior.observed.integration_commit;
+      if (typeof integrationCommit !== 'string' || !/^[0-9a-f]{40}$/.test(integrationCommit)) {
+        throw new Error('PROJECT_SUBMIT_SETTLED_SOURCE_EVIDENCE_INVALID');
       }
       const authorityHead = kernel.head();
       if (!authorityHead) throw new Error('PROJECT_SUBMIT_AUTHORITY_MISSING');
@@ -720,14 +739,14 @@ export function submitProjectCandidate(
         obligation_id: assigned.id,
         run_id: runId,
         claimed_revision: claim.claimed_revision,
-        integration_commit: evidence.integration_commit,
+        integration_commit: integrationCommit,
         disposition: 'DONE' as const,
         verified: true,
         settlement_commit: prior.settlement_commit ?? null,
         already_settled: true,
       });
     }
-    if (prior?.disposition === 'READY' && prior.kind === 'source-retry') {
+    if (prior?.disposition === 'READY' && prior.kind === 'effect-rejected') {
       const authorityHead = kernel.head();
       if (!authorityHead) throw new Error('PROJECT_SUBMIT_AUTHORITY_MISSING');
       return withDigest({
@@ -761,6 +780,61 @@ export function submitProjectCandidate(
     }
 
     const permit = kernel.acquireExecution(runId);
+    const reserved = kernel.unresolvedEffectReservation(runId);
+    if (reserved) {
+      if (!('effect_identity' in reserved)) {
+        const recovered = kernel.recoverInterrupted(permit, {
+          source_integration: {
+            reason: 'LEGACY_EFFECT_RESERVATION_IDENTITY_UNAVAILABLE',
+            candidate_sha: candidateSha,
+          },
+        });
+        return sourceSubmitReceipt(
+          context,
+          authorityRef,
+          kernel,
+          assigned.id,
+          claim.claimed_revision,
+          candidateSha,
+          recovered,
+          false,
+        );
+      }
+      if (reserved.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT) {
+        throw new Error('PROJECT_SUBMIT_RESERVED_EFFECT_CONTRACT_MISMATCH');
+      }
+      const identity = validateSourceIntegrationEffectIdentity(reserved.effect_identity);
+      if (
+        identity.run_id !== runId ||
+        identity.obligation_key !== claim.obligation_key ||
+        identity.source_sha !== claim.source_sha ||
+        identity.candidate_sha !== candidateSha
+      ) {
+        throw new Error('PROJECT_SUBMIT_RESERVED_SOURCE_MISMATCH');
+      }
+      const settled = kernel.resolve(permit, {
+        source_integration: {
+          mode: 'reconcile-reserved-effect',
+          candidate_sha: candidateSha,
+        },
+      });
+      return sourceSubmitReceipt(
+        context,
+        authorityRef,
+        kernel,
+        assigned.id,
+        claim.claimed_revision,
+        candidateSha,
+        settled,
+        false,
+        settled.disposition === 'DONE' &&
+          settled.observed?.verifier === 'source-integration/v1' &&
+          typeof settled.observed.integration_commit === 'string'
+          ? settled.observed.integration_commit
+          : undefined,
+      );
+    }
+
     if (!sourceVerificationPath) {
       const recovered = kernel.recoverInterrupted(permit, {
         source_verification: { reason: 'SOURCE_VERIFICATION_MISSING', candidate_sha: candidateSha },
@@ -799,39 +873,19 @@ export function submitProjectCandidate(
       );
     }
 
-    const sourceAuthority = kernel.authorizeEffect(permit, GITHUB_SOURCE_INTEGRATION_EFFECT);
-    const integration = integrateVerifiedSourceCandidate(
+    const prepared = prepareVerifiedSourceIntegration(
       repo,
       assigned.packet,
       claim,
       assigned.id,
       candidateSha,
       verification,
-      {
-        remote,
-        performReservedMutation: (mutation) =>
-          kernel.performEffectSync(sourceAuthority, () => mutation()),
-      },
+      { remote },
     );
 
-    if (integration.state === 'INTEGRATED' || integration.state === 'ALREADY_INTEGRATED') {
-      const settled = kernel.settleSourceIntegration(permit, integration.witness);
-      return sourceSubmitReceipt(
-        context,
-        authorityRef,
-        kernel,
-        assigned.id,
-        claim.claimed_revision,
-        candidateSha,
-        settled,
-        integration.state === 'ALREADY_INTEGRATED',
-        integration.commit_sha,
-      );
-    }
-
-    if (integration.state === 'RECOVERY_REQUIRED') {
+    if (prepared.state === 'RECOVERY_REQUIRED') {
       const recovered = kernel.recoverInterrupted(permit, {
-        source_integration: { reason: integration.reason, candidate_sha: candidateSha },
+        source_integration: { reason: prepared.reason, candidate_sha: candidateSha },
       });
       return sourceSubmitReceipt(
         context,
@@ -845,8 +899,8 @@ export function submitProjectCandidate(
       );
     }
 
-    if (integration.state === 'REJECTED' || integration.state === 'REREALIZE_REQUIRED') {
-      const retry = kernel.retrySourceIntegration(permit, integration.reason, {
+    if (prepared.state === 'REJECTED' || prepared.state === 'REREALIZE_REQUIRED') {
+      const rejected = kernel.rejectEffect(permit, prepared.reason, {
         candidate_sha: candidateSha,
       });
       return sourceSubmitReceipt(
@@ -856,11 +910,48 @@ export function submitProjectCandidate(
         assigned.id,
         claim.claimed_revision,
         candidateSha,
-        retry,
+        rejected,
         false,
       );
     }
-    throw new Error('SOURCE_INTEGRATION_RESULT_UNCLASSIFIED');
+
+    const sourceAuthority = kernel.authorizeEffect(
+      permit,
+      GITHUB_SOURCE_INTEGRATION_EFFECT,
+      prepared.effect_identity,
+    );
+    let mutationReportedSuccess = false;
+    let mutationError: string | null = null;
+    try {
+      mutationReportedSuccess = kernel.performEffectSync(sourceAuthority, () =>
+        performPreparedSourceIntegration(repo, prepared, { remote }),
+      );
+    } catch (error: unknown) {
+      mutationError = error instanceof Error ? error.message : String(error);
+    }
+
+    const settled = kernel.resolve(permit, {
+      source_integration: {
+        candidate_sha: candidateSha,
+        mutation_reported_success: mutationReportedSuccess,
+        mutation_error: mutationError,
+      },
+    });
+    return sourceSubmitReceipt(
+      context,
+      authorityRef,
+      kernel,
+      assigned.id,
+      claim.claimed_revision,
+      candidateSha,
+      settled,
+      prepared.already_integrated,
+      settled.disposition === 'DONE' &&
+        settled.observed?.verifier === 'source-integration/v1' &&
+        typeof settled.observed.integration_commit === 'string'
+        ? settled.observed.integration_commit
+        : undefined,
+    );
   }
 
   const raw = JSON.parse(gitBytes(repo, candidateSha, candidatePath).toString('utf8'));
