@@ -2,7 +2,7 @@
   "apiVersion": "overcenter.dev/data-contract/v1",
   "kind": "DataContract",
   "id": "authority-facts",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "active",
   "description": {
     "purpose": "Define the durable fact vocabulary from which Overcenter reconstructs project truth.",
@@ -28,6 +28,7 @@
       "overcenter-git-claim-v3",
       "overcenter-git-execution-authority-v1",
       "overcenter-git-effect-reservation-v1",
+      "overcenter-git-effect-reservation-v2",
       "overcenter-git-receipt-v5"
     ],
     "validationExtensions": [
@@ -75,6 +76,13 @@
       "closure": "owned by verifier/observation contracts"
     },
     {
+      "path": "EffectReservationFact.effect_identity",
+      "role": "effect-identity",
+      "authoritative": true,
+      "identityImpact": "bound by effect_identity_sha256 and used to fence observation/settlement",
+      "closure": "owned by the registered effect adapter"
+    },
+    {
       "path": "ReceiptFact.observed",
       "role": "observation-evidence",
       "authoritative": true,
@@ -114,9 +122,13 @@
         "run_id",
         "obligation_id",
         "execution_generation",
-        "execution_authority_commit"
+        "execution_authority_commit",
+        "effect_contract",
+        "effect_identity",
+        "effect_identity_sha256"
       ],
-      "meaning": "Durably records that the exact execution generation crossed the provider-effect boundary."
+      "meaning": "v2 durably records the exact execution generation and exact effect identity that crossed the provider-effect boundary.",
+      "historicalCompatibility": "v1 remains replayable as a legacy reservation without effect identity; missing identity is never inferred."
     },
     "receiptFact": {
       "authorityBindingFields": [
