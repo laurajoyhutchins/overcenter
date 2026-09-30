@@ -8,10 +8,11 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { OvercenterKernel } from '../src/authority/kernel.ts';
 import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../src/effect-adapter.ts';
+import { validateSourceTransactionBindingFact } from '../src/authority/facts.ts';
 import {
-  validateSourceTransactionBindingFact,
   sourceTransactionPlanDigest,
   validateSourceTransactionPlan,
+  validateSourceTransactionTask,
   type SourceTransactionPlan,
 } from '../src/source/transaction.ts';
 
@@ -156,7 +157,11 @@ test('Git authority reconstruction retains exact binding and rejects tampered pl
     execution_authority_commit: permit.execution_authority_commit,
   };
   assert.throws(
-    () => kernel.bindSourceTransaction(permit, { ...value, authorized_write_set: ['value.ts'] }),
+    () =>
+      validateSourceTransactionTask(
+        validateSourceTransactionPlan({ ...value, authorized_write_set: ['value.ts'] }),
+        kernel.claimedWork(permit.id).packet,
+      ),
     /SOURCE_TRANSACTION_TASK_MISMATCH/,
   );
   kernel.bindSourceTransaction(permit, value);
@@ -164,7 +169,7 @@ test('Git authority reconstruction retains exact binding and rejects tampered pl
   assert.deepEqual(new GitOvercenterKernel(root).sourceTransaction(permit.id), expected);
   for (const corrupt of [
     { ...expected, plan_digest: '0'.repeat(64) },
-    { ...expected, plan_ref: { ...expected.plan_ref, byte_length: 0 } },
+    { ...expected, plan: { ...expected.plan, candidate_sha: '0'.repeat(40) } },
     { ...expected, plan: null },
   ])
     assert.throws(() => validateSourceTransactionBindingFact(corrupt));
