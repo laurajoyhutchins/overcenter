@@ -91,6 +91,52 @@
         "exact commit and context coordinate",
         "certified GitHub status readback"
       ]
+    },
+    {
+      "task_id": "conflicting-effect-behavioral-regression",
+      "rung": "behavioral-bug-repair",
+      "classification": "frontier-limited",
+      "claim": "At the exact measured source revision, the maintained conflicting-effect regression evidence is bound to the source repair and passes under the existing verification machinery.",
+      "narrowed_from": "No unordered incompatible operations targeting the same canonical effect coordinate can ever both obtain execution authority.",
+      "residual_judgment": "Whether the maintained regression and provider-specific conflict model completely characterize every relevant future conflicting-effect behavior.",
+      "scopes": [
+        {
+          "kind": "property",
+          "id": "no-false-done",
+          "role": "reused-general"
+        },
+        {
+          "kind": "property",
+          "id": "broker-mutation-safety",
+          "role": "reused-general"
+        },
+        {
+          "kind": "architecture-effect",
+          "id": "source/integrate",
+          "role": "new-reusable"
+        },
+        {
+          "kind": "property",
+          "id": "github-commit-status-provider",
+          "role": "provider-specific"
+        },
+        {
+          "kind": "architecture-effect",
+          "id": "github-commit-status/create",
+          "role": "provider-specific"
+        }
+      ],
+      "evidence": [
+        "pull/7@66d9753fd8e0c321b93e32410fcacf00882a522b",
+        "github-actions/35310531160",
+        "src/semantics.ts",
+        "src/authority/interaction-frontier.ts"
+      ],
+      "observation_support": [
+        "exact source revision",
+        "historical live conflicting-effect counterexample and repaired proof",
+        "current deterministic effect-conflict semantics"
+      ]
     }
   ]
 }
