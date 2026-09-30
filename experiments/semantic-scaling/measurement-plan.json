@@ -138,6 +138,46 @@
         "historical live conflicting-effect counterexample and repaired proof",
         "current deterministic effect-conflict semantics"
       ]
+    },
+    {
+      "task_id": "projection-boundary-migration",
+      "rung": "behavior-preserving-migration",
+      "classification": "frontier-limited",
+      "claim": "The exact projection-boundary refactor candidate passed its full regression and hostile readback proof, and the current codebase retains deterministic projection, reconstruction, graph, and backend-differential regressions.",
+      "narrowed_from": "The projection-boundary migration preserved every externally observable behavior for every valid durable history and provider state.",
+      "residual_judgment": "Whether the historical and maintained regression/oracle corpus completely characterizes every behavior that could have changed across the projection-boundary migration.",
+      "scopes": [
+        {
+          "kind": "property",
+          "id": "no-false-done",
+          "role": "reused-general"
+        },
+        {
+          "kind": "property",
+          "id": "broker-mutation-safety",
+          "role": "reused-general"
+        },
+        {
+          "kind": "architecture-effect",
+          "id": "source/integrate",
+          "role": "new-reusable"
+        }
+      ],
+      "evidence": [
+        "pull/25@5df527b19655757cd4bb39a4d1f160f09fba492f",
+        "github-actions/35380591551",
+        "github-actions/35380591767",
+        "test/projection-pure.test.ts",
+        "test/projection-reconstruction.test.ts",
+        "test/kernel-backend-differential.test.ts",
+        "test/graph-pure.test.ts",
+        "test/architecture-reconciliation.test.ts"
+      ],
+      "observation_support": [
+        "exact historical migration revision",
+        "historical full regression and hostile eventual-readback proof",
+        "current deterministic projection and backend-differential regressions"
+      ]
     }
   ]
 }
