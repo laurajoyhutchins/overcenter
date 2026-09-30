@@ -12,7 +12,7 @@ const ref = 'refs/overcenter/state';
 const fixture = fileURLToPath(new URL('./fixtures/fact-contender.ts', import.meta.url));
 function contender(args: string[]) {
   return new Promise<string | null>((resolve, reject) => {
-    const child = spawn(process.execPath, [fixture, ...args], {
+    const child = spawn(process.execPath, ['--experimental-strip-types', fixture, ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
@@ -147,6 +147,7 @@ for (const backend of ['git', 'sqlite'] as const) {
           const child = spawn(
             process.execPath,
             [
+              '--experimental-strip-types',
               fileURLToPath(new URL('./fixtures/interrupted-fact-writer.ts', import.meta.url)),
               backend,
               path,

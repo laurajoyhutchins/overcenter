@@ -1,3 +1,4 @@
+import { relativeReferences, restoreRetiredSources } from './tcb-retired-source.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -10,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { API, SymbolFlags, type Symbol as TypeScriptSymbol } from 'typescript/unstable/sync';
@@ -1353,12 +1354,20 @@ try {
         ['ls-tree', '-r', '--name-only', '-z', baselineRevision],
         { encoding: 'utf8' },
       ).split('\0');
-      for (const path of acceptedPaths) {
-        if (!path.endsWith('.ts') || existsSync(join(acceptedScopeRoot, path))) continue;
-        const accepted = execFileSync('git', ['show', `${baselineRevision}:${path}`]);
-        mkdirSync(dirname(join(acceptedScopeRoot, path)), { recursive: true });
-        writeFileSync(join(acceptedScopeRoot, path), accepted);
-      }
+      const candidatePaths = execFileSync(
+        'git',
+        ['ls-tree', '-r', '--name-only', '-z', candidateRevision],
+        { encoding: 'utf8' },
+      )
+        .split('\0')
+        .filter((path) => path.endsWith('.ts'));
+      restoreRetiredSources(
+        acceptedScopeRoot,
+        acceptedPaths,
+        candidatePaths,
+        (path) => execFileSync('git', ['show', `${baselineRevision}:${path}`]),
+        (path) => relativeReferences(acceptedScopeRoot, path),
+      );
       const trustedScript = fileURLToPath(import.meta.url);
       const runReport = (cwd: string, output: string, label: string): ComparableTcbReport => {
         const run = spawnSync(
