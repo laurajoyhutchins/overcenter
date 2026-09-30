@@ -43,6 +43,16 @@ That distinction is important. A zero marginal LOC result means the measured tru
 
 This is evidence of strong reuse across the three exercised paths, not yet evidence that trusted semantic complexity generally converges. Behavioral bug repair, broader migrations, and additional provider families remain useful attempts to falsify the apparent plateau.
 
+### Behavioral bug-repair frontier
+
+A fourth rung replays the portable worker-client checksum-layout repair from historical PR #401. The preregistered behavioral oracle fixes the historical base and candidate identities, builds the checksum artifact, relocates it into a fresh directory, and verifies it from the consumer's working directory. The historical base fails, the repaired candidate passes, and post-relocation byte tampering fails.
+
+At exact head `b9028ab1d8f0758d46ef9d381216f2ccf77e5af2`, this rung measured **9,281 trusted semantic LOC with +0 marginal LOC** and no newly introduced TCB scope. It did introduce three execution assumptions covering Bash working-directory semantics, `sha256sum`, and the filesystem-copy model.
+
+That result is **frontier-limited**, not convergent. The mechanically authoritative claim is only that the preregistered relocation oracle passed the exact repaired fixture. It is deliberately narrower than the statement that worker-client artifact handling is correct in every deployment context. Whether the oracle completely captures every relevant deployment context remains residual judgment.
+
+The oracle implementation and historical producer under evaluation are recorded as untrusted machinery. They do not become authority-bearing source merely because the kernel can bind and report their result. This is the first exercised rung where the source-line TCB stays flat specifically by preserving a semantic frontier rather than by directly settling the broader correctness claim.
+
 To reproduce the marginal measurement:
 
 ```sh
