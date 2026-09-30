@@ -292,25 +292,7 @@
       "outcome": {
         "state": "supported",
         "summary": "The benchmark separates Overcenter-local correctness work from provider-facing latency for the bounded successful GitHub status transaction."
-      },
-      "analysis": [
-        {
-          "claim_id": "live-github-latency-decomposition",
-          "evidence_class": "performance",
-          "inference": "descriptive",
-          "estimand": "Observed successful single-transaction latency decomposition on the exact hosted GitHub treatment.",
-          "sampling": {
-            "unit": "live GitHub transaction",
-            "actual_n": 3,
-            "paired": false
-          },
-          "uncertainty": {
-            "method": "none",
-            "reason": "The evaluated live result contains only three samples and is intentionally descriptive rather than a population latency estimate."
-          },
-          "stopping_rule": "The historical evaluated treatment used exactly three live GitHub samples."
-        }
-      ]
+      }
     },
     {
       "id": "authority-flow-analysis",

@@ -29,6 +29,14 @@ Only maintained executable research lives in this tree. Git history is the archi
 
 ## Statistical evidence
 
-`npm run check:experiment-statistics` enforces the statistical contract for maintained claims that require sampled uncertainty. Deterministic and exhaustive claims should report their bounded corpus or state space instead of manufacturing confidence intervals.
+Statistical requirements belong to the executable experiment design, not to the registry. When
+sampling or stochastic behavior is material, the frozen experiment should state the estimand,
+sampling unit and count, uncertainty method, stopping rule, and any confirmatory decision threshold
+before outcome-bearing execution.
 
-Hosted proofs remain thin workflows under `.github/workflows/` and invoke the maintained experiment or production proof they exercise.
+The experiment's scorer owns those calculations from raw observations. `experiments/registry.json`
+remains explanatory metadata and has no authority over merge or promotion decisions. Deterministic
+and exhaustive claims should continue to report their bounded corpus or state space directly.
+
+Hosted proofs remain thin workflows under `.github/workflows/` and invoke the maintained experiment
+or production proof they exercise.
