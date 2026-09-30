@@ -280,8 +280,13 @@ export function planSourceTransaction(
     ),
     evidence: [...evidenceMap.values()].sort((a, b) => a.evidence_id.localeCompare(b.evidence_id)),
     coverage_gaps: coverageGaps,
-    validation_mode:
-      coverageGaps.length === 0 ? 'selective' : policy.baseline_id ? 'baseline' : 'unsupported',
+    validation_mode: modelChanged
+      ? 'unsupported'
+      : coverageGaps.length === 0
+        ? 'selective'
+        : policy.baseline_id
+          ? 'baseline'
+          : 'unsupported',
     baseline_id: policy.baseline_id,
     baseline_sha256: policy.baseline_sha256,
   };

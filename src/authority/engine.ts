@@ -607,6 +607,16 @@ export class KernelCore {
     witness: TrustedSourceIntegrationWitness,
   ): Receipt {
     const evidence = trustedSourceIntegrationEvidence(witness);
+    const binding = this.sourceTransaction(permit.id);
+    if (
+      !binding ||
+      evidence.schema_version !== 2 ||
+      evidence.plan_digest !== binding.plan_digest ||
+      evidence.candidate_sha !== binding.plan.candidate_sha ||
+      evidence.verified_tree_sha !== binding.plan.candidate_tree ||
+      evidence.verification_base_sha !== binding.plan.claim.source_sha
+    )
+      throw new Error('SOURCE_SETTLEMENT_TRANSACTION_MISMATCH');
     const receipt = this.#settleWithoutObservation(
       permit,
       'source-integration',

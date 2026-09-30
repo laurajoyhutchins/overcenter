@@ -21,6 +21,14 @@ const context: ProjectSubmitContext = {
   ...projectCommandContext(),
   candidate_sha: requiredEnv('OVERCENTER_CANDIDATE_SHA'),
   candidate_run_id: requiredEnv('OVERCENTER_CANDIDATE_RUN_ID'),
+  ...(process.env.OVERCENTER_CANDIDATE_WORKFLOW_RUN_ID
+    ? {
+        candidate_workflow_run_id: Number(process.env.OVERCENTER_CANDIDATE_WORKFLOW_RUN_ID),
+        candidate_workflow_run_attempt: Number(
+          requiredEnv('OVERCENTER_CANDIDATE_WORKFLOW_RUN_ATTEMPT'),
+        ),
+      }
+    : {}),
 };
 
 const receipt = submitProjectCandidate(process.cwd(), context, {

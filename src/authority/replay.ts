@@ -412,6 +412,24 @@ export function replayProjection(
       throw new Error('RECEIPT_AFTER_TERMINAL_SETTLEMENT');
     }
 
+    if (fact.kind === 'source-integration') {
+      const evidence = validateSourceIntegrationEvidence(fact.diagnostic?.source_integration);
+      if (evidence.schema_version === 2) {
+        const binding = transactionsByRun.get(run.id);
+        if (
+          !binding ||
+          evidence.plan_digest !== binding.plan_digest ||
+          evidence.run_id !== run.id ||
+          evidence.obligation_key !== run.obligation_key ||
+          evidence.candidate_sha !== binding.plan.candidate_sha ||
+          evidence.verified_tree_sha !== binding.plan.candidate_tree ||
+          evidence.verification_base_sha !== binding.plan.claim.source_sha ||
+          evidence.source_sha !== run.source_revision
+        )
+          throw new Error('SOURCE_SETTLEMENT_TRANSACTION_MISMATCH');
+      }
+    }
+
     const unresolvedEffect = unresolvedReservationsByRun.has(run.id);
     const receipt = projectReceipt(
       fact,

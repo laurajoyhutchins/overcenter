@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      accepted_baseline_sha:
+        description: Authoritative claimed source SHA for source transaction validation
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       expensive:
@@ -26,7 +31,7 @@ jobs:
     timeout-minutes: 4
     env:
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+      BASE_SHA: ${{ inputs.accepted_baseline_sha || github.event.pull_request.base.sha || github.event.before || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
