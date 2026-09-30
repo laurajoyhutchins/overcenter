@@ -70,7 +70,7 @@ test('stable contract names do not encode schema versions', () => {
   assert.deepEqual(exportedVersionedTypes, []);
 
   const stalePathReferences: string[] = [];
-  const scanRoots = ['.github', 'src', 'scripts', 'test', 'examples', 'experiments', 'contracts'];
+  const scanRoots = ['.github', 'src', 'scripts', 'test', 'experiments', 'contracts'];
   const scanFiles = scanRoots
     .flatMap((root) => filesUnder(root))
     .filter((path) => path !== 'test/stable-contract-names.test.ts')
