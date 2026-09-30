@@ -55,7 +55,10 @@ test('hosted evidence dependencies remain bound to tracked repository artifacts'
       .all() as unknown as Array<{ evidence_id: string; artifact_id: string }>;
 
     for (const evidenceId of ALL_HOSTED) {
-      assert.ok(rows.some((row) => row.evidence_id === evidenceId), evidenceId);
+      assert.ok(
+        rows.some((row) => row.evidence_id === evidenceId),
+        evidenceId,
+      );
     }
     for (const row of rows) {
       assert.ok(tracked.has(row.artifact_id), row.artifact_id);
