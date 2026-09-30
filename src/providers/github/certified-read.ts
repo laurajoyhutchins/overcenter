@@ -68,7 +68,12 @@ export function observeCertifiedGitHubRead(
   const { owner, repo } = githubRepositoryCoordinate(repositoryFullName);
   const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
   const semantic = GITHUB_OPERATION_SEMANTICS[operationName];
-  const request = materializeGitHubOperationRequest(operation, { ...parameters, owner, repo });
+  const requestValues: Record<string, string | number | boolean> = { owner, repo };
+  for (const name in parameters) {
+    if (!Object.hasOwn(parameters, name) || name === 'owner' || name === 'repo') continue;
+    requestValues[name] = parameters[name]!;
+  }
+  const request = materializeGitHubOperationRequest(operation, requestValues);
   const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
     token,
     operation,
