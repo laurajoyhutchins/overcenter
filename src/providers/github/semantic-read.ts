@@ -7,10 +7,7 @@ import {
   observeCertifiedGitHubRepository,
   type CertifiedGitHubRepositoryEvidence,
 } from './certified-repository.ts';
-import {
-  GITHUB_OPERATION_SEMANTICS,
-  type GitHubRepositoryReadPermission,
-} from './semantics.ts';
+import { GITHUB_OPERATION_SEMANTICS, type GitHubRepositoryReadPermission } from './semantics.ts';
 import { GITHUB_OBSERVATION_OPERATIONS } from './operations.generated.ts';
 import { GitHubAsyncReadRequired, githubGet, type GitHubJsonGet } from './rest.ts';
 
