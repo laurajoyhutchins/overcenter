@@ -688,6 +688,17 @@ export function submitProjectCandidate(
     ref: authorityRef,
     remote,
     githubToken,
+    observationContext: {
+      observeReservedEffect: (postcondition, binding) => {
+        if (
+          postcondition.verifier !== 'source-integration/v1' ||
+          binding.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT
+        ) {
+          return null;
+        }
+        return observeSourceIntegration(repo, binding.effect_identity, { remote });
+      },
+    },
   });
   if (!kernel.head()) throw new Error('PROJECT_SUBMIT_AUTHORITY_MISSING');
 
@@ -783,8 +794,7 @@ export function submitProjectCandidate(
       ) {
         throw new Error('PROJECT_SUBMIT_RESERVED_SOURCE_MISMATCH');
       }
-      const observed = observeSourceIntegration(repo, identity, { remote });
-      const settled = kernel.resolveObservedEffect(permit, observed, {
+      const settled = kernel.resolve(permit, {
         source_integration: {
           mode: 'reconcile-reserved-effect',
           candidate_sha: candidateSha,
@@ -799,8 +809,10 @@ export function submitProjectCandidate(
         candidateSha,
         settled,
         false,
-        settled.disposition === 'DONE' && typeof observed.integration_commit === 'string'
-          ? observed.integration_commit
+        settled.disposition === 'DONE' &&
+          settled.observed?.verifier === 'source-integration/v1' &&
+          typeof settled.observed.integration_commit === 'string'
+          ? settled.observed.integration_commit
           : undefined,
       );
     }
@@ -900,8 +912,7 @@ export function submitProjectCandidate(
       mutationError = error instanceof Error ? error.message : String(error);
     }
 
-    const observed = observeSourceIntegration(repo, prepared.effect_identity, { remote });
-    const settled = kernel.resolveObservedEffect(permit, observed, {
+    const settled = kernel.resolve(permit, {
       source_integration: {
         candidate_sha: candidateSha,
         mutation_reported_success: mutationReportedSuccess,
@@ -917,8 +928,10 @@ export function submitProjectCandidate(
       candidateSha,
       settled,
       prepared.already_integrated,
-      settled.disposition === 'DONE' && typeof observed.integration_commit === 'string'
-        ? observed.integration_commit
+      settled.disposition === 'DONE' &&
+        settled.observed?.verifier === 'source-integration/v1' &&
+        typeof settled.observed.integration_commit === 'string'
+        ? settled.observed.integration_commit
         : undefined,
     );
   }
