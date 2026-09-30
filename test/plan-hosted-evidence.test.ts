@@ -35,9 +35,7 @@ function relationalSet(
 
 test('hosted evidence dependencies remain bound to tracked repository artifacts', () => {
   const tracked = new Set(
-    execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
-      .split('\0')
-      .filter(Boolean),
+    execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean),
   );
   const db = loadArchitectureDatabase();
   try {
