@@ -79,10 +79,7 @@ export function evaluateCertifiedGitHubPullRequestIdentity(
   return { actual, differences };
 }
 
-export function evaluateCertifiedGitHubCommitAncestry(
-  value: unknown,
-  ancestorSha: string,
-) {
+export function evaluateCertifiedGitHubCommitAncestry(value: unknown, ancestorSha: string) {
   if (!isGitHubObjectId(ancestorSha)) throw new Error('GITHUB_COMMIT_ANCESTRY_SHA_INVALID');
   const observed = value as {
     status: 'ahead' | 'behind' | 'diverged' | 'identical';
