@@ -5,7 +5,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test, { type TestContext } from 'node:test';
 
-import { assertSupportedSourceDelta, observeRepositoryDelta } from '../src/source/repository-delta.ts';
+import {
+  assertSupportedSourceDelta,
+  observeRepositoryDelta,
+} from '../src/source/repository-delta.ts';
 import { planSourceTransaction } from '../src/source/transaction-planner.ts';
 import { GOLDEN_TRANSACTION_CASE } from './fixtures/golden-transaction.ts';
 
