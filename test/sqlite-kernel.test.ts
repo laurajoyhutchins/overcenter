@@ -6,12 +6,43 @@ import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 
 import { OvercenterKernel, runCoreLoop } from '../src/authority/kernel.ts';
+import type { ObligationInput } from '../src/authority/facts.ts';
+import { planGraphReconciliation } from '../src/graph/reconciliation.ts';
 
 const pc = (path: string, content: string) => ({
   verifier: 'file-content-equals/v1' as const,
   path,
   content,
 });
+
+function reconcileGraphTransaction(
+  kernel: OvercenterKernel,
+  desired: ObligationInput[],
+  expectedRevision: string,
+) {
+  const plan = planGraphReconciliation(kernel.inspect(), desired);
+  if (plan.upsert.length === 0 && plan.retire.length === 0) {
+    if (kernel.head() !== expectedRevision) throw new Error('STALE_REVISION');
+    return {
+      revision: expectedRevision,
+      added: plan.added,
+      rebound: plan.rebound,
+      retired: plan.retire,
+      unchanged: plan.unchanged,
+    };
+  }
+  const revision = kernel.applyGraphPatch(
+    { upsert: plan.upsert, retire: plan.retire },
+    expectedRevision,
+  );
+  return {
+    revision,
+    added: plan.added,
+    rebound: plan.rebound,
+    retired: plan.retire,
+    unchanged: plan.unchanged,
+  };
+}
 
 test('SQLite production kernel reconstructs project truth after close and reopen', async () => {
   const root = mkdtempSync(join(tmpdir(), 'sqlite-kernel-'));
@@ -190,7 +221,7 @@ test('SQLite graph reconciliation derives add rebind and no-op without extra wri
   const kernel = new OvercenterKernel(database);
   try {
     const initial = kernel.initialize();
-    const first = kernel.reconcileGraph(
+    const first = reconcileGraphTransaction(kernel, 
       [
         { id: 'root', postcondition: pc(join(root, 'root'), 'R') },
         {
@@ -206,7 +237,7 @@ test('SQLite graph reconciliation derives add rebind and no-op without extra wri
     assert.deepEqual(first.rebound, []);
     assert.deepEqual(first.unchanged, []);
 
-    const unchanged = kernel.reconcileGraph(
+    const unchanged = reconcileGraphTransaction(kernel, 
       [
         {
           id: 'leaf',
@@ -223,7 +254,7 @@ test('SQLite graph reconciliation derives add rebind and no-op without extra wri
     assert.deepEqual(unchanged.rebound, []);
     assert.deepEqual(unchanged.unchanged, ['leaf', 'root']);
 
-    const changed = kernel.reconcileGraph(
+    const changed = reconcileGraphTransaction(kernel, 
       [
         {
           id: 'leaf',
@@ -260,7 +291,7 @@ test('no-op graph reconciliation remains read-only while work is in flight', () 
   const kernel = new OvercenterKernel(database);
   try {
     const initial = kernel.initialize();
-    const defined = kernel.reconcileGraph(
+    const defined = reconcileGraphTransaction(kernel, 
       [{ id: 'a', packet: { value: 1 }, postcondition: pc(join(root, 'a'), 'A') }],
       initial,
     );
@@ -268,7 +299,7 @@ test('no-op graph reconciliation remains read-only while work is in flight', () 
     const head = kernel.head();
     assert.ok(head);
 
-    const result = kernel.reconcileGraph(
+    const result = reconcileGraphTransaction(kernel, 
       [{ id: 'a', packet: { value: 1 }, postcondition: pc(join(root, 'a'), 'A') }],
       head,
     );
@@ -279,7 +310,7 @@ test('no-op graph reconciliation remains read-only while work is in flight', () 
 
     assert.throws(
       () =>
-        kernel.reconcileGraph(
+        reconcileGraphTransaction(kernel, 
           [{ id: 'a', packet: { value: 2 }, postcondition: pc(join(root, 'a'), 'A') }],
           head,
         ),
