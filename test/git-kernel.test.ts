@@ -63,15 +63,12 @@ test('invalid claim-only tail after DONE is recovered by exact-head CAS rollback
     assert.equal(store.cas(invalidHead, validHead), true);
     assert.throws(() => f.kernel.inspect(), /CLAIM_WHILE_NOT_READY/);
 
-    assert.deepEqual(
-      recoverInvalidDoneClaimTail(f.repo, { ref: 'refs/overcenter/state' }),
-      {
-        state: 'RECOVERED',
-        authority_head: validHead,
-        rejected_head: invalidHead,
-        obligation_id: 'x',
-      },
-    );
+    assert.deepEqual(recoverInvalidDoneClaimTail(f.repo, { ref: 'refs/overcenter/state' }), {
+      state: 'RECOVERED',
+      authority_head: validHead,
+      rejected_head: invalidHead,
+      obligation_id: 'x',
+    });
     assert.equal(f.kernel.head(), validHead);
     assert.equal(f.kernel.inspect()[0]?.status, 'DONE');
   } finally {
@@ -83,10 +80,10 @@ test('valid authority tail is left unchanged', () => {
   const f = fixture();
   try {
     const head = f.kernel.head()!;
-    assert.deepEqual(
-      recoverInvalidDoneClaimTail(f.repo, { ref: 'refs/overcenter/state' }),
-      { state: 'UNCHANGED', authority_head: head },
-    );
+    assert.deepEqual(recoverInvalidDoneClaimTail(f.repo, { ref: 'refs/overcenter/state' }), {
+      state: 'UNCHANGED',
+      authority_head: head,
+    });
     assert.equal(f.kernel.head(), head);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
