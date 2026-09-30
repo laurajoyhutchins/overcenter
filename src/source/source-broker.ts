@@ -85,11 +85,11 @@ function materializeSourceProposal(
         writeFileSync(target, Buffer.from(file.content_base64, 'base64'));
       }
     }
-    git(candidateTree.root, ['add', '-A', '--', ...proposal.files.map((file) => file.path)]);
-    if (gitStatus(candidateTree.root, ['diff', '--cached', '--quiet']) === 0) {
+    candidateGit(candidateTree.root, ['add', '-A', '--', ...proposal.files.map((file) => file.path)]);
+    if (candidateGitStatus(candidateTree.root, ['diff', '--cached', '--quiet']) === 0) {
       throw new Error('SOURCE_PROPOSAL_EMPTY');
     }
-    git(candidateTree.root, [
+    candidateGit(candidateTree.root, [
       '-c',
       'user.name=Overcenter Source Broker',
       '-c',
@@ -98,7 +98,7 @@ function materializeSourceProposal(
       '-m',
       sourceCandidateMessage(obligationId, claim),
     ]);
-    candidateSha = git(candidateTree.root, ['rev-parse', 'HEAD']);
+    candidateSha = candidateGit(candidateTree.root, ['rev-parse', 'HEAD']);
   } finally {
     candidateTree.dispose();
   }
@@ -128,7 +128,7 @@ function publishSourceCandidate(
     return { state: 'CONFLICT', ref, observed_sha: observed };
   }
 
-  if (gitStatus(repo, ['push', '--porcelain', remote, `${candidateSha}:${ref}`]) === 0) {
+  if (candidateGitStatus(repo, ['push', '--porcelain', remote, `${candidateSha}:${ref}`]) === 0) {
     return { state: 'PUBLISHED', ref, candidate_sha: candidateSha };
   }
 
