@@ -22,10 +22,7 @@ import {
 } from '../src/authority/project-agent-protocol.ts';
 import { compileProjectIntent } from '../src/authority/project-intent.ts';
 import { SOURCE_VERIFICATION_SCHEMA } from '../src/source/source-integration.ts';
-import {
-  brokerAssignedSourceProposal,
-  brokerSourceProposalRevision,
-} from '../src/source/source-broker.ts';
+import { brokerAssignedSourceProposal } from '../src/source/source-broker.ts';
 import { SOURCE_PROPOSAL_SCHEMA } from '../src/source/source-obligation.ts';
 
 const AUTHORITY_REF = 'refs/overcenter/test-project-agent';
@@ -695,7 +692,7 @@ test('source proposal broker rejects control-plane mutation before candidate pub
   }
 });
 
-test('source broker canonicalizes an untrusted proposal revision before publication', () => {
+test('generic source proposal broker reproduces a worker revision tree exactly', () => {
   const f = fixture();
   try {
     const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
@@ -716,10 +713,28 @@ test('source broker canonicalizes an untrusted proposal revision before publicat
     execFileSync('git', ['-C', f.work, 'commit', '-m', 'worker proposal'], { stdio: 'ignore' });
     const proposalSha = git(f.work, ['rev-parse', 'HEAD']);
 
-    const brokered = brokerSourceProposalRevision(f.work, acquired.run_id, proposalSha, {
-      authorityRef: AUTHORITY_REF,
-      remote: 'origin',
-    });
+    const assignment = JSON.parse(
+      readFileSync(join(f.root, 'source-packet', 'assignment.json'), 'utf8'),
+    );
+    const claim = assignment.claim;
+    const brokered = brokerAssignedSourceProposal(
+      f.work,
+      assignment,
+      {
+        schema: SOURCE_PROPOSAL_SCHEMA,
+        run_id: claim.run_id,
+        claimed_revision: claim.claimed_revision,
+        claimed_source_sha: claim.source_sha,
+        files: [
+          {
+            path: 'src/feature.txt',
+            content_base64: Buffer.from('feature:proposal-ref\n').toString('base64'),
+          },
+        ],
+      },
+      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+    );
+
     assert.equal(brokered.publication.state, 'PUBLISHED');
     assert.notEqual(brokered.candidate.commit_sha, proposalSha);
     assert.equal(git(f.work, ['rev-parse', `${brokered.candidate.commit_sha}^`]), sourceSha);
@@ -729,44 +744,7 @@ test('source broker canonicalizes an untrusted proposal revision before publicat
     );
     const message = git(f.work, ['show', '-s', '--format=%B', brokered.candidate.commit_sha]);
     assert.match(message, new RegExp(`Overcenter-Claimed-Source: ${sourceSha}`));
-    assert.match(message, new RegExp(`Overcenter-Obligation-Id: source-work`));
-  } finally {
-    rmSync(f.root, { recursive: true, force: true });
-    rmSync(f.postconditionRoot, { recursive: true, force: true });
-  }
-});
-
-test('source broker rejects a proposal revision that is not based on the claimed source', () => {
-  const f = fixture();
-  try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
-    kernel.initialize();
-    const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
-    const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
-      outputDir: join(f.root, 'source-packet'),
-      authorityRef: AUTHORITY_REF,
-      remote: 'origin',
-    });
-    const runId = acquired.run_id;
-    assert.ok(runId);
-
-    execFileSync('git', ['-C', f.work, 'checkout', '--orphan', 'hostile-proposal'], {
-      stdio: 'ignore',
-    });
-    execFileSync('git', ['-C', f.work, 'rm', '-rf', '.'], { stdio: 'ignore' });
-    writeFileSync(join(f.work, 'unrelated.txt'), 'unrelated\n');
-    execFileSync('git', ['-C', f.work, 'add', 'unrelated.txt'], { stdio: 'ignore' });
-    execFileSync('git', ['-C', f.work, 'commit', '-m', 'unrelated root'], { stdio: 'ignore' });
-    const proposalSha = git(f.work, ['rev-parse', 'HEAD']);
-
-    assert.throws(
-      () =>
-        brokerSourceProposalRevision(f.work, runId, proposalSha, {
-          authorityRef: AUTHORITY_REF,
-          remote: 'origin',
-        }),
-      /SOURCE_PROPOSAL_REVISION_NOT_DESCENDANT/,
-    );
+    assert.match(message, new RegExp('Overcenter-Obligation-Id: source-work'));
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
