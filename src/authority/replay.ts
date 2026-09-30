@@ -32,7 +32,6 @@ import {
   executionAuthorityAdvanceError,
   receiptAuthorityError,
 } from './transaction-admission.ts';
-import { validateSourceIntegrationEvidence } from '../source/source-integration.ts';
 import {
   deriveClaimPrerequisites,
   deriveProjectProjection,
@@ -61,29 +60,37 @@ export function projectReceipt(
   fact: ReceiptFact,
   work: Obligation,
   settlementCommit?: string,
-  unresolvedEffect = false,
+  unresolvedEffect: boolean | EffectReservation = false,
   notDispatchedRelease = false,
 ): Receipt {
   let disposition: Receipt['disposition'];
   let verified = false;
+  const reservation = typeof unresolvedEffect === 'boolean' ? null : unresolvedEffect;
+  const hasUnresolvedEffect = unresolvedEffect !== false;
+  const effectBinding = reservation
+    ? {
+        effect_contract: reservation.effect_contract,
+        effect_identity: reservation.effect_identity,
+        effect_identity_sha256: reservation.effect_identity_sha256,
+      }
+    : undefined;
 
-  if (fact.kind === 'source-integration') {
-    if (fact.observed) throw new Error('SOURCE_INTEGRATION_RECEIPT_HAS_OBSERVATION');
-    validateSourceIntegrationEvidence(fact.diagnostic?.source_integration);
-    disposition = 'DONE';
-    verified = true;
-  } else if (fact.kind === 'source-retry') {
-    if (fact.observed) throw new Error('SOURCE_RETRY_RECEIPT_HAS_OBSERVATION');
+  if (fact.kind === 'effect-rejected') {
+    if (fact.observed) throw new Error('EFFECT_REJECTED_RECEIPT_HAS_OBSERVATION');
     disposition = 'READY';
   } else if (fact.kind === 'observation') {
     if (!fact.observed) throw new Error('OBSERVATION_RECEIPT_MISSING_EVIDENCE');
-    verified = observationVerified(work.postcondition, fact.observed);
+    verified = observationVerified(work.postcondition, fact.observed, effectBinding);
     const policy = settlementSemantics(work.postcondition);
-    const absenceEvidence = authoritativeAbsenceEvidence(work.postcondition, fact.observed);
+    const absenceEvidence = authoritativeAbsenceEvidence(
+      work.postcondition,
+      fact.observed,
+      effectBinding,
+    );
     const acceptedAbsence =
       absenceEvidence && policy.acceptedAbsenceEvidenceKinds.includes(absenceEvidence.kind);
     const replaySafe =
-      !unresolvedEffect ||
+      !hasUnresolvedEffect ||
       (absenceEvidence !== null && reservedEffectReplaySafe(work, absenceEvidence));
     disposition = verified ? 'DONE' : acceptedAbsence && replaySafe ? 'READY' : 'RECOVERY_REQUIRED';
   } else {
@@ -299,6 +306,11 @@ export function replayProjection(
         throw new Error('EFFECT_RELEASE_CONTRACT_MISMATCH');
       }
       if (
+        release.evidence.attempt.effect_identity_sha256 !== reservation.effect_identity_sha256
+      ) {
+        throw new Error('EFFECT_RELEASE_IDENTITY_MISMATCH');
+      }
+      if (
         !reservedEffectReleaseWitnessSafe(run.obligation, release.effect_contract, {
           kind: release.evidence.kind,
           source: release.evidence.source,
@@ -341,24 +353,11 @@ export function replayProjection(
     if (fact.kind === 'execution-terminated' && current.status !== 'EXECUTING') {
       throw new Error('EXECUTION_TERMINATED_WHILE_NOT_EXECUTING');
     }
-    if (
-      (fact.kind === 'source-integration' || fact.kind === 'source-retry') &&
-      current.status !== 'EXECUTING'
-    ) {
-      throw new Error('SOURCE_RECEIPT_WHILE_NOT_EXECUTING');
+    if (fact.kind === 'effect-rejected' && current.status !== 'EXECUTING') {
+      throw new Error('EFFECT_REJECTION_WHILE_NOT_EXECUTING');
     }
-    if (
-      (fact.kind === 'source-integration' || fact.kind === 'source-retry') &&
-      (run.obligation.packet.kind !== 'source-change' ||
-        run.obligation.postcondition.verifier !== 'source-integration/v1')
-    ) {
-      throw new Error('SOURCE_RECEIPT_FOR_NON_SOURCE_WORK');
-    }
-    if (fact.kind === 'source-integration' && !unresolvedReservationsByRun.has(run.id)) {
-      throw new Error('SOURCE_INTEGRATION_WITHOUT_RESERVED_EFFECT');
-    }
-    if (fact.kind === 'source-retry' && unresolvedReservationsByRun.has(run.id)) {
-      throw new Error('SOURCE_RETRY_WITH_UNRESOLVED_EFFECT');
+    if (fact.kind === 'effect-rejected' && unresolvedReservationsByRun.has(run.id)) {
+      throw new Error('EFFECT_REJECTION_WITH_UNRESOLVED_EFFECT');
     }
     if (fact.kind === 'effect-not-dispatched' && !notDispatchedRelease) {
       throw new Error('EFFECT_NOT_DISPATCHED_RECEIPT_WITHOUT_RELEASE');
@@ -374,7 +373,7 @@ export function replayProjection(
       throw new Error('RECEIPT_AFTER_TERMINAL_SETTLEMENT');
     }
 
-    const unresolvedEffect = unresolvedReservationsByRun.has(run.id);
+    const unresolvedEffect = unresolvedReservationsByRun.get(run.id) ?? false;
     const receipt = projectReceipt(
       fact,
       run.obligation,
