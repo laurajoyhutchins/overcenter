@@ -4,11 +4,12 @@ Overcenter treats a source change as a controlled repository transaction. A work
 
 ## Versioned records
 
-`src/source/source-obligation.ts` defines four versioned records:
+`src/source/source-obligation.ts` defines the source records; transaction metadata uses stable names with explicit schema versions:
 
 | Record | Purpose |
 | --- | --- |
-| `overcenter-source-task/v1` | Objective, writable paths, effect contract, optional acceptance predicate, and task context. |
+| `overcenter-source-task` (version 2) | Objective, authorized paths, exact expected write set, effect contract, optional acceptance predicate, and task context. Legacy version 1 remains readable. |
+| `overcenter-source-transaction` (version 1) | Repository/runtime identity, exact claim and execution authorization, observed candidate tree/delta, expected writes and assurance plan. |
 | `overcenter-source-assignment/v1` | Binds a source task to one obligation and one claim. |
 | `overcenter-source-proposal/v1` | Contains the file contents or deletions proposed by the worker. |
 | `overcenter-source-candidate/v1` | Records the canonical candidate produced by the trusted broker. |
@@ -59,8 +60,8 @@ The ref is only transport. The brokered candidate is the object that enters veri
 
 `src/source/source-integration.ts` defines two additional records:
 
-- `overcenter-source-verification/v1` records whether a specific candidate was verified against a specific base and, on success, the resulting tree.
-- `overcenter-source-integration-evidence/v1` records the run, obligation key, source SHA, candidate SHA, verified tree, integration commit, and whether the commit was newly integrated or already present.
+- `overcenter-source-verification` version 2 binds the candidate/base/tree, runtime, transaction digest, baseline and exact provider workflow attempt. Serialized records are admitted only after independent provider observations.
+- `overcenter-source-integration-evidence` version 2 also binds the transaction digest and admitted proof. Historical version 1 receipts remain readable; they cannot certify new unbound source work.
 
 These records support settlement. They do not allow the worker to mark its own work complete.
 

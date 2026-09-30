@@ -248,8 +248,33 @@ for (const boundary of [
       const report = reportSourceTransaction(f.repo, f.claim.run_id);
       assert.equal(report.settled, false);
       assert.equal(report.authority_settled, true);
+      assert.throws(
+        () => reportSourceTransaction(f.repo, f.claim.run_id, { requireSettled: true }),
+        /LIFECYCLE_INCOMPLETE/,
+      );
       assert.equal(report.repository_identity, 'unverified');
       const provider = (_token: string, path: string): unknown => {
+        if (path.includes('/attempts/1/jobs?'))
+          return {
+            jobs: [
+              {
+                id: 10,
+                run_id: 123,
+                head_sha: report.candidate_sha,
+                name: 'Verify source candidate / Candidate evidence',
+                status: 'completed',
+                conclusion: 'success',
+                steps: [
+                  {
+                    number: 1,
+                    name: 'Independent baseline',
+                    status: 'completed',
+                    conclusion: 'success',
+                  },
+                ],
+              },
+            ],
+          };
         if (path.endsWith('/git/ref/heads/main'))
           return {
             ref: 'refs/heads/main',
@@ -263,6 +288,23 @@ for (const boundary of [
         reportSourceTransaction(f.repo, f.claim.run_id, { githubToken: 'fixture', get: provider })
           .settled,
         true,
+      );
+      const verifiedReport = reportSourceTransaction(f.repo, f.claim.run_id, {
+        githubToken: 'fixture',
+        get: provider,
+        requireSettled: true,
+      });
+      assert.deepEqual(verifiedReport.validation_executed?.observed_steps, [
+        { number: 1, name: 'Independent baseline', status: 'completed', conclusion: 'success' },
+      ]);
+      assert.throws(
+        () =>
+          reportSourceTransaction(f.repo, f.claim.run_id, {
+            githubToken: 'fixture',
+            get: (token, path) =>
+              path.includes('/attempts/') ? { jobs: [] } : provider(token, path),
+          }),
+        /CHECKS_UNVERIFIED/,
       );
       assert.throws(
         () =>

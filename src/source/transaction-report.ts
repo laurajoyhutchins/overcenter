@@ -4,7 +4,7 @@ import {
   verifyGitHubRepositoryIdentity,
   githubRepositoryPath,
 } from '../providers/github/evidence-primitives.ts';
-import { isData } from '../validation.ts';
+import { isData, isPositiveSafeInteger } from '../validation.ts';
 import { canonicalDigest } from '../digest.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
 import { observeRepositoryDelta } from './repository-delta.ts';
@@ -19,12 +19,14 @@ export function reportSourceTransaction(
     sourceRef = 'refs/heads/main',
     githubToken = null,
     get = githubGet,
+    requireSettled = false,
   }: {
     remote?: string;
     authorityRef?: string;
     sourceRef?: string;
     githubToken?: string | null;
     get?: GitHubJsonGet;
+    requireSettled?: boolean;
   } = {},
 ) {
   const git = (...args: string[]) =>
@@ -62,6 +64,10 @@ export function reportSourceTransaction(
   git('fetch', '--no-tags', remote, observedSource);
   if (integration) {
     if (
+      integration.run_id !== runId ||
+      integration.source_sha !== binding.plan.claim.source_sha ||
+      integration.candidate_sha !== binding.plan.candidate_sha ||
+      integration.verified_tree_sha !== binding.plan.candidate_tree ||
       integration.plan_digest !== binding.plan_digest ||
       integration.verified_tree_sha !==
         git('rev-parse', `${integration.integration_commit}^{tree}`) ||
@@ -73,6 +79,12 @@ export function reportSourceTransaction(
     )
       throw new Error('SOURCE_TRANSACTION_REPORT_INTEGRATION_UNOBSERVED');
   }
+  let executedChecks: Array<{
+    number: number;
+    name: string;
+    status: string;
+    conclusion: string | null;
+  }> | null = null;
   let repositoryIdentity: 'verified' | 'unverified' = 'unverified';
   if (githubToken) {
     verifyGitHubRepositoryIdentity(githubToken, {
@@ -94,6 +106,52 @@ export function reportSourceTransaction(
       );
       if (!isData(raw) || raw.ref !== ref || !isData(raw.object) || raw.object.sha !== sha)
         throw new Error('SOURCE_TRANSACTION_REPORT_REPOSITORY_REF_MISMATCH');
+    }
+    if (integration?.source_proof) {
+      const producer = integration.source_proof.producer;
+      const raw = get(
+        githubToken,
+        githubRepositoryPath(
+          binding.plan.repository_full_name,
+          `/actions/runs/${producer.workflow_run_id}/attempts/${producer.workflow_run_attempt}/jobs?per_page=100`,
+        ),
+      );
+      if (!isData(raw) || !Array.isArray(raw.jobs) || raw.jobs.length >= 100)
+        throw new Error('SOURCE_TRANSACTION_REPORT_JOBS_INVALID');
+      const jobs = raw.jobs.filter(
+        (job) => isData(job) && job.name === 'Verify source candidate / Candidate evidence',
+      );
+      const job = jobs[0];
+      if (
+        jobs.length !== 1 ||
+        !isData(job) ||
+        !isPositiveSafeInteger(job.id) ||
+        job.run_id !== producer.workflow_run_id ||
+        job.head_sha !== binding.plan.candidate_sha ||
+        job.status !== 'completed' ||
+        job.conclusion !== 'success' ||
+        !Array.isArray(job.steps) ||
+        !job.steps.length
+      )
+        throw new Error('SOURCE_TRANSACTION_REPORT_CHECKS_UNVERIFIED');
+      executedChecks = job.steps.map((step) => {
+        if (
+          !isData(step) ||
+          !isPositiveSafeInteger(step.number) ||
+          typeof step.name !== 'string' ||
+          typeof step.status !== 'string' ||
+          (step.conclusion !== null && typeof step.conclusion !== 'string')
+        )
+          throw new Error('SOURCE_TRANSACTION_REPORT_CHECKS_INVALID');
+        return {
+          number: step.number,
+          name: step.name,
+          status: step.status,
+          conclusion: step.conclusion,
+        };
+      });
+      if (new Set(executedChecks.map((step) => step.number)).size !== executedChecks.length)
+        throw new Error('SOURCE_TRANSACTION_REPORT_CHECKS_INVALID');
     }
     repositoryIdentity = 'verified';
   }
@@ -120,6 +178,7 @@ export function reportSourceTransaction(
           workflow_run_id: integration.source_proof.producer.workflow_run_id,
           workflow_run_attempt: integration.source_proof.producer.workflow_run_attempt,
           required_job: 'Verify source candidate / Candidate evidence',
+          observed_steps: executedChecks,
           producer_job_id: integration.source_proof.producer.job_id,
           artifact: integration.source_proof.artifact,
           proof_ref: integration.source_proof_ref,
@@ -137,5 +196,7 @@ export function reportSourceTransaction(
       integration !== null,
     settlement_commit: receipt?.settlement_commit ?? null,
   };
+  if (requireSettled && !report.settled)
+    throw new Error('SOURCE_TRANSACTION_REPORT_LIFECYCLE_INCOMPLETE');
   return { ...report, report_digest: canonicalDigest(report) };
 }
