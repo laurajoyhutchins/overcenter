@@ -1,4 +1,4 @@
-import { validateClaimFact } from '../authority/facts.ts';
+import { validateClaimFact, validateSourceRevisionBindingFact } from '../authority/facts.ts';
 import { replayProjection } from '../authority/replay.ts';
 import { GitFactStore } from './git-store.ts';
 
@@ -48,12 +48,26 @@ export function recoverInvalidDoneClaimTail(
   if (claimValue === null) throw new Error('AUTHORITY_RECOVERY_TAIL_NOT_CLAIM');
 
   for (const path of FACT_PATHS) {
-    if (path !== 'claim.json' && store.readJson(head, path) !== null) {
-      throw new Error(`AUTHORITY_RECOVERY_TAIL_NOT_CLAIM_ONLY:${path}`);
+    if (
+      path !== 'claim.json' &&
+      path !== 'source-revision.json' &&
+      store.readJson(head, path) !== null
+    ) {
+      throw new Error(`AUTHORITY_RECOVERY_TAIL_HAS_EFFECT:${path}`);
     }
   }
 
   const claim = validateClaimFact(claimValue);
+  const sourceRevisionValue = store.readJson(head, 'source-revision.json');
+  if (sourceRevisionValue !== null) {
+    const sourceRevision = validateSourceRevisionBindingFact(sourceRevisionValue);
+    if (
+      sourceRevision.run_id !== claim.run_id ||
+      sourceRevision.obligation_id !== claim.obligation_id
+    ) {
+      throw new Error('AUTHORITY_RECOVERY_SOURCE_REVISION_MISMATCH');
+    }
+  }
   if (claim.claimed_revision !== parent) {
     throw new Error('AUTHORITY_RECOVERY_CLAIM_PARENT_MISMATCH');
   }
