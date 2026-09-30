@@ -50,6 +50,20 @@ npm run check:tcb -- --output /tmp/overcenter-tcb-report.json
 npm run experiment:semantic-scaling:measure -- --tcb-report /tmp/overcenter-tcb-report.json
 ```
 
+### Behavioral bug-repair frontier
+
+At exact head `284bfdc891339dbf9fd26dc00675254d2004a671`, merge-gate run `36655390866` exercised the historical conflicting-effect failure shape as a current behavioral regression.
+
+The added rung measured **9,285 trusted semantic LOC, +0 marginal LOC, +0 task-specific LOC, +0 provider-specific LOC, no new trusted scopes, and no new external assumptions**. The deterministic regression suite passed **424/424**.
+
+That is not classified as convergent. It is **frontier-limited**:
+
+- mechanically established: the exact regression is bound to the measured source and passes under the existing verification machinery;
+- deliberately not established: no unordered incompatible operations targeting the same canonical effect coordinate can ever both obtain execution authority;
+- residual judgment: whether the maintained regression and provider-specific conflict model completely characterize every relevant future conflicting-effect behavior.
+
+This is the first exercised rung where trusted source complexity remains flat because the authoritative claim becomes narrower at the semantic boundary. A flat TCB therefore does not imply that semantic uncertainty disappeared.
+
 ## Promotion boundary
 
 This experiment is pending. A positive research claim requires real tasks from materially different families, exact revision-bound property-scoped TCB attribution, observation-support evidence, and the constant hostile controls described in issue #460. Synthetic fixtures exist only to prove that the measurement vocabulary can distinguish the intended outcomes, including a known failure.
