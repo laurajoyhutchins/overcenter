@@ -10,7 +10,8 @@ import {
   semanticArtifactChanged,
 } from '../scripts/plan-semantic-change.ts';
 import { repositorySnapshot } from '../src/evidence/repository-snapshot.ts';
-import { brokerSourceProposal, inspectSourceCandidate } from '../src/source/source-integration.ts';
+import { brokerSourceProposal } from '../src/source/source-broker.ts';
+import { inspectSourceCandidate } from '../src/source/source-integration.ts';
 import {
   bindSourceClaim,
   SOURCE_PROPOSAL_SCHEMA,
