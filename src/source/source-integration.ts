@@ -34,7 +34,7 @@ export interface SourceVerification {
   reason: string | null;
 }
 
-export interface SourceIntegrationEffectIdentity {
+export interface SourceIntegrationEffectIdentity extends Record<string, unknown> {
   schema: typeof SOURCE_INTEGRATION_EFFECT_IDENTITY_SCHEMA;
   run_id: string;
   obligation_key: string;
