@@ -12,48 +12,7 @@ import {
   bindSourceClaim,
   type SourceClaimBinding,
 } from './source-obligation.ts';
-
-export interface SourceTransactionAssurancePlan {
-  base_revision: string;
-  candidate_revision: string;
-  candidate_tree: string;
-  model_sha256: string;
-  dependency_sha256: string;
-  changed_artifacts: string[];
-  impacts: Array<{
-    property_id: string;
-    changed_artifacts: string[];
-    direct: boolean;
-    via_properties: string[];
-  }>;
-  proof_plans: Array<{
-    properties: string[];
-    effects: string[];
-    obligations: string[];
-    evidence: Array<{ evidence_id: string; obligation_ids: string[]; artifact_ids: string[] }>;
-    realization_roots: Array<{
-      artifact_id: string;
-      symbol_id: string;
-      basis: 'authority' | 'capability' | 'effect';
-      requirement_id: string;
-    }>;
-  }>;
-  evidence: Array<{ evidence_id: string; obligation_ids: string[]; artifact_ids: string[] }>;
-  coverage_gaps: Array<{
-    artifact_id: string;
-    reason:
-      | 'unmodeled-artifact'
-      | 'unsupported-language'
-      | 'unresolved-dependency'
-      | 'source-unavailable'
-      | 'evidence-unmapped'
-      | 'model-changed'
-      | 'validator-changed';
-  }>;
-  validation_mode: 'selective' | 'baseline' | 'unsupported';
-  baseline_id: string | null;
-  baseline_sha256: string | null;
-}
+import type { TransactionAssurancePlan } from './transaction-planner.ts';
 
 export interface SourceTransactionPlan {
   schema: 'overcenter-source-transaction';
@@ -69,7 +28,7 @@ export interface SourceTransactionPlan {
   authorized_write_set: string[];
   expected_write_set: string[];
   observed_write_set: string[];
-  assurance: SourceTransactionAssurancePlan;
+  assurance: TransactionAssurancePlan;
 }
 
 export const SOURCE_TRANSACTION_BINDING_SCHEMA = 'overcenter-source-transaction-binding' as const;
