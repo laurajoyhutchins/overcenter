@@ -21,7 +21,12 @@ import {
   submitProjectCandidate,
 } from '../src/authority/project-agent-protocol.ts';
 import { compileProjectIntent } from '../src/authority/project-intent.ts';
-import { SOURCE_VERIFICATION_SCHEMA } from '../src/source/source-integration.ts';
+import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../src/effect-adapter.ts';
+import {
+  SOURCE_VERIFICATION_SCHEMA,
+  performPreparedSourceIntegration,
+  prepareVerifiedSourceIntegration,
+} from '../src/source/source-integration.ts';
 import { brokerAssignedSourceProposal } from '../src/source/source-broker.ts';
 import { SOURCE_PROPOSAL_SCHEMA } from '../src/source/source-obligation.ts';
 
@@ -846,6 +851,137 @@ test('project.submit integrates a verified source candidate and settles the sour
     assert.equal(replay.disposition, 'DONE');
     assert.equal(replay.already_settled, true);
     assert.equal(replay.integration_commit, settled.integration_commit);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+    rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
+test('reserved source effect is fenced to candidate identity and recovered by observation', () => {
+  const f = fixture();
+  try {
+    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    kernel.initialize();
+    const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
+    const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
+      outputDir: join(f.root, 'source-recovery-packet'),
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+    assert.ok(acquired.run_id);
+
+    const assignment = JSON.parse(
+      readFileSync(join(f.root, 'source-recovery-packet', 'assignment.json'), 'utf8'),
+    );
+    const claim = assignment.claim;
+    const brokered = brokerAssignedSourceProposal(
+      f.work,
+      assignment,
+      {
+        schema: SOURCE_PROPOSAL_SCHEMA,
+        run_id: claim.run_id,
+        claimed_revision: claim.claimed_revision,
+        claimed_source_sha: claim.source_sha,
+        files: [
+          {
+            path: 'src/feature.txt',
+            content_base64: Buffer.from('feature:reserved-recovery\n').toString('base64'),
+          },
+        ],
+      },
+      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+    );
+    assert.equal(brokered.publication.state, 'PUBLISHED');
+    const candidateSha = brokered.candidate.commit_sha;
+    const treeSha = git(f.work, ['rev-parse', `${candidateSha}^{tree}`]);
+    const verification = {
+      schema: SOURCE_VERIFICATION_SCHEMA,
+      state: 'verified' as const,
+      run_id: acquired.run_id,
+      candidate_sha: candidateSha,
+      base_sha: sourceSha,
+      tree_sha: treeSha,
+      reason: null,
+    };
+
+    const interrupted = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    const permit = interrupted.acquireExecution(acquired.run_id);
+    const sourceClaim = interrupted.sourceClaimBinding(acquired.run_id);
+    const prepared = prepareVerifiedSourceIntegration(
+      f.work,
+      assignment.task,
+      sourceClaim,
+      acquired.obligation_id,
+      candidateSha,
+      verification,
+      { remote: 'origin' },
+    );
+    assert.equal(prepared.state, 'READY');
+    if (prepared.state !== 'READY') throw new Error(prepared.reason);
+    const authority = interrupted.authorizeEffect(
+      permit,
+      GITHUB_SOURCE_INTEGRATION_EFFECT,
+      prepared.effect_identity,
+    );
+    interrupted.performEffectSync(authority, () =>
+      performPreparedSourceIntegration(f.work, prepared, { remote: 'origin' }),
+    );
+    assert.equal(interrupted.hasUnresolvedEffect(acquired.run_id), true);
+
+    const integratedHead = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0]!;
+    assert.notEqual(integratedHead, candidateSha);
+    assert.notEqual(integratedHead, sourceSha);
+
+    assert.throws(
+      () =>
+        submitProjectCandidate(
+          f.work,
+          {
+            ...commandContext('d'.repeat(40), 9150),
+            candidate_sha: 'd'.repeat(40),
+            candidate_run_id: acquired.run_id,
+          },
+          { authorityRef: AUTHORITY_REF, remote: 'origin' },
+        ),
+      /PROJECT_SUBMIT_RESERVED_SOURCE_MISMATCH/,
+    );
+
+    const afterWrongIdentity = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    assert.equal(afterWrongIdentity.hasUnresolvedEffect(acquired.run_id), true);
+    assert.equal(
+      git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0],
+      integratedHead,
+    );
+
+    const recovered = submitProjectCandidate(
+      f.work,
+      {
+        ...commandContext('e'.repeat(40), 9151),
+        candidate_sha: candidateSha,
+        candidate_run_id: acquired.run_id,
+      },
+      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+    );
+    assert.equal(recovered.disposition, 'DONE');
+    assert.equal(recovered.verified, true);
+    assert.equal(recovered.integration_commit, integratedHead);
+    assert.equal(
+      git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0],
+      integratedHead,
+    );
+
+    const authoritative = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    assert.equal(authoritative.hasUnresolvedEffect(acquired.run_id), false);
+    assert.equal(authoritative.inspect()[0]?.status, 'DONE');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
