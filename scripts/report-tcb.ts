@@ -113,6 +113,8 @@ function optionValue(name: string): string | null {
   return value;
 }
 
+const allowMissingTrustRoots = process.argv.includes('--allow-missing-trust-roots');
+
 const policy = JSON.parse(readFileSync('tcb-policy.json', 'utf8')) as TcbPolicy;
 if (
   policy.schema !== 'overcenter-tcb-policy' ||
@@ -424,7 +426,9 @@ const openFiles = [
         binding.target.split('#', 1)[0]!,
         binding.implementation.path,
       ]),
-    ].map((path) => resolve(path)),
+    ]
+      .map((path) => resolve(path))
+      .filter((path) => !allowMissingTrustRoots || existsSync(path)),
   ),
 ];
 const api = new API({ cwd: process.cwd() });
@@ -490,6 +494,36 @@ function declarationFor(path: string, symbol: string): Node {
     if (nodeName(member, source) === memberName) return member;
   }
   throw new Error(`TCB_MEMBER_NOT_FOUND:${path}#${symbol}`);
+}
+
+function measurableEntries(entries: readonly SymbolEntry[]): SymbolEntry[] {
+  return entries.filter((entry) => {
+    try {
+      if (entry.whole_file === true) {
+        sourceFor(entry.path);
+      } else {
+        declarationFor(
+          entry.path,
+          entry.symbol ??
+            (() => {
+              throw new Error('TCB_SYMBOL_REQUIRED');
+            })(),
+        );
+      }
+      return true;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        allowMissingTrustRoots &&
+        /^(TCB_SOURCE_UNAVAILABLE|TCB_SYMBOL_NOT_FOUND|TCB_OWNER_NOT_FOUND|TCB_MEMBER_NOT_FOUND):/.test(
+          message,
+        )
+      ) {
+        return false;
+      }
+      throw error;
+    }
+  });
 }
 
 function semanticLine(line: string): boolean {
@@ -1018,7 +1052,12 @@ function moduleClosure(rootPaths: string[]): ModuleClosure {
 try {
   let failed = false;
   const reports = measuredProperties.map((property) => {
-    const slices = property.entries.map(sliceFor);
+    const measuredEntries = measurableEntries(property.entries);
+    const measuredProperty =
+      measuredEntries.length === property.entries.length
+        ? property
+        : { ...property, entries: measuredEntries };
+    const slices = measuredEntries.map(sliceFor);
     const semanticLoc = uniqueSemanticLoc(slices);
     const surfaceSha256 = createHash('sha256')
       .update(
@@ -1028,9 +1067,9 @@ try {
           .join('\n'),
       )
       .digest('hex');
-    const closure = moduleClosure(property.entries.map((entry) => entry.path));
-    const symbols = symbolClosure(property);
-    const hybrid = hybridClosure(closure, symbols, property);
+    const closure = moduleClosure(measuredEntries.map((entry) => entry.path));
+    const symbols = symbolClosure(measuredProperty);
+    const hybrid = hybridClosure(closure, symbols, measuredProperty);
     const moduleFiles = new Set(closure.files);
     const symbolFilesOutsideModuleClosure = symbols.files.filter((path) => !moduleFiles.has(path));
     if (property.require_sound_symbol_closure && symbols.status !== 'sound') {
@@ -1192,16 +1231,17 @@ try {
             left.path.localeCompare(right.path) ||
             (left.symbol ?? '').localeCompare(right.symbol ?? ''),
         );
+      const measuredEntries = measurableEntries(entries);
       const candidate: TcbProperty = {
         id: `architecture-effect:${effectId}`,
         statement: `Architecture-derived trusted computation required for ${effectId}.`,
-        entries,
+        entries: measuredEntries,
         runtime_dispatch_bindings: architectureDispatchBindings,
         external_assumptions: [],
         excluded: [],
       };
-      const slices = entries.map(sliceFor);
-      const closure = moduleClosure(entries.map((entry) => entry.path));
+      const slices = measuredEntries.map(sliceFor);
+      const closure = moduleClosure(measuredEntries.map((entry) => entry.path));
       const symbols = symbolClosure(candidate);
       const hybrid = hybridClosure(closure, symbols, candidate);
       return {
@@ -1338,10 +1378,21 @@ try {
         writeFileSync(join(acceptedScopeRoot, path), accepted, 'utf8');
       }
       const trustedScript = fileURLToPath(import.meta.url);
-      const runReport = (cwd: string, output: string, label: string): ComparableTcbReport => {
+      const runReport = (
+        cwd: string,
+        output: string,
+        label: string,
+        allowMissing = false,
+      ): ComparableTcbReport => {
         const run = spawnSync(
           process.execPath,
-          ['--experimental-strip-types', trustedScript, '--output', output],
+          [
+            '--experimental-strip-types',
+            trustedScript,
+            '--output',
+            output,
+            ...(allowMissing ? ['--allow-missing-trust-roots'] : []),
+          ],
           { cwd, encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] },
         );
         if (run.status !== 0 || !existsSync(output)) {
@@ -1356,6 +1407,7 @@ try {
         acceptedScopeRoot,
         acceptedScopeOutput,
         'ACCEPTED_SCOPE',
+        true,
       );
       reconciliation = reconcileTcb(
         baseline,
