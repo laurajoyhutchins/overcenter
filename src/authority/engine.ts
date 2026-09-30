@@ -159,7 +159,6 @@ export class KernelCore {
     );
   }
 
-
   inspect(): Work[] {
     const head = this.#requireHead();
     return this.#currentProjection(head).project.work;

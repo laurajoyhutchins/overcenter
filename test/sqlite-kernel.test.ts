@@ -221,7 +221,8 @@ test('SQLite graph reconciliation derives add rebind and no-op without extra wri
   const kernel = new OvercenterKernel(database);
   try {
     const initial = kernel.initialize();
-    const first = reconcileGraphTransaction(kernel, 
+    const first = reconcileGraphTransaction(
+      kernel,
       [
         { id: 'root', postcondition: pc(join(root, 'root'), 'R') },
         {
@@ -237,7 +238,9 @@ test('SQLite graph reconciliation derives add rebind and no-op without extra wri
     assert.deepEqual(first.rebound, []);
     assert.deepEqual(first.unchanged, []);
 
-    const unchanged = reconcileGraphTransaction(kernel, 
+    const unchanged = reconcileGraphTransaction(
+
+      kernel,
       [
         {
           id: 'leaf',
@@ -254,7 +257,9 @@ test('SQLite graph reconciliation derives add rebind and no-op without extra wri
     assert.deepEqual(unchanged.rebound, []);
     assert.deepEqual(unchanged.unchanged, ['leaf', 'root']);
 
-    const changed = reconcileGraphTransaction(kernel, 
+    const changed = reconcileGraphTransaction(
+
+      kernel,
       [
         {
           id: 'leaf',
@@ -291,7 +296,8 @@ test('no-op graph reconciliation remains read-only while work is in flight', () 
   const kernel = new OvercenterKernel(database);
   try {
     const initial = kernel.initialize();
-    const defined = reconcileGraphTransaction(kernel, 
+    const defined = reconcileGraphTransaction(
+      kernel,
       [{ id: 'a', packet: { value: 1 }, postcondition: pc(join(root, 'a'), 'A') }],
       initial,
     );
@@ -299,7 +305,9 @@ test('no-op graph reconciliation remains read-only while work is in flight', () 
     const head = kernel.head();
     assert.ok(head);
 
-    const result = reconcileGraphTransaction(kernel, 
+    const result = reconcileGraphTransaction(
+
+      kernel,
       [{ id: 'a', packet: { value: 1 }, postcondition: pc(join(root, 'a'), 'A') }],
       head,
     );
@@ -310,7 +318,8 @@ test('no-op graph reconciliation remains read-only while work is in flight', () 
 
     assert.throws(
       () =>
-        reconcileGraphTransaction(kernel, 
+        reconcileGraphTransaction(
+          kernel,
           [{ id: 'a', packet: { value: 2 }, postcondition: pc(join(root, 'a'), 'A') }],
           head,
         ),

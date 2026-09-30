@@ -60,10 +60,13 @@ test('graph reconciliation deterministically classifies add rebind and unchanged
 test('graph reconciliation rejects duplicate desired identities', () => {
   assert.throws(
     () =>
-      planGraphReconciliation([], [
-        { id: 'a', postcondition: pc('/tmp/a', 'A') },
-        { id: 'a', postcondition: pc('/tmp/a', 'A') },
-      ]),
+      planGraphReconciliation(
+        [],
+        [
+          { id: 'a', postcondition: pc('/tmp/a', 'A') },
+          { id: 'a', postcondition: pc('/tmp/a', 'A') },
+        ],
+      ),
     /DUPLICATE_DESIRED_OBLIGATION:a/,
   );
 });
