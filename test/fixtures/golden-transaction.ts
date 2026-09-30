@@ -18,6 +18,18 @@ export const GOLDEN_TRANSACTION_CASE = {
   expected_staged_delta: ['src/providers/github/status-effect.ts'],
   expected_assurance_impacts: [
     {
+      property_id: 'authority-flow-integrity',
+      changed_artifacts: ['src/providers/github/status-effect.ts'],
+      direct: true,
+      via_properties: [],
+    },
+    {
+      property_id: 'distributed-authority-handoff-integrity',
+      changed_artifacts: ['src/providers/github/status-effect.ts'],
+      direct: true,
+      via_properties: [],
+    },
+    {
       property_id: 'github-commit-status-provider',
       changed_artifacts: ['src/providers/github/status-effect.ts'],
       direct: true,
@@ -25,6 +37,22 @@ export const GOLDEN_TRANSACTION_CASE = {
     },
   ],
   expected_minimum_evidence: [
+    {
+      evidence_id: 'authority-flow-proof',
+      obligation_ids: [],
+      artifact_ids: [
+        '.github/workflows/authority-flow-analysis.yml',
+        'experiments/authority-flow-analysis/experiment.ts',
+      ],
+    },
+    {
+      evidence_id: 'distributed-authority-handoff-proof',
+      obligation_ids: [],
+      artifact_ids: [
+        '.github/workflows/distributed-authority-handoff.yml',
+        'experiments/distributed-authority-handoff/controller.ts',
+      ],
+    },
     {
       evidence_id: 'effect-core-loop-proof',
       obligation_ids: [

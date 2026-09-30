@@ -94,6 +94,17 @@ export function planSourceTransaction(
   )
     throw new Error('SOURCE_TRANSACTION_BASELINE_INVALID');
   const changed = delta.entries.map((entry) => entry.path);
+  const packageSnapshots = [delta.base_revision, delta.candidate_revision].map((sha) => {
+    const bytes = repositorySnapshot(repo, sha).optionalBytes('package.json');
+    if (!bytes) return undefined;
+    try {
+      const value: unknown = JSON.parse(bytes.toString('utf8'));
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+      return value as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
+  });
   const gaps: TransactionCoverageGap[] = [];
   const addGap = (artifact_id: string, reason: TransactionCoverageGap['reason']): void => {
     gaps.push({ artifact_id, reason });
@@ -204,6 +215,10 @@ export function planSourceTransaction(
               changed,
               (artifacts) =>
                 closureByRoots.get(canonicalDigest([...artifacts].sort())) ?? closure(artifacts),
+              {
+                base_package: packageSnapshots[0],
+                head_package: packageSnapshots[1],
+              },
             );
         for (const impact of impacts) {
           const prior = impactMap.get(impact.property_id);

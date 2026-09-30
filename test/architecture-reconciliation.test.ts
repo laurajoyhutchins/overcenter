@@ -251,6 +251,18 @@ test('realization impact maps changed roots back to assurance properties and com
 
     assert.deepEqual(impacts, [
       {
+        property_id: 'authority-flow-integrity',
+        changed_artifacts: ['src/providers/github/status-effect.ts'],
+        direct: true,
+        via_properties: [],
+      },
+      {
+        property_id: 'distributed-authority-handoff-integrity',
+        changed_artifacts: ['src/providers/github/status-effect.ts'],
+        direct: true,
+        via_properties: [],
+      },
+      {
         property_id: 'github-commit-status-provider',
         changed_artifacts: ['src/providers/github/status-effect.ts'],
         direct: true,
