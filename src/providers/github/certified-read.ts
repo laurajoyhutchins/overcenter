@@ -52,7 +52,6 @@ function validateParameters(
   parameters: Record<string, string | number | boolean>,
 ): void {
   const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
-  const allowed = new Set(operation.parameters.map((parameter) => parameter.name));
   if (Object.hasOwn(parameters, 'owner')) {
     throw new Error('GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:owner');
   }
@@ -62,7 +61,14 @@ function validateParameters(
   const names = Object.keys(parameters);
   for (let index = 0; index < names.length; index += 1) {
     const name = names[index]!;
-    if (!allowed.has(name)) throw new Error(`GITHUB_OPERATION_PARAMETER_UNKNOWN:${name}`);
+    let allowed = false;
+    for (let parameterIndex = 0; parameterIndex < operation.parameters.length; parameterIndex += 1) {
+      if (operation.parameters[parameterIndex]!.name === name) {
+        allowed = true;
+        break;
+      }
+    }
+    if (!allowed) throw new Error(`GITHUB_OPERATION_PARAMETER_UNKNOWN:${name}`);
   }
   for (let index = 0; index < operation.parameters.length; index += 1) {
     const parameter = operation.parameters[index]!;
