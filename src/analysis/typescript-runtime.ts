@@ -20,7 +20,7 @@ export interface RuntimeModuleClosure {
 }
 
 export function repositoryRelativePath(path: string, root = process.cwd()): string {
-  return relative(root, resolve(path)).replaceAll('\\', '/');
+  return relative(root, resolve(root, path)).replaceAll('\\', '/');
 }
 
 export function resolveLocalRuntimeImport(
@@ -119,6 +119,7 @@ export function runtimeModuleClosure(
   root: string,
   rootPaths: readonly string[],
   sourceFor: (path: string) => SourceFile | null,
+  includeTypeOnly = false,
 ): RuntimeModuleClosure {
   const pending = [...new Set(rootPaths.map((path) => repositoryRelativePath(path, root)))];
   const visited = new Set<string>();
@@ -133,7 +134,10 @@ export function runtimeModuleClosure(
     if (!source) throw new Error(`TYPESCRIPT_SOURCE_UNAVAILABLE:${path}`);
     const imports = runtimeImports(root, path, source);
     for (const module of imports.external) external.add(module);
-    for (const dependency of imports.local) {
+    const local = includeTypeOnly
+      ? [...new Set([...imports.local, ...staticLocalModuleReferences(root, path, source)])]
+      : imports.local;
+    for (const dependency of local) {
       if (!visited.has(dependency)) pending.push(dependency);
     }
   }

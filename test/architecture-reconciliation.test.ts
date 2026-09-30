@@ -302,14 +302,14 @@ test('realization impact uses the supplied dependency closure rather than roots 
   }
 });
 
-test('staged semantic delta ignores only safely non-semantic TypeScript line changes', () => {
+test('staged semantic delta conservatively retains changed TypeScript bytes', () => {
   assert.equal(
     semanticArtifactChanged(
       'src/example.ts',
       'export const value = 1;\n// old note\n',
       'export const value = 1;\n// new note\n',
     ),
-    false,
+    true,
   );
   assert.equal(
     semanticArtifactChanged(
