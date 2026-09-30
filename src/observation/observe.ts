@@ -4,6 +4,7 @@ import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync }
 import { dirname, resolve } from 'node:path';
 import type {
   AbsenceEvidenceCertificate,
+  EffectObservationBinding,
   GitHubHostileMutationEvidencePostcondition,
   Observation,
   Postcondition,
@@ -30,6 +31,7 @@ import {
   runGitHubReadObserverAsync,
   type GitHubJsonGetAsync,
 } from '../providers/github/rest.ts';
+import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import {
   kubernetesConfigMapAbsenceEvidenceMatches,
   observeCertifiedKubernetesConfigMap,
@@ -657,16 +659,36 @@ export async function observePostconditionAsync(
   }
 }
 
-function assertObservationCoordinate(postcondition: Postcondition, observed: Observation): void {
+function assertObservationCoordinate(
+  postcondition: Postcondition,
+  observed: Observation,
+  effectBinding?: EffectObservationBinding,
+): void {
   if (postcondition.verifier === 'operator-judgment/v1') {
     throw new Error('OPERATOR_JUDGMENT_NOT_AUTOMATICALLY_OBSERVABLE');
-  }
-  if (postcondition.verifier === 'source-integration/v1') {
-    throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
   }
   validateObservationEnvelope(observed);
   if (observed.verifier !== postcondition.verifier) {
     throw new Error('OBSERVATION_VERIFIER_MISMATCH');
+  }
+  if (postcondition.verifier === 'source-integration/v1') {
+    const identity = effectBinding?.effect_identity;
+    if (
+      !effectBinding ||
+      effectBinding.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT ||
+      canonicalDigest(effectBinding.effect_identity) !== effectBinding.effect_identity_sha256 ||
+      !data(identity) ||
+      identity.schema !== 'overcenter-source-integration-effect/v1' ||
+      observed.provider !== 'github' ||
+      observed.effect_identity_sha256 !== effectBinding.effect_identity_sha256 ||
+      observed.ref !== identity.ref ||
+      observed.source_sha !== identity.source_sha ||
+      observed.candidate_sha !== identity.candidate_sha ||
+      observed.verified_tree_sha !== identity.verified_tree_sha
+    ) {
+      throw new Error('OBSERVATION_COORDINATE_MISMATCH');
+    }
+    return;
   }
 
   if (
@@ -743,8 +765,9 @@ function assertObservationCoordinate(postcondition: Postcondition, observed: Obs
 export function authoritativeAbsenceEvidence(
   postcondition: Postcondition,
   observed: Observation,
+  effectBinding?: EffectObservationBinding,
 ): AbsenceEvidenceCertificate | null {
-  assertObservationCoordinate(postcondition, observed);
+  assertObservationCoordinate(postcondition, observed, effectBinding);
   if (observed.mutation_certainty !== 'absent') return null;
 
   switch (postcondition.verifier) {
@@ -768,15 +791,24 @@ export function observationAuthoritativelyAbsent(
   return authoritativeAbsenceEvidence(postcondition, observed) !== null;
 }
 
-export function observationVerified(postcondition: Postcondition, observed: Observation): boolean {
+export function observationVerified(
+  postcondition: Postcondition,
+  observed: Observation,
+  effectBinding?: EffectObservationBinding,
+): boolean {
   if (postcondition.verifier === 'operator-judgment/v1') {
     throw new Error('OPERATOR_JUDGMENT_NOT_AUTOMATICALLY_OBSERVABLE');
   }
-  assertObservationCoordinate(postcondition, observed);
-  if (postcondition.verifier === 'source-integration/v1') {
-    throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
-  }
+  assertObservationCoordinate(postcondition, observed, effectBinding);
   if (observed.mutation_certainty !== 'present') return false;
+  if (postcondition.verifier === 'source-integration/v1') {
+    return (
+      typeof observed.integration_commit === 'string' &&
+      isGitHubObjectId(observed.integration_commit) &&
+      typeof observed.actual_head_sha === 'string' &&
+      isGitHubObjectId(observed.actual_head_sha)
+    );
+  }
 
   if (
     postcondition.verifier === 'file-content-equals/v1' ||
