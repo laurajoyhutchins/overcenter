@@ -74,7 +74,10 @@ function validateAttemptBinding(value: unknown): EffectAttemptBinding {
   );
   nonEmptyString(value.reservation_commit, 'INVALID_EFFECT_RELEASE_EVIDENCE_RESERVATION');
   nonEmptyString(value.effect_contract, 'INVALID_EFFECT_RELEASE_EVIDENCE_CONTRACT');
-  if (typeof value.effect_identity_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(value.effect_identity_sha256)) {
+  if (
+    typeof value.effect_identity_sha256 !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(value.effect_identity_sha256)
+  ) {
     throw new Error('INVALID_EFFECT_RELEASE_EVIDENCE_IDENTITY');
   }
   return structuredClone(value) as unknown as EffectAttemptBinding;
