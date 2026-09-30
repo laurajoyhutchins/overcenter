@@ -65,13 +65,14 @@ export function projectReceipt(
   let verified = false;
   const reservation = typeof unresolvedEffect === 'boolean' ? null : unresolvedEffect;
   const hasUnresolvedEffect = unresolvedEffect !== false;
-  const effectBinding = reservation
-    ? {
-        effect_contract: reservation.effect_contract,
-        effect_identity: reservation.effect_identity,
-        effect_identity_sha256: reservation.effect_identity_sha256,
-      }
-    : undefined;
+  const effectBinding =
+    reservation && 'effect_identity' in reservation
+      ? {
+          effect_contract: reservation.effect_contract,
+          effect_identity: reservation.effect_identity,
+          effect_identity_sha256: reservation.effect_identity_sha256,
+        }
+      : undefined;
 
   if (fact.kind === 'effect-rejected') {
     if (fact.observed) throw new Error('EFFECT_REJECTED_RECEIPT_HAS_OBSERVATION');
@@ -303,7 +304,10 @@ export function replayProjection(
       if (release.effect_contract !== run.obligation.packet.effect_contract) {
         throw new Error('EFFECT_RELEASE_CONTRACT_MISMATCH');
       }
-      if (release.evidence.attempt.effect_identity_sha256 !== reservation.effect_identity_sha256) {
+      if (
+        'effect_identity_sha256' in reservation &&
+        release.evidence.attempt.effect_identity_sha256 !== reservation.effect_identity_sha256
+      ) {
         throw new Error('EFFECT_RELEASE_IDENTITY_MISMATCH');
       }
       if (
