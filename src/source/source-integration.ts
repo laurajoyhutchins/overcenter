@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
+import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
 import {
   SOURCE_CANDIDATE_SCHEMA,
   validateSourceCandidate,
@@ -230,6 +231,22 @@ function materializeSourceProposal(
   let candidateSha = '';
   try {
     for (const file of proposal.files) {
+      const parts = file.path.split('/');
+      for (let index = 1; index <= parts.length; index += 1) {
+        const path = parts.slice(0, index).join('/');
+        const entry = execFileSync(
+          'git',
+          ['-C', repo, '--literal-pathspecs', 'ls-tree', '-z', claim.source_sha, '--', path],
+          { encoding: 'utf8' },
+        );
+        if (!entry) continue;
+        const mode = entry.slice(0, 6);
+        const allowed = index === parts.length ? ['100644', '100755'] : ['040000'];
+        if (!allowed.includes(mode))
+          throw new Error(`SOURCE_PROPOSAL_MODE_UNSUPPORTED:${path}:${mode}`);
+      }
+    }
+    for (const file of proposal.files) {
       const target = join(candidateTree.root, file.path);
       if (file.content_base64 === null) {
         rmSync(target, { force: true });
@@ -353,15 +370,9 @@ export function inspectSourceCandidate(
     claim,
   );
 
-  const changed = git(repo, [
-    'diff-tree',
-    '--no-commit-id',
-    '--name-only',
-    '--no-renames',
-    '-r',
-    candidateSha,
-  ]);
-  const changedPaths = changed ? changed.split('\n').sort() : [];
+  const delta = observeRepositoryDelta(repo, claim.source_sha, candidateSha);
+  assertSupportedSourceDelta(delta);
+  const changedPaths = delta.entries.map((entry) => entry.path);
   if (changedPaths.length === 0) throw new Error('SOURCE_CANDIDATE_EMPTY');
   if (changedPaths.some(sourceControlPath)) {
     throw new Error('SOURCE_CONTROL_PLANE_MUTATION_FORBIDDEN');

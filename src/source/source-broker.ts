@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { canonicalDigest } from '../digest.ts';
+import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
 import {
   brokerSourceProposal,
@@ -106,17 +107,9 @@ function proposalFromRevision(
     throw new Error('SOURCE_PROPOSAL_REVISION_NOT_DESCENDANT');
   }
 
-  const changed = execFileSync('git', [
-    '-C',
-    repo,
-    'diff',
-    '--name-only',
-    '--no-renames',
-    '-z',
-    sourceSha,
-    proposalSha,
-  ]);
-  const paths = changed.toString('utf8').split('\0').filter(Boolean).sort();
+  const delta = observeRepositoryDelta(repo, sourceSha, proposalSha);
+  assertSupportedSourceDelta(delta);
+  const paths = delta.entries.map((entry) => entry.path);
   if (paths.length === 0) throw new Error('SOURCE_PROPOSAL_REVISION_EMPTY');
 
   return {
