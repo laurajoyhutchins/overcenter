@@ -138,7 +138,8 @@ export function observeCertifiedGitHubRead(
     ? {
         kind: 'single-page' as const,
         page: Number(
-          request.parameters[operation.pagination.page_parameter] ?? operation.pagination.first_page,
+          request.parameters[operation.pagination.page_parameter] ??
+            operation.pagination.first_page,
         ),
         page_size: Number(
           request.parameters[operation.pagination.page_size_parameter] ??
@@ -245,7 +246,6 @@ export function observeCertifiedGitHubSemanticRead(
     };
   }
 }
-
 
 export interface GitHubRefPredicateResult {
   current: boolean;
