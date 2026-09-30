@@ -198,7 +198,7 @@ export class KernelCore {
   authorizeEffect<E extends RegisteredEffectContract | undefined = undefined>(
     permit: ExecutionPermit,
     effectContract?: E,
-    effectIdentity?: unknown,
+    effectIdentity?: object,
   ): E extends RegisteredEffectContract
     ? EffectAuthority<E, EffectVerifier<Extract<E, RegisteredEffectContract>>>
     : EffectAuthority<string, Postcondition['verifier']> {
