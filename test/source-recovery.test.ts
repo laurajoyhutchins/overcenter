@@ -276,7 +276,9 @@ test('broker retry never replaces an already-published candidate', (t) => {
     assert.equal(repeated.candidate.commit_sha, publishedSha);
   }
   assert.equal(
-    f.git('ls-remote', 'origin', `refs/heads/overcenter/candidate/${f.claim.run_id}`).split(/\s+/)[0],
+    f
+      .git('ls-remote', 'origin', `refs/heads/overcenter/candidate/${f.claim.run_id}`)
+      .split(/\s+/)[0],
     publishedSha,
   );
 });
