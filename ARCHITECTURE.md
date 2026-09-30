@@ -1,10 +1,8 @@
-# Overcenter Architecture Model
+# Overcenter architecture
 
-## One-sentence model
+Overcenter derives project state from durable intent, current authority, observed external state, verification, and settlement. Workers may propose or execute work, but they do not decide project truth.
 
-> Overcenter treats project state as a derived claim over immutable intent, exact authority, externally observed effects, verification evidence, and settlement, while treating execution workers as disposable producers of candidate realizations.
-
-The architecture is split so that reasoning can remain probabilistic while execution correctness is owned by deterministic machinery.
+Reasoning can remain probabilistic because the correctness of execution and settlement is enforced separately by deterministic code.
 
 ```text
 immutable project intent
@@ -35,14 +33,6 @@ durable proof
         |
         v
 derived project truth
-```
-
-The boundary is not "agent versus database." It is:
-
-```text
-producer of candidate effects
-            !=
-authority that decides project truth
 ```
 
 ## Architecture
@@ -928,6 +918,52 @@ The research notes are best read as bounded prior-art lenses feeding this one mo
 | [Transition attestations](research/transition-attestations.md) | Compact durable proof, evidence retention, authority/provenance identity |
 
 The notes remain useful for detailed prior art. This file is the canonical cross-note architecture.
+
+## Relational architecture model
+
+The repository also keeps a queryable architecture model in three SQL files:
+
+```text
+concepts.sql -> logic.sql -> physics.sql
+vocabulary      intended     repository
+                design       mapping
+```
+
+The model supports reconciliation, trust-root derivation, and change planning. It is not a second authority store. Repository observation checks the physical mapping against the current code and workflows. See [`architecture/README.md`](./architecture/README.md) and [ADR-0011](./docs/adr/0011-relational-architecture-model.md).
+
+## Judgment routing
+
+Before assigning work to a reasoning agent, Overcenter classifies it as one of four cases:
+
+- `deterministic-software-action`: software can perform the next step directly;
+- `reasoning-required`: the task genuinely requires judgment;
+- `recovery-required`: uncertainty prevents safe forward execution;
+- `unsupported`: the current state or packet has no admitted action.
+
+The classifier returns a stable reason code and the evidence behind the decision.
+
+## Interaction frontier
+
+Two obligations are placed in the same interaction component when one depends on the other or their effects conflict. Disconnected components can be considered independently.
+
+This is a practical scheduling boundary, not a claim that every unmodeled environmental interaction commutes.
+
+## Repository change transactions
+
+Source changes follow a controlled sequence:
+
+```text
+semantic intent
+  -> expected write set
+  -> staged candidate
+  -> observed semantic delta
+  -> affected assurance properties
+  -> required evidence
+  -> exact-head verification
+  -> integration or replan
+```
+
+If the staged change differs from the expected write set, Overcenter returns `REPLAN_REQUIRED` instead of widening the transaction. Source integration separately binds the proposal to an exact claim, verifies a canonical candidate with read-only authority, and integrates only the verified tree against the exact source base. See [the source-change protocol](./docs/source-change-protocol.md).
 
 ## Glossary
 

@@ -678,6 +678,55 @@
           "The same exact-head candidate also passed repository lint, strict TypeScript, experiment-contract verification, adapter diagnosability, TLA+, the production computation boundary, and self-application."
         ]
       }
+    },
+    {
+      "id": "semantic-scaling",
+      "kind": "experiment",
+      "status": "maintained",
+      "directory": "experiments/semantic-scaling",
+      "readme": "experiments/semantic-scaling/README.md",
+      "question": "Does marginal trusted semantic complexity converge as the work Overcenter governs becomes more semantically complex?",
+      "claim": "Pending. The preregistered experiment tests whether materially different task families can reuse authority and settlement primitives without requiring task-specific trusted semantics that reproduce candidate-generating judgment.",
+      "contrast": "Allow trusted verification to grow into a deterministic shadow of the reasoning worker while continuing to describe the trusted kernel as semantically small.",
+      "reproduce": {
+        "tier": "deterministic",
+        "local": "npm run test:semantic-scaling && npm run experiment:semantic-scaling"
+      },
+      "environment": [
+        "Node.js from .node-version.",
+        "No provider credentials, network access, or LLM are required for the synthetic classifier controls.",
+        "Empirical promotion requires exact-revision property-scoped TCB evidence from the existing architecture/TCB machinery."
+      ],
+      "success_criteria": [
+        "The measurement distinguishes reused general authority machinery, newly reusable machinery, provider-specific semantics, and task-specific authority-bearing semantics.",
+        "A deliberately mirrored bug-repair verifier is classified as semantic mirroring.",
+        "A narrowed reviewer-attestation claim remains frontier-limited rather than being promoted to objective semantic correctness.",
+        "A weakly observable consequential effect remains unsupported rather than becoming terminal because more deterministic plumbing exists.",
+        "Surface ordering and file placement cannot change the semantic classification.",
+        "Positive claim promotion requires real revision-bound tasks from materially different task families and property-scoped TCB attribution."
+      ],
+      "evidence": {
+        "status": "pending",
+        "artifacts": [
+          "Issue #460 preregisters the falsification criterion, experimental ladder, anti-cheating rule, and allowed outcomes."
+        ],
+        "pending_reason": "Synthetic controls establish only that the measurement vocabulary can detect intended outcomes. Real cross-family task evidence has not yet been collected."
+      },
+      "interpretation": "A convergent result would support the scaling thesis only for exercised task families. Frontier-limited and semantic-mirroring results are valid outcomes, not implementation failures.",
+      "non_claims": [
+        "Synthetic fixtures demonstrate that Overcenter's trusted semantic complexity has converged.",
+        "Raw LOC is a sufficient proxy for semantic trust.",
+        "A large reusable proof checker is semantic mirroring merely because it is large.",
+        "Human or agent judgment becomes objective truth when its exact attestation is mechanically verified."
+      ],
+      "design": {
+        "provenance": "preregistered",
+        "note": "Issue #460 recorded the falsification criterion, outcome classes, experimental ladder, hostile controls, and anti-cheating rule before empirical cross-family execution."
+      },
+      "outcome": {
+        "state": "pending",
+        "summary": "The deterministic classifier and negative controls are established before empirical task-family measurements."
+      }
     }
   ]
 }
