@@ -1,11 +1,5 @@
 import { isGitHubObjectId, sameGitHubObjectId } from './rest.ts';
 
-export interface GitHubRefPredicateResult {
-  current: boolean;
-  actual_sha: string;
-  object_kind: 'github.commit' | 'github.tag';
-}
-
 export function canonicalGitHubRef(ref: string): string {
   if (ref.startsWith('refs/heads/') || ref.startsWith('refs/tags/')) return ref;
   if (ref.startsWith('heads/') || ref.startsWith('tags/')) return `refs/${ref}`;
@@ -16,7 +10,7 @@ export function evaluateCertifiedGitHubRef(
   value: unknown,
   canonicalRef: string,
   expectedSha: string,
-): GitHubRefPredicateResult {
+) {
   if (!isGitHubObjectId(expectedSha)) throw new Error('GITHUB_REF_EXPECTED_SHA_INVALID');
   const observed = value as { ref: string; object: { type: string; sha: string } };
   if (!['commit', 'tag'].includes(observed.object.type))
@@ -40,20 +34,11 @@ export interface GitHubPullRequestExpectedIdentity {
   base_sha: string;
 }
 
-export interface GitHubPullRequestActualIdentity extends GitHubPullRequestExpectedIdentity {
-  id: number;
-}
-
-export interface GitHubPullRequestIdentityPredicateResult {
-  actual: GitHubPullRequestActualIdentity;
-  differences: string[];
-}
-
 export function evaluateCertifiedGitHubPullRequestIdentity(
   value: unknown,
   pullNumber: number,
   expected: GitHubPullRequestExpectedIdentity,
-): GitHubPullRequestIdentityPredicateResult {
+) {
   if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0)
     throw new Error('GITHUB_PR_NUMBER_INVALID');
   if (!expected.node_id) throw new Error('GITHUB_PR_NODE_ID_REQUIRED');
@@ -77,7 +62,7 @@ export function evaluateCertifiedGitHubPullRequestIdentity(
     throw new Error('GITHUB_PR_REVISION_INVALID');
   }
 
-  const actual: GitHubPullRequestActualIdentity = {
+  const actual = {
     id: observed.id,
     node_id: observed.node_id,
     state: observed.state,
@@ -94,18 +79,10 @@ export function evaluateCertifiedGitHubPullRequestIdentity(
   return { actual, differences };
 }
 
-export interface GitHubCommitAncestryPredicateResult {
-  status: 'ahead' | 'behind' | 'diverged' | 'identical';
-  ahead_by: number;
-  behind_by: number;
-  merge_base_sha: string;
-  relation: 'ancestor' | 'not-ancestor';
-}
-
 export function evaluateCertifiedGitHubCommitAncestry(
   value: unknown,
   ancestorSha: string,
-): GitHubCommitAncestryPredicateResult {
+) {
   if (!isGitHubObjectId(ancestorSha)) throw new Error('GITHUB_COMMIT_ANCESTRY_SHA_INVALID');
   const observed = value as {
     status: 'ahead' | 'behind' | 'diverged' | 'identical';
