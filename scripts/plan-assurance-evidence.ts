@@ -1,12 +1,37 @@
+import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-import { loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
-import { observeRepositoryDelta } from '../src/source/repository-delta.ts';
-import { planSourceTransaction } from '../src/source/transaction-planner.ts';
+import { deriveInvalidatedEvidence } from '../src/architecture/change-planner.ts';
+import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
+
+const ARCHITECTURE_PATHS = new Set<string>(ARCHITECTURE_SQL_PATHS);
 
 function emit(evidence: readonly string[], validationMode: string): void {
   process.stdout.write(`evidence_json=${JSON.stringify([...evidence].sort())}\n`);
   process.stdout.write(`validation_mode=${validationMode}\n`);
+}
+
+function gitText(revision: string, path: string): string {
+  return execFileSync('git', ['show', `${revision}:${path}`], { encoding: 'utf8' });
+}
+
+function packageAt(revision: string): Record<string, unknown> | undefined {
+  try {
+    const value: unknown = JSON.parse(gitText(revision, 'package.json'));
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    return value as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
+function changedPaths(base: string, head: string): string[] {
+  return execFileSync('git', ['diff', '--name-only', '--diff-filter=ACDMRT', base, head, '--'], {
+    encoding: 'utf8',
+  })
+    .split('\n')
+    .filter(Boolean)
+    .sort();
 }
 
 function allHostedEvidence(): string[] {
@@ -29,16 +54,23 @@ function main(): void {
     return;
   }
 
-  const delta = observeRepositoryDelta(process.cwd(), base, head);
-  const plan = planSourceTransaction(process.cwd(), delta, {
-    baseline_id: 'hosted-evidence-planning',
-    baseline_sha256: '0'.repeat(64),
-    validator_artifacts: [],
-  });
-  emit(
-    plan.evidence.map((item) => item.evidence_id),
-    plan.validation_mode,
-  );
+  const changed = changedPaths(base, head);
+  const modelChanged = changed.some((path) => ARCHITECTURE_PATHS.has(path));
+  const db = modelChanged
+    ? loadArchitectureDatabase(process.cwd(), (path) => gitText(base, path))
+    : loadArchitectureDatabase();
+
+  try {
+    emit(
+      deriveInvalidatedEvidence(db, changed, {
+        base_package: packageAt(base),
+        head_package: packageAt(head),
+      }).map((item) => item.evidence_id),
+      modelChanged ? 'base-architecture' : 'current-architecture',
+    );
+  } finally {
+    db.close();
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

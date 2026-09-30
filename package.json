@@ -48,7 +48,6 @@
     "test:verified-generated-output": "node --experimental-strip-types experiments/verified-generated-output/experiment.ts",
     "check:tcb": "node --experimental-strip-types scripts/report-tcb.ts",
     "check:architecture-reconciliation": "node --experimental-strip-types scripts/check-architecture-reconciliation.ts",
-    "plan:hosted-evidence": "node --experimental-strip-types scripts/plan-hosted-evidence.ts",
     "check:code-witnesses": "node --experimental-strip-types scripts/report-code-witnesses.ts",
     "test:semantic-scaling": "node --experimental-strip-types --test experiments/semantic-scaling/experiment.test.ts",
     "experiment:semantic-scaling": "node --experimental-strip-types experiments/semantic-scaling/experiment.ts",

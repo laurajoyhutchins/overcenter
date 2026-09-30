@@ -3,16 +3,6 @@ name: Substrate capability admission
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - .github/workflows/substrate-capability-admission.yml
-      - .github/workflows/substrate-capability-admission-treatment.yml
-      - experiments/substrate-capability-admission/**
-      - '!experiments/substrate-capability-admission/README.md'
-      - src/execution/confinement/**
-      - '!src/execution/confinement/README.md'
-      - scripts/plan-hosted-evidence.ts
-      - package.json
-
 concurrency:
   group: substrate-capability-admission-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
@@ -29,7 +19,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      required: ${{ steps.impact.outputs.required }}
+      required: ${{ contains(fromJSON(steps.impact.outputs.evidence_json), 'substrate-capability-admission-proof') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -40,11 +30,11 @@ jobs:
         with:
           node-version-file: '.node-version'
       - id: impact
-        name: Plan hosted evidence
+        name: Plan assurance evidence
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
           HEAD_SHA: ${{ env.SOURCE_SHA }}
-        run: node --experimental-strip-types scripts/plan-hosted-evidence.ts substrate "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+        run: node --experimental-strip-types scripts/plan-assurance-evidence.ts "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
 
   deterministic:
     needs: plan

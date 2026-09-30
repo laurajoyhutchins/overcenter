@@ -2,15 +2,6 @@ name: Distributed authority chaos
 
 on:
   pull_request:
-    paths:
-      - 'experiments/distributed-authority-chaos/**'
-      - '!experiments/distributed-authority-chaos/README.md'
-      - '.github/workflows/distributed-authority-chaos.yml'
-      - 'src/authority/**'
-      - 'src/storage/git-kernel.ts'
-      - 'src/storage/git-store.ts'
-      - 'scripts/plan-hosted-evidence.ts'
-      - 'package.json'
   workflow_dispatch:
 
 concurrency:
@@ -30,7 +21,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     outputs:
-      required: ${{ steps.impact.outputs.required }}
+      required: ${{ contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-chaos-proof') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -43,18 +34,18 @@ jobs:
         with:
           node-version-file: '.node-version'
       - id: impact
-        name: Plan hosted evidence
+        name: Plan assurance evidence
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
           HEAD_SHA: ${{ env.SOURCE_SHA }}
-        run: node --experimental-strip-types scripts/plan-hosted-evidence.ts distributed-chaos "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
-      - if: steps.impact.outputs.required == 'true'
+        run: node --experimental-strip-types scripts/plan-assurance-evidence.ts "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+      - if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-chaos-proof')
         run: npm install --ignore-scripts --package-lock=false
       - name: Run deterministic contract
-        if: steps.impact.outputs.required == 'true'
+        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-chaos-proof')
         run: npm run test:distributed-authority-chaos
       - name: Initialize hosted chaos authority
-        if: steps.impact.outputs.required == 'true'
+        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-chaos-proof')
         run: node --experimental-strip-types experiments/distributed-authority-chaos/controller.ts setup "$AUTHORITY_REF" "$CHAOS_TASKS"
 
   wave-one:
