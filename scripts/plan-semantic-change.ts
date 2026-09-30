@@ -1,17 +1,15 @@
 import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { API } from 'typescript/unstable/sync';
-
+import { ARCHITECTURE_SQL_PATHS } from '../src/architecture/sql-model.ts';
+import type { AssurancePropertyImpact } from '../src/architecture/change-planner.ts';
+import type { deriveAssuranceChangePlan } from '../src/architecture/change-planner.ts';
+import { observeRepositoryDelta } from '../src/source/repository-delta.ts';
 import {
-  deriveAffectedAssuranceProperties,
-  deriveAssuranceChangePlan,
-  type AssurancePropertyImpact,
-} from '../src/architecture/change-planner.ts';
-import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
-import { deriveAssurancePropertyTrustRoots } from '../src/architecture/tcb.ts';
-import { runtimeModuleClosure } from '../src/analysis/typescript-runtime.ts';
+  planSourceTransaction,
+  type TransactionAssurancePlan,
+  type TrustedValidationPolicy,
+} from '../src/source/transaction-planner.ts';
 
 export interface SemanticChangePlan {
   base_revision: string;
@@ -20,6 +18,7 @@ export interface SemanticChangePlan {
   architecture_model_changed: boolean;
   impacts: AssurancePropertyImpact[];
   proof_plans: ReturnType<typeof deriveAssuranceChangePlan>[];
+  assurance: TransactionAssurancePlan;
 }
 
 function git(...args: string[]): string {
@@ -30,62 +29,22 @@ function revision(value: string): string {
   return git('rev-parse', `${value}^{commit}`);
 }
 
-function gitFile(revisionValue: string, path: string): string | null {
-  try {
-    return execFileSync('git', ['show', `${revisionValue}:${path}`], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-  } catch {
-    return null;
-  }
-}
-
-function typeScriptSemanticText(source: string): string {
-  return source
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(
-      (line) =>
-        line.length > 0 &&
-        !line.startsWith('//') &&
-        !line.startsWith('/*') &&
-        !line.startsWith('*') &&
-        !line.startsWith('*/'),
-    )
-    .join('\n');
-}
-
 export function semanticArtifactChanged(
-  path: string,
+  _path: string,
   before: string | null,
   after: string | null,
 ): boolean {
-  if (before === null || after === null) return before !== after;
-  if (/\.(?:[cm]?ts|tsx)$/.test(path)) {
-    return typeScriptSemanticText(before) !== typeScriptSemanticText(after);
-  }
   return before !== after;
 }
 
-export function observeGitSemanticDelta(baseRevision: string, headRevision: string): string[] {
-  const output = git(
-    'diff',
-    '--name-only',
-    '--no-renames',
-    '--diff-filter=ACDMRT',
-    baseRevision,
-    headRevision,
+export function observeGitSemanticDelta(
+  baseRevision: string,
+  headRevision: string,
+  repo = process.cwd(),
+): string[] {
+  return observeRepositoryDelta(repo, baseRevision, headRevision).entries.map(
+    (entry) => entry.path,
   );
-  if (!output) return [];
-
-  return output
-    .split('\n')
-    .filter(Boolean)
-    .filter((path) =>
-      semanticArtifactChanged(path, gitFile(baseRevision, path), gitFile(headRevision, path)),
-    )
-    .sort();
 }
 
 export type SemanticDeltaAdmission =
@@ -119,82 +78,30 @@ export function admitObservedSemanticDelta(
   return { state: 'ADMITTED', changed_artifacts: observed };
 }
 
-function allAssuranceProperties(db: ReturnType<typeof loadArchitectureDatabase>): string[] {
-  return (
-    db
-      .prepare('SELECT property_id FROM assurance_property ORDER BY property_id')
-      .all() as unknown as Array<{ property_id: string }>
-  ).map((row) => row.property_id);
-}
-
-export function planSemanticChange(baseRef: string, headRef = 'HEAD'): SemanticChangePlan {
+export function planSemanticChange(
+  baseRef: string,
+  headRef = 'HEAD',
+  policy: TrustedValidationPolicy = {
+    baseline_id: null,
+    baseline_sha256: null,
+    validator_artifacts: [],
+  },
+): SemanticChangePlan {
   const baseRevision = revision(baseRef);
   const headRevision = revision(headRef);
-  const checkedOutRevision = revision('HEAD');
-  if (headRevision !== checkedOutRevision) {
-    throw new Error(`SEMANTIC_CHANGE_HEAD_NOT_CHECKED_OUT:${headRevision}:${checkedOutRevision}`);
-  }
-
-  const changedArtifacts = observeGitSemanticDelta(baseRevision, headRevision);
-  const architectureModelChanged = changedArtifacts.some((path) =>
-    ARCHITECTURE_SQL_PATHS.includes(path as (typeof ARCHITECTURE_SQL_PATHS)[number]),
-  );
-  const db = loadArchitectureDatabase();
-  const api = new API({ cwd: process.cwd() });
-
-  try {
-    const roots = deriveAssurancePropertyTrustRoots(db);
-    const openFiles = [
-      ...new Set(
-        roots
-          .map((root) => root.artifact_id)
-          .filter((path) => /\.(?:[cm]?ts|tsx)$/.test(path))
-          .map((path) => resolve(path)),
-      ),
-    ];
-    const snapshot = api.updateSnapshot({ openFiles });
-
-    try {
-      const dependencyClosure = (rootArtifacts: readonly string[]): readonly string[] => {
-        const typeScriptRoots = rootArtifacts.filter((path) => /\.(?:[cm]?ts|tsx)$/.test(path));
-        const otherRoots = rootArtifacts.filter((path) => !/\.(?:[cm]?ts|tsx)$/.test(path));
-        if (typeScriptRoots.length === 0) return [...otherRoots].sort();
-
-        const closure = runtimeModuleClosure(process.cwd(), typeScriptRoots, (path) => {
-          const absolute = resolve(path);
-          return (
-            snapshot.getDefaultProjectForFile(absolute)?.program.getSourceFile(absolute) ?? null
-          );
-        });
-        return [...new Set([...otherRoots, ...closure.files])].sort();
-      };
-
-      const impacts = architectureModelChanged
-        ? allAssuranceProperties(db).map(
-            (property_id): AssurancePropertyImpact => ({
-              property_id,
-              changed_artifacts: [...changedArtifacts],
-              direct: true,
-              via_properties: [],
-            }),
-          )
-        : deriveAffectedAssuranceProperties(db, changedArtifacts, dependencyClosure);
-
-      return {
-        base_revision: baseRevision,
-        head_revision: headRevision,
-        changed_artifacts: changedArtifacts,
-        architecture_model_changed: architectureModelChanged,
-        impacts,
-        proof_plans: impacts.map((impact) => deriveAssuranceChangePlan(db, impact.property_id)),
-      };
-    } finally {
-      snapshot.dispose();
-    }
-  } finally {
-    api.close();
-    db.close();
-  }
+  const delta = observeRepositoryDelta(process.cwd(), baseRevision, headRevision);
+  const assurance = planSourceTransaction(process.cwd(), delta, policy);
+  return {
+    base_revision: baseRevision,
+    head_revision: headRevision,
+    changed_artifacts: assurance.changed_artifacts,
+    architecture_model_changed: assurance.changed_artifacts.some((path) =>
+      (ARCHITECTURE_SQL_PATHS as readonly string[]).includes(path),
+    ),
+    impacts: assurance.impacts,
+    proof_plans: assurance.proof_plans,
+    assurance,
+  };
 }
 
 function main(): void {
