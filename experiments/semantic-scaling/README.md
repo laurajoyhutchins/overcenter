@@ -64,6 +64,21 @@ That is not classified as convergent. It is **frontier-limited**:
 
 This is the first exercised rung where trusted source complexity remains flat because the authoritative claim becomes narrower at the semantic boundary. A flat TCB therefore does not imply that semantic uncertainty disappeared.
 
+
+### Behavior-preserving migration frontier
+
+At exact head `37a20b2ba16d7f448f1a8d8cb412b1f18a37d0bf`, merge-gate run `36656387619` measured the projection-boundary migration lineage from PR #25.
+
+The migration rung measured **9,285 trusted semantic LOC, +0 marginal LOC, +0 task-specific LOC, +0 provider-specific LOC, no new trusted scopes, and no new external assumptions**. The deterministic regression suite passed **424/424**.
+
+It is also **frontier-limited**:
+
+- mechanically established: the historical migration candidate passed its exact-head full regression and hostile readback proof, and current projection/backend-differential regressions remain green;
+- deliberately not established: the migration preserved every externally observable behavior for every valid durable history and provider state;
+- residual judgment: whether the historical and maintained regression/oracle corpus completely characterizes every behavior that could have changed across the migration.
+
+This is a second semantic family in which the measured trusted source surface stays flat only by refusing to collapse finite regression evidence into a universal equivalence claim.
+
 ## Promotion boundary
 
 This experiment is pending. A positive research claim requires real tasks from materially different families, exact revision-bound property-scoped TCB attribution, observation-support evidence, and the constant hostile controls described in issue #460. Synthetic fixtures exist only to prove that the measurement vocabulary can distinguish the intended outcomes, including a known failure.
