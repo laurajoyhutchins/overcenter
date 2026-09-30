@@ -27,30 +27,9 @@ import {
 
 export type GitHubGenericSemanticOperationName = Exclude<GitHubSemanticOperationName, 'repository'>;
 
-export interface CertifiedGitHubSemanticReadEvidence {
-  provider: 'github';
-  api_version: string;
-  schema_sha256: string;
-  schema_source_commit: string;
-  observer: { kind: 'git-kernel'; id: string };
+export interface CertifiedGitHubSemanticReadEvidence extends CertifiedGitHubReadEvidence {
   repository_id: number;
-  requested_repository_full_name: string;
   repository: CertifiedGitHubRepositoryEvidence;
-  operation_key: GitHubGenericSemanticOperationName;
-  operation_id: string;
-  observed_at: string;
-  request_path: string;
-  parameters: Record<string, string | number | boolean>;
-  required_permissions: readonly GitHubRepositoryReadPermission[];
-  collection: null | {
-    kind: 'single-page';
-    page: number;
-    page_size: number;
-    completeness: 'page-only';
-  };
-  negative_evidence_authoritative: false;
-  validated_paths: string[];
-  optional_absent_paths: string[];
 }
 
 export type CertifiedGitHubSemanticReadResult =
