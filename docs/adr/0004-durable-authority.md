@@ -3,7 +3,7 @@
 Status: Accepted design; merge requires exact-head hosted evidence.
 Date: 2026-09-30.
 Inspected starting revision: `8ff48188ed5d79cb9ea48c9c4183217a44430ac0`.
-Rebased and checked against refreshed main: `86df306f0fbaf9290bb3390a801e616a8237ae58`.
+Rebased against refreshed main: `3877bc2908de4c21da4c31d9932da7898bbc0aef`.
 
 The decisive requirement is durable exact-head coordination between independent,
 ephemeral trusted command runners without an additional authority service.
@@ -15,7 +15,7 @@ ephemeral trusted command runners without an additional authority service.
    have storage credentials; task workers receive bounded assignments and submit
    evidence. `KernelCore` centralizes admission rules, but its instances are not a
    single network service. Read-only inspection found authority head
-   `93ec8f3e2d60a2892e3e2738b38fadfd67345e7c` with 26 commits.
+   `dacd5d93933eb10d43783853eb0a08142f198d76` with 26 commits and successful replay.
 
 2. **Logical equivalence.** Differential tests compare all seven fact fields,
    parent identity, stale and repeated-stale rejection, every sequential prefix,
@@ -62,9 +62,12 @@ ephemeral trusted command runners without an additional authority service.
    commit and the legacy empty initialization; do not dual-write. Scratch-only
    computation and latency proofs now create Git stores and transport repository
    directories. Their prior disposable SQLite artifacts are not live authority.
-   Read-only replay of the inspected production ledger fails with
-   `CLAIM_WHILE_NOT_READY` under both the starting implementation and this change.
-   This pre-existing semantic history problem is not rewritten by a storage ADR.
+   The starting ledger inspection found `CLAIM_WHILE_NOT_READY`; subsequent
+   mainline work added bounded invalid-tail recovery. Fresh read-only inspection
+   now replays successfully. Recovery consumes verified facts and requires exact
+   target readback after ambiguous rollback: an ancestor in the unchanged invalid
+   history is not evidence that rollback committed. This patch never changes the
+   production authority ref.
 
 7. **Deleted surface and verification.** Remove `src/storage/sqlite.ts` and
    `src/authority/kernel.ts`; bind `DurableFactStore` in physics to the actual Git
@@ -74,7 +77,7 @@ ephemeral trusted command runners without an additional authority service.
    `npm run test:storage`, `npm test`, `npm run typecheck`, and
    `npm run check:tcb -- --baseline <fresh-main>`; retain distributed handoff,
    chaos, and decomposition evidence. Exact-head TCB policy is unchanged.
-   Production `src/` shrinks by 232 lines. The overall patch grows because the
+   Production `src/` shrinks by more than 230 lines. The overall patch grows because the
    independent oracle and hostile/differential verification remain outside the
    production trusted surface. Accepted-scope TCB analysis conservatively retains
    deleted implementations in its scratch comparison, never counting them as

@@ -1,6 +1,12 @@
 name: Overcenter internal · candidate handoff
 
 on:
+  workflow_dispatch:
+    inputs:
+      runtime_sha:
+        description: Trusted runtime revision for source proof recording
+        required: false
+        type: string
   push:
     branches:
       - 'overcenter/candidate/**'
@@ -17,6 +23,7 @@ jobs:
     outputs:
       kind: ${{ steps.classify.outputs.kind }}
       run_id: ${{ steps.classify.outputs.run_id }}
+      base_sha: ${{ steps.classify.outputs.base_sha }}
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -50,6 +57,8 @@ jobs:
             kind="source-change"
           fi
 
+          test "$(git rev-list --parents -n1 "$GITHUB_SHA" | wc -w)" -eq 2
+          echo "base_sha=$(git rev-parse "$GITHUB_SHA^")" >> "$GITHUB_OUTPUT"
           echo "kind=$kind" >> "$GITHUB_OUTPUT"
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
@@ -73,6 +82,7 @@ jobs:
     uses: ./.github/workflows/tests.yml
     with:
       expensive: true
+      accepted_baseline_sha: ${{ needs.classify.outputs.base_sha }}
 
   source-record:
     name: Record source verification
@@ -82,6 +92,7 @@ jobs:
     timeout-minutes: 1
     permissions:
       contents: read
+      actions: read
     env:
       CANDIDATE_SHA: ${{ github.sha }}
       CANDIDATE_RUN_ID: ${{ needs.classify.outputs.run_id }}
@@ -94,42 +105,34 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Record exact verification result
+      - name: Validate trusted runtime dispatch
+        id: binding
         shell: bash
+        env:
+          RUNTIME_SHA: ${{ inputs.runtime_sha }}
         run: |
           set -euo pipefail
-          read -r commit parent extra < <(git rev-list --parents -n1 "$CANDIDATE_SHA")
-          test "$commit" = "$CANDIDATE_SHA"
-          test -n "$parent"
-          test -z "${extra:-}"
-          tree_sha="$(git rev-parse "$CANDIDATE_SHA^{tree}")"
+          [[ "$RUNTIME_SHA" =~ ^[0-9a-f]{40}$ ]]
+          echo "runtime_sha=$RUNTIME_SHA" >> "$GITHUB_OUTPUT"
 
-          if [ "$EVIDENCE_RESULT" = "success" ]; then
-            state="verified"
-            reason=""
-          else
-            state="rejected"
-            reason="SOURCE_VERIFICATION_FAILED"
-            tree_sha=""
-          fi
+      - name: Check out bound trusted runtime
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.binding.outputs.runtime_sha }}
+          path: trusted-runtime
+          persist-credentials: false
 
-          mkdir -p source-verification
-          STATE="$state" REASON="$reason" BASE_SHA="$parent" TREE_SHA="$tree_sha" node - <<'NODE'
-          const fs = require('node:fs');
-          const value = {
-            schema: 'overcenter-source-verification/v1',
-            state: process.env.STATE,
-            run_id: process.env.CANDIDATE_RUN_ID,
-            candidate_sha: process.env.CANDIDATE_SHA,
-            base_sha: process.env.BASE_SHA,
-            tree_sha: process.env.TREE_SHA || null,
-            reason: process.env.REASON || null,
-          };
-          fs.writeFileSync(
-            'source-verification/source-verification.json',
-            JSON.stringify(value, null, 2) + '\n',
-          );
-          NODE
+      - name: Use runtime-pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: trusted-runtime/.node-version
+          package-manager-cache: false
+
+      - name: Record exact verification result
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OVERCENTER_RUNTIME_SHA: ${{ steps.binding.outputs.runtime_sha }}
+        run: node --experimental-strip-types trusted-runtime/scripts/record-source-verification.ts
 
       - name: Publish source verification
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -137,4 +140,5 @@ jobs:
           name: overcenter-source-verification
           path: source-verification/source-verification.json
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
+          overwrite: true

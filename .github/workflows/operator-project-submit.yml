@@ -15,10 +15,10 @@ jobs:
   command:
     name: project.submit
     if: >-
-      github.event.workflow_run.event == 'push' &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch') &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       startsWith(github.event.workflow_run.head_branch, 'overcenter/candidate/') &&
-      github.event.workflow_run.actor.login == github.repository_owner
+      (github.event.workflow_run.actor.login == github.repository_owner || github.event.workflow_run.actor.login == 'github-actions[bot]')
     runs-on: ubuntu-slim
     timeout-minutes: 1
     permissions:
@@ -113,6 +113,8 @@ jobs:
           OVERCENTER_COMMAND_RUN_ATTEMPT: ${{ github.run_attempt }}
           OVERCENTER_CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
           OVERCENTER_CANDIDATE_RUN_ID: ${{ steps.transport.outputs.candidate_run_id }}
+          OVERCENTER_CANDIDATE_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          OVERCENTER_CANDIDATE_WORKFLOW_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           OVERCENTER_SOURCE_VERIFICATION_PATH: ${{ github.workspace }}/source-verification/source-verification.json
           OVERCENTER_PROJECT_AUTHORITY_REF: refs/overcenter/state
           OVERCENTER_PROJECT_REMOTE: origin

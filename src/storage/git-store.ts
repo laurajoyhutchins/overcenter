@@ -165,7 +165,9 @@ export class GitFactStore implements DurableFactStore {
         const observed = this.head();
         if (
           observed === next ||
-          (observed && this.history(observed).some((fact) => fact.commit === next))
+          (observed &&
+            (this.parent(next) === expected || (expected === zero && this.parent(next) === null)) &&
+            this.history(observed).some((fact) => fact.commit === next))
         )
           return true;
       } catch {}

@@ -125,6 +125,11 @@ jobs:
         with:
           node-version-file: .node-version
           package-manager-cache: false
+      - name: Recover invalid authority tail
+        env:
+          OVERCENTER_PROJECT_AUTHORITY_REF: refs/overcenter/state
+          OVERCENTER_PROJECT_REMOTE: origin
+        run: node --experimental-strip-types src/cli/authority-recover-tail.ts
       - name: Reconcile mutation evidence obligation
         env:
           GITHUB_TOKEN: ${{ github.token }}

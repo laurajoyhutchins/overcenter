@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
+import { GitFactStore } from '../src/storage/git-store.ts';
+import { recoverInvalidDoneClaimTail } from '../src/storage/git-authority-recovery.ts';
 import { runCoreLoop } from '../src/authority/engine.ts';
 import { RECEIPT_SCHEMA } from '../src/authority/facts.ts';
 
@@ -33,6 +35,62 @@ test('commit SHA is the authoritative revision and claim is its child', () => {
     }).trim();
     assert.equal(parent, w.revision);
     assert.equal(f.kernel.head(), run.claim_commit);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test('invalid source-bound claim tail after DONE is recovered by exact-head CAS rollback', () => {
+  const f = fixture();
+  try {
+    f.kernel.define({ id: 'x', postcondition: pc(f.path('x'), 'yes') });
+    const run = f.kernel.claim('x', f.kernel.deriveReadyWork()!.revision);
+    writeFileSync(f.path('x'), 'yes');
+    const receipt = f.kernel.resolve(run);
+    assert.equal(receipt.disposition, 'DONE');
+
+    const validHead = f.kernel.head()!;
+    const store = new GitFactStore(f.repo, { ref: 'refs/overcenter/state' });
+    const originalClaim = store.history(run.claim_commit).at(-1)!.claim as Record<string, unknown>;
+    const invalidClaim = {
+      ...originalClaim,
+      run_id: '00000000-0000-4000-8000-000000000001',
+      claimed_revision: validHead,
+    };
+    const invalidHead = store.createCommit(validHead, 'invalid source-bound claim after done', {
+      'claim.json': invalidClaim,
+      'source-revision.json': {
+        schema: 'overcenter-source-revision-binding/v1',
+        run_id: invalidClaim.run_id,
+        obligation_id: 'x',
+        source_revision: 'a'.repeat(40),
+      },
+    });
+    assert.equal(store.cas(invalidHead, validHead), true);
+    assert.throws(() => f.kernel.inspect(), /CLAIM_WHILE_NOT_READY/);
+
+    assert.deepEqual(recoverInvalidDoneClaimTail(f.repo, { ref: 'refs/overcenter/state' }), {
+      state: 'RECOVERED',
+      authority_head: validHead,
+      rejected_head: invalidHead,
+      obligation_id: 'x',
+    });
+    assert.equal(f.kernel.head(), validHead);
+    assert.equal(f.kernel.inspect()[0]?.status, 'DONE');
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test('valid authority tail is left unchanged', () => {
+  const f = fixture();
+  try {
+    const head = f.kernel.head()!;
+    assert.deepEqual(recoverInvalidDoneClaimTail(f.repo, { ref: 'refs/overcenter/state' }), {
+      state: 'UNCHANGED',
+      authority_head: head,
+    });
+    assert.equal(f.kernel.head(), head);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }

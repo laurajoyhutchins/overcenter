@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
+import { recoverInvalidDoneClaimTail } from '../src/storage/git-authority-recovery.ts';
 import { GitFactStore } from '../src/storage/git-store.ts';
 import { SqliteFactStore } from './fixtures/sqlite-store.ts';
 
@@ -219,3 +221,57 @@ test('identical remote append attempts still have exactly one same-head winner',
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+for (const mode of ['before', 'accepted'] as const) {
+  test(`rollback recovery push acknowledgement ${mode} cannot confuse an ancestor with a committed transition`, () => {
+    const root = mkdtempSync(join(tmpdir(), 'rollback-ambiguity-'));
+    const remote = join(root, 'remote.git');
+    const clone = join(root, 'clone');
+    execFileSync('git', ['init', '--bare', remote], { stdio: 'ignore' });
+    execFileSync('git', ['clone', remote, clone], { stdio: 'ignore' });
+    const actualGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    const kernel = new GitOvercenterKernel(clone, { ref, remote: 'origin' });
+    kernel.initialize();
+    const path = join(root, 'result');
+    kernel.define({
+      id: 'x',
+      postcondition: { verifier: 'file-content-equals/v1', path, content: 'yes' },
+    });
+    const run = kernel.claim('x', kernel.deriveReadyWork()!.revision);
+    writeFileSync(path, 'yes');
+    assert.equal(kernel.resolve(run).disposition, 'DONE');
+    const store = new GitFactStore(clone, { ref, remote: 'origin' });
+    const validHead = store.head()!;
+    const claim = store.history(run.claim_commit).at(-1)!.claim as Record<string, unknown>;
+    const invalidHead = store.createCommit(validHead, 'invalid claim after DONE', {
+      'claim.json': {
+        ...claim,
+        run_id: '00000000-0000-4000-8000-000000000001',
+        claimed_revision: validHead,
+      },
+    });
+    assert.equal(store.cas(invalidHead, validHead), true);
+    const bin = join(root, 'bin');
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, 'git'),
+      `#!/bin/sh\nif [ "$3" = push ]; then\n  ${mode === 'before' ? 'exit 1' : `"${actualGit}" "$@" || exit $?`}\n  exit 1\nfi\nexec "${actualGit}" "$@"\n`,
+    );
+    chmodSync(join(bin, 'git'), 0o755);
+    const originalPath = process.env.PATH;
+    process.env.PATH = `${bin}:${originalPath}`;
+    try {
+      const recover = () => recoverInvalidDoneClaimTail(clone, { ref, remote: 'origin' });
+      if (mode === 'before') assert.throws(recover, /AUTHORITY_COMMIT_UNCERTAIN/);
+      else assert.equal(recover().state, 'RECOVERED');
+      assert.equal(
+        new GitFactStore(remote, { ref }).head(),
+        mode === 'before' ? invalidHead : validHead,
+      );
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
