@@ -149,7 +149,10 @@ function requireString(value: unknown, field: string): asserts value is string {
 }
 
 function requireStringList(value: unknown, field: string): asserts value is string[] {
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.length === 0)) {
+  if (
+    !Array.isArray(value) ||
+    value.some((entry) => typeof entry !== 'string' || entry.length === 0)
+  ) {
     throw new Error(`SEMANTIC_SCALING_MEASUREMENT_INVALID_LIST:${field}`);
   }
 }
@@ -247,7 +250,11 @@ function validateTcbReport(value: unknown): SemanticScalingTcbReport {
   ) {
     throw new Error('SEMANTIC_SCALING_TCB_REPORT_SCHEMA_UNSUPPORTED');
   }
-  if (report.reconciliation !== undefined && report.reconciliation !== null && !report.reconciliation.admitted) {
+  if (
+    report.reconciliation !== undefined &&
+    report.reconciliation !== null &&
+    !report.reconciliation.admitted
+  ) {
     throw new Error('SEMANTIC_SCALING_TCB_REPORT_NOT_ADMITTED');
   }
   return report;
@@ -451,8 +458,7 @@ export function semanticScalingSummary(result: SemanticScalingMeasurementResult)
 function main(): void {
   const tcbReportPath = optionValue('--tcb-report');
   if (!tcbReportPath) throw new Error('SEMANTIC_SCALING_TCB_REPORT_REQUIRED');
-  const planPath =
-    optionValue('--plan') ?? 'experiments/semantic-scaling/measurement-plan.json';
+  const planPath = optionValue('--plan') ?? 'experiments/semantic-scaling/measurement-plan.json';
 
   const tcbBytes = readFileSync(tcbReportPath, 'utf8');
   const planBytes = readFileSync(planPath, 'utf8');
