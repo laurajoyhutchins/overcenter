@@ -94,6 +94,11 @@ test('core loop commits an effect reservation before invoking effect handler', a
         const executing = f.kernel.inspect().find((work) => work.id === 'x')!;
         assert.equal(reservation.run_id, executing.run_id);
         assert.equal(reservation.execution_generation, executing.execution_generation);
+        assert.equal(reservation.effect_contract, 'overcenter/execution-effect');
+        assert.deepEqual(reservation.effect_identity, {
+          postcondition: pc(path, 'present'),
+        });
+        assert.match(String(reservation.effect_identity_sha256), /^[0-9a-f]{64}$/);
         effectObservedReservation = true;
         writeFileSync(String(packet.path), String(packet.content));
         return { kind: 'ok' };
