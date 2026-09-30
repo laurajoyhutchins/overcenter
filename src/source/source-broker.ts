@@ -164,7 +164,6 @@ export function brokerSourceProposal(
   return { candidate, publication };
 }
 
-
 export interface BrokeredAssignedSourceProposal {
   authority_head: string;
   candidate: SourceCandidate;
