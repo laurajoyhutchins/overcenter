@@ -232,7 +232,7 @@
     },
     {
       "task_id": "architectural-judgment-attestation-stress-test",
-      "rung": "architectural-design-attestation",
+      "rung": "architectural-design-requirement",
       "classification": "frontier-limited",
       "claim": "Certified GitHub issue-comment observation establishes that repository owner laurajoyhutchins authored comment 5903129961 with the exact recorded semantic-scaling conclusion, binding that judgment record to its stable comment identity and body digest.",
       "narrowed_from": "The relational architecture candidate 662fd2196a6c59e07d496e7f0b3894b6b6d8164d is objectively the correct and sufficient architecture for Overcenter.",
