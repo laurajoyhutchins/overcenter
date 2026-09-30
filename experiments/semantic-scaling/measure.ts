@@ -504,18 +504,18 @@ export function measureSemanticScaling(
 export function semanticScalingSummary(result: SemanticScalingMeasurementResult): string {
   const rows = result.tasks.map(
     (task) =>
-      `| \`${task.task_id}\` | ${task.rung} | ${task.classification} | ${task.trusted_semantic_loc.toLocaleString('en-US')} | +${task.marginal_semantic_loc.toLocaleString('en-US')} | +${task.task_specific_marginal_semantic_loc.toLocaleString('en-US')} | +${task.provider_specific_marginal_semantic_loc.toLocaleString('en-US')} | ${task.introduced_scopes.map((scope) => `\`${scope.key}\` (${scope.role})`).join('<br>') || '_none_'} | ${task.introduced_external_assumptions.length} |`,
+      `| \`${task.task_id}\` | ${task.rung} | ${task.classification} | ${task.trusted_semantic_loc.toLocaleString('en-US')} | +${task.marginal_semantic_loc.toLocaleString('en-US')} | +${task.task_specific_marginal_semantic_loc.toLocaleString('en-US')} | +${task.provider_specific_marginal_semantic_loc.toLocaleString('en-US')} | ${task.introduced_scopes.map((scope) => `\`${scope.key}\` (${scope.role})`).join('<br>') || '_none_'} | ${task.introduced_external_assumptions.length} | ${task.residual_judgment ?? '_none_'} |`,
   );
   return [
     '## Semantic scaling marginal TCB',
     '',
     `Exact source revision: \`${result.source_revision}\``,
     '',
-    '| Task | Rung | Classification | Trusted semantic LOC | Marginal vs prior ladder | Task-specific marginal | Provider-specific marginal | Introduced scopes | New external assumptions |',
-    '| --- | --- | --- | ---: | ---: | ---: | ---: | --- | ---: |',
+    '| Task | Rung | Classification | Trusted semantic LOC | Marginal vs prior ladder | Task-specific marginal | Provider-specific marginal | Introduced scopes | New external assumptions | Residual judgment |',
+    '| --- | --- | --- | ---: | ---: | ---: | ---: | --- | ---: | --- |',
     ...rows,
     '',
-    'Marginal LOC is a deduplicated line-level projection reconstructed from the existing TCB report. Scope identities, roles, fingerprints, and external-assumption deltas remain separate so a zero-LOC delta cannot erase semantic growth.',
+    'Marginal LOC is a deduplicated line-level projection reconstructed from the existing TCB report. Scope identities, roles, fingerprints, external-assumption deltas, and residual judgments remain separate so a zero-LOC delta cannot erase semantic growth or a judgment frontier.',
     '',
   ].join('\n');
 }
