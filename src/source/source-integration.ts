@@ -42,6 +42,7 @@ export interface SourceIntegrationEffectIdentity {
   candidate_sha: string;
   verification_base_sha: string;
   verified_tree_sha: string;
+  integration_commit: string;
   ref: string;
 }
 
@@ -164,6 +165,7 @@ export function validateSourceIntegrationEffectIdentity(
       'candidate_sha',
       'verification_base_sha',
       'verified_tree_sha',
+      'integration_commit',
       'ref',
     ],
     [],
@@ -178,6 +180,7 @@ export function validateSourceIntegrationEffectIdentity(
   exactSha(value.candidate_sha, 'SOURCE_INTEGRATION_EFFECT_CANDIDATE_INVALID');
   exactSha(value.verification_base_sha, 'SOURCE_INTEGRATION_EFFECT_BASE_INVALID');
   exactSha(value.verified_tree_sha, 'SOURCE_INTEGRATION_EFFECT_TREE_INVALID');
+  exactSha(value.integration_commit, 'SOURCE_INTEGRATION_EFFECT_COMMIT_INVALID');
   assertNonEmptyString(value.ref, 'SOURCE_INTEGRATION_EFFECT_REF_INVALID');
   return structuredClone(value) as unknown as SourceIntegrationEffectIdentity;
 }
@@ -267,10 +270,15 @@ function integrationMessage(
 function validExistingIntegration(
   repo: string,
   head: string,
-  identity: SourceIntegrationEffectIdentity,
+  identity: Pick<
+    SourceIntegrationEffectIdentity,
+    'obligation_key' | 'candidate_sha' | 'verification_base_sha' | 'verified_tree_sha'
+  >,
+  exactCommit?: string,
 ): string | null {
-  const commits = git(repo, ['rev-list', head]);
-  for (const commit of commits.split('\n').filter(Boolean)) {
+  const commits = git(repo, ['rev-list', head]).split('\n').filter(Boolean);
+  const candidates = exactCommit === undefined ? commits : commits.includes(exactCommit) ? [exactCommit] : [];
+  for (const commit of candidates) {
     const body = git(repo, ['show', '-s', '--format=%B', commit]);
     if (!body.includes(`Overcenter-Obligation-Key: ${identity.obligation_key}`)) continue;
     if (!body.includes(`Overcenter-Source-Candidate: ${identity.candidate_sha}`)) continue;
@@ -331,7 +339,7 @@ export function prepareVerifiedSourceIntegration(
     };
   }
 
-  const effectIdentity = validateSourceIntegrationEffectIdentity({
+  const identityBase = {
     schema: SOURCE_INTEGRATION_EFFECT_IDENTITY_SCHEMA,
     run_id: claim.run_id,
     obligation_key: claim.obligation_key,
@@ -340,7 +348,7 @@ export function prepareVerifiedSourceIntegration(
     verification_base_sha: verification.base_sha,
     verified_tree_sha: verification.tree_sha,
     ref,
-  });
+  } as const;
 
   let current: string;
   try {
@@ -350,11 +358,14 @@ export function prepareVerifiedSourceIntegration(
   }
   if (!current) return { state: 'RECOVERY_REQUIRED', reason: 'SOURCE_AUTHORITY_MISSING' };
 
-  const replay = validExistingIntegration(repo, current, effectIdentity);
+  const replay = validExistingIntegration(repo, current, identityBase);
   if (replay) {
     return {
       state: 'READY',
-      effect_identity: effectIdentity,
+      effect_identity: validateSourceIntegrationEffectIdentity({
+        ...identityBase,
+        integration_commit: replay,
+      }),
       integration_commit: replay,
       expected_head: current,
       already_integrated: true,
@@ -416,7 +427,10 @@ export function prepareVerifiedSourceIntegration(
 
   return {
     state: 'READY',
-    effect_identity: effectIdentity,
+    effect_identity: validateSourceIntegrationEffectIdentity({
+      ...identityBase,
+      integration_commit: integrated,
+    }),
     integration_commit: integrated,
     expected_head: current,
     already_integrated: false,
@@ -475,7 +489,12 @@ export function observeSourceIntegration(
     };
   }
 
-  const integration = validExistingIntegration(repo, current, identity);
+  const integration = validExistingIntegration(
+    repo,
+    current,
+    identity,
+    identity.integration_commit,
+  );
   if (!integration) {
     return {
       ...common,
