@@ -2,6 +2,7 @@ import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
 
 export const SOURCE_TASK_SCHEMA = 'overcenter-source-task/v1' as const;
+export const SOURCE_TASK_TRANSACTION_SCHEMA = 'overcenter-source-task' as const;
 export const SOURCE_ASSIGNMENT_SCHEMA = 'overcenter-source-assignment/v1' as const;
 export const SOURCE_PROPOSAL_SCHEMA = 'overcenter-source-proposal/v1' as const;
 export const SOURCE_CANDIDATE_SCHEMA = 'overcenter-source-candidate/v1' as const;
@@ -12,7 +13,9 @@ export interface SourceTaskAcceptance extends Record<string, unknown> {
 }
 
 export interface SourceTaskPacket extends Record<string, unknown> {
-  schema: typeof SOURCE_TASK_SCHEMA;
+  schema: typeof SOURCE_TASK_SCHEMA | typeof SOURCE_TASK_TRANSACTION_SCHEMA;
+  schema_version?: 2;
+  expected_write_set?: string[];
   kind: 'source-change';
   objective: string;
   writable_paths: string[];
@@ -106,11 +109,17 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   if (!isData(value)) throw new Error('SOURCE_TASK_INVALID');
   assertExactKeys(
     value,
-    ['schema', 'kind', 'objective', 'writable_paths'],
+    value.schema === SOURCE_TASK_TRANSACTION_SCHEMA
+      ? ['schema', 'schema_version', 'kind', 'objective', 'writable_paths', 'expected_write_set']
+      : ['schema', 'kind', 'objective', 'writable_paths'],
     ['effect_contract', 'acceptance', 'context'],
     'SOURCE_TASK_INVALID',
   );
-  if (value.schema !== SOURCE_TASK_SCHEMA) throw new Error('SOURCE_TASK_SCHEMA_MISMATCH');
+  if (
+    value.schema !== SOURCE_TASK_SCHEMA &&
+    (value.schema !== SOURCE_TASK_TRANSACTION_SCHEMA || value.schema_version !== 2)
+  )
+    throw new Error('SOURCE_TASK_SCHEMA_MISMATCH');
   if (value.kind !== 'source-change') throw new Error('SOURCE_TASK_KIND_INVALID');
   assertNonEmptyString(value.objective, 'SOURCE_TASK_OBJECTIVE_INVALID');
   if (
@@ -129,6 +138,17 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   if (new Set(value.writable_paths).size !== value.writable_paths.length) {
     throw new Error('SOURCE_TASK_WRITABLE_PATH_DUPLICATE');
   }
+
+  const expected = value.expected_write_set;
+  if (
+    value.schema === SOURCE_TASK_TRANSACTION_SCHEMA &&
+    (!Array.isArray(expected) ||
+      expected.length === 0 ||
+      !expected.every(validSourceWritablePath) ||
+      new Set(expected).size !== expected.length ||
+      expected.some((path) => !(value.writable_paths as string[]).includes(path)))
+  )
+    throw new Error('SOURCE_TASK_EXPECTED_WRITE_SET_INVALID');
 
   let acceptance: SourceTaskAcceptance | undefined;
   if (value.acceptance !== undefined) {
@@ -156,7 +176,10 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   }
 
   return {
-    schema: SOURCE_TASK_SCHEMA,
+    schema: value.schema as SourceTaskPacket['schema'],
+    ...(value.schema === SOURCE_TASK_TRANSACTION_SCHEMA
+      ? { schema_version: 2 as const, expected_write_set: [...(expected as string[])].sort() }
+      : {}),
     kind: 'source-change',
     objective: value.objective,
     writable_paths: [...value.writable_paths].sort(),

@@ -1,3 +1,8 @@
+import {
+  SOURCE_TRANSACTION_BINDING_SCHEMA,
+  validateSourceTransactionBindingFact,
+  type SourceTransactionBindingFact,
+} from '../source/transaction.ts';
 import type {
   Data,
   Dependency,
@@ -157,6 +162,7 @@ export interface FactCommit {
   graph_patch?: unknown | null;
   claim?: unknown | null;
   source_revision?: unknown | null;
+  source_transaction?: unknown | null;
   execution_authority?: unknown | null;
   effect_reservation?: unknown | null;
   effect_release?: unknown | null;
@@ -538,6 +544,7 @@ export type AuthorityFact =
   | GraphPatchFact
   | ClaimFact
   | SourceRevisionBindingFact
+  | SourceTransactionBindingFact
   | ExecutionAuthorityFact
   | EffectReservationFact
   | EffectReleaseFact
@@ -550,6 +557,8 @@ export function validateAuthorityFact(value: unknown): AuthorityFact {
       return validateGraphPatchFact(value);
     case CLAIM_SCHEMA:
       return validateClaimFact(value);
+    case SOURCE_TRANSACTION_BINDING_SCHEMA:
+      return validateSourceTransactionBindingFact(value);
     case SOURCE_REVISION_BINDING_SCHEMA:
       return validateSourceRevisionBindingFact(value);
     case EXECUTION_AUTHORITY_SCHEMA:

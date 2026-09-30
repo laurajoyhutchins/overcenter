@@ -255,7 +255,13 @@ function materializeSourceProposal(
         writeFileSync(target, Buffer.from(file.content_base64, 'base64'));
       }
     }
-    git(candidateTree.root, ['add', '-A', '--', ...proposal.files.map((file) => file.path)]);
+    git(candidateTree.root, [
+      '--literal-pathspecs',
+      'add',
+      '-A',
+      '--',
+      ...proposal.files.map((file) => file.path),
+    ]);
     if (gitStatus(candidateTree.root, ['diff', '--cached', '--quiet']) === 0) {
       throw new Error('SOURCE_PROPOSAL_EMPTY');
     }
@@ -321,12 +327,16 @@ export function brokerSourceProposal(
   taskValue: unknown,
   claim: SourceClaimBinding,
   proposalValue: unknown,
-  { remote = 'origin' }: { remote?: string } = {},
+  {
+    remote = 'origin',
+    beforePublish,
+  }: { remote?: string; beforePublish?: (candidate: SourceCandidate) => void } = {},
 ): {
   candidate: SourceCandidate;
   publication: SourceCandidatePublicationResult;
 } {
   const candidate = materializeSourceProposal(repo, obligationId, taskValue, claim, proposalValue);
+  beforePublish?.(candidate);
   const publication = publishSourceCandidate(repo, taskValue, claim, candidate.commit_sha, {
     remote,
   });

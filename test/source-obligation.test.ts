@@ -190,3 +190,26 @@ test('source candidate is bound to exact obligation, run, authority revision, an
     /SOURCE_CANDIDATE_SOURCE_MISMATCH/,
   );
 });
+
+test('version two source tasks require an exact nonempty expected write subset', () => {
+  const v2 = {
+    ...packet,
+    schema: 'overcenter-source-task',
+    schema_version: 2,
+    expected_write_set: ['src/authority/engine.ts'],
+  };
+  assert.deepEqual(validateSourceTaskPacket(v2).expected_write_set, ['src/authority/engine.ts']);
+  for (const expected_write_set of [
+    [],
+    ['src/authority/engine.ts', 'src/authority/engine.ts'],
+    ['outside.ts'],
+    ['../escape.ts'],
+  ]) {
+    assert.throws(
+      () => validateSourceTaskPacket({ ...v2, expected_write_set }),
+      /SOURCE_TASK_EXPECTED_WRITE_SET_INVALID/,
+    );
+  }
+  const { expected_write_set: _expected, ...missing } = v2;
+  assert.throws(() => validateSourceTaskPacket(missing), /SOURCE_TASK_INVALID/);
+});
