@@ -940,6 +940,8 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
     assert.notEqual(integratedHead, sourceSha);
     const reservation = interrupted.unresolvedEffectReservation(runId);
     assert.ok(reservation);
+    assert.ok('effect_identity' in reservation);
+    if (!('effect_identity' in reservation)) throw new Error('SOURCE_EFFECT_IDENTITY_MISSING');
     assert.equal(reservation.effect_identity.integration_commit, integratedHead);
 
     assert.throws(
