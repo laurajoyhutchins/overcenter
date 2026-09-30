@@ -59,10 +59,13 @@ function validateParameters(
   if (Object.hasOwn(parameters, 'repo')) {
     throw new Error('GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:repo');
   }
-  Object.keys(parameters).forEach((name) => {
+  const names = Object.keys(parameters);
+  for (let index = 0; index < names.length; index += 1) {
+    const name = names[index]!;
     if (!allowed.has(name)) throw new Error(`GITHUB_OPERATION_PARAMETER_UNKNOWN:${name}`);
-  });
-  operation.parameters.forEach((parameter) => {
+  }
+  for (let index = 0; index < operation.parameters.length; index += 1) {
+    const parameter = operation.parameters[index]!;
     if (
       parameter.required &&
       parameter.name !== 'owner' &&
@@ -71,7 +74,7 @@ function validateParameters(
     ) {
       throw new Error(`GITHUB_OPERATION_PARAMETER_REQUIRED:${parameter.name}`);
     }
-  });
+  }
 }
 
 export function observeCertifiedGitHubRead(
