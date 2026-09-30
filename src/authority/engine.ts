@@ -732,6 +732,7 @@ export class KernelCore {
   }
 
   #effectObservationBinding(reservation: EffectReservation) {
+    if (!('effect_identity' in reservation)) return null;
     return {
       effect_contract: reservation.effect_contract,
       effect_identity: structuredClone(reservation.effect_identity),
@@ -744,10 +745,9 @@ export class KernelCore {
     reservation: EffectReservation | null;
   }): Observation | null {
     if (!candidate.reservation || !this.observationContext.observeReservedEffect) return null;
-    return this.observationContext.observeReservedEffect(
-      candidate.work.postcondition,
-      this.#effectObservationBinding(candidate.reservation),
-    );
+    const binding = this.#effectObservationBinding(candidate.reservation);
+    if (!binding) return null;
+    return this.observationContext.observeReservedEffect(candidate.work.postcondition, binding);
   }
 
   #observeCandidate(candidate: {
