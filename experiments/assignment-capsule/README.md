@@ -6,7 +6,7 @@ Can Overcenter claim a real obligation, hand a disposable worker that exact assi
 
 ## Claim and contrast
 
-The hosted proof uses the production SQLite kernel to derive READY work and claim it at an exact revision. Trusted authority then emits one immutable assignment capsule containing:
+The hosted proof uses the production Git kernel to derive READY work and claim it at an exact revision. Trusted authority then emits one immutable assignment capsule containing:
 
 - the claimed `Work` snapshot, including obligation, run, and claimed revision;
 - the exact source revision as provenance;
@@ -14,7 +14,7 @@ The hosted proof uses the production SQLite kernel to derive READY work and clai
 - the worker command and declared output path;
 - the reusable `src/execution/assignment-capsule.ts` verifier/runner.
 
-The worker job performs **no checkout**, receives **no repository permission**, runs the assignment inside a separate network namespace, and receives no `ExecutionPermit`. It can produce only candidate output bytes bound to the assignment digest and claimed run. Trusted settlement reopens the durable SQLite authority, validates that binding, independently observes the candidate under the original postcondition, and settles the same run.
+The worker job performs **no checkout**, receives **no repository permission**, runs the assignment inside a separate network namespace, and receives no `ExecutionPermit`. It can produce only candidate output bytes bound to the assignment digest and claimed run. Trusted settlement reopens the durable Git authority, validates that binding, independently observes the candidate under the original postcondition, and settles the same run.
 
 The contrast is the current self-application/disposable-agent pattern in which a worker receives an exact identity but obtains source bytes through an ambient checkout or mount.
 

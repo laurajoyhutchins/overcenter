@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { OvercenterKernel } from '../../src/authority/kernel.ts';
+import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
 
 const ASSIGNMENT_SCHEMA = 'overcenter-codex-closed-loop-assignment/v1';
 const CANDIDATE_SCHEMA = 'overcenter-codex-closed-loop-candidate/v1';
@@ -12,7 +12,7 @@ const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex
 const [database, assignmentPath, candidatePath, patchPath, workspace] = process.argv.slice(2);
 if (!database || !assignmentPath || !candidatePath || !patchPath || !workspace) {
   throw new Error(
-    'usage: settle.ts <authority.sqlite> <assignment.json> <candidate.json> <candidate.patch> <workspace>',
+    'usage: settle.ts <authority.git> <assignment.json> <candidate.json> <candidate.patch> <workspace>',
   );
 }
 
@@ -57,8 +57,8 @@ rmSync(root, { recursive: true, force: true });
 mkdirSync(root, { recursive: true });
 writeFileSync(postcondition.path, target, { flag: 'wx' });
 
-const kernel = new OvercenterKernel(database, { observationContext: { localFileRoot: root } });
-try {
+const kernel = new GitOvercenterKernel(database, { observationContext: { localFileRoot: root } });
+{
   const before = kernel.inspect().find((work) => work.id === assignment.work.id);
   if (!before || before.status !== 'EXECUTING')
     throw new Error('CODEX_CLOSED_LOOP_RUN_NOT_EXECUTING');
@@ -91,6 +91,4 @@ try {
       verified: receipt.verified,
     }),
   );
-} finally {
-  kernel.close();
 }

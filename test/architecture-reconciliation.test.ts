@@ -92,8 +92,8 @@ test('TCB runtime dispatch authority comes from architecture physics', () => {
           symbol_id: 'DurableFactStore.append',
         },
         implementation: {
-          artifact_id: 'src/storage/sqlite.ts',
-          symbol_id: 'SqliteFactStore.append',
+          artifact_id: 'src/storage/git-store.ts',
+          symbol_id: 'GitFactStore.append',
         },
       },
       {
@@ -102,8 +102,8 @@ test('TCB runtime dispatch authority comes from architecture physics', () => {
           symbol_id: 'DurableFactStore.head',
         },
         implementation: {
-          artifact_id: 'src/storage/sqlite.ts',
-          symbol_id: 'SqliteFactStore.head',
+          artifact_id: 'src/storage/git-store.ts',
+          symbol_id: 'GitFactStore.head',
         },
       },
       {
@@ -112,8 +112,8 @@ test('TCB runtime dispatch authority comes from architecture physics', () => {
           symbol_id: 'DurableFactStore.history',
         },
         implementation: {
-          artifact_id: 'src/storage/sqlite.ts',
-          symbol_id: 'SqliteFactStore.history',
+          artifact_id: 'src/storage/git-store.ts',
+          symbol_id: 'GitFactStore.history',
         },
       },
     ]);
@@ -147,7 +147,7 @@ test('TCB roots are derived recursively from effect architecture', () => {
     assert.ok(identities.has('src/authority/engine.ts#KernelCore.authorizeEffect'));
     assert.ok(identities.has('src/authority/engine.ts#KernelCore.beginEffect'));
     assert.ok(identities.has('src/authority/engine.ts#KernelCore.resolve'));
-    assert.ok(identities.has('src/storage/sqlite.ts#SqliteFactStore.append'));
+    assert.ok(identities.has('src/storage/git-store.ts#GitFactStore.append'));
     assert.ok(identities.has('src/observation/observe.ts#observationVerified'));
     assert.ok(
       identities.has('src/providers/github/status-effect.ts#performGitHubCommitStatusEffect'),

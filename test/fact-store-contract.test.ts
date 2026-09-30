@@ -11,7 +11,7 @@ import test from 'node:test';
 import type { DurableFactStore } from '../src/authority/store.ts';
 import type { FactCommit } from '../src/authority/facts.ts';
 import { GitFactStore } from '../src/storage/git-store.ts';
-import { SqliteFactStore } from '../src/storage/sqlite.ts';
+import { SqliteFactStore } from './fixtures/sqlite-store.ts';
 
 function normalized(history: FactCommit[]) {
   const ids = new Map(history.map((record, index) => [record.commit, `commit-${index + 1}`]));
@@ -187,3 +187,36 @@ test('SQLite serializes simultaneous writers and admits exactly one same-head CA
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+for (const [name, mutation] of [
+  ['payload', "UPDATE fact_commits SET files_json = '{' WHERE sequence = 2"],
+  ['missing intermediate', 'DELETE FROM fact_commits WHERE sequence = 2'],
+  ['parent discontinuity', 'UPDATE fact_commits SET parent_id = NULL WHERE sequence = 2'],
+  ['forged head', "UPDATE authority SET head = 'forged'"],
+  ['truncation', 'DELETE FROM fact_commits WHERE sequence = 3'],
+  ['sequence gap', 'UPDATE fact_commits SET sequence = 4 WHERE sequence = 3'],
+] as const) {
+  test(`independent SQLite oracle rejects ${name}`, () => {
+    const root = mkdtempSync(join(tmpdir(), 'sqlite-integrity-'));
+    const path = join(root, 'facts.sqlite');
+    const original = new SqliteFactStore(path);
+    const first = original.append(null, 'first');
+    assert.ok(first);
+    const second = original.append(first, 'second');
+    assert.ok(second);
+    const third = original.append(second, 'third');
+    assert.ok(third);
+    original.close();
+    const db = new DatabaseSync(path);
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec(mutation);
+    db.close();
+    const corrupted = new SqliteFactStore(path);
+    try {
+      assert.throws(() => corrupted.history(corrupted.head()!));
+    } finally {
+      corrupted.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}

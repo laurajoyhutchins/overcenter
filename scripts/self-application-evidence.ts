@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,7 +17,8 @@ import {
   runReadyTestComputation,
   type ComputationExecutor,
 } from '../src/execution/runner.ts';
-import { OvercenterKernel } from '../src/authority/kernel.ts';
+import { GitFactStore } from '../src/storage/git-store.ts';
+import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
 import { GoExecutorClient } from '../src/execution/go-client.ts';
 import {
   executionContextSha256 as hashExecutionContext,
@@ -69,7 +69,7 @@ const scratch = mkdtempSync(join(tmpdir(), 'overcenter-self-application-'));
 const workspace = join(scratch, 'workspace');
 const attestations = join(scratch, 'authority-attestations');
 const control = join(scratch, 'control');
-const stateDatabase = join(scratch, 'state.sqlite');
+const stateDatabase = join(scratch, 'state.git');
 const sourceRoot = join(scratch, 'source');
 mkdirSync(sourceRoot, { recursive: true });
 const sourceArchive = execFileSync('git', ['-C', repoRoot, 'archive', '--format=tar', sourceSha], {
@@ -264,26 +264,15 @@ function attestingExecutor(
 }
 
 function assertNoEffectReservations(): void {
-  const db = new DatabaseSync(stateDatabase);
-  try {
-    const row = db
-      .prepare(`
-      SELECT COUNT(*) AS count
-      FROM fact_commits
-      WHERE files_json LIKE '%"effect-reservation.json"%'
-    `)
-      .get() as { count: number | bigint };
-    if (Number(row.count) !== 0) {
-      throw new Error(
-        `pure self-application computation reserved ${String(row.count)} external effects`,
-      );
-    }
-  } finally {
-    db.close();
+  const store = new GitFactStore(stateDatabase, { ref: 'refs/overcenter/state' });
+  const head = store.head();
+  if (!head) throw new Error('SELF_APPLICATION_AUTHORITY_MISSING');
+  if (store.history(head).some((fact) => fact.effect_reservation !== null)) {
+    throw new Error('pure self-application computation reserved external effects');
   }
 }
 
-function summarize(kernel: OvercenterKernel) {
+function summarize(kernel: GitOvercenterKernel) {
   return kernel.inspect().map((work) => ({
     id: work.id,
     status: work.status,
@@ -300,7 +289,8 @@ const regressionContent = `passed:regression:${sourceSha}\n`;
 const selfApplicationSourceTreeSha256 = sourceTreeSha256(sourceRoot);
 const selfApplicationExecutionContextSha256 = executionContextSha256();
 
-const kernel = new OvercenterKernel(stateDatabase);
+execFileSync('git', ['init', '--bare', stateDatabase], { stdio: 'ignore' });
+const kernel = new GitOvercenterKernel(stateDatabase);
 kernel.initialize();
 kernel.define({
   id: 'self-regression',
@@ -411,8 +401,7 @@ try {
   await executor.close();
   executor = null;
 
-  kernel.close();
-  const reconstructed = new OvercenterKernel(stateDatabase);
+  const reconstructed = new GitOvercenterKernel(stateDatabase);
   assert.equal(reconstructed.head(), authorityHead);
   const reconstructedWork = summarize(reconstructed);
   assert.ok(reconstructedWork.every((work) => work.status === 'DONE'));
@@ -448,13 +437,7 @@ try {
   const serialized = JSON.stringify(report, null, 2) + '\n';
   process.stdout.write(serialized);
   if (reportPath) writeFileSync(reportPath, serialized);
-  reconstructed.close();
 } finally {
-  try {
-    kernel.close();
-  } catch {
-    // The successful reconstruction path already closed the original handle.
-  }
   if (executor) await executor.abort();
   try {
     const ids = docker(['ps', '-aq', '--filter', `label=${label}`])

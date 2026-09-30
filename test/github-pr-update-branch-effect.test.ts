@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { OvercenterKernel } from '../src/authority/kernel.ts';
+import { LocalGitKernel } from './fixtures/local-git-kernel.ts';
 import type { Postcondition } from '../src/model.ts';
 import {
   observationVerified,
@@ -67,7 +67,7 @@ function compare(ancestor: string, descendant: string, isAncestor = true) {
 }
 
 function define(
-  kernel: OvercenterKernel,
+  kernel: LocalGitKernel,
   effectContract: unknown = GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
 ) {
   kernel.initialize();
@@ -83,7 +83,7 @@ function define(
 
 test('trusted PR refresh certifies exact identity, reserves, and sends expected_head_sha', async () => {
   const root = mkdtempSync(join(tmpdir(), 'github-pr-refresh-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   const calls: string[] = [];
   try {
     const run = define(kernel);
@@ -117,7 +117,7 @@ test('trusted PR refresh certifies exact identity, reserves, and sends expected_
 
 test('head drift fails before reservation and PUT', async () => {
   const root = mkdtempSync(join(tmpdir(), 'github-pr-refresh-stale-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let puts = 0;
   try {
     const run = define(kernel);
@@ -142,7 +142,7 @@ test('head drift fails before reservation and PUT', async () => {
 
 test('missing semantic grant fails before provider I/O', async () => {
   const root = mkdtempSync(join(tmpdir(), 'github-pr-refresh-grant-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let reads = 0,
     puts = 0;
   try {

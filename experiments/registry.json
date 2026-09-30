@@ -253,7 +253,7 @@
       "directory": "experiments/production-latency",
       "readme": "experiments/production-latency/README.md",
       "question": "For one successful production GitHub status transaction, how much latency belongs to Overcenter local correctness machinery versus provider I/O?",
-      "claim": "The benchmark separates SQLite authority, reservation, provider identity, the mutation boundary, readback, and local settlement costs while exercising the unchanged production GitHub status effect.",
+      "claim": "The benchmark separates Git authority, reservation, provider identity, the mutation boundary, readback, and local settlement costs while exercising the unchanged production GitHub status effect.",
       "contrast": "Infer feasibility from whole GitHub Actions job duration or storage microbenchmarks without timing the production transaction boundary.",
       "reproduce": {
         "tier": "benchmark",

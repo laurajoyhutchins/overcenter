@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { execFileSync } from 'node:child_process';
+import { deflateSync } from 'node:zlib';
+import { GitFactStore } from '../src/storage/git-store.ts';
 import test from 'node:test';
 
-import { OvercenterKernel, runCoreLoop } from '../src/authority/kernel.ts';
+import { LocalGitKernel, runCoreLoop } from './fixtures/local-git-kernel.ts';
 import type { ObligationInput } from '../src/authority/facts.ts';
 import { planGraphReconciliation } from '../src/graph/reconciliation.ts';
 
@@ -15,8 +17,27 @@ const pc = (path: string, content: string) => ({
   content,
 });
 
+function history(repo: string) {
+  const store = new GitFactStore(repo, { ref: 'refs/overcenter/state' });
+  return store.history(store.head()!);
+}
+
+function corruptGraphFact(repo: string): void {
+  const commit = history(repo)[1]!.commit;
+  const blob = execFileSync('git', ['-C', repo, 'rev-parse', `${commit}:graph-patch.json`], {
+    encoding: 'utf8',
+  }).trim();
+  const payload = Buffer.from('{}');
+  const path = join(repo, 'objects', blob.slice(0, 2), blob.slice(2));
+  rmSync(path);
+  writeFileSync(
+    path,
+    deflateSync(Buffer.concat([Buffer.from(`blob ${payload.length}\0`), payload])),
+  );
+}
+
 function reconcileGraphTransaction(
-  kernel: OvercenterKernel,
+  kernel: LocalGitKernel,
   desired: ObligationInput[],
   expectedRevision: string,
 ) {
@@ -41,12 +62,12 @@ function reconcileGraphTransaction(
   };
 }
 
-test('SQLite production kernel reconstructs project truth after close and reopen', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-kernel-'));
-  const database = join(root, 'overcenter.sqlite');
+test('Git production kernel reconstructs project truth after close and reopen', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'git-kernel-'));
+  const database = join(root, 'overcenter.git');
   const firstPath = join(root, 'first.txt');
   const secondPath = join(root, 'second.txt');
-  const kernel = new OvercenterKernel(database);
+  const kernel = new LocalGitKernel(database);
 
   try {
     const initial = kernel.initialize();
@@ -87,7 +108,7 @@ test('SQLite production kernel reconstructs project truth after close and reopen
 
     kernel.close();
 
-    const fresh = new OvercenterKernel(database);
+    const fresh = new LocalGitKernel(database);
     try {
       assert.equal(fresh.initialize(), head);
       assert.deepEqual(fresh.inspect(), before);
@@ -100,48 +121,10 @@ test('SQLite production kernel reconstructs project truth after close and reopen
       fresh.close();
     }
 
-    const db = new DatabaseSync(database);
-    try {
-      const tables = db
-        .prepare(`
-        SELECT name
-        FROM sqlite_master
-        WHERE type='table'
-          AND name NOT LIKE 'sqlite_%'
-        ORDER BY name
-      `)
-        .all()
-        .map((row) => String(row.name));
-      assert.deepEqual(tables, ['authority', 'fact_commits']);
-
-      const commitColumns = db
-        .prepare('PRAGMA table_info(fact_commits)')
-        .all()
-        .map((row) => String(row.name));
-      assert.deepEqual(commitColumns, [
-        'sequence',
-        'commit_id',
-        'parent_id',
-        'message',
-        'files_json',
-      ]);
-
-      const receiptRows = db
-        .prepare(`
-        SELECT files_json
-        FROM fact_commits
-        WHERE files_json LIKE '%"receipt.json"%'
-      `)
-        .all() as Array<{ files_json: string }>;
-      assert.ok(receiptRows.length >= 2);
-      for (const row of receiptRows) {
-        const files = JSON.parse(row.files_json) as Record<string, unknown>;
-        const receipt = files['receipt.json'] as Record<string, unknown>;
-        assert.equal('disposition' in receipt, false);
-        assert.equal('verified' in receipt, false);
-      }
-    } finally {
-      db.close();
+    for (const fact of history(database).filter((fact) => fact.receipt !== null)) {
+      const receipt = fact.receipt as Record<string, unknown>;
+      assert.equal('disposition' in receipt, false);
+      assert.equal('verified' in receipt, false);
     }
   } finally {
     try {
@@ -151,10 +134,10 @@ test('SQLite production kernel reconstructs project truth after close and reopen
   }
 });
 
-test('SQLite graph patch admits multiple nodes in one authority transition', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-graph-patch-'));
-  const database = join(root, 'overcenter.sqlite');
-  const kernel = new OvercenterKernel(database);
+test('Git graph patch admits multiple nodes in one authority transition', () => {
+  const root = mkdtempSync(join(tmpdir(), 'git-graph-patch-'));
+  const database = join(root, 'overcenter.git');
+  const kernel = new LocalGitKernel(database);
   try {
     const initial = kernel.initialize();
     const commit = kernel.applyGraphPatch(
@@ -183,39 +166,26 @@ test('SQLite graph patch admits multiple nodes in one authority transition', () 
       ],
     );
 
-    const db = new DatabaseSync(database);
-    try {
-      const rows = db
-        .prepare('SELECT sequence, files_json FROM fact_commits ORDER BY sequence')
-        .all() as Array<{ sequence: number; files_json: string }>;
-      assert.equal(rows.length, 2);
-      const row = rows[1];
-      assert.ok(row);
-      const files = JSON.parse(row.files_json) as Record<string, unknown>;
-      assert.equal('obligation.json' in files, false);
-      assert.equal('obligations.json' in files, false);
-      const patch = files['graph-patch.json'] as {
-        definitions: unknown[];
-        bindings: unknown[];
-        retire: unknown[];
-      };
-      assert.equal(Array.isArray(patch.definitions), true);
-      assert.equal(patch.definitions.length, 2);
-      assert.equal(patch.bindings.length, 2);
-      assert.deepEqual(patch.retire, []);
-    } finally {
-      db.close();
-    }
+    const facts = history(database);
+    assert.equal(facts.length, 2);
+    const patch = facts[1]?.graph_patch as {
+      definitions: unknown[];
+      bindings: unknown[];
+      retire: unknown[];
+    };
+    assert.equal(patch.definitions.length, 2);
+    assert.equal(patch.bindings.length, 2);
+    assert.deepEqual(patch.retire, []);
   } finally {
     kernel.close();
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('SQLite graph reconciliation derives add rebind and no-op without extra writes', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-graph-reconcile-'));
-  const database = join(root, 'overcenter.sqlite');
-  const kernel = new OvercenterKernel(database);
+test('Git graph reconciliation derives add rebind and no-op without extra writes', () => {
+  const root = mkdtempSync(join(tmpdir(), 'git-graph-reconcile-'));
+  const database = join(root, 'overcenter.git');
+  const kernel = new LocalGitKernel(database);
   try {
     const initial = kernel.initialize();
     const first = reconcileGraphTransaction(
@@ -270,15 +240,7 @@ test('SQLite graph reconciliation derives add rebind and no-op without extra wri
     assert.deepEqual(changed.rebound, ['leaf']);
     assert.deepEqual(changed.unchanged, []);
 
-    const db = new DatabaseSync(database);
-    try {
-      const row = db.prepare('SELECT COUNT(*) AS count FROM fact_commits').get() as {
-        count: number;
-      };
-      assert.equal(Number(row.count), 3);
-    } finally {
-      db.close();
-    }
+    assert.equal(history(database).length, 3);
   } finally {
     kernel.close();
     rmSync(root, { recursive: true, force: true });
@@ -286,9 +248,9 @@ test('SQLite graph reconciliation derives add rebind and no-op without extra wri
 });
 
 test('no-op graph reconciliation remains read-only while work is in flight', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-graph-reconcile-busy-noop-'));
-  const database = join(root, 'overcenter.sqlite');
-  const kernel = new OvercenterKernel(database);
+  const root = mkdtempSync(join(tmpdir(), 'git-graph-reconcile-busy-noop-'));
+  const database = join(root, 'overcenter.git');
+  const kernel = new LocalGitKernel(database);
   try {
     const initial = kernel.initialize();
     const defined = reconcileGraphTransaction(
@@ -327,10 +289,10 @@ test('no-op graph reconciliation remains read-only while work is in flight', () 
   }
 });
 
-test('invalid SQLite graph patch leaves authority unchanged', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-invalid-graph-patch-'));
-  const database = join(root, 'overcenter.sqlite');
-  const kernel = new OvercenterKernel(database);
+test('invalid Git graph patch leaves authority unchanged', () => {
+  const root = mkdtempSync(join(tmpdir(), 'git-invalid-graph-patch-'));
+  const database = join(root, 'overcenter.git');
+  const kernel = new LocalGitKernel(database);
   try {
     const initial = kernel.initialize();
     assert.throws(
@@ -351,15 +313,7 @@ test('invalid SQLite graph patch leaves authority unchanged', () => {
     );
     assert.equal(kernel.head(), initial);
 
-    const db = new DatabaseSync(database);
-    try {
-      const row = db.prepare('SELECT COUNT(*) AS count FROM fact_commits').get() as {
-        count: number;
-      };
-      assert.equal(Number(row.count), 1);
-    } finally {
-      db.close();
-    }
+    assert.equal(history(database).length, 1);
   } finally {
     kernel.close();
     rmSync(root, { recursive: true, force: true });
@@ -367,8 +321,8 @@ test('invalid SQLite graph patch leaves authority unchanged', () => {
 });
 
 test('graph patch rebinding is exact-revision fenced', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-graph-patch-replace-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const root = mkdtempSync(join(tmpdir(), 'git-graph-patch-replace-'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   try {
     const initial = kernel.initialize();
     const defined = kernel.applyGraphPatch(
@@ -401,8 +355,8 @@ test('graph patch rebinding is exact-revision fenced', () => {
 });
 
 test('retirement validates the complete resulting graph atomically', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-graph-retire-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const root = mkdtempSync(join(tmpdir(), 'git-graph-retire-'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   try {
     const initial = kernel.initialize();
     const built = kernel.applyGraphPatch(
@@ -449,10 +403,10 @@ test('retirement validates the complete resulting graph atomically', () => {
 });
 
 test('retired node can rebind the same immutable definition and reuse evidence', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-graph-reintroduce-'));
-  const database = join(root, 'overcenter.sqlite');
+  const root = mkdtempSync(join(tmpdir(), 'git-graph-reintroduce-'));
+  const database = join(root, 'overcenter.git');
   const path = join(root, 'a');
-  const kernel = new OvercenterKernel(database);
+  const kernel = new LocalGitKernel(database);
   try {
     kernel.initialize();
     kernel.define({
@@ -482,34 +436,25 @@ test('retired node can rebind the same immutable definition and reuse evidence',
     assert.equal(kernel.inspect()[0]?.status, 'DONE');
     assert.equal(kernel.inspect()[0]?.run_id, run.id);
 
-    const db = new DatabaseSync(database);
-    try {
-      const rows = db
-        .prepare('SELECT files_json FROM fact_commits WHERE files_json LIKE ? ORDER BY sequence')
-        .all('%"graph-patch.json"%') as Array<{ files_json: string }>;
-      assert.equal(rows.length, 3);
-      const row = rows[2];
-      assert.ok(row);
-      const reintroduced = JSON.parse(row.files_json)['graph-patch.json'] as {
-        definitions: unknown[];
-        bindings: unknown[];
-        retire: unknown[];
-      };
-      assert.deepEqual(reintroduced.definitions, []);
-      assert.equal(reintroduced.bindings.length, 1);
-      assert.deepEqual(reintroduced.retire, []);
-    } finally {
-      db.close();
-    }
+    const patches = history(database).filter((fact) => fact.graph_patch !== null);
+    assert.equal(patches.length, 3);
+    const reintroduced = patches[2]?.graph_patch as {
+      definitions: unknown[];
+      bindings: unknown[];
+      retire: unknown[];
+    };
+    assert.deepEqual(reintroduced.definitions, []);
+    assert.equal(reintroduced.bindings.length, 1);
+    assert.deepEqual(reintroduced.retire, []);
   } finally {
     kernel.close();
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('SQLite kernel rejects every inexact execution permit identity', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-execution-authority-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+test('Git kernel rejects every inexact execution permit identity', () => {
+  const root = mkdtempSync(join(tmpdir(), 'git-execution-authority-'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   try {
     kernel.initialize();
     kernel.define({ id: 'a', postcondition: pc(join(root, 'a'), 'A') });
@@ -533,11 +478,11 @@ test('SQLite kernel rejects every inexact execution permit identity', () => {
   }
 });
 
-test('SQLite kernel rejects a claim fenced to a stale authority revision', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-stale-revision-'));
-  const database = join(root, 'overcenter.sqlite');
-  const first = new OvercenterKernel(database);
-  const second = new OvercenterKernel(database);
+test('Git kernel rejects a claim fenced to a stale authority revision', () => {
+  const root = mkdtempSync(join(tmpdir(), 'git-stale-revision-'));
+  const database = join(root, 'overcenter.git');
+  const first = new LocalGitKernel(database);
+  const second = new LocalGitKernel(database);
 
   try {
     first.initialize();
@@ -561,10 +506,10 @@ test('SQLite kernel rejects a claim fenced to a stale authority revision', () =>
   }
 });
 
-test('SQLite replay fails closed when durable fact bytes no longer match their commit id', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-corruption-'));
-  const database = join(root, 'overcenter.sqlite');
-  const kernel = new OvercenterKernel(database);
+test('Git replay fails closed when durable fact bytes no longer match their commit id', () => {
+  const root = mkdtempSync(join(tmpdir(), 'git-corruption-'));
+  const database = join(root, 'overcenter.git');
+  const kernel = new LocalGitKernel(database);
 
   try {
     kernel.initialize();
@@ -574,29 +519,11 @@ test('SQLite replay fails closed when durable fact bytes no longer match their c
     });
     kernel.close();
 
-    const db = new DatabaseSync(database);
-    try {
-      db.prepare(`
-        UPDATE fact_commits
-        SET files_json = ?
-        WHERE sequence = 2
-      `).run(
-        JSON.stringify({
-          'graph-patch.json': {
-            schema: 'tampered',
-            definitions: [],
-            bindings: [],
-            retire: [],
-          },
-        }),
-      );
-    } finally {
-      db.close();
-    }
+    corruptGraphFact(database);
 
-    const corrupted = new OvercenterKernel(database);
+    const corrupted = new LocalGitKernel(database);
     try {
-      assert.throws(() => corrupted.inspect(), /FACT_COMMIT_DIGEST_MISMATCH/);
+      assert.throws(() => corrupted.inspect(), /FACT_OBJECT_DIGEST_MISMATCH/);
     } finally {
       corrupted.close();
     }
@@ -609,8 +536,8 @@ test('SQLite replay fails closed when durable fact bytes no longer match their c
 });
 
 test('judgment receipt requires a fresh execution generation before effect resume', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-judgment-resume-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const root = mkdtempSync(join(tmpdir(), 'git-judgment-resume-'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   try {
     kernel.initialize();
     const path = join(root, 'authorized');
@@ -639,10 +566,10 @@ test('judgment receipt requires a fresh execution generation before effect resum
   }
 });
 
-test('SQLite projection cache recovers after historical claimed-work lookup', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-projection-cache-history-'));
-  const database = join(root, 'overcenter.sqlite');
-  const kernel = new OvercenterKernel(database);
+test('Git projection cache recovers after historical claimed-work lookup', () => {
+  const root = mkdtempSync(join(tmpdir(), 'git-projection-cache-history-'));
+  const database = join(root, 'overcenter.git');
+  const kernel = new LocalGitKernel(database);
 
   try {
     kernel.initialize();
@@ -669,11 +596,11 @@ test('SQLite projection cache recovers after historical claimed-work lookup', ()
   }
 });
 
-test('SQLite projection cache follows external heads and never bypasses durable validation', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-projection-cache-'));
-  const database = join(root, 'overcenter.sqlite');
-  const first = new OvercenterKernel(database);
-  const second = new OvercenterKernel(database);
+test('Git projection cache follows external heads and never bypasses durable validation', () => {
+  const root = mkdtempSync(join(tmpdir(), 'git-projection-cache-'));
+  const database = join(root, 'overcenter.git');
+  const first = new LocalGitKernel(database);
+  const second = new LocalGitKernel(database);
 
   try {
     first.initialize();
@@ -689,27 +616,9 @@ test('SQLite projection cache follows external heads and never bypasses durable 
       ['a', 'b'],
     );
 
-    const db = new DatabaseSync(database);
-    try {
-      db.prepare(`
-        UPDATE fact_commits
-        SET files_json = ?
-        WHERE sequence = 2
-      `).run(
-        JSON.stringify({
-          'graph-patch.json': {
-            schema: 'tampered',
-            definitions: [],
-            bindings: [],
-            retire: [],
-          },
-        }),
-      );
-    } finally {
-      db.close();
-    }
+    corruptGraphFact(database);
 
-    assert.throws(() => first.inspect(), /FACT_COMMIT_DIGEST_MISMATCH/);
+    assert.throws(() => first.inspect(), /FACT_OBJECT_DIGEST_MISMATCH/);
   } finally {
     first.close();
     second.close();
@@ -718,8 +627,8 @@ test('SQLite projection cache follows external heads and never bypasses durable 
 });
 
 test('core loop overlaps bounded effects without widening authority', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-core-loop-concurrency-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const root = mkdtempSync(join(tmpdir(), 'git-core-loop-concurrency-'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let active = 0;
   let maxActive = 0;
 
@@ -756,8 +665,8 @@ test('core loop overlaps bounded effects without widening authority', async () =
 });
 
 test('bounded core-loop capacity selects independent READY peers within a wave', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-core-loop-wave-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const root = mkdtempSync(join(tmpdir(), 'git-core-loop-wave-'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   const seen: string[] = [];
 
   try {
@@ -798,8 +707,8 @@ test('bounded core-loop capacity selects independent READY peers within a wave',
 });
 
 test('concurrent core loop drains started effects before returning WAITING', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-core-loop-waiting-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const root = mkdtempSync(join(tmpdir(), 'git-core-loop-waiting-'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let firstEffectStarted = false;
 
   try {
@@ -846,8 +755,8 @@ test('concurrent core loop drains started effects before returning WAITING', asy
 });
 
 test('core loop rejects invalid concurrency before mutation', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'sqlite-core-loop-invalid-concurrency-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const root = mkdtempSync(join(tmpdir(), 'git-core-loop-invalid-concurrency-'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
 
   try {
     kernel.initialize();

@@ -117,25 +117,11 @@ append(expected head, durable fact transition)
 history(head)
 ```
 
-The production implementation is SQLite. It stores immutable fact commits plus one authority row. Each transition runs under `BEGIN IMMEDIATE`: validate the exact expected head, insert the immutable fact commit, advance the authority head, then commit. WAL mode and `synchronous=FULL` are enabled. A stale expected head rolls the transaction back and leaves no durable fact behind.
+The production implementation is `GitFactStore`. Immutable Git objects contain facts, and one remote authority ref selects the authoritative head. Trusted command runners on independent hosts advance that ref with an exact lease. The managed source branch is a separate responsibility.
 
-```text
-fact_commits
-  sequence
-  commit_id
-  parent_id
-  message
-  files_json
+History reconstruction verifies object identity and linear ancestry before replay. A remote push failure is an explicit rejection, a commitment established by authoritative readback, or `AUTHORITY_COMMIT_UNCERTAIN`. An unavailable remote never grants authority to a local replica.
 
-authority
-  singleton
-  head
-  sequence
-```
-
-There is no privileged lifecycle/status table. `READY`, `EXECUTING`, `WAITING`, `BLOCKED`, `RECOVERY_REQUIRED`, and `DONE` remain projections over durable facts plus current authoritative observation.
-
-Git implements the same contract as a reference backend and independent replay oracle. Git commit IDs and SQLite commit IDs are backend-local authority revisions; neither is semantic obligation identity. Existing history is not assumed to be byte-portable between backends: facts such as claim ancestry and settlement-receipt semantic dependencies may contain those backend-local identities, so migration requires an explicit remapping proof.
+There is no privileged lifecycle/status table. `READY`, `EXECUTING`, `WAITING`, `BLOCKED`, `RECOVERY_REQUIRED`, and `DONE` remain projections over durable facts plus current authoritative observation. SQLite remains only an independent test oracle. The [durable-authority decision](docs/adr/0004-durable-authority.md) records the deployment requirement, rejected service alternative, and existing-history boundary.
 
 ## 1. Immutable project intent
 
@@ -969,7 +955,7 @@ If the staged change differs from the expected write set, Overcenter returns `RE
 
 | Term | Meaning |
 | --- | --- |
-| **Authority revision** | Exact backend-local revision currently allowed to define project truth. Production uses a SQLite fact-commit ID named by the authority row; the Git reference backend uses a commit reachable from its authority ref. |
+| **Authority revision** | Exact backend-local revision currently allowed to define project truth. Production uses a Git commit reachable from its remote authority ref. |
 | **Claim** | Durable reservation of one obligation for an execution attempt at an exact authority revision. |
 | **Completion certificate** | Durable evidence sufficient to derive that an obligation is satisfied for a particular graph/revision. Conceptual target; not merely a worker success flag. |
 | **Effect coordinate** | Canonical identity of the external resource/location an operation can mutate. Used to reason about conflicts, commutativity, and readback. |

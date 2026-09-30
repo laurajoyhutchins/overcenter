@@ -32,7 +32,7 @@ INSERT INTO artifact(artifact_id) VALUES
   ('src/providers/kubernetes/configmap-effect.ts'),
   ('src/source/source-integration.ts'),
   ('src/semantics.ts'),
-  ('src/storage/sqlite.ts'),
+  ('src/storage/git-store.ts'),
   ('test/digest-pure.test.ts'),
   ('test/projection-reconstruction.test.ts'),
   ('test/projector-pure.test.ts'),
@@ -59,9 +59,9 @@ INSERT INTO symbol(symbol_id, artifact_id) VALUES
   ('mutationAdmitted', 'src/authority/transaction-admission.ts'),
   ('validateEffectReleaseEvidence', 'src/effect-release-witness.ts'),
   ('settlementSemantics', 'src/semantics.ts'),
-  ('SqliteFactStore.head', 'src/storage/sqlite.ts'),
-  ('SqliteFactStore.append', 'src/storage/sqlite.ts'),
-  ('SqliteFactStore.history', 'src/storage/sqlite.ts'),
+  ('GitFactStore.head', 'src/storage/git-store.ts'),
+  ('GitFactStore.append', 'src/storage/git-store.ts'),
+  ('GitFactStore.history', 'src/storage/git-store.ts'),
   ('observationVerified', 'src/observation/observe.ts'),
   ('integrateVerifiedSourceCandidate', 'src/source/source-integration.ts'),
   ('observeCertifiedGitHubCommitStatus', 'src/providers/github/certified-status.ts'),
@@ -79,9 +79,9 @@ INSERT INTO symbol_implements_capability(symbol_id, capability_id) VALUES
   ('canonicalDigest', 'canonical-content-identity'),
   ('validateAuthorityFact', 'durable-project-facts'),
   ('replayProjection', 'durable-project-facts'),
-  ('SqliteFactStore.head', 'durable-project-facts'),
-  ('SqliteFactStore.append', 'durable-project-facts'),
-  ('SqliteFactStore.history', 'durable-project-facts'),
+  ('GitFactStore.head', 'durable-project-facts'),
+  ('GitFactStore.append', 'durable-project-facts'),
+  ('GitFactStore.history', 'durable-project-facts'),
   ('deriveProjectProjection', 'project-lifecycle-projection'),
   ('observePostcondition', 'authoritative-observation'),
   ('observationVerified', 'authoritative-observation'),
@@ -110,9 +110,9 @@ INSERT INTO symbol_performs_effect(symbol_id, effect_id) VALUES
   ('integrateVerifiedSourceCandidate', 'source/integrate');
 
 INSERT INTO symbol_dispatches_to_symbol(symbol_id, implementation_symbol_id) VALUES
-  ('DurableFactStore.head', 'SqliteFactStore.head'),
-  ('DurableFactStore.append', 'SqliteFactStore.append'),
-  ('DurableFactStore.history', 'SqliteFactStore.history');
+  ('DurableFactStore.head', 'GitFactStore.head'),
+  ('DurableFactStore.append', 'GitFactStore.append'),
+  ('DurableFactStore.history', 'GitFactStore.history');
 
 INSERT INTO artifact_witnesses_evidence(artifact_id, evidence_id) VALUES
   ('test/digest-pure.test.ts', 'canonical-content-identity-proof'),

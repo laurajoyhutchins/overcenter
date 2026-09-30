@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { createServer as createTcpServer, type Server } from 'node:net';
 import test from 'node:test';
 
-import { OvercenterKernel } from '../src/authority/kernel.ts';
+import { LocalGitKernel } from './fixtures/local-git-kernel.ts';
 import {
   createGitHubStatusPost,
   GITHUB_COMMIT_STATUS_EFFECT,
@@ -57,7 +57,7 @@ function status() {
   };
 }
 
-function define(kernel: OvercenterKernel, effectContract: unknown = GITHUB_COMMIT_STATUS_EFFECT) {
+function define(kernel: LocalGitKernel, effectContract: unknown = GITHUB_COMMIT_STATUS_EFFECT) {
   kernel.initialize();
   kernel.define({
     id: 'status-proof',
@@ -79,7 +79,7 @@ function define(kernel: OvercenterKernel, effectContract: unknown = GITHUB_COMMI
 
 test('production GitHub status effect derives provider coordinates from authority and reserves before POST', async () => {
   const root = mkdtempSync(join(tmpdir(), 'github-status-effect-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   const calls: Array<{ kind: 'get' | 'post'; path: string; body?: unknown }> = [];
   const get = async (_token: string, path: string) => {
     calls.push({ kind: 'get', path });
@@ -129,7 +129,7 @@ test('production GitHub status effect derives provider coordinates from authorit
 
 test('repository identity mismatch fails before reservation or mutation', async () => {
   const root = mkdtempSync(join(tmpdir(), 'github-status-identity-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let posts = 0;
 
   try {
@@ -155,7 +155,7 @@ test('repository identity mismatch fails before reservation or mutation', async 
 
 test('missing effect grant fails before provider I/O', async () => {
   const root = mkdtempSync(join(tmpdir(), 'github-status-grant-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let reads = 0;
   let posts = 0;
 
@@ -184,10 +184,10 @@ test('missing effect grant fails before provider I/O', async () => {
   }
 });
 
-test('lost broker acknowledgement survives SQLite reopen and settles from authoritative GitHub readback', async () => {
+test('lost broker acknowledgement survives Git reopen and settles from authoritative GitHub readback', async () => {
   const root = mkdtempSync(join(tmpdir(), 'github-status-recovery-'));
-  const database = join(root, 'overcenter.sqlite');
-  const first = new OvercenterKernel(database);
+  const database = join(root, 'overcenter.git');
+  const first = new LocalGitKernel(database);
   let providerState: 'missing' | 'success' = 'missing';
 
   try {
@@ -221,7 +221,7 @@ test('lost broker acknowledgement survives SQLite reopen and settles from author
       );
       return providerState === 'success' ? [status()] : [];
     };
-    const fresh = new OvercenterKernel(database, {
+    const fresh = new LocalGitKernel(database, {
       githubToken: 'token',
       observationContext: { githubGet: get },
     });
@@ -251,7 +251,7 @@ test('lost broker acknowledgement survives SQLite reopen and settles from author
 
 test('fresh canonical GitHub HTTPS failure before secureConnect releases only the exact reservation and requires a new run', async () => {
   const root = mkdtempSync(join(tmpdir(), 'github-status-not-dispatched-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let lookedUpHost = '';
 
   try {
@@ -279,7 +279,7 @@ test('fresh canonical GitHub HTTPS failure before secureConnect releases only th
     assert.equal(receipts[0]?.kind, 'effect-not-dispatched');
     assert.equal(receipts[0]?.disposition, 'READY');
 
-    const reopened = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+    const reopened = new LocalGitKernel(join(root, 'overcenter.git'));
     try {
       assert.equal(reopened.hasUnresolvedEffect(first.id), false);
       assert.equal(reopened.inspect()[0]?.status, 'READY');
@@ -301,7 +301,7 @@ test('fresh canonical GitHub HTTPS failure before secureConnect releases only th
 
 test('transport-minted NOT_DISPATCHED witness from a non-GitHub origin cannot release the reservation', async () => {
   const root = mkdtempSync(join(tmpdir(), 'github-status-wrong-origin-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let peerTlsBytes = 0;
   const reset = createTcpServer((socket) => {
     socket.once('data', (chunk) => {
@@ -340,7 +340,7 @@ async function assertReservationRemainsUnresolved(
   expectedError: RegExp,
 ): Promise<void> {
   const root = mkdtempSync(join(tmpdir(), 'github-status-uncertain-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
 
   try {
     const run = define(kernel);
@@ -379,7 +379,7 @@ test('HTTP 502 keeps the GitHub status reservation unresolved', async () => {
 
 test('the admitted NOT_DISPATCHED token cannot release a reservation without a transport-minted witness', () => {
   const root = mkdtempSync(join(tmpdir(), 'github-status-witness-forgery-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
 
   try {
     const run = define(kernel);

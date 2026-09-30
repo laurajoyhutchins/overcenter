@@ -1,7 +1,8 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { OvercenterKernel } from '../../src/authority/kernel.ts';
+import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
 
 const ASSIGNMENT_SCHEMA = 'overcenter-codex-closed-loop-assignment/v1';
 const TASK_SCHEMA = 'overcenter-codex-closed-loop-task/v1';
@@ -16,7 +17,7 @@ function required(name: string): string {
 
 const [database, assignmentPath] = process.argv.slice(2);
 if (!database || !assignmentPath) {
-  throw new Error('usage: prepare.ts <authority.sqlite> <assignment.json>');
+  throw new Error('usage: prepare.ts <authority.git> <assignment.json>');
 }
 
 const runId = required('GITHUB_RUN_ID');
@@ -30,8 +31,9 @@ const observedPath = `/tmp/${obligationId}/witness.txt`;
 mkdirSync(dirname(database), { recursive: true });
 mkdirSync(dirname(assignmentPath), { recursive: true });
 
-const kernel = new OvercenterKernel(database);
-try {
+execFileSync('git', ['init', '--bare', database], { stdio: 'ignore' });
+const kernel = new GitOvercenterKernel(database);
+{
   kernel.initialize();
   kernel.define({
     id: obligationId,
@@ -80,6 +82,4 @@ try {
       { flag: 'a' },
     );
   }
-} finally {
-  kernel.close();
 }

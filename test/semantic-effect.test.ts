@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { OvercenterKernel } from '../src/authority/kernel.ts';
+import { LocalGitKernel } from './fixtures/local-git-kernel.ts';
 import { GITHUB_COMMIT_STATUS_EFFECT } from '../src/effect-adapter.ts';
 import {
   githubCommitStatus,
@@ -84,7 +84,7 @@ test('adapter declarations cannot override the registry-owned verifier at runtim
 
 test('semantic ensure drives the existing fenced GitHub mutation path without exposing authority', async () => {
   const root = mkdtempSync(join(tmpdir(), 'semantic-effect-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let posts = 0;
 
   try {

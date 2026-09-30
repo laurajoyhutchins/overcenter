@@ -1,7 +1,8 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { OvercenterKernel } from '../../src/authority/kernel.ts';
+import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
 import {
   assignmentFile,
   buildAssignment,
@@ -16,7 +17,7 @@ function required(name: string): string {
 
 const [database, capsuleDir] = process.argv.slice(2);
 if (!database || !capsuleDir) {
-  throw new Error('usage: prepare.ts <authority.sqlite> <capsule-dir>');
+  throw new Error('usage: prepare.ts <authority.git> <capsule-dir>');
 }
 
 const runId = required('GITHUB_RUN_ID');
@@ -34,8 +35,9 @@ rmSync(capsuleDir, { recursive: true, force: true });
 mkdirSync(capsuleDir, { recursive: true });
 mkdirSync(dirname(database), { recursive: true });
 
-const kernel = new OvercenterKernel(database);
-try {
+execFileSync('git', ['init', '--bare', database], { stdio: 'ignore' });
+const kernel = new GitOvercenterKernel(database);
+{
   kernel.initialize();
   kernel.define({
     id: obligationId,
@@ -86,6 +88,4 @@ try {
       assignment_bytes: encoded.length,
     }),
   );
-} finally {
-  kernel.close();
 }

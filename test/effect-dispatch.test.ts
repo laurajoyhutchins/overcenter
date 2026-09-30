@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { OvercenterKernel } from '../src/authority/kernel.ts';
+import { LocalGitKernel } from './fixtures/local-git-kernel.ts';
 import { GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT } from '../src/effect-adapter.ts';
 import { kubernetesConfigMap } from '../src/providers/kubernetes/configmap-resource.ts';
 import { githubCommitStatus } from '../src/providers/github/status-resource.ts';
@@ -14,7 +14,7 @@ const COMMIT = 'a'.repeat(40);
 
 test('trusted dispatcher infers the registered provider effect from claimed work', async () => {
   const root = mkdtempSync(join(tmpdir(), 'effect-dispatch-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let posts = 0;
 
   try {
@@ -66,7 +66,7 @@ test('trusted dispatcher infers the registered provider effect from claimed work
 
 test('trusted dispatcher admits Kubernetes ConfigMap ensure without kernel special cases', async () => {
   const root = mkdtempSync(join(tmpdir(), 'effect-dispatch-kubernetes-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let patches = 0;
 
   try {
@@ -126,7 +126,7 @@ test('trusted dispatcher admits Kubernetes ConfigMap ensure without kernel speci
 
 test('Kubernetes mutation failure retains the reservation for observation-driven recovery', async () => {
   const root = mkdtempSync(join(tmpdir(), 'effect-dispatch-kubernetes-failure-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
 
   try {
     kernel.initialize();
@@ -162,7 +162,7 @@ test('Kubernetes mutation failure retains the reservation for observation-driven
 
 test('trusted dispatcher rejects unregistered effect contracts before reservation', async () => {
   const root = mkdtempSync(join(tmpdir(), 'effect-dispatch-unregistered-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
 
   try {
     kernel.initialize();
@@ -192,7 +192,7 @@ test('trusted dispatcher rejects unregistered effect contracts before reservatio
 
 test('registered but unadmitted effects cannot enter trusted dispatch', async () => {
   const root = mkdtempSync(join(tmpdir(), 'effect-dispatch-not-admitted-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
 
   try {
     kernel.initialize();

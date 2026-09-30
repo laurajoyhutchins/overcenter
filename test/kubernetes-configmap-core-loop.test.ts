@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { GitFactStore } from '../src/storage/git-store.ts';
 import test from 'node:test';
 
-import { OvercenterKernel, runCoreLoop } from '../src/authority/kernel.ts';
+import { LocalGitKernel, runCoreLoop } from './fixtures/local-git-kernel.ts';
 import {
   carryKubernetesAbsenceThroughWatch,
   KUBERNETES_CONFIGMAP_LIST_OPERATION_ID,
@@ -119,30 +119,22 @@ function listConfigMaps(
   };
 }
 
-function reservationCount(database: string): number {
-  const db = new DatabaseSync(database);
-  try {
-    const rows = db.prepare('SELECT files_json FROM fact_commits').all() as Array<{
-      files_json: string;
-    }>;
-    return rows.filter((row) =>
-      Object.hasOwn(JSON.parse(row.files_json), 'effect-reservation.json'),
-    ).length;
-  } finally {
-    db.close();
-  }
+function reservationCount(repo: string): number {
+  const store = new GitFactStore(repo, { ref: 'refs/overcenter/state' });
+  const head = store.head();
+  return head ? store.history(head).filter((fact) => fact.effect_reservation !== null).length : 0;
 }
 
 test('core loop reserves before Kubernetes mutation and settles from LIST evidence', async () => {
   const root = mkdtempSync(join(tmpdir(), 'kubernetes-configmap-core-loop-'));
-  const database = join(root, 'overcenter.sqlite');
+  const database = join(root, 'overcenter.git');
   let present = false;
   let resourceVersion = '500';
   const list = listConfigMaps(
     () => present,
     () => resourceVersion,
   );
-  const kernel = new OvercenterKernel(database, {
+  const kernel = new LocalGitKernel(database, {
     observationContext: { kubernetesListConfigMaps: list },
   });
   let patches = 0;
@@ -193,10 +185,10 @@ test('core loop reserves before Kubernetes mutation and settles from LIST eviden
 
 test('timeout after Kubernetes mutation cannot replay and settles from observation', async () => {
   const root = mkdtempSync(join(tmpdir(), 'kubernetes-configmap-timeout-after-commit-'));
-  const database = join(root, 'overcenter.sqlite');
+  const database = join(root, 'overcenter.git');
   let present = false;
   let resourceVersion = '600';
-  const kernel = new OvercenterKernel(database, {
+  const kernel = new LocalGitKernel(database, {
     observationContext: {
       kubernetesListConfigMaps: listConfigMaps(
         () => present,
@@ -242,8 +234,8 @@ test('timeout after Kubernetes mutation cannot replay and settles from observati
 
 test('Kubernetes conflict stays recovery-required and cannot trigger another PATCH', async () => {
   const root = mkdtempSync(join(tmpdir(), 'kubernetes-configmap-conflict-'));
-  const database = join(root, 'overcenter.sqlite');
-  const kernel = new OvercenterKernel(database, {
+  const database = join(root, 'overcenter.git');
+  const kernel = new LocalGitKernel(database, {
     observationContext: {
       kubernetesListConfigMaps: listConfigMaps(
         () => false,
@@ -302,7 +294,7 @@ test('Kubernetes conflict stays recovery-required and cannot trigger another PAT
 
 test('Kubernetes EffectAuthority does not expose the raw execution permit', () => {
   const root = mkdtempSync(join(tmpdir(), 'kubernetes-configmap-opaque-authority-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
 
   try {
     kernel.initialize();
@@ -329,7 +321,7 @@ test('Kubernetes EffectAuthority does not expose the raw execution permit', () =
 
 test('duplicate Kubernetes dispatch is fenced before a second provider mutation', async () => {
   const root = mkdtempSync(join(tmpdir(), 'kubernetes-configmap-duplicate-dispatch-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
   let patches = 0;
 
   try {
@@ -356,7 +348,7 @@ test('duplicate Kubernetes dispatch is fenced before a second provider mutation'
     await dispatchAdmittedEffect(kernel, permit, context);
     await assert.rejects(dispatchAdmittedEffect(kernel, permit, context), /UNRESOLVED_EFFECT/);
     assert.equal(patches, 1);
-    assert.equal(reservationCount(kernel.path), 1);
+    assert.equal(reservationCount(kernel.repo), 1);
   } finally {
     kernel.close();
     rmSync(root, { recursive: true, force: true });
@@ -367,7 +359,7 @@ test('Kubernetes 409 settles only through authoritative LIST evidence', async ()
   const root = mkdtempSync(join(tmpdir(), 'kubernetes-configmap-conflict-present-'));
   let present = false;
   let resourceVersion = '750';
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'), {
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'), {
     observationContext: {
       kubernetesListConfigMaps: listConfigMaps(
         () => present,
@@ -415,7 +407,7 @@ test('ambiguous Kubernetes mutation settles replacement identity without replay'
   let present = false;
   let resourceVersion = '800';
   let uid = 'uid-original';
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'), {
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'), {
     observationContext: {
       kubernetesListConfigMaps: listConfigMaps(
         () => present,

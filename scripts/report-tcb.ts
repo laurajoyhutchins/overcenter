@@ -1,8 +1,16 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { API, SymbolFlags, type Symbol as TypeScriptSymbol } from 'typescript/unstable/sync';
@@ -1336,6 +1344,20 @@ try {
           encoding: 'utf8',
         });
         writeFileSync(join(acceptedScopeRoot, path), accepted, 'utf8');
+      }
+      // Old bindings can name deleted implementations. Keep their accepted bytes
+      // in this scratch comparison instead of counting deletion as zero trust.
+      // Existing candidate files (including shared dependencies) remain current.
+      const acceptedPaths = execFileSync(
+        'git',
+        ['ls-tree', '-r', '--name-only', '-z', baselineRevision],
+        { encoding: 'utf8' },
+      ).split('\0');
+      for (const path of acceptedPaths) {
+        if (!path.endsWith('.ts') || existsSync(join(acceptedScopeRoot, path))) continue;
+        const accepted = execFileSync('git', ['show', `${baselineRevision}:${path}`]);
+        mkdirSync(dirname(join(acceptedScopeRoot, path)), { recursive: true });
+        writeFileSync(join(acceptedScopeRoot, path), accepted);
       }
       const trustedScript = fileURLToPath(import.meta.url);
       const runReport = (cwd: string, output: string, label: string): ComparableTcbReport => {
