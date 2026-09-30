@@ -4,7 +4,7 @@ import { validPath } from '../execution/assignment-capsule.ts';
 import {
   observeCertifiedGitHubSemanticRead,
   type CertifiedGitHubSemanticReadEvidence,
-} from '../providers/github/certified-read.ts';
+} from '../providers/github/semantic-read.ts';
 import {
   githubGet,
   isGitHubObjectId,
