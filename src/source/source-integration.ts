@@ -277,7 +277,8 @@ function validExistingIntegration(
   exactCommit?: string,
 ): string | null {
   const commits = git(repo, ['rev-list', head]).split('\n').filter(Boolean);
-  const candidates = exactCommit === undefined ? commits : commits.includes(exactCommit) ? [exactCommit] : [];
+  const candidates =
+    exactCommit === undefined ? commits : commits.includes(exactCommit) ? [exactCommit] : [];
   for (const commit of candidates) {
     const body = git(repo, ['show', '-s', '--format=%B', commit]);
     if (!body.includes(`Overcenter-Obligation-Key: ${identity.obligation_key}`)) continue;
