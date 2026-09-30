@@ -24,13 +24,13 @@ The MVP should reuse this source transaction and proof path. It should not add a
 
 ### 1. Repository-owned verification profile
 
-Represent one default source-task profile as versioned data owned by the target repository at the exact claimed base revision. The profile fixes:
+Store the profile at `.overcenter/source-verification-profile.json` in the target repository and read it from the exact claimed base revision. The profile file is always protected from worker writes. It fixes:
 
 - the stable profile ID;
 - the trusted workflow and required hosted job identities, where hosted evidence is used;
 - the commands and runner configuration that define verification;
 - the paths that control verification or source admission;
-- the immutable base test suite that must continue to pass.
+- the immutable base test suite roots that must continue to pass, read from the claimed base.
 
 Load the profile from the claimed base, not from candidate-controlled bytes. Bind its ID and content digest into the assignment, transaction plan, and admitted proof. Missing, malformed, unknown, or changed profiles fail closed. Existing baseline and proof machinery supplies the exact-revision binding and should be promoted rather than shadowed.
 
@@ -45,15 +45,15 @@ Keep exact-file tasks representable. Add a versioned envelope for tasks whose co
 
 Normalize path arrays by validating safe repository-relative paths, rejecting duplicates, and sorting them before identity calculation. Root matching is segment-based. Denials and profile-protected paths override every allowed root or exact path. `.git/**`, `.github/**`, `.overcenter/**`, and verifier/profile inputs are protected by trusted policy.
 
-The envelope is part of the immutable task identity. It remains distinct from the concrete write sets: the envelope authorizes a region, while the independently observed candidate delta supplies the expected and observed paths.
+The envelope is part of the immutable task identity. Transaction plans carry a normalized `authorized_write_scope` for the envelope and keep `expected_write_set` and `observed_write_set` as exact path lists. The envelope authorizes a region, while the independently observed candidate delta supplies the expected and observed paths.
 
 ### 3. Candidate and verification flow
 
 Before candidate-ref publication, the trusted broker reconstructs the candidate delta from the exact claimed base and candidate commit. It rejects unsupported modes, paths outside the envelope, protected-path edits, duplicate or malformed proposal entries, and file or byte limits exceeded. File count is the number of entries in the no-renames delta. Changed bytes are the sum of the before and after blob sizes for each entry; this bounds both large replacements and deletions deterministically.
 
-The verifier profile and runner configuration remain fixed at the base. Verification runs both:
+The verifier profile and runner configuration remain fixed at the base. The profile names immutable `baseline_test_roots` and fixed candidate test commands. Verification runs both:
 
-1. the base test suite against the candidate implementation, so the worker cannot remove or weaken the pre-existing regression suite; and
+1. the base test suite read from the claimed base against the candidate implementation, so the worker cannot remove or weaken the pre-existing regression suite; and
 2. the candidate test suite, so new coverage is exercised as part of the proposed change.
 
 The proof records bind both results to the same candidate, base, runtime, and profile digest. Candidate-authored tests are additional evidence; they do not replace the base suite or redefine the commands that run.
