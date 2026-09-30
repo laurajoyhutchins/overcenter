@@ -41,7 +41,7 @@ The source-integration rung introduced the `source/integrate` architecture-effec
 
 That distinction is important. A zero marginal LOC result means the measured trusted source lines were already present in the prior union. It does **not** mean the later task has zero additional semantics or assumptions. The generated result therefore records scope identities, authority roles, fingerprints, observation support, and external-assumption deltas separately from LOC.
 
-This is evidence of strong reuse across the three exercised paths, not yet evidence that trusted semantic complexity generally converges. Behavioral bug repair, broader migrations, and additional provider families remain useful attempts to falsify the apparent plateau.
+This is evidence of strong reuse across the three exercised paths, not yet evidence that trusted semantic complexity generally converges. The later rungs below test behavioral repair, migration, and architectural design against that apparent plateau.
 
 To reproduce the marginal measurement:
 
