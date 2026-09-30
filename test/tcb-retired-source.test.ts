@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { relativeReferences, restoreRetiredSources } from '../scripts/tcb-retired-source.ts';
+import { createRelativeReferences, restoreRetiredSources } from '../scripts/tcb-retired-source.ts';
 import { resolveLocalRuntimeImport } from '../src/analysis/typescript-runtime.ts';
 
 test('retired binding keeps accepted bytes and follows current shared dependency', () => {
@@ -32,8 +32,8 @@ test('accepted source restoration cannot shadow a candidate replacement module',
     mkdirSync(join(root, 'helper'));
     writeFileSync(join(root, 'helper/index.ts'), 'candidate trust growth');
     writeFileSync(join(root, 'caller.ts'), "import './helper';");
-    const references = (path: string) => relativeReferences(root, path);
-    assert.deepEqual(references('caller.ts'), ['helper/index.ts']);
+    const references = createRelativeReferences(root, ['caller.ts']);
+    assert.deepEqual(references('caller.ts'), ['helper', 'helper/index.ts']);
     assert.throws(
       () =>
         restoreRetiredSources(
@@ -49,3 +49,36 @@ test('accepted source restoration cannot shadow a candidate replacement module',
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+for (const declaration of [
+  "import { x } from /* valid comment */ './helper';",
+  "export { x } from /* valid comment */ './helper';",
+  "import /* valid comment */ './helper';",
+  "import(/* valid comment */ './helper');",
+  "require(/* valid comment */ './helper');",
+  "import x = require(/* valid comment */ './helper');",
+  'import(`./helper`);',
+]) {
+  test(`commented module reference cannot bypass restoration guard: ${declaration}`, () => {
+    const root = mkdtempSync(join(tmpdir(), 'tcb-comments-'));
+    try {
+      mkdirSync(join(root, 'helper'));
+      writeFileSync(join(root, 'helper/index.ts'), 'export const x = 1;');
+      writeFileSync(join(root, 'caller.ts'), declaration);
+      const refs = createRelativeReferences(root, ['caller.ts']);
+      assert.throws(
+        () =>
+          restoreRetiredSources(
+            root,
+            ['helper.ts'],
+            ['caller.ts'],
+            () => new TextEncoder().encode('export const x = 0;'),
+            refs,
+          ),
+        /TCB_RETIRED_SOURCE_SHADOWS_CANDIDATE/,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}

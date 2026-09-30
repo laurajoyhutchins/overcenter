@@ -1,4 +1,4 @@
-import { relativeReferences, restoreRetiredSources } from './tcb-retired-source.ts';
+import { createRelativeReferences, restoreRetiredSources } from './tcb-retired-source.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -1366,7 +1366,7 @@ try {
         acceptedPaths,
         candidatePaths,
         (path) => execFileSync('git', ['show', `${baselineRevision}:${path}`]),
-        (path) => relativeReferences(acceptedScopeRoot, path),
+        createRelativeReferences(acceptedScopeRoot, candidatePaths),
       );
       const trustedScript = fileURLToPath(import.meta.url);
       const runReport = (cwd: string, output: string, label: string): ComparableTcbReport => {

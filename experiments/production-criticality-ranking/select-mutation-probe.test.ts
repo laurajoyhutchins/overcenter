@@ -56,7 +56,7 @@ test('configured tests derive their probe selection from the config', () => {
     ['test/semantic-identity-hostile.test.ts', 'semantic-identity'],
     ['test/projector-pure.test.ts', 'done-candidate-reuse'],
     ['test/kernel-backend-differential.test.ts', 'effect-reservation,settlement'],
-    ['test/sqlite-kernel.test.ts', 'effect-reservation,settlement'],
+    ['test/durable-kernel.test.ts', 'effect-reservation,settlement'],
     ['test/git-kernel.test.ts', 'effect-reservation,settlement'],
     ['test/hostile.test.ts', 'execution-fence'],
     ['test/observation-hostile.test.ts', 'verification-and-absence'],
