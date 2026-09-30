@@ -1,3 +1,5 @@
+import { dispatchSourceValidation } from '../source/validation-dispatch.ts';
+import { sourceTransactionContextFromEnvironment } from '../source/transaction-baseline.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 import { brokerAssignedSourceProposal } from '../source/source-broker.ts';
@@ -14,9 +16,19 @@ const result = brokerAssignedSourceProposal(process.cwd(), assignment, proposal,
   authorityRef: process.env.OVERCENTER_PROJECT_AUTHORITY_REF ?? 'refs/overcenter/state',
   remote: process.env.OVERCENTER_PROJECT_REMOTE ?? 'origin',
   githubToken: process.env.GITHUB_TOKEN ?? null,
+  transactionContext: sourceTransactionContextFromEnvironment(),
 });
 if (result.publication.state === 'CONFLICT') {
   throw new Error(`SOURCE_CANDIDATE_REF_CONFLICT:${result.publication.observed_sha}`);
+}
+
+if (process.env.OVERCENTER_DISPATCH_SOURCE_VALIDATION === '1') {
+  const context = sourceTransactionContextFromEnvironment();
+  dispatchSourceValidation(
+    process.env.GITHUB_TOKEN ?? '',
+    context.repository_full_name,
+    result.publication,
+  );
 }
 
 const output = `${JSON.stringify(result, null, 2)}\n`;

@@ -1,3 +1,8 @@
+import { admitSourceProof, type TrustedSourceProofWitness } from '../source/source-proof.ts';
+import {
+  sourceTransactionContextFromEnvironment,
+  type SourceTransactionContext,
+} from '../source/transaction-baseline.ts';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -20,7 +25,6 @@ import { buildSourceAssignment, validateSourceTaskPacket } from '../source/sourc
 import {
   integrateVerifiedSourceCandidate,
   validateSourceIntegrationEvidence,
-  validateSourceVerification,
 } from '../source/source-integration.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
 import { DEFAULT_PROJECT_GRAPH_PRODUCERS } from './default-project-graph.ts';
@@ -80,6 +84,8 @@ export interface ProjectAdvanceReceipt {
 }
 
 export interface ProjectSubmitContext extends ProjectCommandContext {
+  candidate_workflow_run_id?: number;
+  candidate_workflow_run_attempt?: number;
   candidate_sha: string;
   candidate_run_id: string;
 }
@@ -125,6 +131,8 @@ interface AdvanceOptions extends ProtocolOptions {
 interface SubmitOptions extends ProtocolOptions {
   candidatePath?: string;
   sourceVerificationPath?: string;
+  transactionContext?: SourceTransactionContext;
+  observationContext?: Omit<ObservationContext, 'githubToken'>;
 }
 
 const DEFAULT_AUTHORITY_REF = 'refs/overcenter/state';
@@ -677,6 +685,8 @@ export function submitProjectCandidate(
     githubToken = null,
     candidatePath = DEFAULT_CANDIDATE_PATH,
     sourceVerificationPath,
+    transactionContext,
+    observationContext = {},
   }: SubmitOptions = {},
 ): ProjectSubmitReceipt {
   validateCommandContext(context);
@@ -781,10 +791,34 @@ export function submitProjectCandidate(
       );
     }
 
-    let verification: ReturnType<typeof validateSourceVerification>;
+    let verification: TrustedSourceProofWitness;
     try {
-      verification = validateSourceVerification(
+      const binding = kernel.sourceTransaction(runId);
+      if (!binding) throw new Error('SOURCE_TRANSACTION_BINDING_MISSING');
+      if (
+        binding.plan.candidate_sha !== candidateSha ||
+        binding.plan.repository_id !== context.repository_id ||
+        binding.plan.repository_full_name !== context.repository_full_name ||
+        binding.plan.runtime_sha !== context.command_source_sha
+      )
+        throw new Error('SOURCE_TRANSACTION_SUBMIT_MISMATCH');
+      if (
+        !githubToken ||
+        !context.candidate_workflow_run_id ||
+        !context.candidate_workflow_run_attempt
+      )
+        throw new Error('SOURCE_PROOF_PRODUCER_CONTEXT_MISSING');
+      verification = admitSourceProof(
+        repo,
+        binding.plan,
         JSON.parse(readFileSync(sourceVerificationPath, 'utf8')),
+        {
+          githubToken,
+          expectedWorkflowRunId: context.candidate_workflow_run_id,
+          expectedWorkflowRunAttempt: context.candidate_workflow_run_attempt,
+          context: transactionContext ?? sourceTransactionContextFromEnvironment(),
+          ...(observationContext.githubGet ? { get: observationContext.githubGet } : {}),
+        },
       );
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : String(error);

@@ -1,3 +1,10 @@
+import { canonicalDigest } from '../digest.ts';
+import {
+  validateSourceTransactionBindingFact,
+  validateSourceTransactionTask,
+  type SourceTransactionBindingFact,
+} from '../source/transaction.ts';
+import { bindSourceClaim } from '../source/source-obligation.ts';
 import type { Obligation } from '../model.ts';
 import { authoritativeAbsenceEvidence, observationVerified } from '../observation/observe.ts';
 import {
@@ -43,6 +50,7 @@ import {
 export interface HistoryProjection {
   runs: Map<string, HistoricalRun>;
   receiptsByRun: Map<string, Receipt>;
+  transactionsByRun: Map<string, SourceTransactionBindingFact>;
   unresolvedReservationsByRun: Map<string, EffectReservation>;
   receipts: Receipt[];
   currentBindingOrdinals: Map<string, number>;
@@ -116,6 +124,9 @@ export function replayProjection(
     : emptyState();
   const definitions: Record<string, ObligationDefinition> = base ? { ...base.definitions } : {};
   const runs = base ? new Map(base.history.runs) : new Map<string, HistoricalRun>();
+  const transactionsByRun = base
+    ? new Map(base.history.transactionsByRun)
+    : new Map<string, SourceTransactionBindingFact>();
   const receiptsByRun = base ? new Map(base.history.receiptsByRun) : new Map<string, Receipt>();
   const unresolvedReservationsByRun = base
     ? new Map(base.history.unresolvedReservationsByRun)
@@ -266,6 +277,33 @@ export function replayProjection(
       });
     }
 
+    if (record.source_transaction != null) {
+      const fact = validateSourceTransactionBindingFact(record.source_transaction);
+      const run = runs.get(fact.run_id);
+      if (
+        !run?.source_revision ||
+        fact.obligation_id !== run.obligation_id ||
+        fact.execution_generation !== run.execution_generation ||
+        fact.execution_authority_commit !== run.execution_authority_commit ||
+        canonicalDigest(fact.plan.claim) !==
+          canonicalDigest(
+            bindSourceClaim(run.obligation_key, run.id, run.claimed_revision, run.source_revision),
+          )
+      )
+        throw new Error('SOURCE_TRANSACTION_AUTHORITY_MISMATCH');
+      refresh(record.commit);
+      const current = project.lifecycles.get(run.obligation_id);
+      if (
+        current?.run?.id !== run.id ||
+        current.status !== 'EXECUTING' ||
+        unresolvedReservationsByRun.has(run.id)
+      )
+        throw new Error('SOURCE_TRANSACTION_NOT_ADMISSIBLE');
+      if (transactionsByRun.has(run.id)) throw new Error('SOURCE_TRANSACTION_ALREADY_BOUND');
+      validateSourceTransactionTask(fact.plan, run.obligation.packet);
+      transactionsByRun.set(run.id, fact);
+    }
+
     if (record.effect_reservation != null) {
       const fact = validateEffectReservationFact(record.effect_reservation);
       const run = runs.get(fact.run_id);
@@ -374,6 +412,24 @@ export function replayProjection(
       throw new Error('RECEIPT_AFTER_TERMINAL_SETTLEMENT');
     }
 
+    if (fact.kind === 'source-integration') {
+      const evidence = validateSourceIntegrationEvidence(fact.diagnostic?.source_integration);
+      if (evidence.schema_version === 2) {
+        const binding = transactionsByRun.get(run.id);
+        if (
+          !binding ||
+          evidence.plan_digest !== binding.plan_digest ||
+          evidence.run_id !== run.id ||
+          evidence.obligation_key !== run.obligation_key ||
+          evidence.candidate_sha !== binding.plan.candidate_sha ||
+          evidence.verified_tree_sha !== binding.plan.candidate_tree ||
+          evidence.verification_base_sha !== binding.plan.claim.source_sha ||
+          evidence.source_sha !== run.source_revision
+        )
+          throw new Error('SOURCE_SETTLEMENT_TRANSACTION_MISMATCH');
+      }
+    }
+
     const unresolvedEffect = unresolvedReservationsByRun.has(run.id);
     const receipt = projectReceipt(
       fact,
@@ -398,6 +454,7 @@ export function replayProjection(
     history: {
       runs,
       receiptsByRun,
+      transactionsByRun,
       unresolvedReservationsByRun,
       receipts,
       currentBindingOrdinals,

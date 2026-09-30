@@ -21,6 +21,7 @@ export function factCommitFromFiles(
     graph_patch: files['graph-patch.json'] ?? null,
     claim: files['claim.json'] ?? null,
     source_revision: files['source-revision.json'] ?? null,
+    source_transaction: files['source-transaction.json'] ?? null,
     execution_authority: files['execution-authority.json'] ?? null,
     effect_reservation: files['effect-reservation.json'] ?? null,
     effect_release: files['effect-release.json'] ?? null,

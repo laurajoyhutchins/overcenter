@@ -1,3 +1,13 @@
+import { canonicalDigest } from '../digest.ts';
+import {
+  SOURCE_TRANSACTION_BINDING_SCHEMA,
+  validateSourceTransactionPlan,
+  validateSourceTransactionTask,
+  sourceTransactionPlanDigest,
+  sourceTransactionPlanRef,
+  type SourceTransactionPlan,
+  type SourceTransactionBindingFact,
+} from '../source/transaction.ts';
 import { randomUUID } from 'node:crypto';
 import { sha256 } from '../digest.ts';
 import type {
@@ -342,6 +352,53 @@ export class KernelCore {
     return bindSourceClaim(run.obligation_key, run.id, run.claimed_revision, run.source_revision);
   }
 
+  sourceTransaction(runId: string): SourceTransactionBindingFact | null {
+    const history = this.#historicalProjection(this.#requireHead()).history;
+    if (!history.runs.has(runId)) throw new Error('UNKNOWN_RUN');
+    return structuredClone(history.transactionsByRun.get(runId) ?? null);
+  }
+
+  bindSourceTransaction(permit: ExecutionPermit, input: SourceTransactionPlan): string {
+    const plan = validateSourceTransactionPlan(input);
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      const head = this.#requireHead();
+      const { history, project } = this.#historicalProjection(head);
+      const run = this.#requireExecutionPermit(history, permit);
+      const lifecycle = project.lifecycles.get(run.obligation_id);
+      if (
+        lifecycle?.run?.id !== run.id ||
+        lifecycle.status !== 'EXECUTING' ||
+        history.unresolvedReservationsByRun.has(run.id)
+      )
+        throw new Error('SOURCE_TRANSACTION_NOT_ADMISSIBLE');
+      if (
+        plan.execution_generation !== run.execution_generation ||
+        plan.execution_authority_commit !== run.execution_authority_commit ||
+        canonicalDigest(plan.claim) !== canonicalDigest(this.sourceClaimBinding(run.id))
+      )
+        throw new Error('SOURCE_TRANSACTION_AUTHORITY_MISMATCH');
+      validateSourceTransactionTask(plan, run.obligation.packet);
+      if (history.transactionsByRun.has(run.id))
+        throw new Error('SOURCE_TRANSACTION_ALREADY_BOUND');
+      const fact: SourceTransactionBindingFact = {
+        schema: SOURCE_TRANSACTION_BINDING_SCHEMA,
+        schema_version: 1,
+        run_id: run.id,
+        obligation_id: run.obligation_id,
+        execution_generation: run.execution_generation,
+        execution_authority_commit: run.execution_authority_commit,
+        plan,
+        plan_digest: sourceTransactionPlanDigest(plan),
+        plan_ref: sourceTransactionPlanRef(plan),
+      };
+      const commit = this.#store.append(head, `overcenter: bind source transaction ${run.id}`, {
+        'source-transaction.json': fact,
+      });
+      if (commit) return commit;
+    }
+    throw new Error('SOURCE_TRANSACTION_CONTENTION_EXHAUSTED');
+  }
+
   acquireExecution(runId: string): ExecutionPermit {
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();
@@ -550,6 +607,16 @@ export class KernelCore {
     witness: TrustedSourceIntegrationWitness,
   ): Receipt {
     const evidence = trustedSourceIntegrationEvidence(witness);
+    const binding = this.sourceTransaction(permit.id);
+    if (
+      !binding ||
+      evidence.schema_version !== 2 ||
+      evidence.plan_digest !== binding.plan_digest ||
+      evidence.candidate_sha !== binding.plan.candidate_sha ||
+      evidence.verified_tree_sha !== binding.plan.candidate_tree ||
+      evidence.verification_base_sha !== binding.plan.claim.source_sha
+    )
+      throw new Error('SOURCE_SETTLEMENT_TRANSACTION_MISMATCH');
     const receipt = this.#settleWithoutObservation(
       permit,
       'source-integration',
