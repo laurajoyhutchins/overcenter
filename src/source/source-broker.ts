@@ -253,4 +253,3 @@ function exactSha(value: string, error: string): string {
   if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(error);
   return sha;
 }
-
