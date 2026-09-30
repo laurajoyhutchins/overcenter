@@ -19,6 +19,22 @@ import {
   type SourceProposal,
 } from './source-obligation.ts';
 
+function candidateGit(
+  repo: string,
+  args: string[],
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return execFileSync('git', ['-C', repo, ...args], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env,
+  }).trim();
+}
+
+function candidateGitStatus(repo: string, args: string[]): number {
+  return spawnSync('git', ['-C', repo, ...args], { stdio: 'ignore' }).status ?? 1;
+}
+
 function candidateWorktree(repo: string, revision: string): { root: string; dispose: () => void } {
   const root = mkdtempSync(join(tmpdir(), 'overcenter-source-candidate-'));
   try {
