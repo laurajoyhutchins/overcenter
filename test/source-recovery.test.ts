@@ -13,12 +13,9 @@ import {
   buildSourceAssignment,
   validateSourceTaskPacket,
 } from '../src/source/source-obligation.ts';
-import { brokerAssignedSourceProposal } from '../src/source/source-broker.ts';
+import { brokerAssignedSourceProposal, brokerSourceProposal } from '../src/source/source-broker.ts';
 import { admitSourceProof, sourceProofRecord } from '../src/source/source-proof.ts';
-import {
-  brokerSourceProposal,
-  integrateVerifiedSourceCandidate,
-} from '../src/source/source-integration.ts';
+import { integrateVerifiedSourceCandidate } from '../src/source/source-integration.ts';
 
 function fixture(t: TestContext, interruptPublication = false) {
   const root = mkdtempSync(join(tmpdir(), 'overcenter-source-recovery-'));
