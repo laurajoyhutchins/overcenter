@@ -19,11 +19,7 @@ import {
   type SourceProposal,
 } from './source-obligation.ts';
 
-function candidateGit(
-  repo: string,
-  args: string[],
-  env: NodeJS.ProcessEnv = process.env,
-): string {
+function candidateGit(repo: string, args: string[], env: NodeJS.ProcessEnv = process.env): string {
   return execFileSync('git', ['-C', repo, ...args], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -101,7 +97,12 @@ function materializeSourceProposal(
         writeFileSync(target, Buffer.from(file.content_base64, 'base64'));
       }
     }
-    candidateGit(candidateTree.root, ['add', '-A', '--', ...proposal.files.map((file) => file.path)]);
+    candidateGit(candidateTree.root, [
+      'add',
+      '-A',
+      '--',
+      ...proposal.files.map((file) => file.path),
+    ]);
     if (candidateGitStatus(candidateTree.root, ['diff', '--cached', '--quiet']) === 0) {
       throw new Error('SOURCE_PROPOSAL_EMPTY');
     }
