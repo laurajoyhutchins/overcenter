@@ -199,3 +199,12 @@ test('experiment workflows do not fan out on shared catalog metadata', () => {
     );
   }
 });
+
+test('source candidate evidence uses the immutable claimed baseline rather than branch event history', () => {
+  const handoff = readFileSync(
+    new URL('../.github/workflows/agent-candidate-signal.yml', import.meta.url),
+    'utf8',
+  );
+  assert.match(handoff, /accepted_baseline_sha: \$\{\{ needs.classify.outputs.base_sha \}\}/);
+  assert.match(evidenceWorkflow, /BASE_SHA: \$\{\{ inputs.accepted_baseline_sha \|\|/);
+});
