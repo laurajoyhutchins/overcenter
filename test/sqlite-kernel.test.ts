@@ -21,25 +21,22 @@ function reconcileGraphTransaction(
   expectedRevision: string,
 ) {
   const plan = planGraphReconciliation(kernel.inspect(), desired);
-  if (plan.upsert.length === 0 && plan.retire.length === 0) {
+  if (plan.upsert.length === 0) {
     if (kernel.head() !== expectedRevision) throw new Error('STALE_REVISION');
     return {
       revision: expectedRevision,
       added: plan.added,
       rebound: plan.rebound,
-      retired: plan.retire,
+      retired: [],
       unchanged: plan.unchanged,
     };
   }
-  const revision = kernel.applyGraphPatch(
-    { upsert: plan.upsert, retire: plan.retire },
-    expectedRevision,
-  );
+  const revision = kernel.applyGraphPatch({ upsert: plan.upsert }, expectedRevision);
   return {
     revision,
     added: plan.added,
     rebound: plan.rebound,
-    retired: plan.retire,
+    retired: [],
     unchanged: plan.unchanged,
   };
 }

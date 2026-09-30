@@ -71,8 +71,8 @@ test('graph reconciliation rejects duplicate desired identities', () => {
   );
 });
 
-test('managed reconciliation retires only missing obligations in its namespace', () => {
-  const managed = normalizeObligation({
+test('graph reconciliation is ensure-only and omission never implies retirement', () => {
+  const omitted = normalizeObligation({
     id: 'tcb:stale',
     postcondition: {
       verifier: 'operator-judgment/v1',
@@ -83,13 +83,13 @@ test('managed reconciliation retires only missing obligations in its namespace',
     id: 'ordinary',
     postcondition: pc('/tmp/ordinary', 'A'),
   });
+
   const plan = planGraphReconciliation(
-    [managed, ordinary],
+    [omitted, ordinary],
     [{ id: 'ordinary', postcondition: pc('/tmp/ordinary', 'A') }],
-    ['tcb:'],
   );
 
-  assert.deepEqual(plan.retire, ['tcb:stale']);
   assert.deepEqual(plan.unchanged, ['ordinary']);
   assert.deepEqual(plan.upsert, []);
+  assert.equal('retire' in plan, false);
 });

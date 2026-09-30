@@ -39,7 +39,7 @@ export async function reconcileSystemEvidence(
     if (!expectedRevision) throw new Error('SYSTEM_EVIDENCE_AUTHORITY_MISSING');
     try {
       const plan = planGraphReconciliation(authority.inspect(), [definition.obligation()]);
-      if (plan.upsert.length === 0 && plan.retire.length === 0) {
+      if (plan.upsert.length === 0) {
         if (authority.head() !== expectedRevision) continue;
         return {
           state: 'reconciled',
@@ -47,22 +47,19 @@ export async function reconcileSystemEvidence(
             revision: expectedRevision,
             added: plan.added,
             rebound: plan.rebound,
-            retired: plan.retire,
+            retired: [],
             unchanged: plan.unchanged,
           },
         };
       }
-      const revision = authority.applyGraphPatch(
-        { upsert: plan.upsert, retire: plan.retire },
-        expectedRevision,
-      );
+      const revision = authority.applyGraphPatch({ upsert: plan.upsert }, expectedRevision);
       return {
         state: 'reconciled',
         result: {
           revision,
           added: plan.added,
           rebound: plan.rebound,
-          retired: plan.retire,
+          retired: [],
           unchanged: plan.unchanged,
         },
       };
