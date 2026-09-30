@@ -98,6 +98,9 @@ export interface EffectReservationFact {
   obligation_id: string;
   execution_generation: number;
   execution_authority_commit: string;
+  effect_contract: string;
+  effect_identity: Data;
+  effect_identity_sha256: string;
 }
 
 export interface EffectReservation extends EffectReservationFact {
@@ -123,8 +126,7 @@ export type ReceiptKind =
   | 'judgment-required'
   | 'execution-terminated'
   | 'effect-not-dispatched'
-  | 'source-integration'
-  | 'source-retry';
+  | 'effect-rejected';
 
 export interface ReceiptFact {
   schema: typeof RECEIPT_SCHEMA;
@@ -394,7 +396,16 @@ export function validateEffectReservationFact(value: unknown): EffectReservation
   if (!data(value)) throw new Error('INVALID_EFFECT_RESERVATION_FACT');
   exactKeys(
     value,
-    ['schema', 'run_id', 'obligation_id', 'execution_generation', 'execution_authority_commit'],
+    [
+      'schema',
+      'run_id',
+      'obligation_id',
+      'execution_generation',
+      'execution_authority_commit',
+      'effect_contract',
+      'effect_identity',
+      'effect_identity_sha256',
+    ],
     [],
     'INVALID_EFFECT_RESERVATION_FACT',
   );
@@ -405,6 +416,12 @@ export function validateEffectReservationFact(value: unknown): EffectReservation
   nonEmptyString(value.obligation_id, 'INVALID_OBLIGATION_ID');
   positiveSafeInteger(value.execution_generation, 'INVALID_EXECUTION_GENERATION');
   nonEmptyString(value.execution_authority_commit, 'INVALID_EXECUTION_AUTHORITY_COMMIT');
+  nonEmptyString(value.effect_contract, 'INVALID_EFFECT_CONTRACT');
+  if (!data(value.effect_identity)) throw new Error('INVALID_EFFECT_IDENTITY');
+  sha256Hex(value.effect_identity_sha256, 'INVALID_EFFECT_IDENTITY_DIGEST');
+  if (canonicalDigest(value.effect_identity) !== value.effect_identity_sha256) {
+    throw new Error('EFFECT_IDENTITY_DIGEST_MISMATCH');
+  }
   return structuredClone(value) as unknown as EffectReservationFact;
 }
 
@@ -515,8 +532,7 @@ export function validateReceiptFact(value: unknown): ReceiptFact {
       'judgment-required',
       'execution-terminated',
       'effect-not-dispatched',
-      'source-integration',
-      'source-retry',
+      'effect-rejected',
     ].includes(String(value.kind))
   ) {
     throw new Error('INVALID_RECEIPT_KIND');
