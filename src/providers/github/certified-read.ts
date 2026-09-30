@@ -17,7 +17,7 @@ import {
 } from './certified-repository.ts';
 import { projectResponseSlice } from '../../observation/response-slice.ts';
 import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
-import { githubGet, type GitHubJsonGet } from './rest.ts';
+import { GitHubAsyncReadRequired, githubGet, type GitHubJsonGet } from './rest.ts';
 
 export type GitHubGenericSemanticOperationName = Exclude<GitHubSemanticOperationName, 'repository'>;
 
@@ -26,7 +26,7 @@ export interface CertifiedGitHubSemanticReadEvidence {
   api_version: string;
   schema_sha256: string;
   schema_source_commit: string;
-  observer: { kind: 'git-kernel'; id: 'github-semantic-read/v1' };
+  observer: { kind: 'git-kernel'; id: string };
   repository_id: number;
   requested_repository_full_name: string;
   repository: CertifiedGitHubRepositoryEvidence;
@@ -86,6 +86,107 @@ function validateParameters(
   }
 }
 
+export interface CertifiedGitHubReadEvidence {
+  provider: 'github';
+  api_version: string;
+  schema_sha256: string;
+  schema_source_commit: string;
+  observer: { kind: 'git-kernel'; id: string };
+  requested_repository_full_name: string;
+  operation_key: GitHubGenericSemanticOperationName;
+  operation_id: string;
+  observed_at: string;
+  request_path: string;
+  parameters: Record<string, string | number | boolean>;
+  required_permissions: readonly GitHubRepositoryReadPermission[];
+  collection: null | {
+    kind: 'single-page';
+    page: number;
+    page_size: number;
+    completeness: 'page-only';
+  };
+  negative_evidence_authoritative: false;
+  validated_paths: string[];
+  optional_absent_paths: string[];
+}
+
+export interface CertifiedGitHubReadResult {
+  state: 'observed' | 'page-observed';
+  value: unknown;
+  evidence: CertifiedGitHubReadEvidence;
+}
+
+export function observeCertifiedGitHubRead(
+  token: string,
+  {
+    repositoryFullName,
+    operation: operationName,
+    parameters = {},
+    get = githubGet,
+    clock = () => new Date().toISOString(),
+    observerId = 'github-semantic-read/v1',
+  }: {
+    repositoryFullName: string;
+    operation: GitHubGenericSemanticOperationName;
+    parameters?: Record<string, string | number | boolean>;
+    get?: GitHubJsonGet;
+    clock?: () => string;
+    observerId?: string;
+  },
+): CertifiedGitHubReadResult {
+  validateParameters(operationName, parameters);
+  const { owner, repo } = githubRepositoryCoordinate(repositoryFullName);
+  const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
+  const semantic = GITHUB_OPERATION_SEMANTICS[operationName];
+  const request = materializeGitHubOperationRequest(operation, { owner, repo, ...parameters });
+  const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
+    token,
+    operation,
+    request,
+    fields: semantic.response_slice,
+    get,
+    clock,
+    observerId,
+  });
+  const value = projectResponseSlice(certified.outcome.value, semantic.response_slice);
+  const collection = operation.pagination
+    ? {
+        kind: 'single-page' as const,
+        page: Number(
+          request.parameters[operation.pagination.page_parameter] ?? operation.pagination.first_page,
+        ),
+        page_size: Number(
+          request.parameters[operation.pagination.page_size_parameter] ??
+            operation.pagination.default_page_size,
+        ),
+        completeness: 'page-only' as const,
+      }
+    : null;
+
+  return {
+    state: collection ? 'page-observed' : 'observed',
+    value,
+    evidence: {
+      provider: 'github',
+      api_version: GITHUB_API_VERSION,
+      schema_sha256: GITHUB_OPENAPI_SHA256,
+      schema_source_commit: GITHUB_OPENAPI_SOURCE_COMMIT,
+      observer: { kind: 'git-kernel', id: observerId },
+      requested_repository_full_name: repositoryFullName,
+      operation_key: operationName,
+      operation_id: operation.operation_id,
+      observed_at: observedAt,
+      request_path: request.path,
+      parameters: request.parameters,
+      required_permissions: semantic.required_permissions,
+      collection,
+      negative_evidence_authoritative: false,
+      validated_paths: certified.structural_validation.validated_paths,
+      optional_absent_paths: certified.structural_validation.optional_absent_paths,
+    },
+  };
+}
+
 export function observeCertifiedGitHubSemanticRead(
   token: string,
   {
@@ -96,6 +197,7 @@ export function observeCertifiedGitHubSemanticRead(
     grantedPermissions,
     get = githubGet,
     clock = () => new Date().toISOString(),
+    observerId = 'github-semantic-read/v1',
   }: {
     repositoryId: number;
     repositoryFullName: string;
@@ -104,6 +206,7 @@ export function observeCertifiedGitHubSemanticRead(
     grantedPermissions: readonly GitHubRepositoryReadPermission[];
     get?: GitHubJsonGet;
     clock?: () => string;
+    observerId?: string;
   },
 ): CertifiedGitHubSemanticReadResult {
   validateParameters(operationName, parameters);
@@ -127,61 +230,28 @@ export function observeCertifiedGitHubSemanticRead(
       repositoryFullName,
       get,
       clock,
-      observerId: 'github-semantic-read/v1',
+      observerId,
     });
-    const { owner, repo } = repository.fact.object;
-    const request = materializeGitHubOperationRequest(operation, { owner, repo, ...parameters });
-    const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
-      token,
-      operation,
-      request,
-      fields: semantic.response_slice,
+    const read = observeCertifiedGitHubRead(token, {
+      repositoryFullName: repository.fact.object.full_name,
+      operation: operationName,
+      parameters,
       get,
       clock,
-      observerId: 'github-semantic-read/v1',
+      observerId,
     });
 
-    const value = projectResponseSlice(certified.outcome.value, semantic.response_slice);
-    const collection = operation.pagination
-      ? {
-          kind: 'single-page' as const,
-          page: Number(
-            request.parameters[operation.pagination.page_parameter] ??
-              operation.pagination.first_page,
-          ),
-          page_size: Number(
-            request.parameters[operation.pagination.page_size_parameter] ??
-              operation.pagination.default_page_size,
-          ),
-          completeness: 'page-only' as const,
-        }
-      : null;
-
     return {
-      state: collection ? 'page-observed' : 'observed',
-      value,
+      ...read,
       evidence: {
-        provider: 'github',
-        api_version: GITHUB_API_VERSION,
-        schema_sha256: GITHUB_OPENAPI_SHA256,
-        schema_source_commit: GITHUB_OPENAPI_SOURCE_COMMIT,
-        observer: { kind: 'git-kernel', id: 'github-semantic-read/v1' },
+        ...read.evidence,
         repository_id: repositoryId,
         requested_repository_full_name: repositoryFullName,
         repository: repository.evidence,
-        operation_key: operationName,
-        operation_id: operation.operation_id,
-        observed_at: observedAt,
-        request_path: request.path,
-        parameters: request.parameters,
-        required_permissions: semantic.required_permissions,
-        collection,
-        negative_evidence_authoritative: false,
-        validated_paths: certified.structural_validation.validated_paths,
-        optional_absent_paths: certified.structural_validation.optional_absent_paths,
       },
     };
   } catch (error: unknown) {
+    if (error instanceof GitHubAsyncReadRequired) throw error;
     return {
       state: 'indeterminate',
       operation_key: operationName,
