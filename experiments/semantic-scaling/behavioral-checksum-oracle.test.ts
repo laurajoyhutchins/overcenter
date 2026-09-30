@@ -21,7 +21,10 @@ test('historical checksum repair passes only after artifact-relative production'
     candidate_after_relocation: 'pass',
     candidate_after_tamper: 'fail',
   });
-  assert.equal(result.historical_identity.base_revision, 'e34337c90cca239ffa03f8f306c10b7e84a23483');
+  assert.equal(
+    result.historical_identity.base_revision,
+    'e34337c90cca239ffa03f8f306c10b7e84a23483',
+  );
   assert.equal(
     result.historical_identity.candidate_revision,
     'ec74e1f407b4fb3c35882ab126ad389b7cd04e87',
@@ -31,8 +34,7 @@ test('historical checksum repair passes only after artifact-relative production'
 
 test('behavioral oracle rejects a plausible wrong producer that keeps build-root coordinates', () => {
   const wrong = structuredClone(fixture);
-  wrong.candidate_producer =
-    'sha256sum worker-client/overcenter > worker-client/overcenter.sha256';
+  wrong.candidate_producer = 'sha256sum worker-client/overcenter > worker-client/overcenter.sha256';
   assert.throws(
     () => executeBehavioralChecksumOracle(wrong),
     /BEHAVIORAL_CHECKSUM_ORACLE_MISMATCH:candidate_after_relocation:fail:pass/,
