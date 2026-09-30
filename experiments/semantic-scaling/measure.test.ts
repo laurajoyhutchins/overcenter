@@ -72,14 +72,9 @@ const report: SemanticScalingTcbReport = {
         hybrid_closure_semantic_loc: 3,
         hybrid_closure_sha256: 'effect',
         hybrid_closure_files: ['b.ts', 'c.ts'],
-        module_closure_files: ['b.ts'],
-        symbol_closure_declarations: [
-          {
-            path: 'c.ts',
-            symbol: 'c',
-            start_line: 1,
-            end_line: 1,
-          },
+        hybrid_closure_semantic_line_ranges: [
+          { path: 'b.ts', ranges: [[1, 2]] },
+          { path: 'c.ts', ranges: [[1, 1]] },
         ],
       },
       {
@@ -87,8 +82,7 @@ const report: SemanticScalingTcbReport = {
         hybrid_closure_semantic_loc: 2,
         hybrid_closure_sha256: 'task-specific',
         hybrid_closure_files: ['c.ts'],
-        module_closure_files: ['c.ts'],
-        symbol_closure_declarations: [],
+        hybrid_closure_semantic_line_ranges: [{ path: 'c.ts', ranges: [[1, 2]] }],
       },
     ],
   },
