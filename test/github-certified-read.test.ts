@@ -1,6 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { observeCertifiedGitHubSemanticRead } from '../src/providers/github/certified-read.ts';
+import {
+  observeCertifiedGitHubRead,
+  observeCertifiedGitHubSemanticRead,
+} from '../src/providers/github/certified-read.ts';
+import {
+  evaluateCertifiedGitHubRef,
+  observeCertifiedGitHubRefFence,
+} from '../src/providers/github/certified-ref.ts';
+import {
+  evaluateCertifiedGitHubPullRequestIdentity,
+  observeCertifiedGitHubPullRequestIdentity,
+} from '../src/providers/github/certified-pr.ts';
+import {
+  evaluateCertifiedGitHubCommitAncestry,
+  observeCertifiedGitHubCommitAncestry,
+} from '../src/providers/github/certified-ancestry.ts';
 
 const SHA = 'a'.repeat(40);
 const repository = () => ({
@@ -298,4 +313,125 @@ test('generic read fails closed before provider access when credential permissio
   assert.equal(called, false);
   if (result.state !== 'indeterminate') return;
   assert.equal(result.observation_error, 'GITHUB_SEMANTIC_READ_PERMISSION_NOT_GRANTED:issues:read');
+});
+
+
+test('certified ref is generic certified read plus a binding predicate', () => {
+  const get = (_token: string, path: string) => {
+    if (path === '/repos/acme/widget') return repository();
+    if (path === '/repos/acme/widget/git/ref/heads%2Fmain') {
+      return { ref: 'refs/heads/main', object: { type: 'commit', sha: SHA } };
+    }
+    throw new Error('unexpected path:' + path);
+  };
+  const generic = observeCertifiedGitHubSemanticRead('token', {
+    repositoryId: 42,
+    repositoryFullName: 'acme/widget',
+    operation: 'ref',
+    grantedPermissions: ['contents:read'],
+    parameters: { ref: 'heads/main' },
+    get,
+    observerId: 'github-ref-fence/v1',
+  });
+  assert.equal(generic.state, 'observed');
+  if (generic.state !== 'observed') return;
+  const predicate = evaluateCertifiedGitHubRef(generic.value, 'refs/heads/main', SHA);
+  const specialized = observeCertifiedGitHubRefFence('token', {
+    repositoryId: 42,
+    repositoryFullName: 'acme/widget',
+    ref: 'heads/main',
+    expectedSha: SHA,
+    get,
+  });
+
+  assert.equal(predicate.current, true);
+  assert.equal(specialized.state, 'CURRENT');
+  assert.equal(specialized.actual_sha, predicate.actual_sha);
+  assert.equal(specialized.evidence?.operation_id, generic.evidence.operation_id);
+  assert.deepEqual(specialized.evidence?.validated_paths, generic.evidence.validated_paths);
+});
+
+test('certified PR is generic certified read plus an identity predicate', () => {
+  const baseSha = 'b'.repeat(40);
+  const expected = {
+    node_id: 'PR_17',
+    state: 'open',
+    head_sha: SHA,
+    base_ref: 'main',
+    base_sha: baseSha,
+  };
+  const get = (_token: string, path: string) => {
+    if (path === '/repos/acme/widget') return repository();
+    if (path === '/repos/acme/widget/pulls/17') {
+      return {
+        id: 1700,
+        node_id: expected.node_id,
+        number: 17,
+        state: expected.state,
+        head: { sha: expected.head_sha },
+        base: { ref: expected.base_ref, sha: expected.base_sha },
+      };
+    }
+    throw new Error('unexpected path:' + path);
+  };
+  const generic = observeCertifiedGitHubSemanticRead('token', {
+    repositoryId: 42,
+    repositoryFullName: 'acme/widget',
+    operation: 'pull_request',
+    grantedPermissions: ['pull_requests:read'],
+    parameters: { pull_number: 17 },
+    get,
+    observerId: 'github-pr-identity/v1',
+  });
+  assert.equal(generic.state, 'observed');
+  if (generic.state !== 'observed') return;
+  const predicate = evaluateCertifiedGitHubPullRequestIdentity(generic.value, 17, expected);
+  const specialized = observeCertifiedGitHubPullRequestIdentity('token', {
+    repositoryId: 42,
+    repositoryFullName: 'acme/widget',
+    pullNumber: 17,
+    expected,
+    get,
+  });
+
+  assert.deepEqual(predicate.differences, []);
+  assert.equal(specialized.state, 'CURRENT');
+  assert.deepEqual(specialized.actual, predicate.actual);
+  assert.equal(specialized.evidence?.operation_id, generic.evidence.operation_id);
+  assert.deepEqual(specialized.evidence?.validated_paths, generic.evidence.validated_paths);
+});
+
+test('certified ancestry is coordinate read plus an ancestry predicate', () => {
+  const descendant = 'c'.repeat(40);
+  const get = (_token: string, path: string) => {
+    assert.equal(path, `/repos/acme/widget/compare/${SHA}...${descendant}`);
+    return {
+      status: 'ahead',
+      ahead_by: 1,
+      behind_by: 0,
+      base_commit: { sha: SHA },
+      merge_base_commit: { sha: SHA },
+    };
+  };
+  const generic = observeCertifiedGitHubRead('token', {
+    repositoryFullName: 'acme/widget',
+    operation: 'compare_commits',
+    parameters: { basehead: `${SHA}...${descendant}` },
+    get,
+    observerId: 'github-pull-request-branch-updated/v1',
+  });
+  assert.equal(generic.state, 'observed');
+  const predicate = evaluateCertifiedGitHubCommitAncestry(generic.value, SHA);
+  const specialized = observeCertifiedGitHubCommitAncestry('token', {
+    repositoryFullName: 'acme/widget',
+    ancestorSha: SHA,
+    descendantSha: descendant,
+    get,
+  });
+
+  assert.equal(predicate.relation, 'ancestor');
+  assert.equal(specialized.state, predicate.relation);
+  assert.equal(specialized.evidence.operation_id, generic.evidence.operation_id);
+  assert.equal(specialized.evidence.request_path, generic.evidence.request_path);
+  assert.deepEqual(specialized.evidence.validated_paths, generic.evidence.validated_paths);
 });
