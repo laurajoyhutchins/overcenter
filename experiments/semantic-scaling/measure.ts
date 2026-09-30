@@ -303,7 +303,10 @@ export function trustedUnitsForScope(
     );
   }
 
-  const reconstructedFiles = new Set([...trusted].map(unitPath));
+  const reconstructedFiles = new Set(scope.module_closure_files);
+  for (const declaration of scope.symbol_closure_declarations) {
+    reconstructedFiles.add(declaration.path);
+  }
   const expectedFiles = new Set(scope.hybrid_closure_files);
   if (
     reconstructedFiles.size !== expectedFiles.size ||
