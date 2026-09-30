@@ -1,21 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  evaluateCertifiedGitHubCommitAncestry,
+  evaluateCertifiedGitHubPullRequestIdentity,
+  evaluateCertifiedGitHubRef,
+  observeCertifiedGitHubCommitAncestry,
+  observeCertifiedGitHubPullRequestIdentity,
   observeCertifiedGitHubRead,
+  observeCertifiedGitHubRefFence,
   observeCertifiedGitHubSemanticRead,
 } from '../src/providers/github/certified-read.ts';
-import {
-  evaluateCertifiedGitHubRef,
-  observeCertifiedGitHubRefFence,
-} from '../src/providers/github/certified-ref.ts';
-import {
-  evaluateCertifiedGitHubPullRequestIdentity,
-  observeCertifiedGitHubPullRequestIdentity,
-} from '../src/providers/github/certified-pr.ts';
-import {
-  evaluateCertifiedGitHubCommitAncestry,
-  observeCertifiedGitHubCommitAncestry,
-} from '../src/providers/github/certified-ancestry.ts';
 
 const SHA = 'a'.repeat(40);
 const repository = () => ({
