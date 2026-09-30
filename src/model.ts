@@ -88,7 +88,7 @@ export type Postcondition =
   | KubernetesConfigMapExistsPostcondition
   | OperatorJudgmentPostcondition;
 
-export type { Observation } from '../contracts/observation-evidence/settlement-observation.typebox.ts';
+export type { Observation } from '../schema/settlement-observation.typebox.ts';
 
 export type Dependency =
   | { kind: 'control'; upstream: string }

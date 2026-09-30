@@ -258,10 +258,7 @@ async function assertDead(pids: number[]): Promise<void> {
 
 test('TypeScript and Go accept the same process-spec conformance corpus', () => {
   const corpus = JSON.parse(
-    readFileSync(
-      join(repoRoot, 'contracts/computation-execution/process-spec-conformance.json'),
-      'utf8',
-    ),
+    readFileSync(join(repoRoot, 'test/fixtures/process-spec-conformance.json'), 'utf8'),
   ) as {
     cases: Array<{ name: string; valid: boolean; spec: unknown }>;
   };

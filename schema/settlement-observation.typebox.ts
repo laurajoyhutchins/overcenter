@@ -1,6 +1,6 @@
 import Type from 'typebox';
 
-import type { AbsenceEvidenceCertificate, Data } from '../../src/model.ts';
+import type { AbsenceEvidenceCertificate, Data } from '../src/model.ts';
 
 const stringEnum = <const T extends readonly string[]>(values: T) =>
   Type.Unsafe<T[number]>({ enum: [...values] });
