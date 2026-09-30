@@ -25,7 +25,7 @@ test('validation dispatch is limited to published candidate branches and never i
       path: '/repos/acme/widget/actions/workflows/agent-candidate-signal.yml/dispatches',
       body: {
         ref: 'overcenter/candidate/run-id',
-        inputs: { runtime_sha: 'b'.repeat(40) },
+        inputs: { candidate_sha: 'a'.repeat(40), runtime_sha: 'b'.repeat(40) },
       },
     },
   ]);
@@ -39,6 +39,17 @@ test('validation dispatch is limited to published candidate branches and never i
         () => 204,
       ),
     /SOURCE_VALIDATION_REF_INVALID/,
+  );
+  assert.throws(
+    () =>
+      dispatchSourceValidation(
+        'fixture',
+        'acme/widget',
+        { ...publication, candidate_sha: 'not-a-sha' },
+        'b'.repeat(40),
+        () => 204,
+      ),
+    /SOURCE_VALIDATION_CANDIDATE_INVALID/,
   );
   assert.throws(
     () => dispatchSourceValidation('fixture', 'acme/widget', publication, 'not-a-sha', () => 204),

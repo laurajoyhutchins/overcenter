@@ -52,7 +52,7 @@ function fixture(t: TestContext) {
     schema: 'overcenter-source-task/v1',
     kind: 'source-change',
     objective: 'Update value',
-    writable_paths: ['value.ts', 'extra.ts'],
+    writable_paths: ['value.ts'],
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
   });
   kernel.define({
@@ -104,7 +104,7 @@ function fixture(t: TestContext) {
         run_attempt: 1,
         head_sha: plan.candidate_sha,
         head_branch: `overcenter/candidate/${claim.run_id}`,
-        event: 'push',
+        event: 'workflow_dispatch',
         status: 'completed',
         conclusion: 'success',
         repository: { id: 42 },

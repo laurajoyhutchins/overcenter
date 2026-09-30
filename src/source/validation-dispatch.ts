@@ -13,10 +13,12 @@ export function dispatchSourceValidation(
   post: (
     token: string,
     path: string,
-    body: { ref: string; inputs: { runtime_sha: string } },
+    body: { ref: string; inputs: { candidate_sha: string; runtime_sha: string } },
   ) => number = postDispatch,
 ): void {
   if (publication.state === 'CONFLICT') throw new Error('SOURCE_VALIDATION_PUBLICATION_CONFLICT');
+  if (!/^[0-9a-f]{40}$/.test(publication.candidate_sha))
+    throw new Error('SOURCE_VALIDATION_CANDIDATE_INVALID');
   if (!/^[0-9a-f]{40}$/.test(runtimeSha)) throw new Error('SOURCE_VALIDATION_RUNTIME_INVALID');
   if (!/^refs\/heads\/overcenter\/candidate\/[A-Za-z0-9._-]+$/.test(publication.ref))
     throw new Error('SOURCE_VALIDATION_REF_INVALID');
@@ -27,7 +29,7 @@ export function dispatchSourceValidation(
   if (
     post(token, path, {
       ref: publication.ref.slice('refs/heads/'.length),
-      inputs: { runtime_sha: runtimeSha },
+      inputs: { candidate_sha: publication.candidate_sha, runtime_sha: runtimeSha },
     }) !== 204
   )
     throw new Error('SOURCE_VALIDATION_DISPATCH_FAILED');
@@ -36,7 +38,7 @@ export function dispatchSourceValidation(
 function postDispatch(
   token: string,
   path: string,
-  body: { ref: string; inputs: { runtime_sha: string } },
+  body: { ref: string; inputs: { candidate_sha: string; runtime_sha: string } },
 ): number {
   if (!token || /[\r\n"]/.test(token)) throw new Error('SOURCE_VALIDATION_TOKEN_INVALID');
   const config = `header = "Authorization: Bearer ${token}"\nheader = "Accept: application/vnd.github+json"\nheader = "X-GitHub-Api-Version: ${GITHUB_API_VERSION}"\n`;

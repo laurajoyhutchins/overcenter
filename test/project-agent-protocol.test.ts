@@ -22,7 +22,6 @@ import {
   submitProjectCandidate,
 } from '../src/authority/project-agent-protocol.ts';
 import { compileProjectIntent } from '../src/authority/project-intent.ts';
-import { SOURCE_VERIFICATION_SCHEMA } from '../src/source/source-integration.ts';
 import { brokerAssignedSourceProposal } from '../src/source/source-broker.ts';
 import { SOURCE_PROPOSAL_SCHEMA } from '../src/source/source-obligation.ts';
 import { buildSourceTransactionPlan } from '../src/source/transaction.ts';
@@ -878,7 +877,7 @@ test('project.submit integrates a verified source candidate and settles the sour
   }
 });
 
-test('rejected source verification releases the obligation without moving source authority', () => {
+test('certified source verification rejection returns work to READY without moving source authority', () => {
   const f = fixture();
   try {
     const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
@@ -914,39 +913,47 @@ test('rejected source verification releases the obligation without moving source
     );
     assert.equal(brokered.publication.state, 'PUBLISHED');
     const candidateSha = brokered.candidate.commit_sha;
+    const plan = buildSourceTransactionPlan({
+      repo: f.work,
+      taskValue: assignment.task,
+      claim,
+      candidateSha,
+      context: transactionContext,
+    });
     const verificationPath = join(f.root, 'source-verification.json');
     writeFileSync(
       verificationPath,
-      `${JSON.stringify(
-        {
-          schema: SOURCE_VERIFICATION_SCHEMA,
-          state: 'rejected',
-          run_id: acquired.run_id,
-          candidate_sha: candidateSha,
-          base_sha: sourceSha,
-          tree_sha: null,
-          reason: 'SOURCE_VERIFICATION_FAILED',
-        },
-        null,
-        2,
-      )}\n`,
+      JSON.stringify(
+        sourceProofRecord(
+          plan,
+          { workflow_run_id: 123, workflow_run_attempt: 1, job_id: 11 },
+          'failure',
+        ),
+      ),
     );
 
     const result = submitProjectCandidate(
       f.work,
       {
-        ...commandContext('e'.repeat(40), 9200),
+        ...commandContext(transactionContext.runtime_sha, 9200),
         candidate_sha: candidateSha,
         candidate_run_id: acquired.run_id,
+        candidate_workflow_run_id: 123,
+        candidate_workflow_run_attempt: 1,
       },
       {
         authorityRef: AUTHORITY_REF,
         remote: 'origin',
         sourceVerificationPath: verificationPath,
+        githubToken: 'fixture',
+        transactionContext,
+        observationContext: {
+          githubGet: sourceProofProvider(candidateSha, acquired.run_id, 'failure'),
+        },
       },
     );
 
-    assert.equal(result.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(result.disposition, 'READY');
     assert.equal(result.verified, false);
     const remoteMain = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
     assert.equal(remoteMain, sourceSha);
@@ -954,13 +961,12 @@ test('rejected source verification releases the obligation without moving source
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
-    assert.equal(authoritative.inspect()[0]?.status, 'RECOVERY_REQUIRED');
+    assert.equal(authoritative.inspect()[0]?.status, 'READY');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
   }
 });
-
 test('project.advance requires native client bytes before claiming reasoning work', () => {
   const f = fixture();
   try {
@@ -1252,7 +1258,11 @@ test('ambiguous reserved source mutation blocks otherwise READY agent work', () 
   }
 });
 
-function sourceProofProvider(candidateSha: string, runId: string) {
+function sourceProofProvider(
+  candidateSha: string,
+  runId: string,
+  evidenceConclusion: 'success' | 'failure' = 'success',
+) {
   return (_token: string, path: string): unknown => {
     if (path.endsWith('/actions/runs/123'))
       return {
@@ -1261,9 +1271,9 @@ function sourceProofProvider(candidateSha: string, runId: string) {
         run_attempt: 1,
         head_sha: candidateSha,
         head_branch: `overcenter/candidate/${runId}`,
-        event: 'push',
+        event: 'workflow_dispatch',
         status: 'completed',
-        conclusion: 'success',
+        conclusion: evidenceConclusion,
         repository: { id: 42 },
         head_repository: { id: 42 },
       };
@@ -1276,7 +1286,7 @@ function sourceProofProvider(candidateSha: string, runId: string) {
             run_id: 123,
             head_sha: candidateSha,
             name: 'Verify source candidate / Candidate evidence',
-            conclusion: 'success',
+            conclusion: evidenceConclusion,
           },
           {
             id: 11,
