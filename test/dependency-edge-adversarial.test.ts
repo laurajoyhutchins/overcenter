@@ -6,6 +6,7 @@ import {
   GitKernelFixture,
   verifiedContent,
 } from './support/git-kernel-fixture.ts';
+import { planGraphReconciliation } from '../src/graph/reconciliation.ts';
 
 function withFixture(name: string, body: (f: GitKernelFixture) => void) {
   test(name, () => {
@@ -251,21 +252,20 @@ withFixture('semantic edge declaration order does not change obligation identity
   const before = f.work('b');
 
   const head = f.kernel.head()!;
-  const reconciled = f.kernel.reconcileGraph(
-    [
-      {
-        id: 'b',
-        dependencies: [verifiedContent('c'), verifiedContent('a')],
-        packet: before.packet,
-        postcondition: before.postcondition,
-      },
-    ],
-    head,
-  );
-  assert.equal(reconciled.revision, head);
-  assert.deepEqual(reconciled.added, []);
-  assert.deepEqual(reconciled.rebound, []);
-  assert.deepEqual(reconciled.unchanged, ['b']);
+  const plan = planGraphReconciliation(f.kernel.inspect(), [
+    {
+      id: 'b',
+      dependencies: [verifiedContent('c'), verifiedContent('a')],
+      packet: before.packet,
+      postcondition: before.postcondition,
+    },
+  ]);
+  assert.deepEqual(plan.added, []);
+  assert.deepEqual(plan.rebound, []);
+  assert.deepEqual(plan.unchanged, ['b']);
+  assert.deepEqual(plan.upsert, []);
+  assert.deepEqual(plan.retire, []);
+  assert.equal(f.kernel.head(), head);
 
   const after = f.work('b');
   assert.equal(after.status, 'DONE');

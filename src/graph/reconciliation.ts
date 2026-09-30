@@ -1,5 +1,5 @@
 import type { Obligation } from '../model.ts';
-import type { ObligationInput, State } from '../authority/facts.ts';
+import type { ObligationInput } from '../authority/facts.ts';
 import {
   normalizeObligation,
   obligationDefinition,
@@ -15,7 +15,7 @@ export interface GraphReconciliationPlan {
 }
 
 export function planGraphReconciliation(
-  state: State,
+  current: readonly Obligation[],
   desired: ObligationInput[],
   managedPrefixes: readonly string[] = [],
 ): GraphReconciliationPlan {
@@ -38,14 +38,14 @@ export function planGraphReconciliation(
     seen.add(obligation.id);
 
     const definitionId = obligationDefinitionId(obligationDefinition(obligation));
-    const currentDefinitionId = state.definition_ids[obligation.id];
+    const currentObligation = current.find((candidate) => candidate.id === obligation.id);
 
-    if (!currentDefinitionId) {
+    if (!currentObligation) {
       upsert.push(obligation);
       added.push(obligation.id);
       continue;
     }
-    if (currentDefinitionId === definitionId) {
+    if (obligationDefinitionId(obligationDefinition(currentObligation)) === definitionId) {
       unchanged.push(obligation.id);
       continue;
     }
@@ -54,7 +54,8 @@ export function planGraphReconciliation(
   }
 
   const desiredIds = new Set(normalized.map((obligation) => obligation.id));
-  const retire = Object.keys(state.obligations)
+  const retire = current
+    .map((obligation) => obligation.id)
     .filter((id) => managedPrefixes.some((prefix) => id.startsWith(prefix)) && !desiredIds.has(id))
     .sort();
 

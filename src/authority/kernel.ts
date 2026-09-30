@@ -3,11 +3,7 @@ import { runCoreLoop } from '../execution/core-loop.ts';
 import { SqliteFactStore } from '../storage/sqlite.ts';
 
 export type { Receipt } from './engine.ts';
-export type {
-  GraphPatchInput,
-  GraphReconciliationResult,
-  KernelOptions,
-} from './engine.ts';
+export type { GraphPatchInput, KernelOptions } from './engine.ts';
 
 export class OvercenterKernel extends KernelCore {
   readonly path: string;

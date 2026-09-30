@@ -1,11 +1,12 @@
 import type { Obligation, Work } from '../model.ts';
-import type { KernelCore, Receipt } from '../authority/engine.ts';
+import type { GraphPatchInput, KernelCore, Receipt } from '../authority/engine.ts';
+import { planGraphReconciliation } from '../graph/reconciliation.ts';
 
 type ClaimPermit = ReturnType<KernelCore['claim']>;
 
 export interface SystemEvidenceAuthority {
   head(): string | null;
-  reconcileGraph(desired: Obligation[], expectedRevision: string): unknown;
+  applyGraphPatch(patch: GraphPatchInput, expectedRevision: string): string;
   inspect(): Work[];
   claim(id: string, expectedRevision: string): ClaimPermit;
   resolveAsync(permit: ClaimPermit, diagnostic?: Record<string, unknown>): Promise<Receipt>;
@@ -37,9 +38,33 @@ export async function reconcileSystemEvidence(
     const expectedRevision = authority.head();
     if (!expectedRevision) throw new Error('SYSTEM_EVIDENCE_AUTHORITY_MISSING');
     try {
+      const plan = planGraphReconciliation(authority.inspect(), [definition.obligation()]);
+      if (plan.upsert.length === 0 && plan.retire.length === 0) {
+        if (authority.head() !== expectedRevision) continue;
+        return {
+          state: 'reconciled',
+          result: {
+            revision: expectedRevision,
+            added: plan.added,
+            rebound: plan.rebound,
+            retired: plan.retire,
+            unchanged: plan.unchanged,
+          },
+        };
+      }
+      const revision = authority.applyGraphPatch(
+        { upsert: plan.upsert, retire: plan.retire },
+        expectedRevision,
+      );
       return {
         state: 'reconciled',
-        result: authority.reconcileGraph([definition.obligation()], expectedRevision),
+        result: {
+          revision,
+          added: plan.added,
+          rebound: plan.rebound,
+          retired: plan.retire,
+          unchanged: plan.unchanged,
+        },
       };
     } catch (error: unknown) {
       const reason = message(error);
