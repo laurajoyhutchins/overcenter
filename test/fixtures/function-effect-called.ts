@@ -8,6 +8,14 @@ void performGitHubCommitStatusEffect(null as never, null as never, {
 void performGitHubPullRequestUpdateBranchEffect(null as never, null as never, {
   token: 'fixture',
 });
-void integrateVerifiedSourceCandidate('.', null, null as never, 'fixture', '0'.repeat(40), null, {
-  performReservedMutation: (mutation) => mutation(),
-});
+void integrateVerifiedSourceCandidate(
+  '.',
+  null,
+  null as never,
+  'fixture',
+  '0'.repeat(40),
+  null as never,
+  {
+    performReservedMutation: (mutation) => mutation(),
+  },
+);

@@ -1,8 +1,14 @@
+import {
+  baselineSourceTransactionPlan,
+  validateSourceTransactionContext,
+  type SourceTransactionContext,
+} from './transaction-baseline.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { canonicalDigest } from '../digest.ts';
+import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
 import {
   inspectSourceCandidate,
@@ -11,9 +17,11 @@ import {
 import {
   validateSourceAssignment,
   validateSourceProposal,
+  validateSourceTaskPacket,
   type SourceCandidate,
   type SourceClaimBinding,
 } from './source-obligation.ts';
+import { buildSourceTransactionPlan, type SourceTransactionPlan } from './transaction.ts';
 
 function candidateGit(repo: string, args: string[], env: NodeJS.ProcessEnv = process.env): string {
   return execFileSync('git', ['-C', repo, ...args], {
@@ -30,9 +38,7 @@ function candidateGitStatus(repo: string, args: string[]): number {
 function candidateWorktree(repo: string, revision: string): { root: string; dispose: () => void } {
   const root = mkdtempSync(join(tmpdir(), 'overcenter-source-candidate-'));
   try {
-    execFileSync('git', ['-C', repo, 'worktree', 'add', '--detach', root, revision], {
-      stdio: 'ignore',
-    });
+    candidateGit(repo, ['worktree', 'add', '--detach', root, revision]);
   } catch (error: unknown) {
     rmSync(root, { recursive: true, force: true });
     throw error;
@@ -40,20 +46,20 @@ function candidateWorktree(repo: string, revision: string): { root: string; disp
   return {
     root,
     dispose: () => {
-      spawnSync('git', ['-C', repo, 'worktree', 'remove', '--force', root], { stdio: 'ignore' });
+      candidateGitStatus(repo, ['worktree', 'remove', '--force', root]);
       rmSync(root, { recursive: true, force: true });
     },
   };
 }
 
-function sourceCandidateMessage(obligationId: string, claim: SourceClaimBinding): string {
+function sourceCandidateMessage(obligationId: string, claim: SourceClaimBinding, runtimeSha?: string): string {
   return [
-    `source candidate ${claim.run_id}`,
-    '',
+    `source candidate ${claim.run_id}`, '',
     `Overcenter-Obligation-Id: ${obligationId}`,
     `Overcenter-Obligation-Key: ${claim.obligation_key}`,
     `Overcenter-Claimed-Revision: ${claim.claimed_revision}`,
     `Overcenter-Claimed-Source: ${claim.source_sha}`,
+    ...(runtimeSha ? [`Overcenter-Runtime-Sha: ${runtimeSha}`] : []),
   ].join('\n');
 }
 
@@ -63,6 +69,7 @@ function materializeSourceProposal(
   taskValue: unknown,
   claim: SourceClaimBinding,
   proposalValue: unknown,
+  runtimeSha?: string,
 ): SourceCandidate {
   const proposal = validateSourceProposal(proposalValue, taskValue, claim);
   const candidateTree = candidateWorktree(repo, claim.source_sha);
@@ -94,6 +101,7 @@ function materializeSourceProposal(
       }
     }
     candidateGit(candidateTree.root, [
+      '--literal-pathspecs',
       'add',
       '-A',
       '--',
@@ -102,15 +110,20 @@ function materializeSourceProposal(
     if (candidateGitStatus(candidateTree.root, ['diff', '--cached', '--quiet']) === 0) {
       throw new Error('SOURCE_PROPOSAL_EMPTY');
     }
-    candidateGit(candidateTree.root, [
-      '-c',
-      'user.name=Overcenter Source Broker',
-      '-c',
-      'user.email=overcenter@local',
-      'commit',
-      '-m',
-      sourceCandidateMessage(obligationId, claim),
-    ]);
+    const sourceDate = candidateGit(repo, ['show', '-s', '--format=%cI', claim.source_sha]);
+    candidateGit(
+      candidateTree.root,
+      [
+        '-c',
+        'user.name=Overcenter Source Broker',
+        '-c',
+        'user.email=overcenter@local',
+        'commit',
+        '-m',
+        sourceCandidateMessage(obligationId, claim, runtimeSha),
+      ],
+      { ...process.env, GIT_AUTHOR_DATE: sourceDate, GIT_COMMITTER_DATE: sourceDate },
+    );
     candidateSha = candidateGit(candidateTree.root, ['rev-parse', 'HEAD']);
   } finally {
     candidateTree.dispose();
@@ -164,12 +177,17 @@ export function brokerSourceProposal(
   taskValue: unknown,
   claim: SourceClaimBinding,
   proposalValue: unknown,
-  { remote = 'origin' }: { remote?: string } = {},
+  {
+    remote = 'origin',
+    beforePublish,
+    runtimeSha,
+  }: { remote?: string; beforePublish?: (candidate: SourceCandidate) => void; runtimeSha?: string } = {},
 ): {
   candidate: SourceCandidate;
   publication: SourceCandidatePublicationResult;
 } {
-  const candidate = materializeSourceProposal(repo, obligationId, taskValue, claim, proposalValue);
+  const candidate = materializeSourceProposal(repo, obligationId, taskValue, claim, proposalValue, runtimeSha);
+  beforePublish?.(candidate);
   const publication = publishSourceCandidate(repo, taskValue, claim, candidate.commit_sha, {
     remote,
   });
@@ -180,6 +198,7 @@ export interface BrokeredAssignedSourceProposal {
   authority_head: string;
   candidate: SourceCandidate;
   publication: SourceCandidatePublicationResult;
+  transaction_plan?: SourceTransactionPlan;
 }
 
 export function brokerAssignedSourceProposal(
@@ -190,10 +209,12 @@ export function brokerAssignedSourceProposal(
     authorityRef = 'refs/overcenter/state',
     remote = 'origin',
     githubToken = null,
+    transactionContext,
   }: {
     authorityRef?: string;
     remote?: string;
     githubToken?: string | null;
+    transactionContext?: SourceTransactionContext;
   } = {},
 ): BrokeredAssignedSourceProposal {
   const assignment = validateSourceAssignment(assignmentValue);
@@ -233,18 +254,21 @@ export function brokerAssignedSourceProposal(
     throw new Error('SOURCE_BROKER_TASK_MISMATCH');
   }
 
-  const brokered = brokerSourceProposal(
-    repo,
-    assignment.obligation_id,
-    current.packet,
-    claim,
-    proposalValue,
-    { remote },
-  );
+  let transactionPlan: SourceTransactionPlan | undefined;
+  const brokered = brokerSourceProposal(repo, assignment.obligation_id, current.packet, claim, proposalValue, {
+    remote,
+    ...(transactionContext ? { runtimeSha: transactionContext.runtime_sha } : {}),
+    beforePublish: transactionContext
+      ? (candidate) => {
+          transactionPlan = buildSourceTransactionPlan({ repo, taskValue: current.packet, claim, candidateSha: candidate.commit_sha, context: transactionContext });
+        }
+      : undefined,
+  });
   return {
     authority_head: authorityHead,
     candidate: brokered.candidate,
     publication: brokered.publication,
+    ...(transactionPlan ? { transaction_plan: transactionPlan } : {}),
   };
 }
 
