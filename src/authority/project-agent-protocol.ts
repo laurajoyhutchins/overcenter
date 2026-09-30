@@ -23,12 +23,7 @@ import {
   validateSourceVerification,
 } from '../source/source-integration.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
-import { DEFAULT_PROJECT_GRAPH_PRODUCERS } from './default-project-graph.ts';
-import {
-  compileProjectGraph,
-  managedProjectGraphPrefixes,
-  type ProjectGraphProducer,
-} from './project-graph.ts';
+import { compileProjectGraph } from './project-graph.ts';
 import { repositorySnapshot } from '../evidence/repository-snapshot.ts';
 import type { ObservationContext } from '../observation/observe.ts';
 import type { Work } from '../model.ts';
@@ -118,7 +113,6 @@ interface ProtocolOptions {
 interface AdvanceOptions extends ProtocolOptions {
   outputDir: string;
   workerClientPath?: string;
-  graphProducers?: readonly ProjectGraphProducer[];
   observationContext?: ObservationContext;
 }
 
@@ -348,7 +342,6 @@ export function advanceProjectForAgent(
     authorityRef = DEFAULT_AUTHORITY_REF,
     remote = DEFAULT_REMOTE,
     githubToken = null,
-    graphProducers = DEFAULT_PROJECT_GRAPH_PRODUCERS,
     observationContext = { githubToken },
   }: AdvanceOptions,
 ): ProjectAdvanceReceipt {
@@ -362,17 +355,14 @@ export function advanceProjectForAgent(
   kernel.initialize();
   const projectSourceRevision = projectSourceSha(context);
   const snapshot = repositorySnapshot(repo, projectSourceRevision);
-  const desired = compileProjectGraph(snapshot, context, graphProducers);
-  const managedPrefixes = managedProjectGraphPrefixes(snapshot, graphProducers);
+  const desired = compileProjectGraph(snapshot, context);
 
   for (let attempt = 0; attempt < 16; attempt += 1) {
-    if (desired.length > 0 || managedPrefixes.length > 0) {
+    if (desired.length > 0) {
       const expectedRevision = kernel.head();
       if (!expectedRevision) throw new Error('PROJECT_ADVANCE_AUTHORITY_MISSING');
       try {
-        kernel.reconcileGraph(desired, expectedRevision, {
-          retireMissingPrefixes: managedPrefixes,
-        });
+        kernel.reconcileGraph(desired, expectedRevision);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         if (message === 'STALE_REVISION') continue;

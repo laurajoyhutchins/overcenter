@@ -21,7 +21,6 @@ import {
   submitProjectCandidate,
 } from '../src/authority/project-agent-protocol.ts';
 import { compileProjectIntent } from '../src/authority/project-intent.ts';
-import { hostileMutationEvidenceGraphProducer } from '../src/evidence/hostile-mutation-obligation.ts';
 import { SOURCE_VERIFICATION_SCHEMA } from '../src/source/source-integration.ts';
 import {
   brokerAssignedSourceProposal,
@@ -211,33 +210,22 @@ test('project.advance separates pinned command implementation from project sourc
   }
 });
 
-test('project.advance bootstraps authority and claims a long horizon project goal', () => {
+test('project.advance binds bounded source intent to the exact project revision', () => {
   const f = fixture();
   try {
-    mkdirSync(join(f.work, '.overcenter'), { recursive: true });
-    writeFileSync(
-      join(f.work, '.overcenter', 'project-goal.json'),
-      `${JSON.stringify(
-        {
-          schema: 'overcenter-project-goal/v1',
-          id: 'project-goal:strength',
-          objective: 'Improve the managed project toward externally measured strength.',
-          writable_paths: ['README.md', 'src/feature.txt'],
+    const projectSourceSha = commitProjectIntent(f.work, [
+      {
+        id: 'bounded-source-work',
+        task: {
+          schema: 'overcenter-source-task/v1',
+          kind: 'source-change',
+          objective: 'Improve the bounded source feature.',
+          writable_paths: ['src/feature.txt'],
         },
-        null,
-        2,
-      )}\n`,
-    );
-    execFileSync('git', ['-C', f.work, 'add', '.overcenter/project-goal.json'], {
-      stdio: 'ignore',
-    });
-    execFileSync('git', ['-C', f.work, 'commit', '-m', 'declare long horizon goal'], {
-      stdio: 'ignore',
-    });
-    execFileSync('git', ['-C', f.work, 'push', 'origin', 'main'], { stdio: 'ignore' });
-    const projectSourceSha = git(f.work, ['rev-parse', 'HEAD']);
+      },
+    ]);
 
-    const outputDir = join(f.root, 'goal-packet');
+    const outputDir = join(f.root, 'source-packet');
     const receipt = advanceProjectForAgent(
       f.work,
       {
@@ -252,12 +240,12 @@ test('project.advance bootstraps authority and claims a long horizon project goa
     );
 
     assert.equal(receipt.state, 'AGENT_EXECUTION_REQUIRED');
-    assert.equal(receipt.obligation_id, 'project-goal:strength');
+    assert.equal(receipt.obligation_id, 'bounded-source-work');
     assert.equal(receipt.candidate_branch_base_sha, projectSourceSha);
     assert.equal(receipt.dispatch?.reason_code, 'OPEN_ENDED_SOURCE_REMEDIATION');
     const assignment = JSON.parse(readFileSync(join(outputDir, 'assignment.json'), 'utf8'));
     assert.equal(assignment.task.kind, 'source-change');
-    assert.equal(assignment.task.context.project_source_sha, projectSourceSha);
+    assert.equal(assignment.claim.source_sha, projectSourceSha);
 
     const authoritative = new GitOvercenterKernel(f.work, {
       remote: 'origin',
@@ -359,7 +347,6 @@ test('project.advance surfaces READY system evidence without claiming agent work
       outputDir,
       authorityRef: AUTHORITY_REF,
       remote: 'origin',
-      graphProducers: [hostileMutationEvidenceGraphProducer],
     });
 
     assert.equal(receipt.state, 'READY');

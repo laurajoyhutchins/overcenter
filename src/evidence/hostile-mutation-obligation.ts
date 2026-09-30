@@ -1,6 +1,5 @@
 import type { Obligation } from '../model.ts';
 import { normalizeObligation } from '../authority/facts.ts';
-import type { ProjectGraphContext, ProjectGraphProducer } from '../authority/project-graph.ts';
 import { sha256 } from '../digest.ts';
 import { repositorySnapshot, type RepositorySnapshot } from './repository-snapshot.ts';
 import { SYSTEM_EVIDENCE_KIND, SYSTEM_EVIDENCE_PACKET_SCHEMA } from './system-evidence.ts';
@@ -111,18 +110,3 @@ export function compileHostileMutationEvidenceFromRepository({
     ref,
   });
 }
-
-export const hostileMutationEvidenceGraphProducer: ProjectGraphProducer = Object.freeze({
-  id: 'hostile-mutation-evidence',
-  input_paths: [HOSTILE_MUTATION_PROBES_PATH, HOSTILE_MUTATION_EVIDENCE_PATH],
-  managed_prefixes: ['system-evidence:hostile-mutation'],
-  produce(snapshot: RepositorySnapshot, context: ProjectGraphContext) {
-    return [
-      compileHostileMutationEvidenceObligation({
-        snapshot,
-        repositoryId: context.repository_id,
-        repositoryFullName: context.repository_full_name,
-      }),
-    ];
-  },
-});
