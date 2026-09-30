@@ -764,10 +764,7 @@ export class KernelCore {
 
   #settleWithoutObservation(
     permit: ExecutionPermit,
-    kind: Extract<
-      ReceiptKind,
-      'judgment-required' | 'execution-terminated' | 'effect-rejected'
-    >,
+    kind: Extract<ReceiptKind, 'judgment-required' | 'execution-terminated' | 'effect-rejected'>,
     diagnostic: Data,
     validate?: (context: { run: HistoricalRun; work: HistoricalRun['obligation'] }) => void,
   ): Receipt {
