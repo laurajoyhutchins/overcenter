@@ -1,13 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
-  cpSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -177,7 +170,10 @@ function runRelocationScenario(
     const downloadedArtifact = join(downloadRoot, 'worker-client');
     cpSync(buildArtifact, downloadedArtifact, { recursive: true });
     if (tamper) {
-      writeFileSync(join(downloadedArtifact, 'overcenter'), Buffer.from('tampered-worker-client\n'));
+      writeFileSync(
+        join(downloadedArtifact, 'overcenter'),
+        Buffer.from('tampered-worker-client\n'),
+      );
     }
 
     return runShell(downloadRoot, consumer) === 0 ? 'pass' : 'fail';
@@ -194,10 +190,7 @@ export function executeBehavioralChecksumOracle(
   const fixture = validateBehavioralChecksumFixture(fixtureValue);
   const scenarios = {
     base_after_relocation: runRelocationScenario(fixture.base_producer, fixture.consumer),
-    candidate_after_relocation: runRelocationScenario(
-      fixture.candidate_producer,
-      fixture.consumer,
-    ),
+    candidate_after_relocation: runRelocationScenario(fixture.candidate_producer, fixture.consumer),
     candidate_after_tamper: runRelocationScenario(fixture.candidate_producer, fixture.consumer, {
       tamper: true,
     }),
