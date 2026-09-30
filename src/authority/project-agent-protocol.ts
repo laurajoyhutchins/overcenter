@@ -1,4 +1,5 @@
 import { admitSourceProof, type TrustedSourceProofWitness } from '../source/source-proof.ts';
+import { githubGet } from '../providers/github/rest.ts';
 import {
   sourceTransactionContextFromEnvironment,
   type SourceTransactionContext,
@@ -809,15 +810,14 @@ export function submitProjectCandidate(
       )
         throw new Error('SOURCE_PROOF_PRODUCER_CONTEXT_MISSING');
       verification = admitSourceProof(
-        repo,
-        binding.plan,
+        binding,
         JSON.parse(readFileSync(sourceVerificationPath, 'utf8')),
         {
           githubToken,
           expectedWorkflowRunId: context.candidate_workflow_run_id,
           expectedWorkflowRunAttempt: context.candidate_workflow_run_attempt,
           context: transactionContext ?? sourceTransactionContextFromEnvironment(),
-          ...(observationContext.githubGet ? { get: observationContext.githubGet } : {}),
+          get: observationContext.githubGet ?? githubGet,
         },
       );
     } catch (error: unknown) {
