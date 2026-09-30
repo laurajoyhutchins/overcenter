@@ -72,6 +72,24 @@
         "worker credentials when they are not broker credentials"
       ],
       "require_sound_symbol_closure": true
+    },
+    {
+      "id": "review-attestation-integrity",
+      "statement": "A positive reviewer attestation is accepted only when certified provider observation binds the exact repository, pull request, source head, base revision, merge event, reviewer identity, and declared merge-by-reviewer policy.",
+      "external_assumptions": [
+        "GitHub pull-request IDs, merge state, head/base revisions, and merged_by identity have the documented API meaning.",
+        "The authenticated GitHub API response identifies the account that performed the merge operation.",
+        "The pinned GitHub API/OpenAPI contract accurately describes the pull-request response fields consumed by the verifier.",
+        "node:child_process launches the intended system curl executable, and curl faithfully returns the authenticated GitHub HTTPS response bytes and status metadata consumed by certified reads."
+      ],
+      "excluded": [
+        "whether the reviewer is substantively correct",
+        "whether the accepted artifact objectively satisfies architectural intent",
+        "reviewer qualification beyond the declared reviewer identity",
+        "social or organizational meaning not encoded in the declared acceptance policy",
+        "reasoning-agent judgment"
+      ],
+      "require_sound_symbol_closure": true
     }
   ],
   "compositions": [
