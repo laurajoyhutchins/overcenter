@@ -114,7 +114,19 @@ test('golden source edit derives the existing impacts and minimum model evidence
   const plan = planSourceTransaction(root, observeRepositoryDelta(root, base, head), baseline);
   assert.deepEqual(plan.impacts, [
     {
+      property_id: 'authority-flow-integrity',
+      changed_artifacts: [golden.candidate.path],
+      direct: true,
+      via_properties: [],
+    },
+    {
       property_id: 'broker-mutation-safety',
+      changed_artifacts: [golden.candidate.path],
+      direct: true,
+      via_properties: [],
+    },
+    {
+      property_id: 'distributed-authority-handoff-integrity',
       changed_artifacts: [golden.candidate.path],
       direct: true,
       via_properties: [],
