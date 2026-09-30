@@ -82,13 +82,21 @@ test('certified PR is certified read plus identity predicate', () => {
 
 test('authoritative PR head drift is a predicate difference', () => {
   const p = provider(pull({ head: { sha: 'c'.repeat(40) } }));
-  const predicate = evaluateCertifiedGitHubPullRequestIdentity(certifiedPull(p.get).value, 37, expected);
+  const predicate = evaluateCertifiedGitHubPullRequestIdentity(
+    certifiedPull(p.get).value,
+    37,
+    expected,
+  );
   assert.deepEqual(predicate.differences, ['head_sha']);
 });
 
 test('stable PR entity mismatch is explicit', () => {
   const p = provider(pull({ node_id: 'PR_other' }));
-  const predicate = evaluateCertifiedGitHubPullRequestIdentity(certifiedPull(p.get).value, 37, expected);
+  const predicate = evaluateCertifiedGitHubPullRequestIdentity(
+    certifiedPull(p.get).value,
+    37,
+    expected,
+  );
   assert.ok(predicate.differences.includes('node_id'));
 });
 
