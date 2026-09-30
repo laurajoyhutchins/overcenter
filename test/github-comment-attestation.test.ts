@@ -103,10 +103,7 @@ test('matching comment with unavailable author fails closed', () => {
 
   assert.equal(result.state, 'INDETERMINATE');
   assert.equal(result.reason, 'OBSERVATION_FAILED');
-  assert.equal(
-    result.observation_error,
-    'GITHUB_JUDGMENT_ATTESTATION_COMMENT_FIELDS_UNAVAILABLE',
-  );
+  assert.equal(result.observation_error, 'GITHUB_JUDGMENT_ATTESTATION_COMMENT_FIELDS_UNAVAILABLE');
 });
 
 test('attestation scan traverses certified pages before matching', () => {
