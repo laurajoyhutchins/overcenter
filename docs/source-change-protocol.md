@@ -49,11 +49,11 @@ If the source base has moved, the work returns for a new realization. If the int
 
 Verification binds the candidate to an exact base and tree. Integration uses that verified tree and an exact-base Git compare-and-swap; it does not trust a mutable worker branch.
 
-## Proposal refs
+## Proposal transport
 
-A worker may prepare a revision descended from the claimed source SHA. `source-broker-ref` reads the final changed bytes from that revision, validates them against the task and claim, and publishes a canonical candidate.
+A worker returns a bounded `SourceProposal` containing the final bytes for the task's declared writable paths and bound to the exact run, claim, and source SHA. The broker validates that proposal and materializes a canonical one-parent candidate. Arbitrary worker Git revisions are not an accepted broker ingress.
 
-The ref is only transport. The brokered candidate is the object that enters verification.
+The proposal is only transport. The brokered candidate is the object that enters verification.
 
 ## Verification and integration evidence
 
