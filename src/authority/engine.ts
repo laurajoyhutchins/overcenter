@@ -483,15 +483,15 @@ export class KernelCore {
       if (!reservation) throw new Error('NO_UNRESOLVED_EFFECT');
       const effectContract = binding.effect_contract;
       const validatedWitness = validateTrustedEffectReleaseWitness(witness);
-      const binding = validatedWitness.attempt;
+      const attemptBinding = validatedWitness.attempt;
       if (
-        binding.run_id !== run.id ||
-        binding.obligation_id !== run.obligation_id ||
-        binding.execution_generation !== run.execution_generation ||
-        binding.execution_authority_commit !== run.execution_authority_commit ||
-        binding.reservation_commit !== reservation.reservation_commit ||
-        binding.effect_contract !== effectContract ||
-        binding.effect_identity_sha256 !== reservation.effect_identity_sha256
+        attemptBinding.run_id !== run.id ||
+        attemptBinding.obligation_id !== run.obligation_id ||
+        attemptBinding.execution_generation !== run.execution_generation ||
+        attemptBinding.execution_authority_commit !== run.execution_authority_commit ||
+        attemptBinding.reservation_commit !== reservation.reservation_commit ||
+        attemptBinding.effect_contract !== effectContract ||
+        attemptBinding.effect_identity_sha256 !== reservation.effect_identity_sha256
       ) {
         throw new Error('EFFECT_RELEASE_EVIDENCE_BINDING_MISMATCH');
       }
