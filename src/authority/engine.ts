@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { sha256 } from '../digest.ts';
+import { canonicalDigest, sha256 } from '../digest.ts';
 import type {
   Data,
   ExecutionPermit,
@@ -32,6 +32,7 @@ import {
 import type {
   ClaimFact,
   EffectReleaseFact,
+  EffectReservation,
   EffectReservationFact,
   ExecutionAuthorityFact,
   GraphPatchFact,
@@ -55,7 +56,6 @@ import type { Projection } from './replay.ts';
 import { mutationAdmitted, projectExecutionAuthority } from './transaction-admission.ts';
 import {
   effectAdapterCapabilities,
-  GITHUB_SOURCE_INTEGRATION_EFFECT,
   reservedEffectReleaseWitnessSafe,
   type EffectVerifier,
   type RegisteredEffectContract,
@@ -67,11 +67,8 @@ import {
   type EffectAttemptBinding,
   type TrustedEffectReleaseWitness,
 } from '../effect-release-witness.ts';
-import {
-  trustedSourceIntegrationEvidence,
-  type TrustedSourceIntegrationWitness,
-} from '../source/source-integration.ts';
 import { bindSourceClaim, type SourceClaimBinding } from '../source/source-obligation.ts';
+import { isData } from '../validation.ts';
 
 export type { Receipt } from './facts.ts';
 
@@ -81,17 +78,25 @@ export interface KernelOptions {
 }
 
 const effectAuthorityBrand: unique symbol = Symbol('effect-authority');
-const effectAuthorityPermits = new WeakMap<object, ExecutionPermit>();
+
+interface EffectAuthorityBinding {
+  permit: ExecutionPermit;
+  effect_contract: string;
+  effect_identity: Data;
+  effect_identity_sha256: string;
+}
+
+const effectAuthorityBindings = new WeakMap<object, EffectAuthorityBinding>();
 
 export type EffectAuthority<E extends string, V extends Postcondition['verifier']> = {
   readonly [effectAuthorityBrand]: E;
   readonly postcondition: Extract<Postcondition, { verifier: V }>;
 };
 
-function effectAuthorityPermit(authority: object): ExecutionPermit {
-  const permit = effectAuthorityPermits.get(authority);
-  if (!permit) throw new Error('EFFECT_AUTHORITY_INVALID');
-  return permit;
+function effectAuthorityBinding(authority: object): EffectAuthorityBinding {
+  const binding = effectAuthorityBindings.get(authority);
+  if (!binding) throw new Error('EFFECT_AUTHORITY_INVALID');
+  return binding;
 }
 
 export interface GraphPatchInput {
@@ -193,6 +198,7 @@ export class KernelCore {
   authorizeEffect<E extends RegisteredEffectContract | undefined = undefined>(
     permit: ExecutionPermit,
     effectContract?: E,
+    effectIdentity?: Data,
   ): E extends RegisteredEffectContract
     ? EffectAuthority<E, EffectVerifier<Extract<E, RegisteredEffectContract>>>
     : EffectAuthority<string, Postcondition['verifier']> {
@@ -210,13 +216,23 @@ export class KernelCore {
       (typeof work.packet.effect_contract === 'string'
         ? work.packet.effect_contract
         : 'overcenter/execution-effect');
+    const identity = structuredClone(
+      effectIdentity ?? { postcondition: structuredClone(work.postcondition) },
+    );
+    if (!isData(identity)) throw new Error('EFFECT_IDENTITY_INVALID');
+    const identitySha256 = canonicalDigest(identity);
     const authority = Object.freeze({
       [effectAuthorityBrand]: authorityContract,
       postcondition: Object.freeze(work.postcondition),
     }) as E extends RegisteredEffectContract
       ? EffectAuthority<E, EffectVerifier<Extract<E, RegisteredEffectContract>>>
       : EffectAuthority<string, Postcondition['verifier']>;
-    effectAuthorityPermits.set(authority, permit);
+    effectAuthorityBindings.set(authority, {
+      permit,
+      effect_contract: authorityContract,
+      effect_identity: identity,
+      effect_identity_sha256: identitySha256,
+    });
     return authority;
   }
 
@@ -344,7 +360,18 @@ export class KernelCore {
     throw new Error('EXECUTION_AUTHORITY_CONTENTION_EXHAUSTED');
   }
 
-  beginEffect(permit: ExecutionPermit): string {
+  beginEffect(permit: ExecutionPermit, effectIdentity?: Data): string {
+    const work = this.claimedWork(permit);
+    const effectContract =
+      typeof work.packet.effect_contract === 'string'
+        ? work.packet.effect_contract
+        : 'overcenter/execution-effect';
+    const identity = structuredClone(
+      effectIdentity ?? { postcondition: structuredClone(work.postcondition) },
+    );
+    if (!isData(identity)) throw new Error('EFFECT_IDENTITY_INVALID');
+    const effectIdentitySha256 = canonicalDigest(identity);
+
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();
       const { history, project } = this.#historicalProjection(head);
@@ -376,6 +403,9 @@ export class KernelCore {
         obligation_id: run.obligation_id,
         execution_generation: run.execution_generation,
         execution_authority_commit: run.execution_authority_commit,
+        effect_contract: effectContract,
+        effect_identity: identity,
+        effect_identity_sha256: effectIdentitySha256,
       };
       const commit = this.#store.append(
         head,
@@ -391,15 +421,17 @@ export class KernelCore {
     authority: EffectAuthority<E, V>,
     effect: (attempt: EffectAttemptBinding) => Promise<T> | T,
   ): Promise<T> {
-    const permit = effectAuthorityPermit(authority);
-    const reservationCommit = this.beginEffect(permit);
+    const binding = effectAuthorityBinding(authority);
+    const permit = binding.permit;
+    const reservationCommit = this.beginEffect(permit, binding.effect_identity);
     const attempt: EffectAttemptBinding = Object.freeze({
       run_id: permit.id,
       obligation_id: permit.obligation_id,
       execution_generation: permit.execution_generation,
       execution_authority_commit: permit.execution_authority_commit,
       reservation_commit: reservationCommit,
-      effect_contract: authority[effectAuthorityBrand],
+      effect_contract: binding.effect_contract,
+      effect_identity_sha256: binding.effect_identity_sha256,
     });
     return await effect(attempt);
   }
@@ -408,15 +440,17 @@ export class KernelCore {
     authority: EffectAuthority<E, V>,
     effect: (attempt: EffectAttemptBinding) => T,
   ): T {
-    const permit = effectAuthorityPermit(authority);
-    const reservationCommit = this.beginEffect(permit);
+    const binding = effectAuthorityBinding(authority);
+    const permit = binding.permit;
+    const reservationCommit = this.beginEffect(permit, binding.effect_identity);
     const attempt: EffectAttemptBinding = Object.freeze({
       run_id: permit.id,
       obligation_id: permit.obligation_id,
       execution_generation: permit.execution_generation,
       execution_authority_commit: permit.execution_authority_commit,
       reservation_commit: reservationCommit,
-      effect_contract: authority[effectAuthorityBrand],
+      effect_contract: binding.effect_contract,
+      effect_identity_sha256: binding.effect_identity_sha256,
     });
     return effect(attempt);
   }
@@ -426,7 +460,8 @@ export class KernelCore {
     witness: TrustedEffectReleaseWitness,
     diagnostic: Data = {},
   ): Receipt {
-    const permit = effectAuthorityPermit(authority);
+    const binding = effectAuthorityBinding(authority);
+    const permit = binding.permit;
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();
       const { history, project } = this.#historicalProjection(head);
@@ -446,7 +481,7 @@ export class KernelCore {
       }
       const reservation = history.unresolvedReservationsByRun.get(run.id);
       if (!reservation) throw new Error('NO_UNRESOLVED_EFFECT');
-      const effectContract = authority[effectAuthorityBrand];
+      const effectContract = binding.effect_contract;
       const validatedWitness = validateTrustedEffectReleaseWitness(witness);
       const binding = validatedWitness.attempt;
       if (
@@ -455,7 +490,8 @@ export class KernelCore {
         binding.execution_generation !== run.execution_generation ||
         binding.execution_authority_commit !== run.execution_authority_commit ||
         binding.reservation_commit !== reservation.reservation_commit ||
-        binding.effect_contract !== effectContract
+        binding.effect_contract !== effectContract ||
+        binding.effect_identity_sha256 !== reservation.effect_identity_sha256
       ) {
         throw new Error('EFFECT_RELEASE_EVIDENCE_BINDING_MISMATCH');
       }
@@ -502,58 +538,14 @@ export class KernelCore {
     throw new Error('EFFECT_RELEASE_CONTENTION_EXHAUSTED');
   }
 
-  settleSourceIntegration(
-    permit: ExecutionPermit,
-    witness: TrustedSourceIntegrationWitness,
-  ): Receipt {
-    const evidence = trustedSourceIntegrationEvidence(witness);
-    const receipt = this.#settleWithoutObservation(
-      permit,
-      'source-integration',
-      { source_integration: evidence },
-      ({ run, work }) => {
-        if (
-          work.packet.kind !== 'source-change' ||
-          work.packet.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT ||
-          work.postcondition.verifier !== 'source-integration/v1'
-        ) {
-          throw new Error('SOURCE_SETTLEMENT_WORK_INVALID');
-        }
-        if (
-          evidence.run_id !== run.id ||
-          evidence.obligation_key !== run.obligation_key ||
-          evidence.source_sha !== run.source_revision
-        ) {
-          throw new Error('SOURCE_INTEGRATION_EVIDENCE_BINDING_MISMATCH');
-        }
-      },
-    );
-    if (receipt.disposition !== 'DONE' || !receipt.verified) {
-      throw new Error('SOURCE_INTEGRATION_PROJECTION_FAILED');
-    }
-    return receipt;
-  }
-
-  retrySourceIntegration(permit: ExecutionPermit, reason: string, diagnostic: Data = {}): Receipt {
-    if (!reason) throw new Error('SOURCE_RETRY_REASON_INVALID');
-    const receipt = this.#settleWithoutObservation(
-      permit,
-      'source-retry',
-      {
-        ...structuredClone(diagnostic),
-        source_retry: { reason },
-      },
-      ({ work }) => {
-        if (
-          work.packet.kind !== 'source-change' ||
-          work.postcondition.verifier !== 'source-integration/v1'
-        ) {
-          throw new Error('SOURCE_RETRY_WORK_INVALID');
-        }
-      },
-    );
+  rejectEffect(permit: ExecutionPermit, reason: string, diagnostic: Data = {}): Receipt {
+    if (!reason) throw new Error('EFFECT_REJECTION_REASON_INVALID');
+    const receipt = this.#settleWithoutObservation(permit, 'effect-rejected', {
+      ...structuredClone(diagnostic),
+      effect_rejected: { reason },
+    });
     if (receipt.disposition !== 'READY') {
-      throw new Error('SOURCE_RETRY_PROJECTION_FAILED');
+      throw new Error('EFFECT_REJECTION_PROJECTION_FAILED');
     }
     return receipt;
   }
@@ -570,6 +562,20 @@ export class KernelCore {
       if (settled) return settled;
     }
     throw new Error('RESOLVE_CONTENTION_EXHAUSTED');
+  }
+
+  resolveObservedEffect(
+    permit: ExecutionPermit,
+    observed: Observation,
+    diagnostic: Data = {},
+  ): Receipt {
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      const candidate = this.#resolutionCandidate(permit);
+      if ('receipt' in candidate) return candidate.receipt;
+      const settled = this.#commitObservation(candidate, observed, diagnostic);
+      if (settled) return settled;
+    }
+    throw new Error('RESOLVE_OBSERVED_CONTENTION_EXHAUSTED');
   }
 
   async resolveAsync(permit: ExecutionPermit, diagnostic: Data = {}): Promise<Receipt> {
@@ -609,6 +615,13 @@ export class KernelCore {
   hasUnresolvedEffect(runId: string): boolean {
     const head = this.#requireHead();
     return this.#historicalProjection(head).history.unresolvedReservationsByRun.has(runId);
+  }
+
+  unresolvedEffectReservation(runId: string): EffectReservation | null {
+    const head = this.#requireHead();
+    const reservation =
+      this.#historicalProjection(head).history.unresolvedReservationsByRun.get(runId) ?? null;
+    return reservation ? structuredClone(reservation) : null;
   }
 
   #commitGraphPatch(
@@ -699,7 +712,7 @@ export class KernelCore {
         head: string;
         run: HistoricalRun;
         work: HistoricalRun['obligation'];
-        unresolvedEffect: boolean;
+        reservation: EffectReservation | null;
       } {
     const runId = permit.id;
     const head = this.#requireHead();
@@ -726,7 +739,7 @@ export class KernelCore {
       head,
       run,
       work,
-      unresolvedEffect: history.unresolvedReservationsByRun.has(runId),
+      reservation: history.unresolvedReservationsByRun.get(runId) ?? null,
     };
   }
 
@@ -735,14 +748,14 @@ export class KernelCore {
       head: string;
       run: HistoricalRun;
       work: HistoricalRun['obligation'];
-      unresolvedEffect: boolean;
+      reservation: EffectReservation | null;
     },
     observed: Observation,
     diagnostic: Data,
   ): Receipt | null {
-    const { head, run, work, unresolvedEffect } = candidate;
+    const { head, run, work, reservation } = candidate;
     const fact = this.#receiptFact(run, work.id, 'observation', observed, diagnostic);
-    const receipt = projectReceipt(fact, work, undefined, unresolvedEffect);
+    const receipt = projectReceipt(fact, work, undefined, reservation ?? false);
     const commit = this.#store.append(head, `overcenter: observe ${work.id} ${run.id}`, {
       'receipt.json': fact,
     });
@@ -753,7 +766,7 @@ export class KernelCore {
     permit: ExecutionPermit,
     kind: Extract<
       ReceiptKind,
-      'judgment-required' | 'execution-terminated' | 'source-integration' | 'source-retry'
+      'judgment-required' | 'execution-terminated' | 'effect-rejected'
     >,
     diagnostic: Data,
     validate?: (context: { run: HistoricalRun; work: HistoricalRun['obligation'] }) => void,
@@ -774,19 +787,12 @@ export class KernelCore {
               unresolvedError: null,
               contentionError: 'RECOVERY_CONTENTION_EXHAUSTED',
             }
-          : kind === 'source-integration'
-            ? {
-                action: 'integrate source',
-                lifecycleError: 'SOURCE_SETTLEMENT_RUN_NOT_EXECUTING',
-                unresolvedError: null,
-                contentionError: 'SOURCE_INTEGRATION_SETTLEMENT_CONTENTION_EXHAUSTED',
-              }
-            : {
-                action: 'retry source',
-                lifecycleError: 'SOURCE_RETRY_RUN_NOT_EXECUTING',
-                unresolvedError: 'SOURCE_RETRY_WITH_UNRESOLVED_EFFECT',
-                contentionError: 'SOURCE_RETRY_CONTENTION_EXHAUSTED',
-              };
+          : {
+              action: 'reject effect',
+              lifecycleError: 'EFFECT_REJECTION_RUN_NOT_EXECUTING',
+              unresolvedError: 'EFFECT_REJECTION_WITH_UNRESOLVED_EFFECT',
+              contentionError: 'EFFECT_REJECTION_CONTENTION_EXHAUSTED',
+            };
 
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();
@@ -805,9 +811,6 @@ export class KernelCore {
         throw new Error(policy.lifecycleError);
       }
       const unresolvedEffect = history.unresolvedReservationsByRun.has(runId);
-      if (kind === 'source-integration' && !unresolvedEffect) {
-        throw new Error('SOURCE_SETTLEMENT_WITHOUT_RESERVED_EFFECT');
-      }
       if (policy.unresolvedError && unresolvedEffect) {
         throw new Error(policy.unresolvedError);
       }
