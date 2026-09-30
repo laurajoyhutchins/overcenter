@@ -14,7 +14,9 @@ import {
   validateSourceTaskPacket,
 } from '../src/source/source-obligation.ts';
 import { brokerAssignedSourceProposal, brokerSourceProposal } from '../src/source/source-broker.ts';
-import { admitSourceProof, sourceProofRecord } from '../src/source/source-proof.ts';
+import { admitSourceProof } from '../src/source/source-proof.ts';
+import { sourceProofRecord } from '../src/source/source-proof-record.ts';
+import { validateSourceTransactionPlan } from '../src/source/transaction.ts';
 import { integrateVerifiedSourceCandidate } from '../src/source/source-integration.ts';
 
 function fixture(t: TestContext, interruptPublication = false) {
@@ -107,7 +109,8 @@ function fixture(t: TestContext, interruptPublication = false) {
   const brokered = brokerAssignedSourceProposal(repo, assignment, proposal, {
     transactionContext: context,
   });
-  const plan = kernel.sourceTransaction(claim.run_id)!.plan;
+  const binding = kernel.sourceTransaction(claim.run_id)!;
+  const plan = validateSourceTransactionPlan(binding.plan);
   const record = sourceProofRecord(
     plan,
     { workflow_run_id: 123, workflow_run_attempt: 1, job_id: 11 },
@@ -167,7 +170,7 @@ function fixture(t: TestContext, interruptPublication = false) {
       };
     return { id: 42, full_name: 'acme/widget' };
   };
-  const proof = admitSourceProof(repo, plan, record, {
+  const proof = admitSourceProof(binding, record, {
     githubToken: 'fixture',
     expectedWorkflowRunId: 123,
     expectedWorkflowRunAttempt: 1,
