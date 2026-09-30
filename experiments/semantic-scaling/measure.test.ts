@@ -253,7 +253,6 @@ test('summary keeps LOC and semantic-scope deltas visibly separate', () => {
   assert.match(summary, /zero-LOC delta cannot erase semantic growth/);
 });
 
-
 test('frontier-limited measurements require an explicit narrowed claim and residual judgment', () => {
   const frontier: SemanticScalingMeasurementPlan = {
     schema: 'overcenter-semantic-scaling-measurement-plan/v1',
