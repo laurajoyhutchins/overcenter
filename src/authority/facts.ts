@@ -27,7 +27,8 @@ export const GRAPH_PATCH_SCHEMA = 'overcenter-graph-patch-v1' as const;
 export const CLAIM_SCHEMA = 'overcenter-git-claim-v3' as const;
 export const SOURCE_REVISION_BINDING_SCHEMA = 'overcenter-source-revision-binding/v1' as const;
 export const EXECUTION_AUTHORITY_SCHEMA = 'overcenter-git-execution-authority-v1' as const;
-export const EFFECT_RESERVATION_SCHEMA = 'overcenter-git-effect-reservation-v1' as const;
+export const LEGACY_EFFECT_RESERVATION_SCHEMA = 'overcenter-git-effect-reservation-v1' as const;
+export const EFFECT_RESERVATION_SCHEMA = 'overcenter-git-effect-reservation-v2' as const;
 export const EFFECT_RELEASE_SCHEMA = 'overcenter-effect-release' as const;
 export const EFFECT_RELEASE_SCHEMA_VERSION = 2 as const;
 export const RECEIPT_SCHEMA = 'overcenter-git-receipt-v5' as const;
@@ -92,20 +93,29 @@ export interface ExecutionAuthorityFact {
   execution_capability_sha256: string;
 }
 
-export interface EffectReservationFact {
-  schema: typeof EFFECT_RESERVATION_SCHEMA;
+interface EffectReservationAuthorityBinding {
   run_id: string;
   obligation_id: string;
   execution_generation: number;
   execution_authority_commit: string;
+}
+
+export interface LegacyEffectReservationFact extends EffectReservationAuthorityBinding {
+  schema: typeof LEGACY_EFFECT_RESERVATION_SCHEMA;
+}
+
+export interface EffectReservationFact extends EffectReservationAuthorityBinding {
+  schema: typeof EFFECT_RESERVATION_SCHEMA;
   effect_contract: string;
   effect_identity: Data;
   effect_identity_sha256: string;
 }
 
-export interface EffectReservation extends EffectReservationFact {
+export type StoredEffectReservationFact = LegacyEffectReservationFact | EffectReservationFact;
+
+export type EffectReservation = StoredEffectReservationFact & {
   reservation_commit: string;
-}
+};
 
 export interface EffectReleaseFact {
   schema: typeof EFFECT_RELEASE_SCHEMA;
@@ -392,26 +402,32 @@ export function validateExecutionAuthorityFact(value: unknown): ExecutionAuthori
   return structuredClone(value) as unknown as ExecutionAuthorityFact;
 }
 
-export function validateEffectReservationFact(value: unknown): EffectReservationFact {
+export function validateEffectReservationFact(value: unknown): StoredEffectReservationFact {
   if (!data(value)) throw new Error('INVALID_EFFECT_RESERVATION_FACT');
-  exactKeys(
-    value,
-    [
-      'schema',
-      'run_id',
-      'obligation_id',
-      'execution_generation',
-      'execution_authority_commit',
-      'effect_contract',
-      'effect_identity',
-      'effect_identity_sha256',
-    ],
-    [],
-    'INVALID_EFFECT_RESERVATION_FACT',
-  );
+  const commonKeys = [
+    'schema',
+    'run_id',
+    'obligation_id',
+    'execution_generation',
+    'execution_authority_commit',
+  ] as const;
+  if (value.schema === LEGACY_EFFECT_RESERVATION_SCHEMA) {
+    exactKeys(value, commonKeys, [], 'INVALID_EFFECT_RESERVATION_FACT');
+    nonEmptyString(value.run_id, 'INVALID_RUN_ID');
+    nonEmptyString(value.obligation_id, 'INVALID_OBLIGATION_ID');
+    positiveSafeInteger(value.execution_generation, 'INVALID_EXECUTION_GENERATION');
+    nonEmptyString(value.execution_authority_commit, 'INVALID_EXECUTION_AUTHORITY_COMMIT');
+    return structuredClone(value) as unknown as LegacyEffectReservationFact;
+  }
   if (value.schema !== EFFECT_RESERVATION_SCHEMA) {
     throw new Error('INVALID_EFFECT_RESERVATION_SCHEMA');
   }
+  exactKeys(
+    value,
+    [...commonKeys, 'effect_contract', 'effect_identity', 'effect_identity_sha256'],
+    [],
+    'INVALID_EFFECT_RESERVATION_FACT',
+  );
   nonEmptyString(value.run_id, 'INVALID_RUN_ID');
   nonEmptyString(value.obligation_id, 'INVALID_OBLIGATION_ID');
   positiveSafeInteger(value.execution_generation, 'INVALID_EXECUTION_GENERATION');
@@ -555,7 +571,7 @@ export type AuthorityFact =
   | ClaimFact
   | SourceRevisionBindingFact
   | ExecutionAuthorityFact
-  | EffectReservationFact
+  | StoredEffectReservationFact
   | EffectReleaseFact
   | ReceiptFact;
 
@@ -570,6 +586,7 @@ export function validateAuthorityFact(value: unknown): AuthorityFact {
       return validateSourceRevisionBindingFact(value);
     case EXECUTION_AUTHORITY_SCHEMA:
       return validateExecutionAuthorityFact(value);
+    case LEGACY_EFFECT_RESERVATION_SCHEMA:
     case EFFECT_RESERVATION_SCHEMA:
       return validateEffectReservationFact(value);
     case EFFECT_RELEASE_SCHEMA:
