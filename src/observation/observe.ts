@@ -45,6 +45,10 @@ export interface ObservationContext {
   observeGitHubHostileMutationEvidence?: (
     postcondition: GitHubHostileMutationEvidencePostcondition,
   ) => Observation;
+  observeReservedEffect?: (
+    postcondition: Postcondition,
+    binding: EffectObservationBinding,
+  ) => Observation | null;
   kubernetesListConfigMaps?: KubernetesListConfigMaps;
   kubernetesListLimit?: number;
   // Optional trusted confinement root for local-file observations. In confined
