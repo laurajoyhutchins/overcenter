@@ -119,3 +119,11 @@ The internal candidate handoff workflow has no write authority. For source work 
 Add a command only when it represents stable semantic intent that cannot already be expressed by an existing authoritative transition.
 
 Do not expose CRUD, arbitrary REST, arbitrary workflows, free-form JSON commands, graph selection, claim mechanics, recovery bookkeeping, or transport wrappers. If the caller can derive or coordinate it mechanically, Overcenter should own it instead.
+
+## Source transaction evidence reports
+
+For a bound source run, trusted operators can run `GITHUB_TOKEN=… node --experimental-strip-types scripts/report-source-transaction.ts RUN_ID report.json`. Supply the token through the host environment. The report reconstructs the authority history at a pinned commit, reobserves the candidate delta and remote source ancestry, and checks the numeric repository identity and exact provider refs. It records the provider-observed baseline job steps, including skipped steps, rather than inferring execution from a workflow name.
+
+The command rejects an incomplete lifecycle. The programmatic reporter can also expose diagnostic snapshots: `authority_settled` describes local authority history; `settled` additionally requires independent repository identity and source observations. Report generation does not mint settlement authority.
+
+This machinery is pending runtime admission and production validation. No report from a local fixture establishes a hosted production transaction.
