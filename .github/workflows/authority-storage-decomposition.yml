@@ -2,15 +2,6 @@ name: Authority storage decomposition
 
 on:
   pull_request:
-    paths:
-      - 'experiments/authority-storage-decomposition/**'
-      - '!experiments/authority-storage-decomposition/README.md'
-      - '.github/workflows/authority-storage-decomposition.yml'
-      - 'src/authority/**'
-      - 'src/storage/git-store.ts'
-      - 'src/storage/git-kernel.ts'
-      - 'scripts/plan-hosted-evidence.ts'
-      - 'package.json'
   workflow_dispatch:
 
 concurrency:
@@ -40,13 +31,13 @@ jobs:
         with:
           node-version-file: '.node-version'
       - id: impact
-        name: Plan hosted evidence
+        name: Plan assurance evidence
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: node --experimental-strip-types scripts/plan-hosted-evidence.ts authority-storage "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
-      - if: steps.impact.outputs.required == 'true'
+        run: node --experimental-strip-types scripts/plan-assurance-evidence.ts "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+      - if: contains(fromJSON(steps.impact.outputs.evidence_json), 'authority-storage-proof')
         run: npm install --ignore-scripts --package-lock=false
       - name: Run decomposition treatment
-        if: steps.impact.outputs.required == 'true'
+        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'authority-storage-proof')
         run: npm run test:authority-storage-decomposition
