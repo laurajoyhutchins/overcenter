@@ -229,6 +229,36 @@
         "architecture-derived trusted roots and property composition",
         "exact-head merge-gate and authority-flow evidence"
       ]
+    },
+    {
+      "task_id": "authority-effect-confinement-architectural-acceptance",
+      "rung": "architectural-design-requirement",
+      "classification": "frontier-limited",
+      "claim": "The trusted review-attestation verifier establishes that reviewer laurajoyhutchins merged the exact PR #265 artifact at head 173be151860512f24540316092ec584e25cb1255 under the declared merge-by-reviewer acceptance policy.",
+      "narrowed_from": "The authority-versus-effect-confinement architecture in PR #265 objectively satisfies stakeholder architectural intent.",
+      "residual_judgment": "Whether the accepted authority-versus-effect-confinement architecture actually satisfies stakeholder intent and remains the right architectural choice.",
+      "scopes": [
+        {
+          "kind": "property",
+          "id": "review-attestation-integrity",
+          "role": "new-reusable"
+        }
+      ],
+      "evidence": [
+        "pull/265@173be151860512f24540316092ec584e25cb1255",
+        "merge/5fdd54b62513a85ba18f4655e9182e3534af2109",
+        "src/providers/github/review-attestation.ts",
+        "test/github-pr-attestation.test.ts"
+      ],
+      "observation_support": [
+        "repository laurajoyhutchins/overcenter id 1354872053",
+        "pull request 265 node PR_kwDOUMG09c8AAAABEpYcwg",
+        "exact accepted head 173be151860512f24540316092ec584e25cb1255",
+        "exact base fdd7a1cf9d6877b3137e3e2000617e0afbc5f01 on main",
+        "merge commit 5fdd54b62513a85ba18f4655e9182e3534af2109",
+        "merged_by reviewer laurajoyhutchins",
+        "acceptance policy github-pr-merge-by-reviewer/v1"
+      ]
     }
   ]
 }
