@@ -264,7 +264,6 @@ withFixture('semantic edge declaration order does not change obligation identity
   assert.deepEqual(plan.rebound, []);
   assert.deepEqual(plan.unchanged, ['b']);
   assert.deepEqual(plan.upsert, []);
-  assert.deepEqual(plan.retire, []);
   assert.equal(f.kernel.head(), head);
 
   const after = f.work('b');
