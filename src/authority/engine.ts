@@ -198,7 +198,7 @@ export class KernelCore {
   authorizeEffect<E extends RegisteredEffectContract | undefined = undefined>(
     permit: ExecutionPermit,
     effectContract?: E,
-    effectIdentity?: Data,
+    effectIdentity?: unknown,
   ): E extends RegisteredEffectContract
     ? EffectAuthority<E, EffectVerifier<Extract<E, RegisteredEffectContract>>>
     : EffectAuthority<string, Postcondition['verifier']> {
@@ -361,7 +361,7 @@ export class KernelCore {
   }
 
   beginEffect(permit: ExecutionPermit, effectIdentity?: Data): string {
-    const work = this.claimedWork(permit);
+    const work = this.claimedWork(permit.id);
     const effectContract =
       typeof work.packet.effect_contract === 'string'
         ? work.packet.effect_contract
@@ -554,7 +554,11 @@ export class KernelCore {
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const candidate = this.#resolutionCandidate(permit);
       if ('receipt' in candidate) return candidate.receipt;
-      const settled = this.#commitObservation(candidate, this.#observeCandidate(candidate), diagnostic);
+      const settled = this.#commitObservation(
+        candidate,
+        this.#observeCandidate(candidate),
+        diagnostic,
+      );
       if (settled) return settled;
     }
     throw new Error('RESOLVE_CONTENTION_EXHAUSTED');
@@ -747,9 +751,7 @@ export class KernelCore {
     work: HistoricalRun['obligation'];
     reservation: EffectReservation | null;
   }): Observation {
-    return (
-      this.#observeReservedEffect(candidate) ?? this.#observe(candidate.work.postcondition)
-    );
+    return this.#observeReservedEffect(candidate) ?? this.#observe(candidate.work.postcondition);
   }
 
   #commitObservation(
