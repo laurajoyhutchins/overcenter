@@ -8,12 +8,17 @@ export const ARCHITECTURE_SQL_PATHS = [
   'architecture/physics.sql',
 ] as const;
 
-export function loadArchitectureDatabase(root = process.cwd()): DatabaseSync {
+export type ArchitectureSqlReader = (path: string) => string;
+
+export function loadArchitectureDatabase(
+  root = process.cwd(),
+  readSql: ArchitectureSqlReader = (path) => readFileSync(resolve(root, path), 'utf8'),
+): DatabaseSync {
   const db = new DatabaseSync(':memory:');
   try {
     db.exec('PRAGMA foreign_keys = ON');
     for (const path of ARCHITECTURE_SQL_PATHS) {
-      db.exec(readFileSync(resolve(root, path), 'utf8'));
+      db.exec(readSql(path));
     }
     const violations = db.prepare('PRAGMA foreign_key_check').all();
     if (violations.length > 0) throw new Error('ARCHITECTURE_FOREIGN_KEY_VIOLATION');
