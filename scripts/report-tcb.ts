@@ -914,6 +914,10 @@ interface HybridClosure {
   semantic_loc: number;
   files: string[];
   sha256: string;
+  semantic_line_ranges: Array<{
+    path: string;
+    ranges: Array<[number, number]>;
+  }>;
 }
 
 function hybridClosure(
@@ -967,10 +971,26 @@ function hybridClosure(
     fingerprintMaterial.push(`composes-with:${propertyId}`);
   }
 
+  const semanticLineRanges = [...trusted.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([path, selected]) => {
+      const ranges: Array<[number, number]> = [];
+      for (const line of [...selected].sort((left, right) => left - right)) {
+        const current = ranges.at(-1);
+        if (current && line === current[1] + 1) {
+          current[1] = line;
+        } else {
+          ranges.push([line, line]);
+        }
+      }
+      return { path, ranges };
+    });
+
   return {
     semantic_loc: [...trusted.values()].reduce((sum, lines) => sum + lines.size, 0),
     files: [...trusted.keys()].sort(),
     sha256: createHash('sha256').update(fingerprintMaterial.sort().join('\n')).digest('hex'),
+    semantic_line_ranges: semanticLineRanges,
   };
 }
 
@@ -1189,15 +1209,14 @@ try {
         roots,
         root_semantic_loc: uniqueSemanticLoc(slices),
         module_closure_semantic_loc: closure.semantic_loc,
-        module_closure_files: closure.files,
         symbol_closure_status: symbols.status,
         symbol_closure_semantic_loc: symbols.semantic_loc,
-        symbol_closure_declarations: symbols.declarations,
         symbol_closure_obligations: symbols.obligations,
         resolved_dispatch_bindings: symbols.resolved_dispatch_bindings,
         hybrid_closure_semantic_loc: hybrid.semantic_loc,
         hybrid_closure_sha256: hybrid.sha256,
         hybrid_closure_files: hybrid.files,
+        hybrid_closure_semantic_line_ranges: hybrid.semantic_line_ranges,
       };
     })
     .sort((left, right) => left.effect_id.localeCompare(right.effect_id));
