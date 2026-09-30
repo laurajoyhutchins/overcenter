@@ -25,6 +25,10 @@ export const SOURCE_VERIFICATION_SCHEMA = 'overcenter-source-verification/v1' as
 export const SOURCE_INTEGRATION_EVIDENCE_SCHEMA =
   'overcenter-source-integration-evidence/v1' as const;
 
+export type SourceCandidatePublicationResult =
+  | { state: 'PUBLISHED' | 'ALREADY_PUBLISHED'; ref: string; candidate_sha: string }
+  | { state: 'CONFLICT'; ref: string; observed_sha: string };
+
 export interface SourceVerification {
   schema: typeof SOURCE_VERIFICATION_SCHEMA;
   state: 'verified' | 'rejected';
