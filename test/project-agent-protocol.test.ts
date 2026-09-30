@@ -1,4 +1,4 @@
-import { sourceProofRecord } from '../src/source/source-proof.ts';
+import { sourceProofRecord } from '../src/source/source-proof-record.ts';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
