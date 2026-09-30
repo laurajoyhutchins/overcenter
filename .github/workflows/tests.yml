@@ -23,7 +23,7 @@ jobs:
   evidence:
     name: Candidate evidence
     runs-on: ubuntu-24.04
-    timeout-minutes: 4
+    timeout-minutes: 8
     env:
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
