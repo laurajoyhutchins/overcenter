@@ -4,10 +4,7 @@ import test from 'node:test';
 
 import { deriveInvalidatedEvidence } from '../src/architecture/change-planner.ts';
 import { loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
-import {
-  planHostedEvidence,
-  type HostedEvidenceKey,
-} from '../scripts/plan-hosted-evidence.ts';
+import { planHostedEvidence, type HostedEvidenceKey } from '../scripts/plan-hosted-evidence.ts';
 
 const LEGACY_KEYS: HostedEvidenceKey[] = [
   'authority-flow',
