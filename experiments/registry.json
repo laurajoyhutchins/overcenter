@@ -690,7 +690,7 @@
       "contrast": "Allow trusted verification to grow into a deterministic shadow of the reasoning worker while continuing to describe the trusted kernel as semantically small.",
       "reproduce": {
         "tier": "deterministic",
-        "local": "npm run test:semantic-scaling && npm run test:semantic-scaling-measurement && npm run check:tcb -- --output /tmp/overcenter-tcb-report.json && npm run experiment:semantic-scaling:measure -- --tcb-report /tmp/overcenter-tcb-report.json"
+        "local": "npm run test:semantic-scaling && npm run test:semantic-scaling-measurement && npm run test:semantic-scaling-behavioral-oracle && npm run check:tcb -- --output /tmp/overcenter-tcb-report.json && npm run experiment:semantic-scaling:behavioral-oracle && npm run experiment:semantic-scaling:measure -- --tcb-report /tmp/overcenter-tcb-report.json"
       },
       "environment": [
         "Node.js from .node-version.",
@@ -707,14 +707,16 @@
       ],
       "evidence": {
         "status": "evaluated",
-        "evaluated_revision": "7f95ca1c23ca089f7990e864d84ea61aaa4f6fc8",
+        "evaluated_revision": "b9028ab1d8f0758d46ef9d381216f2ccf77e5af2",
         "artifacts": [
           "Issue #460 preregisters the falsification criterion, experimental ladder, anti-cheating rule, and allowed outcomes.",
-          "GitHub Actions run 36653875173: exact-head TCB reconciliation and semantic-scaling measurement passed for pure computation, exact-base source integration, and GitHub commit-status safe settlement.",
-          "At revision 7f95ca1c23ca089f7990e864d84ea61aaa4f6fc8 the measured ladder was 9,281 baseline trusted semantic LOC, +4 marginal LOC for source integration, and +0 marginal LOC for GitHub commit-status settlement; the GitHub rung still introduced two provider-specific scopes and five external assumptions."
+          "GitHub Actions run 36655306559 at exact head b9028ab1d8f0758d46ef9d381216f2ccf77e5af2 passed TCB reconciliation, the historical behavioral oracle, marginal semantic-scaling measurement, code-witness analysis, diagnosability, experiment-contract checks, and all 423 deterministic tests.",
+          "The behavioral checksum oracle binds historical PR #401 base e34337c90cca239ffa03f8f306c10b7e84a23483 and repaired candidate ec74e1f407b4fb3c35882ab126ad389b7cd04e87: the base fails after fresh-directory relocation, the repaired candidate passes, and post-relocation byte tampering fails.",
+          "At revision b9028ab1d8f0758d46ef9d381216f2ccf77e5af2 the behavioral-bug-repair rung measured 9,281 trusted semantic LOC, +0 marginal LOC, no new TCB scope, and three new execution assumptions. Its authoritative claim is narrowed to exact oracle passage, with oracle completeness retained as residual judgment.",
+          "The prior ladder remains 9,281 baseline trusted semantic LOC, +4 marginal LOC for source integration, and +0 marginal LOC for GitHub commit-status settlement; provider-specific scopes and assumptions remain separately reported."
         ]
       },
-      "interpretation": "The first three-rung measurement shows heavy trusted-source reuse: source integration adds four trusted semantic lines beyond the pure-computation settlement baseline, while GitHub commit-status settlement adds no new trusted source lines beyond that union. This is only an initial reuse result because provider-specific scopes and external assumptions still grow even when LOC does not, and harder task families have not yet challenged the apparent plateau.",
+      "interpretation": "The exercised ladder now shows two different reasons for a small marginal trusted-source surface. Source integration and GitHub settlement primarily reuse existing authority machinery, while the behavioral bug-repair case stays at zero marginal trusted source lines only by narrowing the authoritative claim to exact passage of an independently fixed relocation oracle. That fourth result is frontier-limited: the kernel does not claim that the oracle completely specifies worker-client correctness. This supports a bounded region of reusable deterministic settlement while exposing a semantic judgment frontier rather than converting that frontier into trusted task-specific code.",
       "non_claims": [
         "Synthetic fixtures demonstrate that Overcenter's trusted semantic complexity has converged.",
         "Raw LOC is a sufficient proxy for semantic trust.",
@@ -727,7 +729,7 @@
       },
       "outcome": {
         "state": "pending",
-        "summary": "Three materially different rungs now have revision-bound marginal TCB measurements. The observed source-line plateau is promising but is not promoted to a general convergence claim."
+        "summary": "Four materially different rungs now have revision-bound evidence. The behavioral bug-repair rung is frontier-limited with zero marginal trusted source lines but three new execution assumptions and an explicit residual oracle-completeness judgment; broader convergence remains unclaimed."
       }
     }
   ]
