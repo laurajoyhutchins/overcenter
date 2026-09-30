@@ -38,11 +38,15 @@ canonical candidate
         |
 read-only verification
         |
-verified tree
+verified tree + source effect identity
         |
-exact-base integration
+generic effect reservation
         |
-integration evidence
+exact-base integration adapter
+        |
+authoritative source readback
+        |
+generic observation settlement
 ```
 
 If the source base has moved, the work returns for a new realization. If the integration outcome is ambiguous, the run moves to recovery instead of retrying the mutation blindly.
@@ -55,13 +59,15 @@ A worker returns a bounded `SourceProposal` containing the final bytes for the t
 
 The proposal is only transport. The brokered candidate is the object that enters verification.
 
-## Verification and integration evidence
+## Verification and settlement evidence
 
-`src/source/source-integration.ts` defines two additional records:
+`src/source/source-integration.ts` defines the source-specific data consumed by the generic effect lifecycle:
 
 - `overcenter-source-verification/v1` records whether a specific candidate was verified against a specific base and, on success, the resulting tree.
-- `overcenter-source-integration-evidence/v1` records the run, obligation key, source SHA, candidate SHA, verified tree, integration commit, and whether the commit was newly integrated or already present.
+- `overcenter-source-integration-effect/v1` binds the run, obligation key, source SHA, candidate SHA, verification base, verified tree, and target ref as the identity of one repository effect attempt.
 
-These records support settlement. They do not allow the worker to mark its own work complete.
+The generic effect reservation durably stores that identity before mutation. Source integration then performs only the exact-base ref CAS. Authoritative readback emits an ordinary `source-integration/v1` observation bound to the reservation's identity digest, and the generic observation receipt decides DONE versus RECOVERY_REQUIRED. There is no separate source settlement or source-retry receipt protocol.
+
+A pre-effect verification or stale-base rejection may return the work to READY only while no unresolved effect exists. Once a reservation exists, replay is forbidden until authoritative observation resolves that exact reserved identity.
 
 See [operator commands](./operator-commands.md) for the `project.advance` and `project.submit` interface.
