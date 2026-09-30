@@ -309,7 +309,6 @@ test('generic read fails closed before provider access when credential permissio
   assert.equal(result.observation_error, 'GITHUB_SEMANTIC_READ_PERMISSION_NOT_GRANTED:issues:read');
 });
 
-
 test('certified ref is generic certified read plus a binding predicate', () => {
   const get = (_token: string, path: string) => {
     if (path === '/repos/acme/widget') return repository();
