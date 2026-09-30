@@ -5,6 +5,26 @@ import {
   type SourceTransactionPlan,
 } from './transaction.ts';
 
+export interface AdmittedSourceProof {
+  schema: 'overcenter-admitted-source-proof/v1';
+  state: 'verified';
+  reason: null;
+  run_id: string;
+  candidate_sha: string;
+  base_sha: string;
+  tree_sha: string;
+  runtime_sha: string;
+  plan_digest: string;
+  producer: {
+    repository_id: number;
+    repository_full_name: string;
+    workflow_path: string;
+    workflow_run_id: number;
+    workflow_run_attempt: number;
+    job_id: number;
+  };
+}
+
 export interface SourceProofContext {
   repository_id: number;
   repository_full_name: string;
