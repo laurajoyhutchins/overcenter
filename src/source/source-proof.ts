@@ -105,7 +105,7 @@ export function sourceProofRecord(
 }
 
 export function admitSourceProof(
-  repo: string,
+  _repo: string,
   planValue: SourceTransactionPlan,
   recordValue: unknown,
   {
