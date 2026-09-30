@@ -26,6 +26,7 @@ INSERT INTO artifact(artifact_id) VALUES
   ('src/effect-release-witness.ts'),
   ('src/observation/observe.ts'),
   ('src/providers/github/certified-status.ts'),
+  ('src/providers/github/review-attestation.ts'),
   ('src/providers/github/pr-update-branch-effect.ts'),
   ('src/providers/github/status-effect.ts'),
   ('src/providers/kubernetes/configmap-effect.ts'),
@@ -36,6 +37,7 @@ INSERT INTO artifact(artifact_id) VALUES
   ('test/projection-reconstruction.test.ts'),
   ('test/projector-pure.test.ts'),
   ('test/provider-observation.test.ts'),
+  ('test/github-pr-attestation.test.ts'),
   ('test/trusted-effect-core-loop.test.ts');
 
 INSERT INTO symbol(symbol_id, artifact_id) VALUES
@@ -63,6 +65,7 @@ INSERT INTO symbol(symbol_id, artifact_id) VALUES
   ('observationVerified', 'src/observation/observe.ts'),
   ('integrateVerifiedSourceCandidate', 'src/source/source-integration.ts'),
   ('observeCertifiedGitHubCommitStatus', 'src/providers/github/certified-status.ts'),
+  ('observeCertifiedGitHubPullRequestReviewAttestation', 'src/providers/github/review-attestation.ts'),
   ('performGitHubCommitStatusEffect', 'src/providers/github/status-effect.ts'),
   ('performGitHubPullRequestUpdateBranchEffect', 'src/providers/github/pr-update-branch-effect.ts'),
   ('performKubernetesConfigMapEffect', 'src/providers/kubernetes/configmap-effect.ts');
@@ -92,7 +95,8 @@ INSERT INTO symbol_implements_capability(symbol_id, capability_id) VALUES
   ('settlementSemantics', 'effect-settlement'),
   ('integrateVerifiedSourceCandidate', 'source-integration'),
   ('performGitHubCommitStatusEffect', 'github-commit-status-mutation'),
-  ('observeCertifiedGitHubCommitStatus', 'github-commit-status-observation');
+  ('observeCertifiedGitHubCommitStatus', 'github-commit-status-observation'),
+  ('observeCertifiedGitHubPullRequestReviewAttestation', 'review-attestation-observation');
 
 INSERT INTO symbol_projects_capability(symbol_id, capability_id) VALUES
   ('deriveProjectProjection', 'durable-project-facts'),
@@ -115,6 +119,7 @@ INSERT INTO artifact_witnesses_evidence(artifact_id, evidence_id) VALUES
   ('test/projection-reconstruction.test.ts', 'projection-reconstruction-proof'),
   ('test/projector-pure.test.ts', 'projection-reconstruction-proof'),
   ('test/provider-observation.test.ts', 'provider-observation-proof'),
+  ('test/github-pr-attestation.test.ts', 'review-attestation-proof'),
   ('test/trusted-effect-core-loop.test.ts', 'effect-core-loop-proof');
 
 INSERT INTO capability(capability_id) VALUES
