@@ -800,7 +800,7 @@ test('project.submit integrates a verified source candidate and settles the sour
         {
           schema: SOURCE_VERIFICATION_SCHEMA,
           state: 'verified',
-          run_id: acquired.run_id,
+          run_id: runId,
           candidate_sha: candidateSha,
           base_sha: sourceSha,
           tree_sha: treeSha,
@@ -816,7 +816,7 @@ test('project.submit integrates a verified source candidate and settles the sour
       {
         ...commandContext('e'.repeat(40), 9100),
         candidate_sha: candidateSha,
-        candidate_run_id: acquired.run_id,
+        candidate_run_id: runId,
       },
       {
         authorityRef: AUTHORITY_REF,
@@ -868,7 +868,8 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
       authorityRef: AUTHORITY_REF,
       remote: 'origin',
     });
-    assert.ok(acquired.run_id);
+    const runId = acquired.run_id;
+    assert.ok(runId);
 
     const assignment = JSON.parse(
       readFileSync(join(f.root, 'source-recovery-packet', 'assignment.json'), 'utf8'),
@@ -908,8 +909,8 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
-    const permit = interrupted.acquireExecution(acquired.run_id);
-    const sourceClaim = interrupted.sourceClaimBinding(acquired.run_id);
+    const permit = interrupted.acquireExecution(runId);
+    const sourceClaim = interrupted.sourceClaimBinding(runId);
     const prepared = prepareVerifiedSourceIntegration(
       f.work,
       assignment.task,
@@ -920,7 +921,7 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
       { remote: 'origin' },
     );
     assert.equal(prepared.state, 'READY');
-    if (prepared.state !== 'READY') throw new Error(prepared.reason);
+    if (prepared.state !== 'READY') throw new Error('SOURCE_PREPARATION_NOT_READY');
     const authority = interrupted.authorizeEffect(
       permit,
       GITHUB_SOURCE_INTEGRATION_EFFECT,
@@ -929,7 +930,7 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
     interrupted.performEffectSync(authority, () =>
       performPreparedSourceIntegration(f.work, prepared, { remote: 'origin' }),
     );
-    assert.equal(interrupted.hasUnresolvedEffect(acquired.run_id), true);
+    assert.equal(interrupted.hasUnresolvedEffect(runId), true);
 
     const integratedHead = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0]!;
     assert.notEqual(integratedHead, candidateSha);
@@ -942,7 +943,7 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
           {
             ...commandContext('d'.repeat(40), 9150),
             candidate_sha: 'd'.repeat(40),
-            candidate_run_id: acquired.run_id,
+            candidate_run_id: runId,
           },
           { authorityRef: AUTHORITY_REF, remote: 'origin' },
         ),
@@ -953,7 +954,7 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
-    assert.equal(afterWrongIdentity.hasUnresolvedEffect(acquired.run_id), true);
+    assert.equal(afterWrongIdentity.hasUnresolvedEffect(runId), true);
     assert.equal(
       git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0],
       integratedHead,
@@ -980,7 +981,7 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
       remote: 'origin',
       ref: AUTHORITY_REF,
     });
-    assert.equal(authoritative.hasUnresolvedEffect(acquired.run_id), false);
+    assert.equal(authoritative.hasUnresolvedEffect(runId), false);
     assert.equal(authoritative.inspect()[0]?.status, 'DONE');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
