@@ -9,6 +9,7 @@ import { canonicalDigest } from '../digest.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
 import { observeRepositoryDelta } from './repository-delta.ts';
 import { validateSourceIntegrationEvidence } from './source-integration.ts';
+import { sourceTransactionPlanRef, validateSourceTransactionPlan } from './transaction.ts';
 
 export function reportSourceTransaction(
   repo: string,
@@ -37,15 +38,16 @@ export function reportSourceTransaction(
   const kernel = new GitOvercenterKernel(repo, { ref: authorityHead });
   const binding = kernel.sourceTransaction(runId);
   if (!binding) throw new Error('SOURCE_TRANSACTION_REPORT_BINDING_MISSING');
+  const plan = validateSourceTransactionPlan(binding.plan);
   const delta = observeRepositoryDelta(
     repo,
-    binding.plan.claim.source_sha,
-    binding.plan.candidate_sha,
+    plan.claim.source_sha,
+    plan.candidate_sha,
   );
   if (
-    delta.candidate_tree !== binding.plan.candidate_tree ||
+    delta.candidate_tree !== plan.candidate_tree ||
     canonicalDigest(delta.entries.map((entry) => entry.path)) !==
-      canonicalDigest([...binding.plan.observed_write_set].sort())
+      canonicalDigest([...plan.observed_write_set].sort())
   )
     throw new Error('SOURCE_TRANSACTION_REPORT_DELTA_MISMATCH');
   const receipt = kernel.receipts(runId).at(-1);
@@ -65,9 +67,9 @@ export function reportSourceTransaction(
   if (integration) {
     if (
       integration.run_id !== runId ||
-      integration.source_sha !== binding.plan.claim.source_sha ||
-      integration.candidate_sha !== binding.plan.candidate_sha ||
-      integration.verified_tree_sha !== binding.plan.candidate_tree ||
+      integration.source_sha !== plan.claim.source_sha ||
+      integration.candidate_sha !== plan.candidate_sha ||
+      integration.verified_tree_sha !== plan.candidate_tree ||
       integration.plan_digest !== binding.plan_digest ||
       integration.verified_tree_sha !==
         git('rev-parse', `${integration.integration_commit}^{tree}`) ||
@@ -88,8 +90,8 @@ export function reportSourceTransaction(
   let repositoryIdentity: 'verified' | 'unverified' = 'unverified';
   if (githubToken) {
     verifyGitHubRepositoryIdentity(githubToken, {
-      repositoryId: binding.plan.repository_id,
-      repositoryFullName: binding.plan.repository_full_name,
+      repositoryId: plan.repository_id,
+      repositoryFullName: plan.repository_full_name,
       get,
     });
     for (const [ref, sha] of [
@@ -100,7 +102,7 @@ export function reportSourceTransaction(
       const raw = get(
         githubToken,
         githubRepositoryPath(
-          binding.plan.repository_full_name,
+          plan.repository_full_name,
           `/git/ref/${ref.slice(5).split('/').map(encodeURIComponent).join('/')}`,
         ),
       );
@@ -112,7 +114,7 @@ export function reportSourceTransaction(
       const raw = get(
         githubToken,
         githubRepositoryPath(
-          binding.plan.repository_full_name,
+          plan.repository_full_name,
           `/actions/runs/${producer.workflow_run_id}/attempts/${producer.workflow_run_attempt}/jobs?per_page=100`,
         ),
       );
@@ -127,7 +129,7 @@ export function reportSourceTransaction(
         !isData(job) ||
         !isPositiveSafeInteger(job.id) ||
         job.run_id !== producer.workflow_run_id ||
-        job.head_sha !== binding.plan.candidate_sha ||
+        job.head_sha !== plan.candidate_sha ||
         job.status !== 'completed' ||
         job.conclusion !== 'success' ||
         !Array.isArray(job.steps) ||
@@ -160,18 +162,18 @@ export function reportSourceTransaction(
     schema: 'overcenter-source-transaction-evidence',
     schema_version: 1,
     repository_identity: repositoryIdentity,
-    repository_id: binding.plan.repository_id,
-    repository_full_name: binding.plan.repository_full_name,
-    runtime_sha: binding.plan.runtime_sha,
+    repository_id: plan.repository_id,
+    repository_full_name: plan.repository_full_name,
+    runtime_sha: plan.runtime_sha,
     run_id: runId,
     authority_head: authorityHead,
     plan_digest: binding.plan_digest,
-    plan_ref: binding.plan_ref,
-    planned_write_set: binding.plan.expected_write_set,
+    plan_ref: sourceTransactionPlanRef(plan),
+    planned_write_set: plan.expected_write_set,
     observed_write_set: delta.entries.map((entry) => entry.path),
-    candidate_sha: binding.plan.candidate_sha,
-    candidate_tree: binding.plan.candidate_tree,
-    assurance: binding.plan.assurance,
+    candidate_sha: plan.candidate_sha,
+    candidate_tree: plan.candidate_tree,
+    assurance: plan.assurance,
     validation_executed: integration?.source_proof
       ? {
           workflow_path: integration.source_proof.producer.workflow_path,
@@ -180,8 +182,6 @@ export function reportSourceTransaction(
           required_job: 'Verify source candidate / Candidate evidence',
           observed_steps: executedChecks,
           producer_job_id: integration.source_proof.producer.job_id,
-          artifact: integration.source_proof.artifact,
-          proof_ref: integration.source_proof_ref,
         }
       : null,
     source_integration: integration,
