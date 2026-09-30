@@ -364,8 +364,8 @@ export function advanceProjectForAgent(
       if (!expectedRevision) throw new Error('PROJECT_ADVANCE_AUTHORITY_MISSING');
       try {
         const plan = planGraphReconciliation(kernel.inspect(), desired);
-        if (plan.upsert.length > 0 || plan.retire.length > 0) {
-          kernel.applyGraphPatch({ upsert: plan.upsert, retire: plan.retire }, expectedRevision);
+        if (plan.upsert.length > 0) {
+          kernel.applyGraphPatch({ upsert: plan.upsert }, expectedRevision);
         } else if (kernel.head() !== expectedRevision) {
           continue;
         }
