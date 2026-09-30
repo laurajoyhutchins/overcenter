@@ -31,6 +31,8 @@ export interface SemanticScalingMeasurementTask {
     | 'consequential-external-effect';
   classification: 'convergent' | 'frontier-limited' | 'semantic-mirroring' | 'unsupported';
   claim: string;
+  narrowed_from?: string;
+  residual_judgment?: string;
   scopes: SemanticScalingMeasurementScope[];
   evidence: string[];
   observation_support: string[];
@@ -100,6 +102,8 @@ export interface SemanticScalingMeasurementResult {
     rung: SemanticScalingMeasurementTask['rung'];
     classification: SemanticScalingMeasurementTask['classification'];
     claim: string;
+    narrowed_from: string | null;
+    residual_judgment: string | null;
     trusted_semantic_loc: number;
     marginal_semantic_loc: number;
     reused_prior_semantic_loc: number;
@@ -216,6 +220,24 @@ export function validateSemanticScalingMeasurementPlan(
       throw new Error(`SEMANTIC_SCALING_MEASUREMENT_INVALID_CLASSIFICATION:${task.task_id}`);
     }
     requireString(task.claim, `${task.task_id}.claim`);
+    if (task.narrowed_from !== undefined) {
+      requireString(task.narrowed_from, `${task.task_id}.narrowed_from`);
+    }
+    if (task.residual_judgment !== undefined) {
+      requireString(task.residual_judgment, `${task.task_id}.residual_judgment`);
+    }
+    if (
+      task.classification === 'frontier-limited' &&
+      (task.narrowed_from === undefined || task.residual_judgment === undefined)
+    ) {
+      throw new Error(`SEMANTIC_SCALING_FRONTIER_EVIDENCE_REQUIRED:${task.task_id}`);
+    }
+    if (
+      task.classification !== 'frontier-limited' &&
+      (task.narrowed_from !== undefined || task.residual_judgment !== undefined)
+    ) {
+      throw new Error(`SEMANTIC_SCALING_FRONTIER_EVIDENCE_UNEXPECTED:${task.task_id}`);
+    }
     if (!Array.isArray(task.scopes) || task.scopes.length === 0) {
       throw new Error(`SEMANTIC_SCALING_MEASUREMENT_SCOPES_REQUIRED:${task.task_id}`);
     }
@@ -440,6 +462,8 @@ export function measureSemanticScaling(
       rung: task.rung,
       classification: task.classification,
       claim: task.claim,
+      narrowed_from: task.narrowed_from ?? null,
+      residual_judgment: task.residual_judgment ?? null,
       trusted_semantic_loc: trusted.size,
       marginal_semantic_loc: marginal.size,
       reused_prior_semantic_loc: reused.size,
