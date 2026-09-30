@@ -306,7 +306,7 @@
           "$ref": "#/$defs/ExecutionAuthorityFact"
         },
         {
-          "$ref": "#/$defs/EffectReservationFactV1"
+          "$ref": "#/$defs/LegacyEffectReservationFact"
         },
         {
           "$ref": "#/$defs/EffectReservationFact"
@@ -437,7 +437,7 @@
         }
       ]
     },
-    "EffectReservationFactV1": {
+    "LegacyEffectReservationFact": {
       "type": "object",
       "additionalProperties": false,
       "required": [
