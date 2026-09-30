@@ -23,41 +23,7 @@ function filesUnder(root: string): string[] {
   return found;
 }
 
-test('stable contract names do not encode schema versions', () => {
-  const contractFiles = filesUnder('contracts');
-
-  const versionedPaths = contractFiles.filter((path) =>
-    path.split('/').some((segment) => /-v\d+$/.test(segment)),
-  );
-  assert.deepEqual(versionedPaths, []);
-
-  const versionedDefinitions: string[] = [];
-  const versionedTitles: string[] = [];
-  const versionedContractRefs: string[] = [];
-  for (const path of contractFiles.filter((path) => path.endsWith('.json'))) {
-    const document = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
-    if (path.endsWith('/schema.json')) {
-      const defs = (document.$defs ?? {}) as Record<string, unknown>;
-      for (const name of Object.keys(defs)) {
-        if (/V\d+$/.test(name)) versionedDefinitions.push(`${path}#/$defs/${name}`);
-      }
-      if (typeof document.title === 'string' && /\bv\d+\b/i.test(document.title)) {
-        versionedTitles.push(`${path}: ${document.title}`);
-      }
-    }
-    const text = JSON.stringify(document);
-    for (const oldPath of OLD_CONTRACT_PATHS) {
-      if (text.includes(oldPath)) versionedContractRefs.push(`${path}: ${oldPath}`);
-    }
-    for (const match of text.matchAll(/"definition":"([^"]*V\d+)"/g)) {
-      versionedDefinitions.push(`${path}: ${match[1]}`);
-    }
-  }
-
-  assert.deepEqual(versionedDefinitions, []);
-  assert.deepEqual(versionedTitles, []);
-  assert.deepEqual(versionedContractRefs, []);
-
+test('stable wire names do not encode schema versions in source type names or paths', () => {
   const exportedVersionedTypes: string[] = [];
   for (const path of filesUnder('src').filter((path) => path.endsWith('.ts'))) {
     const source = readFileSync(path, 'utf8');
@@ -70,7 +36,7 @@ test('stable contract names do not encode schema versions', () => {
   assert.deepEqual(exportedVersionedTypes, []);
 
   const stalePathReferences: string[] = [];
-  const scanRoots = ['.github', 'src', 'scripts', 'test', 'experiments', 'contracts'];
+  const scanRoots = ['.github', 'src', 'scripts', 'test', 'experiments', 'schema'];
   const scanFiles = scanRoots
     .flatMap((root) => filesUnder(root))
     .filter((path) => path !== 'test/stable-contract-names.test.ts')

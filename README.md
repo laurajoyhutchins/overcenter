@@ -166,7 +166,6 @@ The safety claim is narrower: an uncertain or even locally hostile worker does n
 ```text
 architecture/ declarative concepts, desired architecture, and current physical realization
 src/          all production implementation, including operator CLIs and native execution
-contracts/    versioned machine-readable data contracts
 test/         focused invariants of production mechanisms
 scripts/      repository tooling and proof/evidence entrypoints
 experiments/  maintained executable proofs
@@ -208,7 +207,7 @@ Important entry points:
 - [`src/execution/manifest.ts`](./src/execution/manifest.ts) - canonical exact-byte manifest for the Rust confinement launcher.
 - [`src/execution/confined-executor.ts`](./src/execution/confined-executor.ts) - trusted TypeScript transport that sends exactly the hashed manifest bytes to the native launcher.
 - [`src/execution/confinement/`](./src/execution/confinement/README.md) - Rust Landlock/seccomp worker-confinement substrate; physical confinement only, with no project-state authority.
-- [`contracts/computation-execution/`](./contracts/computation-execution/) - shared versioned wire contract and conformance corpus.
+- [`src/execution/protocol.ts`](./src/execution/protocol.ts) - trusted TypeScript execution protocol; cross-language and hostile boundary fixtures live under [`test/fixtures/`](./test/fixtures/).
 - [`src/execution/executor/`](./src/execution/executor/README.md) - Go physical computation executor, containment boundary, and recovery rules.
 - [`experiments/README.md`](./experiments/README.md) - maintained proof inventory.
 - [`formal/`](./formal/) - TLA+ transaction/recovery kernel.
