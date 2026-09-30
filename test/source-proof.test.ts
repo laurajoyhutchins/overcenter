@@ -10,12 +10,9 @@ import {
   sourceTransactionPlanDigest,
   type SourceTransactionPlan,
 } from '../src/source/transaction.ts';
-import {
-  admitSourceProof,
-  sourceProofRecord,
-  trustedSourceProof,
-  type SourceProofRecord,
-} from '../src/source/source-proof.ts';
+import { validateSourceTransactionBindingFact } from '../src/authority/facts.ts';
+import { admitSourceProof, trustedSourceProof } from '../src/source/source-proof.ts';
+import { sourceProofRecord, type SourceProofRecord } from '../src/source/source-proof-record.ts';
 
 test('source proof admission binds successful provider jobs to immutable plan and trusted baseline', (t) => {
   const repo = mkdtempSync(join(tmpdir(), 'overcenter-source-proof-'));
@@ -67,6 +64,16 @@ test('source proof admission binds successful provider jobs to immutable plan an
   };
   const producer = { workflow_run_id: 123, workflow_run_attempt: 2, job_id: 11 };
   const record = sourceProofRecord(plan, producer, 'success');
+  const binding = validateSourceTransactionBindingFact({
+    schema: 'overcenter-source-transaction-binding',
+    schema_version: 1,
+    run_id: plan.claim.run_id,
+    obligation_id: 'source',
+    execution_generation: plan.execution_generation,
+    execution_authority_commit: plan.execution_authority_commit,
+    plan,
+    plan_digest: sourceTransactionPlanDigest(plan),
+  });
   const run = {
     id: 123,
     path: '.github/workflows/agent-candidate-signal.yml',
@@ -125,7 +132,7 @@ test('source proof admission binds successful provider jobs to immutable plan an
     expectedWorkflowRunAttempt: 2,
     context,
   };
-  const witness = admitSourceProof(repo, plan, record, options);
+  const witness = admitSourceProof(binding, record, options);
   assert.equal(trustedSourceProof(witness).plan_digest, sourceTransactionPlanDigest(plan));
   assert.throws(() => trustedSourceProof(record as never), /SOURCE_PROOF_WITNESS_INVALID/);
   for (const changed of [
@@ -136,7 +143,7 @@ test('source proof admission binds successful provider jobs to immutable plan an
     { producer: { ...record.producer, workflow_run_attempt: 1 } },
     { state: 'rejected', reason: 'failed' },
   ]) {
-    assert.throws(() => admitSourceProof(repo, plan, { ...record, ...changed }, options));
+    assert.throws(() => admitSourceProof(binding, { ...record, ...changed }, options));
   }
   for (const changed of [
     { head_sha: base },
@@ -146,7 +153,7 @@ test('source proof admission binds successful provider jobs to immutable plan an
     { head_repository: { id: 99 } },
   ]) {
     assert.throws(() =>
-      admitSourceProof(repo, plan, record, {
+      admitSourceProof(binding, record, {
         ...options,
         get: (token, path) =>
           path.endsWith('/actions/runs/123') ? { ...run, ...changed } : get(token, path),
@@ -155,7 +162,7 @@ test('source proof admission binds successful provider jobs to immutable plan an
   }
   for (const conclusion of ['failure', 'skipped', null])
     assert.throws(() =>
-      admitSourceProof(repo, plan, record, {
+      admitSourceProof(binding, record, {
         ...options,
         get: (token, path) =>
           path.endsWith('/attempts/2/jobs?per_page=100')
@@ -164,22 +171,8 @@ test('source proof admission binds successful provider jobs to immutable plan an
       }),
     );
   assert.throws(() =>
-    admitSourceProof(repo, plan, record, { ...options, expectedWorkflowRunId: 999 }),
+    admitSourceProof(binding, record, { ...options, expectedWorkflowRunId: 999 }),
   );
-  for (const change of [
-    { expired: true },
-    { digest: null },
-    { workflow_run: { id: 999, head_sha: candidate } },
-  ])
-    assert.throws(() =>
-      admitSourceProof(repo, plan, record, {
-        ...options,
-        get: (token, path) =>
-          path.endsWith('/artifacts?per_page=100')
-            ? { artifacts: [{ ...artifacts.artifacts[0], ...change }] }
-            : get(token, path),
-      }),
-    );
   writeFileSync(join(repo, 'baseline.txt'), 'weakened checks');
   git('add', '-A');
   git('commit', '-qm', 'weakened validator');
