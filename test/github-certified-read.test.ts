@@ -6,9 +6,6 @@ import {
   evaluateCertifiedGitHubCommitAncestry,
   evaluateCertifiedGitHubPullRequestIdentity,
   evaluateCertifiedGitHubRef,
-  observeCertifiedGitHubCommitAncestry,
-  observeCertifiedGitHubPullRequestIdentity,
-  observeCertifiedGitHubRefFence,
 } from '../src/providers/github/certified-predicates.ts';
 
 const SHA = 'a'.repeat(40);
@@ -329,19 +326,11 @@ test('certified ref is generic certified read plus a binding predicate', () => {
   assert.equal(generic.state, 'observed');
   if (generic.state !== 'observed') return;
   const predicate = evaluateCertifiedGitHubRef(generic.value, 'refs/heads/main', SHA);
-  const specialized = observeCertifiedGitHubRefFence('token', {
-    repositoryId: 42,
-    repositoryFullName: 'acme/widget',
-    ref: 'heads/main',
-    expectedSha: SHA,
-    get,
-  });
 
   assert.equal(predicate.current, true);
-  assert.equal(specialized.state, 'CURRENT');
-  assert.equal(specialized.actual_sha, predicate.actual_sha);
-  assert.equal(specialized.evidence?.operation_id, generic.evidence.operation_id);
-  assert.deepEqual(specialized.evidence?.validated_paths, generic.evidence.validated_paths);
+  assert.equal(predicate.actual_sha, SHA);
+  assert.equal(predicate.object_kind, 'github.commit');
+  assert.equal(generic.evidence.operation_id, 'git/get-ref');
 });
 
 test('certified PR is generic certified read plus an identity predicate', () => {
@@ -379,19 +368,11 @@ test('certified PR is generic certified read plus an identity predicate', () => 
   assert.equal(generic.state, 'observed');
   if (generic.state !== 'observed') return;
   const predicate = evaluateCertifiedGitHubPullRequestIdentity(generic.value, 17, expected);
-  const specialized = observeCertifiedGitHubPullRequestIdentity('token', {
-    repositoryId: 42,
-    repositoryFullName: 'acme/widget',
-    pullNumber: 17,
-    expected,
-    get,
-  });
 
   assert.deepEqual(predicate.differences, []);
-  assert.equal(specialized.state, 'CURRENT');
-  assert.deepEqual(specialized.actual, predicate.actual);
-  assert.equal(specialized.evidence?.operation_id, generic.evidence.operation_id);
-  assert.deepEqual(specialized.evidence?.validated_paths, generic.evidence.validated_paths);
+  assert.equal(predicate.actual.id, 1700);
+  assert.equal(predicate.actual.head_sha, SHA);
+  assert.equal(generic.evidence.operation_id, 'pulls/get');
 });
 
 test('certified ancestry is coordinate read plus an ancestry predicate', () => {
@@ -415,16 +396,8 @@ test('certified ancestry is coordinate read plus an ancestry predicate', () => {
   });
   assert.equal(generic.state, 'observed');
   const predicate = evaluateCertifiedGitHubCommitAncestry(generic.value, SHA);
-  const specialized = observeCertifiedGitHubCommitAncestry('token', {
-    repositoryFullName: 'acme/widget',
-    ancestorSha: SHA,
-    descendantSha: descendant,
-    get,
-  });
 
   assert.equal(predicate.relation, 'ancestor');
-  assert.equal(specialized.state, predicate.relation);
-  assert.equal(specialized.evidence.operation_id, generic.evidence.operation_id);
-  assert.equal(specialized.evidence.request_path, generic.evidence.request_path);
-  assert.deepEqual(specialized.evidence.validated_paths, generic.evidence.validated_paths);
+  assert.equal(predicate.merge_base_sha, SHA);
+  assert.equal(generic.evidence.operation_id, 'repos/compare-commits');
 });
