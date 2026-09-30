@@ -50,12 +50,78 @@ npm run check:tcb -- --output /tmp/overcenter-tcb-report.json
 npm run experiment:semantic-scaling:measure -- --tcb-report /tmp/overcenter-tcb-report.json
 ```
 
-## Promotion boundary
+### Behavioral bug-repair frontier
 
-This experiment is pending. A positive research claim requires real tasks from materially different families, exact revision-bound property-scoped TCB attribution, observation-support evidence, and the constant hostile controls described in issue #460. Synthetic fixtures exist only to prove that the measurement vocabulary can distinguish the intended outcomes, including a known failure.
+At exact head `284bfdc891339dbf9fd26dc00675254d2004a671`, merge-gate run `36655390866` exercised the historical conflicting-effect failure shape as a current behavioral regression.
 
-The anti-cheating question for every new trusted task-specific rule is:
+The added rung measured **9,285 trusted semantic LOC, +0 marginal LOC, +0 task-specific LOC, +0 provider-specific LOC, no new trusted scopes, and no new external assumptions**. The deterministic regression suite passed **424/424**.
+
+That is not classified as convergent. It is **frontier-limited**:
+
+- mechanically established: the exact regression is bound to the measured source and passes under the existing verification machinery;
+- deliberately not established: no unordered incompatible operations targeting the same canonical effect coordinate can ever both obtain execution authority;
+- residual judgment: whether the maintained regression and provider-specific conflict model completely characterize every relevant future conflicting-effect behavior.
+
+This is the first exercised rung where trusted source complexity remains flat because the authoritative claim becomes narrower at the semantic boundary. A flat TCB therefore does not imply that semantic uncertainty disappeared.
+
+
+### Behavior-preserving migration frontier
+
+At exact head `37a20b2ba16d7f448f1a8d8cb412b1f18a37d0bf`, merge-gate run `36656387619` measured the projection-boundary migration lineage from PR #25.
+
+The migration rung measured **9,285 trusted semantic LOC, +0 marginal LOC, +0 task-specific LOC, +0 provider-specific LOC, no new trusted scopes, and no new external assumptions**. The deterministic regression suite passed **424/424**.
+
+It is also **frontier-limited**:
+
+- mechanically established: the historical migration candidate passed its exact-head full regression and hostile readback proof, and current projection/backend-differential regressions remain green;
+- deliberately not established: the migration preserved every externally observable behavior for every valid durable history and provider state;
+- residual judgment: whether the historical and maintained regression/oracle corpus completely characterizes every behavior that could have changed across the migration.
+
+This is a second semantic family in which the measured trusted source surface stays flat only by refusing to collapse finite regression evidence into a universal equivalence claim.
+
+### Architectural/design frontier
+
+At exact head `662fd2196a6c59e07d496e7f0b3894b6b6d8164d`, merge-gate run `36661144979` measured the relational architecture design boundary established by PR #449.
+
+The architecture rung measured **9,285 trusted semantic LOC, +0 marginal LOC, +0 task-specific LOC, +0 provider-specific LOC, no new trusted scopes, and no new external assumptions**. The deterministic regression suite passed **424/424**.
+
+It is **frontier-limited**:
+
+- mechanically established: the exact historical concepts/logic/physics architecture satisfied repository structural separation and reconciliation checks, and its TCB roots were derived mechanically under exact-head hosted evidence;
+- deliberately not established: that relational decomposition is the correct and sufficient architecture for Overcenter's intended future behavior;
+- residual judgment: whether the declared layers capture every architecturally relevant intent and remain the right decomposition as the system evolves.
+
+## Observed result
+
+The preregistered outcome is **bounded support**.
+
+Across all six rungs, trusted semantic LOC rose from **9,281** at the pure-computation baseline to **9,285** at source integration and then stayed flat. The consequential GitHub effect added provider-specific scopes and external assumptions without adding trusted source lines. Behavioral repair, migration, and architectural design also added no trusted source lines, but only because their authoritative claims remained explicitly narrower than universal semantic correctness, behavioral equivalence, or design correctness.
+
+That is a useful boundary rather than a hidden success condition. The experiment supports reusable authority and settlement mechanics inside the mechanically witnessable region. It does **not** establish general semantic convergence beyond that region, and it found no need to reproduce candidate-generating semantic reasoning inside the trusted path for the exercised tasks.
+
+The anti-cheating question for every new trusted task-specific rule remains:
 
 > Why can this not instead be supplied as untrusted evidence checked by an existing or more general trusted primitive?
 
 Moving semantic logic into a provider adapter, generated artifact, policy file, proof generator, or test harness does not remove it from the trusted surface when settlement depends on that logic being correct.
+
+### Follow-on stress test: explicit judgment attestation
+
+After the preregistered six-rung result was complete, exact head `4f45cd7f87ce6b9aee9287d7983cce4f07f62f66` exercised a deliberately new semantic primitive under merge-gate run `36663311438`.
+
+The primitive does not decide whether an architectural judgment is correct. It certifies a durable judgment record: GitHub issue #460 comment `5903129961`, authored by `laurajoyhutchins`, with stable comment identity and exact body digest. That comment records the final architectural candidate and the bounded-support conclusion.
+
+The measured `judgment-attestation-integrity` scope was **2,023 trusted semantic LOC**:
+
+- **383 marginal semantic LOC**;
+- **1,640 reused prior semantic LOC**;
+- **383 new-reusable marginal LOC**;
+- **0 task-specific marginal LOC**;
+- **0 provider-specific marginal LOC**;
+- three newly introduced external assumptions;
+- **431/431 deterministic tests passed**.
+
+The accepted pre-existing TCB scopes remained flat. This matters because the first attempted design did not: integrating architectural acceptance into ordinary settlement widened existing trusted scopes, and trying to rely on PR merge metadata crossed fields outside the pinned certified `pulls/get` response slice. Both failures were rejected before merge.
+
+So the six-rung plateau should not be read as “new semantics are free.” A genuinely new mechanically checkable fact can require new trusted code. The stronger result is narrower: that growth can be isolated as reusable verification machinery while task-specific judgment remains outside the trusted path.
+

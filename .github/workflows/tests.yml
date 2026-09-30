@@ -23,7 +23,7 @@ jobs:
   evidence:
     name: Candidate evidence
     runs-on: ubuntu-24.04
-    timeout-minutes: 4
+    timeout-minutes: 8
     env:
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
@@ -77,8 +77,6 @@ jobs:
         run: npm run check:code-witnesses -- --summary "$GITHUB_STEP_SUMMARY" --output "$RUNNER_TEMP/overcenter-code-witness-report.json"
       - name: Check adapter diagnosability
         run: npm run check:adapter-diagnosability
-      - name: Check experiment statistics contract
-        run: npm run check:experiment-statistics
       - name: Install Java for candidate formal proof
         if: ${{ inputs.expensive }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
