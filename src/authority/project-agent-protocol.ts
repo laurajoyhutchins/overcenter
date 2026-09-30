@@ -782,6 +782,24 @@ export function submitProjectCandidate(
     const permit = kernel.acquireExecution(runId);
     const reserved = kernel.unresolvedEffectReservation(runId);
     if (reserved) {
+      if (!('effect_identity' in reserved)) {
+        const recovered = kernel.recoverInterrupted(permit, {
+          source_integration: {
+            reason: 'LEGACY_EFFECT_RESERVATION_IDENTITY_UNAVAILABLE',
+            candidate_sha: candidateSha,
+          },
+        });
+        return sourceSubmitReceipt(
+          context,
+          authorityRef,
+          kernel,
+          assigned.id,
+          claim.claimed_revision,
+          candidateSha,
+          recovered,
+          false,
+        );
+      }
       if (reserved.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT) {
         throw new Error('PROJECT_SUBMIT_RESERVED_EFFECT_CONTRACT_MISMATCH');
       }
