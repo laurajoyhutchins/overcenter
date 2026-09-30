@@ -53,10 +53,9 @@ export type PreparedSourceIntegration =
       expected_head: string;
       already_integrated: boolean;
     }
-  | {
-      state: 'REREALIZE_REQUIRED' | 'REJECTED' | 'RECOVERY_REQUIRED';
-      reason: string;
-    };
+  | { state: 'REREALIZE_REQUIRED'; reason: string }
+  | { state: 'REJECTED'; reason: string }
+  | { state: 'RECOVERY_REQUIRED'; reason: string };
 
 function git(repo: string, args: string[]): string {
   return execFileSync('git', ['-C', repo, ...args], {
