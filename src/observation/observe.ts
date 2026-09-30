@@ -688,7 +688,10 @@ function assertObservationCoordinate(
       observed.ref !== identity.ref ||
       observed.source_sha !== identity.source_sha ||
       observed.candidate_sha !== identity.candidate_sha ||
-      observed.verified_tree_sha !== identity.verified_tree_sha
+      observed.verified_tree_sha !== identity.verified_tree_sha ||
+      typeof identity.integration_commit !== 'string' ||
+      (observed.mutation_certainty === 'present' &&
+        observed.integration_commit !== identity.integration_commit)
     ) {
       throw new Error('OBSERVATION_COORDINATE_MISMATCH');
     }
