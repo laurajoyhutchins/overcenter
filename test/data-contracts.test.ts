@@ -10,6 +10,7 @@ import {
   EFFECT_RESERVATION_SCHEMA,
   EXECUTION_AUTHORITY_SCHEMA,
   GRAPH_PATCH_SCHEMA,
+  LEGACY_EFFECT_RESERVATION_SCHEMA,
   RECEIPT_SCHEMA,
   validateAuthorityFact,
   validateEffectReleaseFact,
@@ -223,13 +224,14 @@ test('executor hello uses the shared UTF-8 byte limit across the language bounda
 
 test('durable authority contract preserves backend-neutral logical facts', () => {
   assert.equal(authorityContract.id, 'authority-facts');
-  assert.equal(authorityContract.version, '1.0.0');
+  assert.equal(authorityContract.version, '1.1.0');
   assert.equal(authorityContract.status, 'active');
   assert.equal(authorityContract.storageIndependence.backendLocalCommitIdentity, true);
   assert.deepEqual(authorityContract.schema.wireDiscriminators, [
     GRAPH_PATCH_SCHEMA,
     CLAIM_SCHEMA,
     EXECUTION_AUTHORITY_SCHEMA,
+    LEGACY_EFFECT_RESERVATION_SCHEMA,
     EFFECT_RESERVATION_SCHEMA,
     RECEIPT_SCHEMA,
   ]);
@@ -241,6 +243,10 @@ test('durable authority contract preserves backend-neutral logical facts', () =>
   assert.equal(
     authoritySchema.$defs.ExecutionAuthorityFact.properties.schema.const,
     EXECUTION_AUTHORITY_SCHEMA,
+  );
+  assert.equal(
+    authoritySchema.$defs.LegacyEffectReservationFact.properties.schema.const,
+    LEGACY_EFFECT_RESERVATION_SCHEMA,
   );
   assert.equal(
     authoritySchema.$defs.EffectReservationFact.properties.schema.const,
@@ -311,6 +317,7 @@ test('every intentionally open authority payload is named in contract metadata',
     new Set([
       'GraphPatchFact.definitions[].definition.packet',
       'GraphPatchFact.definitions[].definition.postcondition',
+      'EffectReservationFact.effect_identity',
       'ReceiptFact.observed',
       'ReceiptFact.diagnostic',
     ]),
