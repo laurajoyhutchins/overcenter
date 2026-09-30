@@ -1,0 +1,21 @@
+{
+  "schema": "overcenter-semantic-scaling-behavioral-oracle/v1",
+  "task_id": "portable-worker-checksum-relocation",
+  "historical_pr": 401,
+  "base_revision": "e34337c90cca239ffa03f8f306c10b7e84a23483",
+  "candidate_revision": "ec74e1f407b4fb3c35882ab126ad389b7cd04e87",
+  "source_path": ".github/workflows/operator-project-advance.yml",
+  "base_blob_sha": "4c17a0c3d395c71d35cf470376be56783d5916c1",
+  "candidate_blob_sha": "125a5f4387d0c1733527ed68171d55be4549c684",
+  "base_producer": "sha256sum worker-client/overcenter > worker-client/overcenter.sha256",
+  "candidate_producer": "(cd worker-client && sha256sum overcenter > overcenter.sha256)",
+  "consumer": "(cd worker-client && sha256sum --check overcenter.sha256)",
+  "authoritative_claim": "The preregistered relocation oracle passed the exact repaired checksum-layout fixture.",
+  "narrowed_from": "The portable worker-client artifact handling is correct in every deployment context.",
+  "residual_judgment": "Whether this relocation oracle completely captures every semantically relevant worker-client artifact deployment context.",
+  "expected": {
+    "base_after_relocation": "fail",
+    "candidate_after_relocation": "pass",
+    "candidate_after_tamper": "fail"
+  }
+}
