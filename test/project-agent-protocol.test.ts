@@ -661,7 +661,8 @@ test('source proposal broker rejects control-plane mutation before candidate pub
       authorityRef: AUTHORITY_REF,
       remote: 'origin',
     });
-    assert.ok(acquired.run_id);
+    const runId = acquired.run_id;
+    if (!runId) throw new Error('SOURCE_RUN_ID_MISSING');
 
     const assignment = JSON.parse(
       readFileSync(join(f.root, 'source-packet', 'assignment.json'), 'utf8'),
@@ -844,7 +845,7 @@ test('project.submit integrates a verified source candidate and settles the sour
       {
         ...commandContext('f'.repeat(40), 9101),
         candidate_sha: candidateSha,
-        candidate_run_id: acquired.run_id,
+        candidate_run_id: runId,
       },
       { authorityRef: AUTHORITY_REF, remote: 'origin' },
     );
@@ -869,7 +870,8 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
       remote: 'origin',
     });
     const runId = acquired.run_id;
-    assert.ok(runId);
+    const obligationId = acquired.obligation_id;
+    if (!runId || !obligationId) throw new Error('SOURCE_ASSIGNMENT_IDENTITY_MISSING');
 
     const assignment = JSON.parse(
       readFileSync(join(f.root, 'source-recovery-packet', 'assignment.json'), 'utf8'),
@@ -915,7 +917,7 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
       f.work,
       assignment.task,
       sourceClaim,
-      acquired.obligation_id,
+      obligationId,
       candidateSha,
       verification,
       { remote: 'origin' },
