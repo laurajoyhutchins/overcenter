@@ -23,6 +23,11 @@ import {
   type SourceClaimBinding,
   type SourceProposal,
 } from './source-obligation.ts';
+import {
+  sourceTransactionPlanDigest,
+  validateSourceTransactionPlan,
+  validateSourceTransactionTask,
+} from './transaction.ts';
 
 function candidateGit(repo: string, args: string[], env: NodeJS.ProcessEnv = process.env): string {
   return execFileSync('git', ['-C', repo, ...args], {
@@ -388,27 +393,16 @@ function bindCandidate(
     if (assurance.validation_mode === 'unsupported')
       throw new Error('SOURCE_TRANSACTION_RECONCILIATION_REQUIRED');
     const prior = kernel.sourceTransaction(runId);
-    if (prior) {
-      if (
-        prior.plan.candidate_sha !== candidate.commit_sha ||
-        prior.plan.repository_id !== context.repository_id ||
-        prior.plan.repository_full_name !== context.repository_full_name ||
-        prior.plan.runtime_sha !== context.runtime_sha ||
-        canonicalDigest(prior.plan.assurance) !== canonicalDigest(assurance)
-      )
-        throw new Error('SOURCE_TRANSACTION_ALREADY_BOUND');
-      return;
-    }
-    const permit = kernel.acquireExecution(runId);
-    kernel.bindSourceTransaction(permit, {
+    const authority = prior ?? kernel.acquireExecution(runId);
+    const plan = validateSourceTransactionPlan({
       schema: 'overcenter-source-transaction',
       schema_version: 1,
       repository_id: context.repository_id,
       repository_full_name: context.repository_full_name,
       runtime_sha: context.runtime_sha,
       claim,
-      execution_generation: permit.execution_generation,
-      execution_authority_commit: permit.execution_authority_commit,
+      execution_generation: authority.execution_generation,
+      execution_authority_commit: authority.execution_authority_commit,
       candidate_sha: candidate.commit_sha,
       candidate_tree: delta.candidate_tree,
       authorized_write_set: task.writable_paths,
@@ -416,5 +410,15 @@ function bindCandidate(
       observed_write_set: delta.entries.map((entry) => entry.path),
       assurance,
     });
+    validateSourceTransactionTask(plan, task);
+    if (prior) {
+      if (
+        prior.plan.candidate_sha !== candidate.commit_sha ||
+        prior.plan_digest !== sourceTransactionPlanDigest(plan)
+      )
+        throw new Error('SOURCE_TRANSACTION_ALREADY_BOUND');
+      return;
+    }
+    kernel.bindSourceTransaction(authority, plan);
   };
 }
