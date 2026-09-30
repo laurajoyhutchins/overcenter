@@ -20,8 +20,10 @@ import {
   observeCertifiedGitHubCommitStatus,
   type GitHubJsonGet,
 } from '../providers/github/certified-status.ts';
-import { observeCertifiedGitHubPullRequestIdentity } from '../providers/github/certified-pr.ts';
-import { observeCertifiedGitHubCommitAncestry } from '../providers/github/certified-ancestry.ts';
+import {
+  observeCertifiedGitHubCommitAncestry,
+  observeCertifiedGitHubPullRequestIdentity,
+} from '../providers/github/certified-read.ts';
 import {
   githubGet,
   githubGetAsync,
