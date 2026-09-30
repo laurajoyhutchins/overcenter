@@ -32,7 +32,7 @@ The command implementation revision and the managed project's source revision ar
 
 If the exact trusted command source contains `.overcenter/project-intent.json`, `project.advance` first compiles that declarative intent into exact-source-bound agent obligations and feeds the resulting ensure-set through the kernel's ordinary graph reconciliation boundary. The intent never carries an authority revision or source SHA; those are derived by trusted software. Omitted obligations are not retired, so partial intent cannot delete unrelated project work.
 
-The file is producer input to `project.advance`, not another agent-facing command. A future deterministic or reasoning-backed graph producer can emit the same narrow contract without gaining graph-patch, claim, or settlement authority.
+The file is trusted input to `project.advance`, not another agent-facing command. Additional deterministic repository evidence is compiled at the same boundary without gaining claim or settlement authority.
 
 The result is either current project state or an immutable work packet when reasoning is required. Pure-candidate packets contain `assignment.json`, the command receipt, and a capability-free native `overcenter` worker executable. The executable validates and materializes the assignment, runs the declared task, and emits candidate bytes bound to the exact assignment/run/revision.
 
@@ -42,19 +42,17 @@ The worker executable and source proposal protocol carry no project-settlement o
 
 A reasoning agent does not select or claim its own work.
 
-Trusted deterministic graph producers may also materialize **system evidence obligations**. Producers implement one generic repository-snapshot contract and are composed at the command boundary; `project.advance` does not know their domain schemas or source paths. System evidence uses the same obligation identity, reconciliation, claim, observation, and settlement machinery as other work, but it is not a reasoning assignment. If one reaches the READY frontier, `project.advance` reports it without claiming it or constructing an agent packet.
+Trusted deterministic repository compilation may also materialize **system evidence obligations**. System evidence uses the same obligation identity, reconciliation, claim, observation, and settlement machinery as other work, but it is not a reasoning assignment. If one reaches the READY frontier, `project.advance` reports it without claiming it or constructing an agent packet.
 
 Provider-backed evidence reuses generic source-bound GitHub observation machinery beneath its persisted postcondition schema. The persisted verifier and coordinate shape remain stable because authority history is durable; provider adapters supply domain-specific evidence parsing while shared machinery verifies repository identity, evidence bytes, current source blobs, workflow/job success, and artifact digests. Hostile mutation freshness is one adapter. A protected source change reopens its obligation; unrelated source movement does not.
 
 Persisted obligation definitions are replay protocol, not disposable implementation detail. Refactoring an observer may replace internal machinery, but changing a stored verifier or coordinate shape requires an explicit authority-history migration rather than silently teaching current code to forget old facts.
 
-## Long-horizon project goal
+## Long-horizon planning
 
-A managed repository may declare one stable source goal in `.overcenter/project-goal.json`. The goal is trusted project configuration, not a worker-authored plan. On each exact project revision, `project.advance` compiles it into bounded `source-change` work whose context includes that revision. After a verified source integration changes the project source, the same goal identity is rebound and becomes eligible for another iteration.
+Open-ended project goals are not persistent kernel obligations. A reasoning layer or scheduled operator decomposes the current goal into bounded `source-change` obligations in `.overcenter/project-intent.json`. Trusted claim machinery then binds each selected transaction to the exact project source revision and writable file set.
 
-The goal declares exact writable files. Source workers still cannot mutate `.overcenter/**` or `.github/**`. Directory-scope expansion is not part of this first long-horizon boundary, so the existing source-task TCB remains unchanged.
-
-A trusted `.overcenter/project-goal-satisfaction.json` record retires the goal. Source candidates cannot write that file, so a worker cannot declare its own success. Provider-specific observation, such as a ladder-rank observer, can be layered on later to produce that trusted satisfaction record.
+After verified integration changes the project, reasoning may inspect the new authoritative state and propose the next bounded transaction. The kernel does not decide that an open-ended objective is satisfied, repeatedly reissue it, or let a worker declare strategic success. This keeps planning and stopping judgment outside the deterministic authority boundary while retaining exact-source execution correctness.
 
 The first `project.advance` also initializes an absent Overcenter authority ref using the same compare-and-swap fact store. Existing authorities are unchanged.
 

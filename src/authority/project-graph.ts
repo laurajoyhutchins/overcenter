@@ -1,53 +1,50 @@
 import type { ObligationInput } from './facts.ts';
 import type { RepositorySnapshot } from '../evidence/repository-snapshot.ts';
+import {
+  compileHostileMutationEvidenceObligation,
+  HOSTILE_MUTATION_EVIDENCE_PATH,
+  HOSTILE_MUTATION_PROBES_PATH,
+} from '../evidence/hostile-mutation-obligation.ts';
+import { compileProjectIntent, PROJECT_INTENT_PATH } from './project-intent.ts';
 
 export interface ProjectGraphContext {
   repository_id: number;
   repository_full_name: string;
 }
 
-export interface ProjectGraphProducer {
-  readonly id: string;
-  readonly input_paths: readonly string[];
-  readonly managed_prefixes?: readonly string[];
-  produce(snapshot: RepositorySnapshot, context: ProjectGraphContext): ObligationInput[];
-}
-
-function producerActive(snapshot: RepositorySnapshot, producer: ProjectGraphProducer): boolean {
-  const presence = producer.input_paths.map((path) => snapshot.optionalBytes(path) !== null);
-  if (presence.every((present) => !present)) return false;
-  if (presence.some((present) => !present)) {
-    throw new Error(`PROJECT_GRAPH_PRODUCER_INPUT_INCOMPLETE:${producer.id}`);
+function parseJson(bytes: Buffer, error: string): unknown {
+  try {
+    return JSON.parse(bytes.toString('utf8'));
+  } catch {
+    throw new Error(error);
   }
-  return true;
 }
 
 export function compileProjectGraph(
   snapshot: RepositorySnapshot,
   context: ProjectGraphContext,
-  producers: readonly ProjectGraphProducer[],
 ): ObligationInput[] {
   const desired: ObligationInput[] = [];
 
-  for (const producer of producers) {
-    if (!producerActive(snapshot, producer)) continue;
-    desired.push(...producer.produce(snapshot, context));
+  const intent = snapshot.optionalBytes(PROJECT_INTENT_PATH);
+  if (intent !== null) {
+    desired.push(...compileProjectIntent(parseJson(intent, 'PROJECT_INTENT_JSON_INVALID')));
+  }
+
+  const probes = snapshot.optionalBytes(HOSTILE_MUTATION_PROBES_PATH);
+  const evidence = snapshot.optionalBytes(HOSTILE_MUTATION_EVIDENCE_PATH);
+  if ((probes === null) !== (evidence === null)) {
+    throw new Error('PROJECT_GRAPH_PRODUCER_INPUT_INCOMPLETE:hostile-mutation-evidence');
+  }
+  if (probes !== null) {
+    desired.push(
+      compileHostileMutationEvidenceObligation({
+        snapshot,
+        repositoryId: context.repository_id,
+        repositoryFullName: context.repository_full_name,
+      }),
+    );
   }
 
   return desired;
-}
-
-export function managedProjectGraphPrefixes(
-  snapshot: RepositorySnapshot,
-  producers: readonly ProjectGraphProducer[],
-): string[] {
-  const managed = new Set<string>();
-  for (const producer of producers) {
-    if (!producerActive(snapshot, producer)) continue;
-    for (const prefix of producer.managed_prefixes ?? []) {
-      if (prefix.length === 0) throw new Error(`PROJECT_GRAPH_MANAGED_PREFIX_EMPTY:${producer.id}`);
-      managed.add(prefix);
-    }
-  }
-  return [...managed].sort();
 }
