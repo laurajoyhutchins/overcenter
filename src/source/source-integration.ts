@@ -12,7 +12,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 import { assertExactKeys, assertNonEmptyString, isData, isSha256Hex } from '../validation.ts';
-import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
 import {
   SOURCE_CANDIDATE_SCHEMA,
   validateSourceCandidate,
@@ -128,6 +127,37 @@ function sourceControlPath(path: string): boolean {
     path === '.github' ||
     path.startsWith('.github/')
   );
+}
+
+function changedSourcePaths(repo: string, baseSha: string, candidateSha: string): string[] {
+  const paths = execFileSync(
+    'git',
+    ['-C', repo, 'diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', baseSha, candidateSha],
+    { encoding: 'utf8' },
+  )
+    .split('\0')
+    .filter(Boolean)
+    .sort();
+  for (const path of paths) {
+    for (const revision of [baseSha, candidateSha]) {
+      const entry = execFileSync(
+        'git',
+        ['-C', repo, '--literal-pathspecs', 'ls-tree', '-z', revision, '--', path],
+        { encoding: 'utf8' },
+      );
+      if (!entry) continue;
+      const tab = entry.indexOf('\t');
+      const [mode, type] = entry.slice(0, tab).split(' ');
+      if (
+        tab < 0 ||
+        !['100644', '100755'].includes(mode ?? '') ||
+        type !== 'blob' ||
+        entry.slice(tab + 1, -1) !== path
+      )
+        throw new Error(`SOURCE_CANDIDATE_MODE_UNSUPPORTED:${path}`);
+    }
+  }
+  return paths;
 }
 
 export function validateSourceVerification(value: unknown): SourceVerification {
@@ -424,9 +454,7 @@ export function inspectSourceCandidate(
     claim,
   );
 
-  const delta = observeRepositoryDelta(repo, claim.source_sha, candidateSha);
-  assertSupportedSourceDelta(delta);
-  const changedPaths = delta.entries.map((entry) => entry.path);
+  const changedPaths = changedSourcePaths(repo, claim.source_sha, candidateSha);
   if (changedPaths.length === 0) throw new Error('SOURCE_CANDIDATE_EMPTY');
   if (changedPaths.some(sourceControlPath)) {
     throw new Error('SOURCE_CONTROL_PLANE_MUTATION_FORBIDDEN');
