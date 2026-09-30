@@ -31,6 +31,8 @@ export interface SemanticScalingMeasurementTask {
     | 'consequential-external-effect';
   classification: 'convergent' | 'frontier-limited' | 'semantic-mirroring' | 'unsupported';
   claim: string;
+  narrowed_from?: string;
+  residual_judgment?: string;
   scopes: SemanticScalingMeasurementScope[];
   evidence: string[];
   observation_support: string[];
@@ -100,6 +102,8 @@ export interface SemanticScalingMeasurementResult {
     rung: SemanticScalingMeasurementTask['rung'];
     classification: SemanticScalingMeasurementTask['classification'];
     claim: string;
+    narrowed_from: string | null;
+    residual_judgment: string | null;
     trusted_semantic_loc: number;
     marginal_semantic_loc: number;
     reused_prior_semantic_loc: number;
@@ -216,6 +220,24 @@ export function validateSemanticScalingMeasurementPlan(
       throw new Error(`SEMANTIC_SCALING_MEASUREMENT_INVALID_CLASSIFICATION:${task.task_id}`);
     }
     requireString(task.claim, `${task.task_id}.claim`);
+    if (task.narrowed_from !== undefined) {
+      requireString(task.narrowed_from, `${task.task_id}.narrowed_from`);
+    }
+    if (task.residual_judgment !== undefined) {
+      requireString(task.residual_judgment, `${task.task_id}.residual_judgment`);
+    }
+    if (
+      task.classification === 'frontier-limited' &&
+      (task.narrowed_from === undefined || task.residual_judgment === undefined)
+    ) {
+      throw new Error(`SEMANTIC_SCALING_FRONTIER_EVIDENCE_REQUIRED:${task.task_id}`);
+    }
+    if (
+      task.classification !== 'frontier-limited' &&
+      (task.narrowed_from !== undefined || task.residual_judgment !== undefined)
+    ) {
+      throw new Error(`SEMANTIC_SCALING_FRONTIER_EVIDENCE_UNEXPECTED:${task.task_id}`);
+    }
     if (!Array.isArray(task.scopes) || task.scopes.length === 0) {
       throw new Error(`SEMANTIC_SCALING_MEASUREMENT_SCOPES_REQUIRED:${task.task_id}`);
     }
@@ -440,6 +462,8 @@ export function measureSemanticScaling(
       rung: task.rung,
       classification: task.classification,
       claim: task.claim,
+      narrowed_from: task.narrowed_from ?? null,
+      residual_judgment: task.residual_judgment ?? null,
       trusted_semantic_loc: trusted.size,
       marginal_semantic_loc: marginal.size,
       reused_prior_semantic_loc: reused.size,
@@ -480,18 +504,18 @@ export function measureSemanticScaling(
 export function semanticScalingSummary(result: SemanticScalingMeasurementResult): string {
   const rows = result.tasks.map(
     (task) =>
-      `| \`${task.task_id}\` | ${task.rung} | ${task.classification} | ${task.trusted_semantic_loc.toLocaleString('en-US')} | +${task.marginal_semantic_loc.toLocaleString('en-US')} | +${task.task_specific_marginal_semantic_loc.toLocaleString('en-US')} | +${task.provider_specific_marginal_semantic_loc.toLocaleString('en-US')} | ${task.introduced_scopes.map((scope) => `\`${scope.key}\` (${scope.role})`).join('<br>') || '_none_'} | ${task.introduced_external_assumptions.length} |`,
+      `| \`${task.task_id}\` | ${task.rung} | ${task.classification} | ${task.trusted_semantic_loc.toLocaleString('en-US')} | +${task.marginal_semantic_loc.toLocaleString('en-US')} | +${task.task_specific_marginal_semantic_loc.toLocaleString('en-US')} | +${task.provider_specific_marginal_semantic_loc.toLocaleString('en-US')} | ${task.introduced_scopes.map((scope) => `\`${scope.key}\` (${scope.role})`).join('<br>') || '_none_'} | ${task.introduced_external_assumptions.length} | ${task.residual_judgment ?? '_none_'} |`,
   );
   return [
     '## Semantic scaling marginal TCB',
     '',
     `Exact source revision: \`${result.source_revision}\``,
     '',
-    '| Task | Rung | Classification | Trusted semantic LOC | Marginal vs prior ladder | Task-specific marginal | Provider-specific marginal | Introduced scopes | New external assumptions |',
-    '| --- | --- | --- | ---: | ---: | ---: | ---: | --- | ---: |',
+    '| Task | Rung | Classification | Trusted semantic LOC | Marginal vs prior ladder | Task-specific marginal | Provider-specific marginal | Introduced scopes | New external assumptions | Residual judgment |',
+    '| --- | --- | --- | ---: | ---: | ---: | ---: | --- | ---: | --- |',
     ...rows,
     '',
-    'Marginal LOC is a deduplicated line-level projection reconstructed from the existing TCB report. Scope identities, roles, fingerprints, and external-assumption deltas remain separate so a zero-LOC delta cannot erase semantic growth.',
+    'Marginal LOC is a deduplicated line-level projection reconstructed from the existing TCB report. Scope identities, roles, fingerprints, external-assumption deltas, and residual judgments remain separate so a zero-LOC delta cannot erase semantic growth or a judgment frontier.',
     '',
   ].join('\n');
 }

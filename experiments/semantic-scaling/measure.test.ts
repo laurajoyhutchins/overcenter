@@ -252,3 +252,69 @@ test('summary keeps LOC and semantic-scope deltas visibly separate', () => {
   assert.match(summary, /New external assumptions/);
   assert.match(summary, /zero-LOC delta cannot erase semantic growth/);
 });
+
+test('frontier-limited measurements require an explicit narrowed claim and residual judgment', () => {
+  const frontier: SemanticScalingMeasurementPlan = {
+    schema: 'overcenter-semantic-scaling-measurement-plan/v1',
+    tasks: [
+      {
+        task_id: 'behavioral-frontier',
+        rung: 'behavioral-bug-repair',
+        classification: 'frontier-limited',
+        claim: 'the exact regression passed',
+        narrowed_from: 'the bug is absent in every relevant behavior',
+        residual_judgment: 'whether the regression completely characterizes the bug',
+        scopes: [{ kind: 'property', id: 'general-settlement', role: 'reused-general' }],
+        evidence: ['behavioral-regression'],
+        observation_support: ['exact revision and regression result'],
+      },
+    ],
+  };
+
+  assert.deepEqual(validateSemanticScalingMeasurementPlan(frontier), frontier);
+
+  const result = measureSemanticScaling(
+    frontier,
+    report,
+    'f'.repeat(40),
+    'tcb-digest',
+    'plan-digest',
+    readSource,
+  );
+  assert.equal(result.tasks[0]?.classification, 'frontier-limited');
+  assert.equal(result.tasks[0]?.narrowed_from, 'the bug is absent in every relevant behavior');
+  assert.equal(
+    result.tasks[0]?.residual_judgment,
+    'whether the regression completely characterizes the bug',
+  );
+  assert.match(
+    semanticScalingSummary(result),
+    /whether the regression completely characterizes the bug/,
+  );
+});
+
+test('frontier metadata cannot be omitted or smuggled into another classification', () => {
+  const missingResidual = structuredClone(plan.tasks[0]!);
+  missingResidual.classification = 'frontier-limited';
+  assert.throws(
+    () =>
+      validateSemanticScalingMeasurementPlan({
+        schema: 'overcenter-semantic-scaling-measurement-plan/v1',
+        tasks: [missingResidual],
+      }),
+    /SEMANTIC_SCALING_FRONTIER_EVIDENCE_REQUIRED/,
+  );
+
+  const unexpectedResidual = {
+    ...structuredClone(plan.tasks[0]!),
+    residual_judgment: 'hidden semantic doubt',
+  };
+  assert.throws(
+    () =>
+      validateSemanticScalingMeasurementPlan({
+        schema: 'overcenter-semantic-scaling-measurement-plan/v1',
+        tasks: [unexpectedResidual],
+      }),
+    /SEMANTIC_SCALING_FRONTIER_EVIDENCE_UNEXPECTED/,
+  );
+});
