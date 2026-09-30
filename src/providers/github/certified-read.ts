@@ -62,7 +62,11 @@ function validateParameters(
   for (let index = 0; index < names.length; index += 1) {
     const name = names[index]!;
     let allowed = false;
-    for (let parameterIndex = 0; parameterIndex < operation.parameters.length; parameterIndex += 1) {
+    for (
+      let parameterIndex = 0;
+      parameterIndex < operation.parameters.length;
+      parameterIndex += 1
+    ) {
       if (operation.parameters[parameterIndex]!.name === name) {
         allowed = true;
         break;
