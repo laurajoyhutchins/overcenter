@@ -24,6 +24,7 @@ import {
 } from '../source/source-integration.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
 import { compileProjectGraph } from './project-graph.ts';
+import { planGraphReconciliation } from '../graph/reconciliation.ts';
 import { repositorySnapshot } from '../evidence/repository-snapshot.ts';
 import type { ObservationContext } from '../observation/observe.ts';
 import type { Work } from '../model.ts';
@@ -362,7 +363,12 @@ export function advanceProjectForAgent(
       const expectedRevision = kernel.head();
       if (!expectedRevision) throw new Error('PROJECT_ADVANCE_AUTHORITY_MISSING');
       try {
-        kernel.reconcileGraph(desired, expectedRevision);
+        const plan = planGraphReconciliation(kernel.inspect(), desired);
+        if (plan.upsert.length > 0 || plan.retire.length > 0) {
+          kernel.applyGraphPatch({ upsert: plan.upsert, retire: plan.retire }, expectedRevision);
+        } else if (kernel.head() !== expectedRevision) {
+          continue;
+        }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         if (message === 'STALE_REVISION') continue;
