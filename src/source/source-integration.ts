@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { canonicalDigest } from '../digest.ts';
+import type { Observation } from '../model.ts';
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
 import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
 import {
@@ -15,8 +17,8 @@ import {
 } from './source-obligation.ts';
 
 export const SOURCE_VERIFICATION_SCHEMA = 'overcenter-source-verification/v1' as const;
-export const SOURCE_INTEGRATION_EVIDENCE_SCHEMA =
-  'overcenter-source-integration-evidence/v1' as const;
+export const SOURCE_INTEGRATION_EFFECT_IDENTITY_SCHEMA =
+  'overcenter-source-integration-effect/v1' as const;
 
 export type SourceCandidatePublicationResult =
   | { state: 'PUBLISHED' | 'ALREADY_PUBLISHED'; ref: string; candidate_sha: string }
@@ -32,30 +34,24 @@ export interface SourceVerification {
   reason: string | null;
 }
 
-export interface SourceIntegrationEvidence {
-  schema: typeof SOURCE_INTEGRATION_EVIDENCE_SCHEMA;
+export interface SourceIntegrationEffectIdentity {
+  schema: typeof SOURCE_INTEGRATION_EFFECT_IDENTITY_SCHEMA;
   run_id: string;
   obligation_key: string;
   source_sha: string;
   candidate_sha: string;
   verification_base_sha: string;
   verified_tree_sha: string;
-  integration_commit: string;
-  state: 'integrated' | 'already-integrated';
+  ref: string;
 }
 
-const sourceIntegrationWitnessBrand: unique symbol = Symbol('source-integration-witness');
-const sourceIntegrationEvidenceByWitness = new WeakMap<object, SourceIntegrationEvidence>();
-
-export type TrustedSourceIntegrationWitness = {
-  readonly [sourceIntegrationWitnessBrand]: true;
-};
-
-export type SourceIntegrationResult =
+export type PreparedSourceIntegration =
   | {
-      state: 'INTEGRATED' | 'ALREADY_INTEGRATED';
-      witness: TrustedSourceIntegrationWitness;
-      commit_sha: string;
+      state: 'READY';
+      effect_identity: SourceIntegrationEffectIdentity;
+      integration_commit: string;
+      expected_head: string;
+      already_integrated: boolean;
     }
   | {
       state: 'REREALIZE_REQUIRED' | 'REJECTED' | 'RECOVERY_REQUIRED';
@@ -155,8 +151,10 @@ export function validateSourceVerification(value: unknown): SourceVerification {
   };
 }
 
-export function validateSourceIntegrationEvidence(value: unknown): SourceIntegrationEvidence {
-  if (!isData(value)) throw new Error('SOURCE_INTEGRATION_EVIDENCE_INVALID');
+export function validateSourceIntegrationEffectIdentity(
+  value: unknown,
+): SourceIntegrationEffectIdentity {
+  if (!isData(value)) throw new Error('SOURCE_INTEGRATION_EFFECT_IDENTITY_INVALID');
   assertExactKeys(
     value,
     [
@@ -167,46 +165,25 @@ export function validateSourceIntegrationEvidence(value: unknown): SourceIntegra
       'candidate_sha',
       'verification_base_sha',
       'verified_tree_sha',
-      'integration_commit',
-      'state',
+      'ref',
     ],
     [],
-    'SOURCE_INTEGRATION_EVIDENCE_INVALID',
+    'SOURCE_INTEGRATION_EFFECT_IDENTITY_INVALID',
   );
-  if (value.schema !== SOURCE_INTEGRATION_EVIDENCE_SCHEMA) {
-    throw new Error('SOURCE_INTEGRATION_EVIDENCE_SCHEMA_MISMATCH');
+  if (value.schema !== SOURCE_INTEGRATION_EFFECT_IDENTITY_SCHEMA) {
+    throw new Error('SOURCE_INTEGRATION_EFFECT_IDENTITY_SCHEMA_MISMATCH');
   }
-  assertNonEmptyString(value.run_id, 'SOURCE_INTEGRATION_EVIDENCE_RUN_INVALID');
-  assertNonEmptyString(value.obligation_key, 'SOURCE_INTEGRATION_EVIDENCE_KEY_INVALID');
-  exactSha(value.source_sha, 'SOURCE_INTEGRATION_EVIDENCE_SOURCE_INVALID');
-  exactSha(value.candidate_sha, 'SOURCE_INTEGRATION_EVIDENCE_CANDIDATE_INVALID');
-  exactSha(value.verification_base_sha, 'SOURCE_INTEGRATION_EVIDENCE_BASE_INVALID');
-  exactSha(value.verified_tree_sha, 'SOURCE_INTEGRATION_EVIDENCE_TREE_INVALID');
-  exactSha(value.integration_commit, 'SOURCE_INTEGRATION_EVIDENCE_COMMIT_INVALID');
-  if (value.state !== 'integrated' && value.state !== 'already-integrated') {
-    throw new Error('SOURCE_INTEGRATION_EVIDENCE_STATE_INVALID');
-  }
-  return structuredClone(value) as unknown as SourceIntegrationEvidence;
+  assertNonEmptyString(value.run_id, 'SOURCE_INTEGRATION_EFFECT_RUN_INVALID');
+  assertNonEmptyString(value.obligation_key, 'SOURCE_INTEGRATION_EFFECT_KEY_INVALID');
+  exactSha(value.source_sha, 'SOURCE_INTEGRATION_EFFECT_SOURCE_INVALID');
+  exactSha(value.candidate_sha, 'SOURCE_INTEGRATION_EFFECT_CANDIDATE_INVALID');
+  exactSha(value.verification_base_sha, 'SOURCE_INTEGRATION_EFFECT_BASE_INVALID');
+  exactSha(value.verified_tree_sha, 'SOURCE_INTEGRATION_EFFECT_TREE_INVALID');
+  assertNonEmptyString(value.ref, 'SOURCE_INTEGRATION_EFFECT_REF_INVALID');
+  return structuredClone(value) as unknown as SourceIntegrationEffectIdentity;
 }
 
-function mintSourceIntegrationWitness(
-  evidence: SourceIntegrationEvidence,
-): TrustedSourceIntegrationWitness {
-  const witness = Object.freeze({
-    [sourceIntegrationWitnessBrand]: true as const,
-  });
-  sourceIntegrationEvidenceByWitness.set(witness, validateSourceIntegrationEvidence(evidence));
-  return witness;
-}
-
-export function trustedSourceIntegrationEvidence(
-  witness: TrustedSourceIntegrationWitness,
-): SourceIntegrationEvidence {
-  const evidence = sourceIntegrationEvidenceByWitness.get(witness);
-  if (!evidence) throw new Error('SOURCE_INTEGRATION_WITNESS_INVALID');
-  return structuredClone(evidence);
-}
-
+export function inspectSourceCandidate(
 export function inspectSourceCandidate(
   repo: string,
   taskValue: unknown,
@@ -292,28 +269,25 @@ function integrationMessage(
 function validExistingIntegration(
   repo: string,
   head: string,
-  claim: SourceClaimBinding,
-  candidateSha: string,
-  verification: SourceVerification,
+  identity: SourceIntegrationEffectIdentity,
 ): string | null {
-  if (verification.state !== 'verified' || !verification.tree_sha) return null;
   const commits = git(repo, ['rev-list', head]);
   for (const commit of commits.split('\n').filter(Boolean)) {
     const body = git(repo, ['show', '-s', '--format=%B', commit]);
-    if (!body.includes(`Overcenter-Obligation-Key: ${claim.obligation_key}`)) continue;
-    if (!body.includes(`Overcenter-Source-Candidate: ${candidateSha}`)) continue;
-    if (!body.includes(`Overcenter-Verified-Tree: ${verification.tree_sha}`)) continue;
+    if (!body.includes(`Overcenter-Obligation-Key: ${identity.obligation_key}`)) continue;
+    if (!body.includes(`Overcenter-Source-Candidate: ${identity.candidate_sha}`)) continue;
+    if (!body.includes(`Overcenter-Verified-Tree: ${identity.verified_tree_sha}`)) continue;
 
     const parents = git(repo, ['show', '-s', '--format=%P', commit]).split(/\s+/).filter(Boolean);
-    if (parents.length !== 1 || parents[0] !== verification.base_sha) continue;
+    if (parents.length !== 1 || parents[0] !== identity.verification_base_sha) continue;
     const tree = git(repo, ['show', '-s', '--format=%T', commit]);
-    if (tree !== verification.tree_sha) continue;
+    if (tree !== identity.verified_tree_sha) continue;
     return commit;
   }
   return null;
 }
 
-export function integrateVerifiedSourceCandidate(
+export function prepareVerifiedSourceIntegration(
   repo: string,
   taskValue: unknown,
   claim: SourceClaimBinding,
@@ -323,13 +297,11 @@ export function integrateVerifiedSourceCandidate(
   {
     remote = 'origin',
     ref = 'refs/heads/main',
-    performReservedMutation,
   }: {
     remote?: string;
     ref?: string;
-    performReservedMutation: (mutation: () => boolean) => boolean;
-  },
-): SourceIntegrationResult {
+  } = {},
+): PreparedSourceIntegration {
   try {
     inspectSourceCandidate(repo, taskValue, claim, candidateSha, obligationId);
   } catch (error: unknown) {
@@ -361,6 +333,17 @@ export function integrateVerifiedSourceCandidate(
     };
   }
 
+  const effectIdentity = validateSourceIntegrationEffectIdentity({
+    schema: SOURCE_INTEGRATION_EFFECT_IDENTITY_SCHEMA,
+    run_id: claim.run_id,
+    obligation_key: claim.obligation_key,
+    source_sha: claim.source_sha,
+    candidate_sha: candidateSha,
+    verification_base_sha: verification.base_sha,
+    verified_tree_sha: verification.tree_sha,
+    ref,
+  });
+
   let current: string;
   try {
     current = remoteRefHead(repo, remote, ref) ?? '';
@@ -369,23 +352,14 @@ export function integrateVerifiedSourceCandidate(
   }
   if (!current) return { state: 'RECOVERY_REQUIRED', reason: 'SOURCE_AUTHORITY_MISSING' };
 
-  const replay = validExistingIntegration(repo, current, claim, candidateSha, verification);
+  const replay = validExistingIntegration(repo, current, effectIdentity);
   if (replay) {
-    const evidence: SourceIntegrationEvidence = {
-      schema: SOURCE_INTEGRATION_EVIDENCE_SCHEMA,
-      run_id: claim.run_id,
-      obligation_key: claim.obligation_key,
-      source_sha: claim.source_sha,
-      candidate_sha: candidateSha,
-      verification_base_sha: verification.base_sha,
-      verified_tree_sha: verification.tree_sha,
-      integration_commit: replay,
-      state: 'already-integrated',
-    };
     return {
-      state: 'ALREADY_INTEGRATED',
-      witness: mintSourceIntegrationWitness(evidence),
-      commit_sha: replay,
+      state: 'READY',
+      effect_identity: effectIdentity,
+      integration_commit: replay,
+      expected_head: current,
+      already_integrated: true,
     };
   }
 
@@ -442,59 +416,79 @@ export function integrateVerifiedSourceCandidate(
     candidateTree.dispose();
   }
 
-  let mutationReportedSuccess = false;
+  return {
+    state: 'READY',
+    effect_identity: effectIdentity,
+    integration_commit: integrated,
+    expected_head: current,
+    already_integrated: false,
+  };
+}
+
+export function performPreparedSourceIntegration(
+  repo: string,
+  prepared: Extract<PreparedSourceIntegration, { state: 'READY' }>,
+  { remote = 'origin' }: { remote?: string } = {},
+): boolean {
+  if (prepared.already_integrated) return false;
+  return remoteRefCas(
+    repo,
+    remote,
+    prepared.effect_identity.ref,
+    prepared.integration_commit,
+    prepared.expected_head,
+  );
+}
+
+function sourceObservationCommon(identity: SourceIntegrationEffectIdentity) {
+  return {
+    verifier: 'source-integration/v1' as const,
+    provider: 'github' as const,
+    ref: identity.ref,
+    source_sha: identity.source_sha,
+    candidate_sha: identity.candidate_sha,
+    verified_tree_sha: identity.verified_tree_sha,
+    effect_identity_sha256: canonicalDigest(identity),
+  };
+}
+
+export function observeSourceIntegration(
+  repo: string,
+  identityValue: unknown,
+  { remote = 'origin' }: { remote?: string } = {},
+): Observation {
+  const identity = validateSourceIntegrationEffectIdentity(identityValue);
+  const common = sourceObservationCommon(identity);
+  let current: string;
   try {
-    mutationReportedSuccess = performReservedMutation(() =>
-      remoteRefCas(repo, remote, ref, integrated, current),
-    );
-  } catch {
-    return { state: 'RECOVERY_REQUIRED', reason: 'SOURCE_CAS_OUTCOME_UNCERTAIN' };
+    current = remoteRefHead(repo, remote, identity.ref) ?? '';
+  } catch (error: unknown) {
+    return {
+      ...common,
+      mutation_certainty: 'uncertain',
+      observation_error: error instanceof Error ? error.message : String(error),
+    };
+  }
+  if (!current) {
+    return {
+      ...common,
+      mutation_certainty: 'uncertain',
+      observation_error: 'SOURCE_AUTHORITY_MISSING',
+    };
   }
 
-  let observed: string;
-  try {
-    observed = remoteRefHead(repo, remote, ref) ?? '';
-  } catch {
-    return { state: 'RECOVERY_REQUIRED', reason: 'SOURCE_CAS_READBACK_UNAVAILABLE' };
-  }
-  if (observed === integrated) {
-    const evidence: SourceIntegrationEvidence = {
-      schema: SOURCE_INTEGRATION_EVIDENCE_SCHEMA,
-      run_id: claim.run_id,
-      obligation_key: claim.obligation_key,
-      source_sha: claim.source_sha,
-      candidate_sha: candidateSha,
-      verification_base_sha: verification.base_sha,
-      verified_tree_sha: verification.tree_sha,
-      integration_commit: integrated,
-      state: mutationReportedSuccess ? 'integrated' : 'already-integrated',
-    };
+  const integration = validExistingIntegration(repo, current, identity);
+  if (!integration) {
     return {
-      state: mutationReportedSuccess ? 'INTEGRATED' : 'ALREADY_INTEGRATED',
-      witness: mintSourceIntegrationWitness(evidence),
-      commit_sha: integrated,
+      ...common,
+      actual_head_sha: current,
+      mutation_certainty: 'absent',
     };
   }
-  const after = observed
-    ? validExistingIntegration(repo, observed, claim, candidateSha, verification)
-    : null;
-  if (after) {
-    const evidence: SourceIntegrationEvidence = {
-      schema: SOURCE_INTEGRATION_EVIDENCE_SCHEMA,
-      run_id: claim.run_id,
-      obligation_key: claim.obligation_key,
-      source_sha: claim.source_sha,
-      candidate_sha: candidateSha,
-      verification_base_sha: verification.base_sha,
-      verified_tree_sha: verification.tree_sha,
-      integration_commit: after,
-      state: 'already-integrated',
-    };
-    return {
-      state: 'ALREADY_INTEGRATED',
-      witness: mintSourceIntegrationWitness(evidence),
-      commit_sha: after,
-    };
-  }
-  return { state: 'RECOVERY_REQUIRED', reason: 'SOURCE_MAIN_CAS_NOT_CONFIRMED' };
+  return {
+    ...common,
+    actual_head_sha: current,
+    integration_commit: integration,
+    mutation_certainty: 'present',
+  };
 }
