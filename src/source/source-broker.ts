@@ -5,7 +5,10 @@ import { dirname, join } from 'node:path';
 import { canonicalDigest } from '../digest.ts';
 import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
-import { inspectSourceCandidate, type SourceCandidatePublicationResult } from './source-integration.ts';
+import {
+  inspectSourceCandidate,
+  type SourceCandidatePublicationResult,
+} from './source-integration.ts';
 import {
   SOURCE_PROPOSAL_SCHEMA,
   validateSourceAssignment,
