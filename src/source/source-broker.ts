@@ -1,3 +1,8 @@
+import {
+  baselineSourceTransactionPlan,
+  validateSourceTransactionContext,
+  type SourceTransactionContext,
+} from './transaction-baseline.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { canonicalDigest } from '../digest.ts';
 import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
@@ -28,10 +33,12 @@ export function brokerAssignedSourceProposal(
     authorityRef = 'refs/overcenter/state',
     remote = 'origin',
     githubToken = null,
+    transactionContext,
   }: {
     authorityRef?: string;
     remote?: string;
     githubToken?: string | null;
+    transactionContext?: SourceTransactionContext;
   } = {},
 ): BrokeredAssignedSourceProposal {
   const assignment = validateSourceAssignment(assignmentValue);
@@ -77,10 +84,13 @@ export function brokerAssignedSourceProposal(
     current.packet,
     claim,
     proposalValue,
-    { remote },
+    {
+      remote,
+      beforePublish: bindCandidate(kernel, repo, assignment.claim.run_id, transactionContext),
+    },
   );
   return {
-    authority_head: authorityHead,
+    authority_head: kernel.head()!,
     candidate: brokered.candidate,
     publication: brokered.publication,
   };
@@ -109,6 +119,9 @@ function proposalFromRevision(
 
   const delta = observeRepositoryDelta(repo, sourceSha, proposalSha);
   assertSupportedSourceDelta(delta);
+  for (const entry of delta.entries)
+    if (entry.after && entry.after.mode !== (entry.before?.mode ?? '100644'))
+      throw new Error(`SOURCE_PROPOSAL_MODE_UNREPRESENTABLE:${entry.path}`);
   const paths = delta.entries.map((entry) => entry.path);
   if (paths.length === 0) throw new Error('SOURCE_PROPOSAL_REVISION_EMPTY');
 
@@ -140,10 +153,12 @@ export function brokerSourceProposalRevision(
     authorityRef = 'refs/overcenter/state',
     remote = 'origin',
     githubToken = null,
+    transactionContext,
   }: {
     authorityRef?: string;
     remote?: string;
     githubToken?: string | null;
+    transactionContext?: SourceTransactionContext;
   } = {},
 ): BrokeredAssignedSourceProposal {
   const runId = runIdValue.trim();
@@ -171,10 +186,57 @@ export function brokerSourceProposalRevision(
   const proposal = proposalFromRevision(repo, runId, claim.source_sha, proposalSha);
   proposal.claimed_revision = claim.claimed_revision;
 
-  const brokered = brokerSourceProposal(repo, current.id, task, claim, proposal, { remote });
+  const brokered = brokerSourceProposal(repo, current.id, task, claim, proposal, {
+    remote,
+    beforePublish: bindCandidate(kernel, repo, runId, transactionContext),
+  });
   return {
-    authority_head: authorityHead,
+    authority_head: kernel.head()!,
     candidate: brokered.candidate,
     publication: brokered.publication,
+  };
+}
+
+function bindCandidate(
+  kernel: GitOvercenterKernel,
+  repo: string,
+  runId: string,
+  context: SourceTransactionContext | undefined,
+) {
+  return (candidate: SourceCandidate): void => {
+    if (!context) throw new Error('SOURCE_TRANSACTION_CONTEXT_MISSING');
+    validateSourceTransactionContext(context);
+    const claim = kernel.sourceClaimBinding(runId);
+    const task = validateSourceTaskPacket(kernel.claimedWork(runId).packet);
+    const delta = observeRepositoryDelta(repo, claim.source_sha, candidate.commit_sha);
+    assertSupportedSourceDelta(delta);
+    const prior = kernel.sourceTransaction(runId);
+    if (prior) {
+      if (
+        prior.plan.candidate_sha !== candidate.commit_sha ||
+        prior.plan.repository_id !== context.repository_id ||
+        prior.plan.repository_full_name !== context.repository_full_name ||
+        prior.plan.runtime_sha !== context.runtime_sha
+      )
+        throw new Error('SOURCE_TRANSACTION_ALREADY_BOUND');
+      return;
+    }
+    const permit = kernel.acquireExecution(runId);
+    kernel.bindSourceTransaction(permit, {
+      schema: 'overcenter-source-transaction',
+      schema_version: 1,
+      repository_id: context.repository_id,
+      repository_full_name: context.repository_full_name,
+      runtime_sha: context.runtime_sha,
+      claim,
+      execution_generation: permit.execution_generation,
+      execution_authority_commit: permit.execution_authority_commit,
+      candidate_sha: candidate.commit_sha,
+      candidate_tree: delta.candidate_tree,
+      authorized_write_set: task.writable_paths,
+      expected_write_set: task.expected_write_set ?? delta.entries.map((entry) => entry.path),
+      observed_write_set: delta.entries.map((entry) => entry.path),
+      assurance: baselineSourceTransactionPlan(repo, delta, context),
+    });
   };
 }

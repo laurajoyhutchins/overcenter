@@ -30,6 +30,13 @@ import {
 import { SOURCE_PROPOSAL_SCHEMA } from '../src/source/source-obligation.ts';
 
 const AUTHORITY_REF = 'refs/overcenter/test-project-agent';
+const transactionContext = {
+  repository_id: 42,
+  repository_full_name: 'acme/widget',
+  runtime_sha: 'a'.repeat(40),
+  baseline_id: 'fixture-baseline',
+  validator_paths: ['input.txt'],
+};
 
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
@@ -695,7 +702,7 @@ test('source proposal broker rejects control-plane mutation before candidate pub
               },
             ],
           },
-          { authorityRef: AUTHORITY_REF, remote: 'origin' },
+          { authorityRef: AUTHORITY_REF, remote: 'origin', transactionContext },
         ),
       /SOURCE_PROPOSAL_PATH_INVALID:0/,
     );
@@ -732,6 +739,7 @@ test('source broker canonicalizes an untrusted proposal revision before publicat
     const brokered = brokerSourceProposalRevision(f.work, acquired.run_id, proposalSha, {
       authorityRef: AUTHORITY_REF,
       remote: 'origin',
+      transactionContext,
     });
     assert.equal(brokered.publication.state, 'PUBLISHED');
     assert.notEqual(brokered.candidate.commit_sha, proposalSha);
@@ -777,6 +785,7 @@ test('source broker rejects a proposal revision that is not based on the claimed
         brokerSourceProposalRevision(f.work, runId, proposalSha, {
           authorityRef: AUTHORITY_REF,
           remote: 'origin',
+          transactionContext,
         }),
       /SOURCE_PROPOSAL_REVISION_NOT_DESCENDANT/,
     );
@@ -818,7 +827,7 @@ test('project.submit integrates a verified source candidate and settles the sour
           },
         ],
       },
-      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+      { authorityRef: AUTHORITY_REF, remote: 'origin', transactionContext },
     );
     assert.equal(brokered.publication.state, 'PUBLISHED');
     const candidateSha = brokered.candidate.commit_sha;
@@ -919,7 +928,7 @@ test('rejected source verification releases the obligation without moving source
           },
         ],
       },
-      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+      { authorityRef: AUTHORITY_REF, remote: 'origin', transactionContext },
     );
     assert.equal(brokered.publication.state, 'PUBLISHED');
     const candidateSha = brokered.candidate.commit_sha;

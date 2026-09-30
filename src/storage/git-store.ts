@@ -61,6 +61,7 @@ export class GitFactStore implements DurableFactStore {
         'graph-patch.json',
         'claim.json',
         'source-revision.json',
+        'source-transaction.json',
         'execution-authority.json',
         'effect-reservation.json',
         'receipt.json',
