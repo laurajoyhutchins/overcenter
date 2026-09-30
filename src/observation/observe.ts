@@ -23,7 +23,7 @@ import {
 import {
   observeCertifiedGitHubCommitAncestry,
   observeCertifiedGitHubPullRequestIdentity,
-} from '../providers/github/certified-read.ts';
+} from '../providers/github/certified-predicates.ts';
 import {
   githubGet,
   githubGetAsync,
