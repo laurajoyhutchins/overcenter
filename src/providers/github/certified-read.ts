@@ -47,46 +47,6 @@ export interface CertifiedGitHubReadResult {
   evidence: CertifiedGitHubReadEvidence;
 }
 
-function validateParameters(
-  operationName: GitHubGenericSemanticOperationName,
-  parameters: Record<string, string | number | boolean>,
-): void {
-  const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
-  if (Object.hasOwn(parameters, 'owner')) {
-    throw new Error('GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:owner');
-  }
-  if (Object.hasOwn(parameters, 'repo')) {
-    throw new Error('GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:repo');
-  }
-  const names = Object.keys(parameters);
-  for (let index = 0; index < names.length; index += 1) {
-    const name = names[index]!;
-    let allowed = false;
-    for (
-      let parameterIndex = 0;
-      parameterIndex < operation.parameters.length;
-      parameterIndex += 1
-    ) {
-      if (operation.parameters[parameterIndex]!.name === name) {
-        allowed = true;
-        break;
-      }
-    }
-    if (!allowed) throw new Error(`GITHUB_OPERATION_PARAMETER_UNKNOWN:${name}`);
-  }
-  for (let index = 0; index < operation.parameters.length; index += 1) {
-    const parameter = operation.parameters[index]!;
-    if (
-      parameter.required &&
-      parameter.name !== 'owner' &&
-      parameter.name !== 'repo' &&
-      parameters[parameter.name] === undefined
-    ) {
-      throw new Error(`GITHUB_OPERATION_PARAMETER_REQUIRED:${parameter.name}`);
-    }
-  }
-}
-
 export function observeCertifiedGitHubRead(
   token: string,
   {
@@ -105,7 +65,12 @@ export function observeCertifiedGitHubRead(
     observerId?: string;
   },
 ): CertifiedGitHubReadResult {
-  validateParameters(operationName, parameters);
+  if (Object.hasOwn(parameters, 'owner')) {
+    throw new Error('GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:owner');
+  }
+  if (Object.hasOwn(parameters, 'repo')) {
+    throw new Error('GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:repo');
+  }
   const { owner, repo } = githubRepositoryCoordinate(repositoryFullName);
   const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
   const semantic = GITHUB_OPERATION_SEMANTICS[operationName];
