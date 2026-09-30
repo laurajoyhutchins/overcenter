@@ -1,5 +1,4 @@
-import { evidenceRef, validateEvidenceRef, type EvidenceRef } from '../evidence/reference.ts';
-import { canonicalDigest, canonicalJson } from '../digest.ts';
+import { canonicalDigest } from '../digest.ts';
 import {
   trustedSourceProof,
   validateAdmittedSourceProof,
@@ -44,7 +43,6 @@ export interface SourceIntegrationEvidence {
   schema_version?: 2;
   plan_digest?: string;
   source_proof?: AdmittedSourceProof;
-  source_proof_ref?: EvidenceRef;
   run_id: string;
   obligation_key: string;
   source_sha: string;
@@ -225,7 +223,7 @@ export function validateSourceIntegrationEvidence(value: unknown): SourceIntegra
       'state',
     ],
     value.schema === 'overcenter-source-integration-evidence'
-      ? ['schema_version', 'plan_digest', 'source_proof', 'source_proof_ref']
+      ? ['schema_version', 'plan_digest', 'source_proof']
       : [],
     'SOURCE_INTEGRATION_EVIDENCE_INVALID',
   );
@@ -249,12 +247,6 @@ export function validateSourceIntegrationEvidence(value: unknown): SourceIntegra
       value.source_proof.state !== 'verified'
     )
       throw new Error('SOURCE_INTEGRATION_PROOF_INVALID');
-    const ref = validateEvidenceRef(value.source_proof_ref);
-    if (
-      canonicalDigest(ref) !==
-      canonicalDigest(evidenceRef(Buffer.from(canonicalJson(value.source_proof))))
-    )
-      throw new Error('SOURCE_INTEGRATION_PROOF_REF_MISMATCH');
   }
   assertNonEmptyString(value.run_id, 'SOURCE_INTEGRATION_EVIDENCE_RUN_INVALID');
   assertNonEmptyString(value.obligation_key, 'SOURCE_INTEGRATION_EVIDENCE_KEY_INVALID');
@@ -487,7 +479,6 @@ export function integrateVerifiedSourceCandidate(
       schema_version: 2,
       plan_digest: planDigest,
       source_proof: sourceProof,
-      source_proof_ref: evidenceRef(Buffer.from(canonicalJson(sourceProof))),
       run_id: claim.run_id,
       obligation_key: claim.obligation_key,
       source_sha: claim.source_sha,
@@ -578,7 +569,6 @@ export function integrateVerifiedSourceCandidate(
       schema_version: 2,
       plan_digest: planDigest,
       source_proof: sourceProof,
-      source_proof_ref: evidenceRef(Buffer.from(canonicalJson(sourceProof))),
       run_id: claim.run_id,
       obligation_key: claim.obligation_key,
       source_sha: claim.source_sha,
@@ -603,7 +593,6 @@ export function integrateVerifiedSourceCandidate(
       schema_version: 2,
       plan_digest: planDigest,
       source_proof: sourceProof,
-      source_proof_ref: evidenceRef(Buffer.from(canonicalJson(sourceProof))),
       run_id: claim.run_id,
       obligation_key: claim.obligation_key,
       source_sha: claim.source_sha,
