@@ -64,7 +64,7 @@ The proposal is only transport. The brokered candidate is the object that enters
 `src/source/source-integration.ts` defines the source-specific data consumed by the generic effect lifecycle:
 
 - `overcenter-source-verification/v1` records whether a specific candidate was verified against a specific base and, on success, the resulting tree.
-- `overcenter-source-integration-effect/v1` binds the run, obligation key, source SHA, candidate SHA, verification base, verified tree, and target ref as the identity of one repository effect attempt.
+- `overcenter-source-integration-effect/v1` binds the run, obligation key, source SHA, candidate SHA, verification base, verified tree, exact integration commit, and target ref as the identity of one repository effect attempt.
 
 The generic effect reservation durably stores that identity before mutation. Source integration then performs only the exact-base ref CAS. Authoritative readback emits an ordinary `source-integration/v1` observation bound to the reservation's identity digest, and the generic observation receipt decides DONE versus RECOVERY_REQUIRED. There is no separate source settlement or source-retry receipt protocol.
 
