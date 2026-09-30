@@ -1,0 +1,96 @@
+{
+  "schema": "overcenter-semantic-scaling-measurement-plan/v1",
+  "tasks": [
+    {
+      "task_id": "pure-computation-independent-observation",
+      "rung": "pure-computation",
+      "classification": "convergent",
+      "claim": "A computation attempt does not settle work; DONE requires the independent postcondition observation recognized by the authority kernel.",
+      "scopes": [
+        {
+          "kind": "property",
+          "id": "no-false-done",
+          "role": "reused-general"
+        }
+      ],
+      "evidence": [
+        "contracts/computation-execution/contract.json",
+        "test/computation-executor.test.ts"
+      ],
+      "observation_support": [
+        "file-content-equals/v1 independent observation"
+      ]
+    },
+    {
+      "task_id": "source-integration-exact-base",
+      "rung": "mechanical-source-transformation",
+      "classification": "convergent",
+      "claim": "An exact verified source tree may integrate only under current authority and an exact source base, and completion remains evidence-derived rather than worker-declared.",
+      "scopes": [
+        {
+          "kind": "property",
+          "id": "no-false-done",
+          "role": "reused-general"
+        },
+        {
+          "kind": "property",
+          "id": "broker-mutation-safety",
+          "role": "reused-general"
+        },
+        {
+          "kind": "architecture-effect",
+          "id": "source/integrate",
+          "role": "new-reusable"
+        }
+      ],
+      "evidence": [
+        "src/source/source-integration.ts",
+        "test/source-publication-boundary.test.ts"
+      ],
+      "observation_support": [
+        "exact source-base identity",
+        "verified candidate tree identity",
+        "trusted integration evidence"
+      ]
+    },
+    {
+      "task_id": "github-commit-status-safe-settlement",
+      "rung": "consequential-external-effect",
+      "classification": "convergent",
+      "claim": "A GitHub commit-status mutation may settle only under current mutation authority and exact authoritative status readback for the admitted coordinate.",
+      "scopes": [
+        {
+          "kind": "property",
+          "id": "no-false-done",
+          "role": "reused-general"
+        },
+        {
+          "kind": "property",
+          "id": "broker-mutation-safety",
+          "role": "reused-general"
+        },
+        {
+          "kind": "property",
+          "id": "github-commit-status-provider",
+          "role": "provider-specific"
+        },
+        {
+          "kind": "architecture-effect",
+          "id": "github-commit-status/create",
+          "role": "provider-specific"
+        }
+      ],
+      "evidence": [
+        "src/providers/github/status-effect.ts",
+        "src/providers/github/certified-status.ts",
+        "test/github-status-effect.test.ts",
+        "test/trusted-effect-core-loop.test.ts"
+      ],
+      "observation_support": [
+        "exact repository identity",
+        "exact commit and context coordinate",
+        "certified GitHub status readback"
+      ]
+    }
+  ]
+}

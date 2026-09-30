@@ -71,6 +71,8 @@ jobs:
             args+=(--baseline "$BASE_SHA")
           fi
           npm run check:tcb -- "${args[@]}"
+      - name: Measure semantic scaling marginal TCB
+        run: npm run experiment:semantic-scaling:measure -- --tcb-report "$RUNNER_TEMP/overcenter-tcb-report.json" --output "$RUNNER_TEMP/overcenter-semantic-scaling.json" --summary "$GITHUB_STEP_SUMMARY"
       - name: Analyze production code witnesses
         run: npm run check:code-witnesses -- --summary "$GITHUB_STEP_SUMMARY" --output "$RUNNER_TEMP/overcenter-code-witness-report.json"
       - name: Check adapter diagnosability

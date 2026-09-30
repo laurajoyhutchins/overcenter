@@ -690,12 +690,12 @@
       "contrast": "Allow trusted verification to grow into a deterministic shadow of the reasoning worker while continuing to describe the trusted kernel as semantically small.",
       "reproduce": {
         "tier": "deterministic",
-        "local": "npm run test:semantic-scaling && npm run experiment:semantic-scaling"
+        "local": "npm run test:semantic-scaling && npm run test:semantic-scaling-measurement && npm run check:tcb -- --output /tmp/overcenter-tcb-report.json && npm run experiment:semantic-scaling:measure -- --tcb-report /tmp/overcenter-tcb-report.json"
       },
       "environment": [
         "Node.js from .node-version.",
-        "No provider credentials, network access, or LLM are required for the synthetic classifier controls.",
-        "Empirical promotion requires exact-revision property-scoped TCB evidence from the existing architecture/TCB machinery."
+        "No provider credentials, network access, or LLM are required for the classifier controls or static marginal-TCB comparison.",
+        "The empirical ladder consumes the exact revision-bound property/effect closures produced by the existing TCB reporter."
       ],
       "success_criteria": [
         "The measurement distinguishes reused general authority machinery, newly reusable machinery, provider-specific semantics, and task-specific authority-bearing semantics.",
@@ -706,13 +706,15 @@
         "Positive claim promotion requires real revision-bound tasks from materially different task families and property-scoped TCB attribution."
       ],
       "evidence": {
-        "status": "pending",
+        "status": "evaluated",
+        "evaluated_revision": "7f95ca1c23ca089f7990e864d84ea61aaa4f6fc8",
         "artifacts": [
-          "Issue #460 preregisters the falsification criterion, experimental ladder, anti-cheating rule, and allowed outcomes."
-        ],
-        "pending_reason": "Synthetic controls establish only that the measurement vocabulary can detect intended outcomes. Real cross-family task evidence has not yet been collected."
+          "Issue #460 preregisters the falsification criterion, experimental ladder, anti-cheating rule, and allowed outcomes.",
+          "GitHub Actions run 36653875173: exact-head TCB reconciliation and semantic-scaling measurement passed for pure computation, exact-base source integration, and GitHub commit-status safe settlement.",
+          "At revision 7f95ca1c23ca089f7990e864d84ea61aaa4f6fc8 the measured ladder was 9,281 baseline trusted semantic LOC, +4 marginal LOC for source integration, and +0 marginal LOC for GitHub commit-status settlement; the GitHub rung still introduced two provider-specific scopes and five external assumptions."
+        ]
       },
-      "interpretation": "A convergent result would support the scaling thesis only for exercised task families. Frontier-limited and semantic-mirroring results are valid outcomes, not implementation failures.",
+      "interpretation": "The first three-rung measurement shows heavy trusted-source reuse: source integration adds four trusted semantic lines beyond the pure-computation settlement baseline, while GitHub commit-status settlement adds no new trusted source lines beyond that union. This is only an initial reuse result because provider-specific scopes and external assumptions still grow even when LOC does not, and harder task families have not yet challenged the apparent plateau.",
       "non_claims": [
         "Synthetic fixtures demonstrate that Overcenter's trusted semantic complexity has converged.",
         "Raw LOC is a sufficient proxy for semantic trust.",
@@ -725,7 +727,7 @@
       },
       "outcome": {
         "state": "pending",
-        "summary": "The deterministic classifier and negative controls are established before empirical task-family measurements."
+        "summary": "Three materially different rungs now have revision-bound marginal TCB measurements. The observed source-line plateau is promising but is not promoted to a general convergence claim."
       }
     }
   ]
