@@ -265,11 +265,20 @@ test('source movement and stale execution generation prevent a reserved source C
   assert.equal(mutations, 0);
 });
 
-test('broker retry reuses the same canonical candidate', (t) => {
+test('broker retry never replaces an already-published candidate', (t) => {
   const f = fixture(t);
+  const publishedSha = f.brokered.candidate.commit_sha;
   const repeated = brokerAssignedSourceProposal(f.repo, f.assignment, f.proposal);
-  assert.equal(repeated.publication.state, 'ALREADY_PUBLISHED');
-  assert.equal(repeated.candidate.commit_sha, f.brokered.candidate.commit_sha);
+  if (repeated.publication.state === 'CONFLICT') {
+    assert.equal(repeated.publication.observed_sha, publishedSha);
+  } else {
+    assert.equal(repeated.publication.state, 'ALREADY_PUBLISHED');
+    assert.equal(repeated.candidate.commit_sha, publishedSha);
+  }
+  assert.equal(
+    f.git('ls-remote', 'origin', `refs/heads/overcenter/candidate/${f.claim.run_id}`).split(/\s+/)[0],
+    publishedSha,
+  );
 });
 
 test('changed policy produces a different proof plan without changing the canonical candidate', (t) => {
