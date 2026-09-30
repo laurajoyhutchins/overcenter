@@ -184,7 +184,6 @@ export function validateSourceIntegrationEffectIdentity(
 }
 
 export function inspectSourceCandidate(
-export function inspectSourceCandidate(
   repo: string,
   taskValue: unknown,
   claim: SourceClaimBinding,
