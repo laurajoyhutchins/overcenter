@@ -1,16 +1,7 @@
 import {
-  GITHUB_API_VERSION,
-  GITHUB_OPENAPI_SHA256,
-  GITHUB_OPENAPI_SOURCE_COMMIT,
-} from './contract.ts';
-import { GITHUB_PULL_REQUEST_OPERATION } from './operations.generated.ts';
-import { materializeGitHubOperationRequest } from './openapi.ts';
-import { GITHUB_PULL_REQUEST_RESPONSE_SLICE } from './semantics.ts';
-import {
-  observeCertifiedGitHubRepository,
-  type CertifiedGitHubRepositoryEvidence,
-} from './certified-repository.ts';
-import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
+  observeCertifiedGitHubSemanticRead,
+  type CertifiedGitHubSemanticReadEvidence,
+} from './certified-read.ts';
 import {
   GitHubAsyncReadRequired,
   githubGet,
@@ -27,6 +18,15 @@ export interface GitHubPullRequestExpectedIdentity {
   base_sha: string;
 }
 
+export interface GitHubPullRequestActualIdentity extends GitHubPullRequestExpectedIdentity {
+  id: number;
+}
+
+export interface GitHubPullRequestIdentityPredicateResult {
+  actual: GitHubPullRequestActualIdentity;
+  differences: string[];
+}
+
 export interface CertifiedGitHubPullRequestEvidence {
   provider: 'github';
   api_version: string;
@@ -35,7 +35,7 @@ export interface CertifiedGitHubPullRequestEvidence {
   observer: { kind: 'git-kernel'; id: 'github-pr-identity/v1' };
   repository_id: number;
   requested_repository_full_name: string;
-  repository: CertifiedGitHubRepositoryEvidence;
+  repository: CertifiedGitHubSemanticReadEvidence['repository'];
   operation_id: 'pulls/get';
   observed_at: string;
   pull_number: number;
@@ -58,7 +58,7 @@ export interface CertifiedGitHubPullRequestIdentityResult {
   repository_full_name?: string;
   pull_number: number;
   expected: GitHubPullRequestExpectedIdentity;
-  actual?: GitHubPullRequestExpectedIdentity & { id: number };
+  actual?: GitHubPullRequestActualIdentity;
   differences?: string[];
   evidence?: CertifiedGitHubPullRequestEvidence;
   observation_error?: string;
@@ -70,6 +70,71 @@ function validateExpected(expected: GitHubPullRequestExpectedIdentity): void {
   if (!isGitHubObjectId(expected.head_sha)) throw new Error('GITHUB_PR_HEAD_SHA_INVALID');
   if (!expected.base_ref) throw new Error('GITHUB_PR_BASE_REF_REQUIRED');
   if (!isGitHubObjectId(expected.base_sha)) throw new Error('GITHUB_PR_BASE_SHA_INVALID');
+}
+
+export function evaluateCertifiedGitHubPullRequestIdentity(
+  value: unknown,
+  pullNumber: number,
+  expected: GitHubPullRequestExpectedIdentity,
+): GitHubPullRequestIdentityPredicateResult {
+  const observed = value as {
+    id: number;
+    node_id: string;
+    number: number;
+    state: string;
+    head: { sha: string };
+    base: { ref: string; sha: string };
+  };
+  if (observed.id <= 0 || observed.node_id.length === 0 || observed.number !== pullNumber) {
+    throw new Error('GITHUB_PR_IDENTITY_INVALID');
+  }
+  if (!isGitHubObjectId(observed.head.sha) || !isGitHubObjectId(observed.base.sha)) {
+    throw new Error('GITHUB_PR_REVISION_INVALID');
+  }
+
+  const actual: GitHubPullRequestActualIdentity = {
+    id: observed.id,
+    node_id: observed.node_id,
+    state: observed.state,
+    head_sha: observed.head.sha,
+    base_ref: observed.base.ref,
+    base_sha: observed.base.sha,
+  };
+  const differences: string[] = [];
+  if (actual.node_id !== expected.node_id) differences.push('node_id');
+  if (actual.state !== expected.state) differences.push('state');
+  if (!sameGitHubObjectId(actual.head_sha, expected.head_sha)) differences.push('head_sha');
+  if (actual.base_ref !== expected.base_ref) differences.push('base_ref');
+  if (!sameGitHubObjectId(actual.base_sha, expected.base_sha)) differences.push('base_sha');
+  return { actual, differences };
+}
+
+function pullRequestEvidence(
+  generic: CertifiedGitHubSemanticReadEvidence,
+  pullNumber: number,
+  actual: GitHubPullRequestActualIdentity,
+): CertifiedGitHubPullRequestEvidence {
+  return {
+    provider: generic.provider,
+    api_version: generic.api_version,
+    schema_sha256: generic.schema_sha256,
+    schema_source_commit: generic.schema_source_commit,
+    observer: { kind: 'git-kernel', id: 'github-pr-identity/v1' },
+    repository_id: generic.repository_id,
+    requested_repository_full_name: generic.requested_repository_full_name,
+    repository: generic.repository,
+    operation_id: 'pulls/get',
+    observed_at: generic.observed_at,
+    pull_number: pullNumber,
+    pull_id: actual.id,
+    node_id: actual.node_id,
+    state: actual.state,
+    head_sha: actual.head_sha,
+    base_ref: actual.base_ref,
+    base_sha: actual.base_sha,
+    validated_paths: generic.validated_paths,
+    optional_absent_paths: generic.optional_absent_paths,
+  };
 }
 
 export function observeCertifiedGitHubPullRequestIdentity(
@@ -96,91 +161,42 @@ export function observeCertifiedGitHubPullRequestIdentity(
   validateExpected(expected);
 
   try {
-    const repository = observeCertifiedGitHubRepository(token, {
+    const read = observeCertifiedGitHubSemanticRead(token, {
       repositoryId,
       repositoryFullName,
+      operation: 'pull_request',
+      parameters: { pull_number: pullNumber },
+      grantedPermissions: ['pull_requests:read'],
       get,
       clock,
       observerId: 'github-pr-identity/v1',
     });
-    const { owner, repo } = repository.fact.object;
-    const request = materializeGitHubOperationRequest(GITHUB_PULL_REQUEST_OPERATION, {
-      owner,
-      repo,
-      pull_number: pullNumber,
-    });
-    const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
-      token,
-      operation: GITHUB_PULL_REQUEST_OPERATION,
-      request,
-      fields: GITHUB_PULL_REQUEST_RESPONSE_SLICE,
-      get,
-      clock,
-      observerId: 'github-pr-identity/v1',
-    });
-    const value = certified.outcome.value as {
-      id: number;
-      node_id: string;
-      number: number;
-      state: string;
-      head: { sha: string };
-      base: { ref: string; sha: string };
-    };
-    if (value.id <= 0 || value.node_id.length === 0 || value.number !== pullNumber) {
-      throw new Error('GITHUB_PR_IDENTITY_INVALID');
-    }
-    if (!isGitHubObjectId(value.head.sha) || !isGitHubObjectId(value.base.sha)) {
-      throw new Error('GITHUB_PR_REVISION_INVALID');
+    if (read.state !== 'observed') {
+      return {
+        state: 'INDETERMINATE',
+        reason: 'OBSERVATION_FAILED',
+        pull_number: pullNumber,
+        expected,
+        observation_error:
+          read.state === 'indeterminate'
+            ? read.observation_error
+            : 'GITHUB_PR_UNEXPECTED_COLLECTION_OBSERVATION',
+      };
     }
 
-    const actual = {
-      id: value.id,
-      node_id: value.node_id,
-      state: value.state,
-      head_sha: value.head.sha,
-      base_ref: value.base.ref,
-      base_sha: value.base.sha,
-    };
-    const differences: string[] = [];
-    if (actual.node_id !== expected.node_id) differences.push('node_id');
-    if (actual.state !== expected.state) differences.push('state');
-    if (!sameGitHubObjectId(actual.head_sha, expected.head_sha)) differences.push('head_sha');
-    if (actual.base_ref !== expected.base_ref) differences.push('base_ref');
-    if (!sameGitHubObjectId(actual.base_sha, expected.base_sha)) differences.push('base_sha');
-
-    const evidence: CertifiedGitHubPullRequestEvidence = {
-      provider: 'github',
-      api_version: GITHUB_API_VERSION,
-      schema_sha256: GITHUB_OPENAPI_SHA256,
-      schema_source_commit: GITHUB_OPENAPI_SOURCE_COMMIT,
-      observer: { kind: 'git-kernel', id: 'github-pr-identity/v1' },
-      repository_id: repositoryId,
-      requested_repository_full_name: repositoryFullName,
-      repository: repository.evidence,
-      operation_id: 'pulls/get',
-      observed_at: observedAt,
-      pull_number: pullNumber,
-      pull_id: value.id,
-      node_id: value.node_id,
-      state: value.state,
-      head_sha: value.head.sha,
-      base_ref: value.base.ref,
-      base_sha: value.base.sha,
-      validated_paths: certified.structural_validation.validated_paths,
-      optional_absent_paths: certified.structural_validation.optional_absent_paths,
-    };
-
+    const evaluated = evaluateCertifiedGitHubPullRequestIdentity(read.value, pullNumber, expected);
+    const evidence = pullRequestEvidence(read.evidence, pullNumber, evaluated.actual);
     return {
-      state: differences.length === 0 ? 'CURRENT' : 'STALE',
+      state: evaluated.differences.length === 0 ? 'CURRENT' : 'STALE',
       reason:
-        differences.length === 0
+        evaluated.differences.length === 0
           ? 'AUTHORITATIVE_PR_IDENTITY_MATCHES'
           : 'AUTHORITATIVE_PR_IDENTITY_DIFFERS',
-      repository_full_name: repository.fact.object.full_name,
+      repository_full_name: read.evidence.repository.canonical_full_name,
       pull_number: pullNumber,
       expected,
-      actual,
-      differences,
+      actual: evaluated.actual,
+      differences: evaluated.differences,
       evidence,
     };
   } catch (error: unknown) {
