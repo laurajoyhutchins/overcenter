@@ -104,3 +104,24 @@ The anti-cheating question for every new trusted task-specific rule remains:
 > Why can this not instead be supplied as untrusted evidence checked by an existing or more general trusted primitive?
 
 Moving semantic logic into a provider adapter, generated artifact, policy file, proof generator, or test harness does not remove it from the trusted surface when settlement depends on that logic being correct.
+
+### Follow-on stress test: explicit judgment attestation
+
+After the preregistered six-rung result was complete, exact head `4f45cd7f87ce6b9aee9287d7983cce4f07f62f66` exercised a deliberately new semantic primitive under merge-gate run `36663311438`.
+
+The primitive does not decide whether an architectural judgment is correct. It certifies a durable judgment record: GitHub issue #460 comment `5903129961`, authored by `laurajoyhutchins`, with stable comment identity and exact body digest. That comment records the final architectural candidate and the bounded-support conclusion.
+
+The measured `judgment-attestation-integrity` scope was **2,023 trusted semantic LOC**:
+
+- **383 marginal semantic LOC**;
+- **1,640 reused prior semantic LOC**;
+- **383 new-reusable marginal LOC**;
+- **0 task-specific marginal LOC**;
+- **0 provider-specific marginal LOC**;
+- three newly introduced external assumptions;
+- **431/431 deterministic tests passed**.
+
+The accepted pre-existing TCB scopes remained flat. This matters because the first attempted design did not: integrating architectural acceptance into ordinary settlement widened existing trusted scopes, and trying to rely on PR merge metadata crossed fields outside the pinned certified `pulls/get` response slice. Both failures were rejected before merge.
+
+So the six-rung plateau should not be read as “new semantics are free.” A genuinely new mechanically checkable fact can require new trusted code. The stronger result is narrower: that growth can be isolated as reusable verification machinery while task-specific judgment remains outside the trusted path.
+
