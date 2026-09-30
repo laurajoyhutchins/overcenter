@@ -1342,7 +1342,7 @@ try {
         const run = spawnSync(
           process.execPath,
           ['--experimental-strip-types', trustedScript, '--output', output],
-          { cwd, encoding: 'utf8' },
+          { cwd, encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] },
         );
         if (run.status !== 0 || !existsSync(output)) {
           throw new Error(
