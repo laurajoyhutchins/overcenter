@@ -1,10 +1,4 @@
 import { canonicalDigest } from '../digest.ts';
-import {
-  validateSourceTransactionBindingFact,
-  validateSourceTransactionTask,
-  type SourceTransactionBindingFact,
-} from '../source/transaction.ts';
-import { bindSourceClaim } from '../source/source-obligation.ts';
 import type { Obligation } from '../model.ts';
 import { authoritativeAbsenceEvidence, observationVerified } from '../observation/observe.ts';
 import {
@@ -17,6 +11,7 @@ import {
   validateGraphPatchFact,
   validateReceiptFact,
   validateSourceRevisionBindingFact,
+  validateSourceTransactionBindingFact,
 } from './facts.ts';
 import type {
   ClaimFact,
@@ -28,6 +23,7 @@ import type {
   Receipt,
   ReceiptFact,
   SourceRevisionBindingFact,
+  SourceTransactionBindingFact,
   State,
 } from './facts.ts';
 import { validateGraph } from '../graph/topology.ts';
@@ -286,9 +282,12 @@ export function replayProjection(
         fact.execution_generation !== run.execution_generation ||
         fact.execution_authority_commit !== run.execution_authority_commit ||
         canonicalDigest(fact.plan.claim) !==
-          canonicalDigest(
-            bindSourceClaim(run.obligation_key, run.id, run.claimed_revision, run.source_revision),
-          )
+          canonicalDigest({
+            obligation_key: run.obligation_key,
+            run_id: run.id,
+            claimed_revision: run.claimed_revision,
+            source_sha: run.source_revision,
+          })
       )
         throw new Error('SOURCE_TRANSACTION_AUTHORITY_MISMATCH');
       refresh(record.commit);
@@ -300,7 +299,6 @@ export function replayProjection(
       )
         throw new Error('SOURCE_TRANSACTION_NOT_ADMISSIBLE');
       if (transactionsByRun.has(run.id)) throw new Error('SOURCE_TRANSACTION_ALREADY_BOUND');
-      validateSourceTransactionTask(fact.plan, run.obligation.packet);
       transactionsByRun.set(run.id, fact);
     }
 
