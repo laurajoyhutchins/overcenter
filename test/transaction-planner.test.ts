@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test, { type TestContext } from 'node:test';
 
-import { observeRepositoryDelta } from '../src/source/repository-delta.ts';
+import { assertSupportedSourceDelta, observeRepositoryDelta } from '../src/source/repository-delta.ts';
 import { planSourceTransaction } from '../src/source/transaction-planner.ts';
 import { GOLDEN_TRANSACTION_CASE } from './fixtures/golden-transaction.ts';
 
@@ -36,6 +36,46 @@ const baseline = {
   baseline_sha256: 'a'.repeat(64),
   validator_artifacts: ['src/source/transaction-planner.ts'],
 };
+
+test('generic repository delta preserves source candidate path observation', (t) => {
+  const { root, git, put, commit } = fixture(t);
+  put('edit.ts', 'before\n');
+  put('remove.ts', 'remove\n');
+  const base = commit();
+
+  put('edit.ts', 'after\n');
+  rmSync(join(root, 'remove.ts'));
+  put('add.ts', 'add\n');
+  git('update-index', '--chmod=+x', 'edit.ts');
+  const head = commit();
+
+  const delta = observeRepositoryDelta(root, base, head);
+  assertSupportedSourceDelta(delta);
+  const legacyPaths = execFileSync(
+    'git',
+    [
+      '-C',
+      root,
+      'diff-tree',
+      '--no-commit-id',
+      '--name-only',
+      '--no-renames',
+      '-r',
+      '-z',
+      base,
+      head,
+    ],
+    { encoding: 'utf8' },
+  )
+    .split('\0')
+    .filter(Boolean)
+    .sort();
+
+  assert.deepEqual(
+    delta.entries.map((entry) => entry.path),
+    legacyPaths,
+  );
+});
 
 test('Python changes require a declared baseline and retain explicit coverage gaps', (t) => {
   const { root, put, commit } = fixture(t);
