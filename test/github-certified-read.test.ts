@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { observeCertifiedGitHubRead } from '../src/providers/github/certified-read.ts';
 import { observeCertifiedGitHubSemanticRead } from '../src/providers/github/semantic-read.ts';
+import { observeCertifiedGitHubRepository } from '../src/providers/github/certified-repository.ts';
 import {
   evaluateCertifiedGitHubCommitAncestry,
   evaluateCertifiedGitHubPullRequestIdentity,
@@ -314,17 +315,19 @@ test('certified ref is generic certified read plus a binding predicate', () => {
     }
     throw new Error('unexpected path:' + path);
   };
-  const generic = observeCertifiedGitHubSemanticRead('token', {
+  const repositoryObservation = observeCertifiedGitHubRepository('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
+    get,
+    observerId: 'github-ref-fence/v1',
+  });
+  const generic = observeCertifiedGitHubRead('token', {
+    repositoryFullName: repositoryObservation.fact.object.full_name,
     operation: 'ref',
-    grantedPermissions: ['contents:read'],
     parameters: { ref: 'heads/main' },
     get,
     observerId: 'github-ref-fence/v1',
   });
-  assert.equal(generic.state, 'observed');
-  if (generic.state !== 'observed') return;
   const predicate = evaluateCertifiedGitHubRef(generic.value, 'refs/heads/main', SHA);
 
   assert.equal(predicate.current, true);
@@ -356,17 +359,19 @@ test('certified PR is generic certified read plus an identity predicate', () => 
     }
     throw new Error('unexpected path:' + path);
   };
-  const generic = observeCertifiedGitHubSemanticRead('token', {
+  const repositoryObservation = observeCertifiedGitHubRepository('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
+    get,
+    observerId: 'github-pr-identity/v1',
+  });
+  const generic = observeCertifiedGitHubRead('token', {
+    repositoryFullName: repositoryObservation.fact.object.full_name,
     operation: 'pull_request',
-    grantedPermissions: ['pull_requests:read'],
     parameters: { pull_number: 17 },
     get,
     observerId: 'github-pr-identity/v1',
   });
-  assert.equal(generic.state, 'observed');
-  if (generic.state !== 'observed') return;
   const predicate = evaluateCertifiedGitHubPullRequestIdentity(generic.value, 17, expected);
 
   assert.deepEqual(predicate.differences, []);
