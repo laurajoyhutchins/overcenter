@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { observeCertifiedGitHubRefFence } from '../src/providers/github/certified-ref.ts';
+import { observeCertifiedGitHubRefFence } from '../src/providers/github/certified-read.ts';
 import type { GitHubJsonGet } from '../src/providers/github/rest.ts';
 
 const SHA_A = 'a'.repeat(40);
