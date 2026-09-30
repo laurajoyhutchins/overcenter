@@ -54,6 +54,48 @@
       ]
     },
     {
+      "task_id": "portable-worker-checksum-relocation",
+      "rung": "behavioral-bug-repair",
+      "classification": "frontier-limited",
+      "claim": "The preregistered relocation oracle passed the exact repaired checksum-layout fixture.",
+      "narrowed_from": "The portable worker-client artifact handling is correct in every deployment context.",
+      "residual_judgment": "Whether this relocation oracle completely captures every semantically relevant worker-client artifact deployment context.",
+      "external_assumptions": [
+        "bash executes the fixed producer and consumer commands with the documented working-directory semantics.",
+        "sha256sum implements SHA-256 generation and path-based verification as documented.",
+        "Node.js filesystem copy preserves the artifact bytes and relative names used to model a fresh artifact download."
+      ],
+      "untrusted_machinery": [
+        "experiments/semantic-scaling/behavioral-checksum-oracle.ts",
+        "the historical workflow producer command under evaluation"
+      ],
+      "proof_obligations": [
+        "bind the historical base and repaired candidate identities",
+        "the historical base must fail after fresh-directory relocation",
+        "the repaired candidate must pass after fresh-directory relocation",
+        "post-relocation byte tampering must fail verification",
+        "do not promote oracle passage to global worker-client correctness"
+      ],
+      "scopes": [
+        {
+          "kind": "property",
+          "id": "no-false-done",
+          "role": "reused-general"
+        }
+      ],
+      "evidence": [
+        "experiments/semantic-scaling/behavioral-checksum.fixture.json",
+        "experiments/semantic-scaling/behavioral-checksum-oracle.ts",
+        "GitHub PR #401 historical base/head workflow blobs"
+      ],
+      "observation_support": [
+        "exact historical revision and workflow-blob identities",
+        "fresh-directory artifact relocation",
+        "sha256sum verification exit status",
+        "tampered-byte negative control"
+      ]
+    },
+    {
       "task_id": "github-commit-status-safe-settlement",
       "rung": "consequential-external-effect",
       "classification": "convergent",
