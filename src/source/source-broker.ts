@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { canonicalDigest } from '../digest.ts';
 import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
-import { inspectSourceCandidate } from './source-integration.ts';
+import { inspectSourceCandidate, type SourceCandidatePublicationResult } from './source-integration.ts';
 import {
   SOURCE_PROPOSAL_SCHEMA,
   validateSourceAssignment,
@@ -34,10 +34,6 @@ function candidateWorktree(repo: string, revision: string): { root: string; disp
     },
   };
 }
-
-export type SourceCandidatePublicationResult =
-  | { state: 'PUBLISHED' | 'ALREADY_PUBLISHED'; ref: string; candidate_sha: string }
-  | { state: 'CONFLICT'; ref: string; observed_sha: string };
 
 function sourceCandidateMessage(obligationId: string, claim: SourceClaimBinding): string {
   return [
