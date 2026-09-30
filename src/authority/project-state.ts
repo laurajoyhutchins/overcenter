@@ -281,7 +281,14 @@ function deriveRealizationRelations(
             run: latest,
           };
         } else if (receipt.disposition === 'RECOVERY_REQUIRED') {
-          lifecycle = { status: 'RECOVERY_REQUIRED', run: latest };
+          lifecycle = {
+            status:
+              latest.obligation.packet.kind === 'source-change' &&
+              latest.execution_generation > receipt.execution_generation
+                ? 'EXECUTING'
+                : 'RECOVERY_REQUIRED',
+            run: latest,
+          };
         }
       }
     }

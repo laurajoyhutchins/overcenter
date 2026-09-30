@@ -102,7 +102,7 @@ test('architecture changes cannot erase their own proof requirements', (t) => {
   put('architecture/logic.sql', '-- removed architecture\n');
   const head = commit();
   const plan = planSourceTransaction(root, observeRepositoryDelta(root, base, head), baseline);
-  assert.equal(plan.validation_mode, 'baseline');
+  assert.equal(plan.validation_mode, 'unsupported');
   assert.ok(plan.impacts.some((impact) => impact.property_id === 'broker-mutation-safety'));
   assert.ok(plan.coverage_gaps.some((gap) => gap.reason === 'model-changed'));
 });

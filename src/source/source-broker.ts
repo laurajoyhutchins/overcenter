@@ -210,13 +210,17 @@ function bindCandidate(
     const task = validateSourceTaskPacket(kernel.claimedWork(runId).packet);
     const delta = observeRepositoryDelta(repo, claim.source_sha, candidate.commit_sha);
     assertSupportedSourceDelta(delta);
+    const assurance = baselineSourceTransactionPlan(repo, delta, context);
+    if (assurance.validation_mode === 'unsupported')
+      throw new Error('SOURCE_TRANSACTION_RECONCILIATION_REQUIRED');
     const prior = kernel.sourceTransaction(runId);
     if (prior) {
       if (
         prior.plan.candidate_sha !== candidate.commit_sha ||
         prior.plan.repository_id !== context.repository_id ||
         prior.plan.repository_full_name !== context.repository_full_name ||
-        prior.plan.runtime_sha !== context.runtime_sha
+        prior.plan.runtime_sha !== context.runtime_sha ||
+        canonicalDigest(prior.plan.assurance) !== canonicalDigest(assurance)
       )
         throw new Error('SOURCE_TRANSACTION_ALREADY_BOUND');
       return;
@@ -236,7 +240,7 @@ function bindCandidate(
       authorized_write_set: task.writable_paths,
       expected_write_set: task.expected_write_set ?? delta.entries.map((entry) => entry.path),
       observed_write_set: delta.entries.map((entry) => entry.path),
-      assurance: baselineSourceTransactionPlan(repo, delta, context),
+      assurance,
     });
   };
 }

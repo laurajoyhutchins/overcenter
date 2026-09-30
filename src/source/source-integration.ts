@@ -1,9 +1,17 @@
+import { evidenceRef, validateEvidenceRef, type EvidenceRef } from '../evidence/reference.ts';
+import { canonicalDigest, canonicalJson } from '../digest.ts';
+import {
+  trustedSourceProof,
+  validateAdmittedSourceProof,
+  type TrustedSourceProofWitness,
+  type AdmittedSourceProof,
+} from './source-proof.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
-import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
+import { assertExactKeys, assertNonEmptyString, isData, isSha256Hex } from '../validation.ts';
 import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
 import {
   SOURCE_CANDIDATE_SCHEMA,
@@ -30,7 +38,11 @@ export interface SourceVerification {
 }
 
 export interface SourceIntegrationEvidence {
-  schema: typeof SOURCE_INTEGRATION_EVIDENCE_SCHEMA;
+  schema: typeof SOURCE_INTEGRATION_EVIDENCE_SCHEMA | 'overcenter-source-integration-evidence';
+  schema_version?: 2;
+  plan_digest?: string;
+  source_proof?: AdmittedSourceProof;
+  source_proof_ref?: EvidenceRef;
   run_id: string;
   obligation_key: string;
   source_sha: string;
@@ -59,10 +71,11 @@ export type SourceIntegrationResult =
       reason: string;
     };
 
-function git(repo: string, args: string[]): string {
+function git(repo: string, args: string[], env: NodeJS.ProcessEnv = process.env): string {
   return execFileSync('git', ['-C', repo, ...args], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    env,
   }).trim();
 }
 
@@ -167,11 +180,37 @@ export function validateSourceIntegrationEvidence(value: unknown): SourceIntegra
       'integration_commit',
       'state',
     ],
-    [],
+    value.schema === 'overcenter-source-integration-evidence'
+      ? ['schema_version', 'plan_digest', 'source_proof', 'source_proof_ref']
+      : [],
     'SOURCE_INTEGRATION_EVIDENCE_INVALID',
   );
-  if (value.schema !== SOURCE_INTEGRATION_EVIDENCE_SCHEMA) {
+  if (
+    value.schema !== SOURCE_INTEGRATION_EVIDENCE_SCHEMA &&
+    (value.schema !== 'overcenter-source-integration-evidence' ||
+      value.schema_version !== 2 ||
+      !isSha256Hex(value.plan_digest))
+  ) {
     throw new Error('SOURCE_INTEGRATION_EVIDENCE_SCHEMA_MISMATCH');
+  }
+  if (value.schema === 'overcenter-source-integration-evidence') {
+    validateAdmittedSourceProof(value.source_proof);
+    if (
+      !isData(value.source_proof) ||
+      value.source_proof.plan_digest !== value.plan_digest ||
+      value.source_proof.candidate_sha !== value.candidate_sha ||
+      value.source_proof.tree_sha !== value.verified_tree_sha ||
+      value.source_proof.run_id !== value.run_id ||
+      value.source_proof.base_sha !== value.verification_base_sha ||
+      value.source_proof.state !== 'verified'
+    )
+      throw new Error('SOURCE_INTEGRATION_PROOF_INVALID');
+    const ref = validateEvidenceRef(value.source_proof_ref);
+    if (
+      canonicalDigest(ref) !==
+      canonicalDigest(evidenceRef(Buffer.from(canonicalJson(value.source_proof))))
+    )
+      throw new Error('SOURCE_INTEGRATION_PROOF_REF_MISMATCH');
   }
   assertNonEmptyString(value.run_id, 'SOURCE_INTEGRATION_EVIDENCE_RUN_INVALID');
   assertNonEmptyString(value.obligation_key, 'SOURCE_INTEGRATION_EVIDENCE_KEY_INVALID');
@@ -265,15 +304,20 @@ function materializeSourceProposal(
     if (gitStatus(candidateTree.root, ['diff', '--cached', '--quiet']) === 0) {
       throw new Error('SOURCE_PROPOSAL_EMPTY');
     }
-    git(candidateTree.root, [
-      '-c',
-      'user.name=Overcenter Source Broker',
-      '-c',
-      'user.email=overcenter@local',
-      'commit',
-      '-m',
-      sourceCandidateMessage(obligationId, claim),
-    ]);
+    const sourceDate = git(repo, ['show', '-s', '--format=%cI', claim.source_sha]);
+    git(
+      candidateTree.root,
+      [
+        '-c',
+        'user.name=Overcenter Source Broker',
+        '-c',
+        'user.email=overcenter@local',
+        'commit',
+        '-m',
+        sourceCandidateMessage(obligationId, claim),
+      ],
+      { ...process.env, GIT_AUTHOR_DATE: sourceDate, GIT_COMMITTER_DATE: sourceDate },
+    );
     candidateSha = git(candidateTree.root, ['rev-parse', 'HEAD']);
   } finally {
     candidateTree.dispose();
@@ -415,6 +459,7 @@ function integrationMessage(
   claim: SourceClaimBinding,
   candidateSha: string,
   treeSha: string,
+  planDigest: string,
 ): string {
   return [
     `integrate source work ${claim.run_id}`,
@@ -422,6 +467,7 @@ function integrationMessage(
     `Overcenter-Obligation-Key: ${claim.obligation_key}`,
     `Overcenter-Source-Candidate: ${candidateSha}`,
     `Overcenter-Verified-Tree: ${treeSha}`,
+    `Overcenter-Transaction-Plan: ${planDigest}`,
   ].join('\n');
 }
 
@@ -431,14 +477,25 @@ function validExistingIntegration(
   claim: SourceClaimBinding,
   candidateSha: string,
   verification: SourceVerification,
+  planDigest: string,
 ): string | null {
   if (verification.state !== 'verified' || !verification.tree_sha) return null;
   const commits = git(repo, ['rev-list', head]);
   for (const commit of commits.split('\n').filter(Boolean)) {
     const body = git(repo, ['show', '-s', '--format=%B', commit]);
-    if (!body.includes(`Overcenter-Obligation-Key: ${claim.obligation_key}`)) continue;
-    if (!body.includes(`Overcenter-Source-Candidate: ${candidateSha}`)) continue;
-    if (!body.includes(`Overcenter-Verified-Tree: ${verification.tree_sha}`)) continue;
+    const trailers = execFileSync('git', ['interpret-trailers', '--parse'], {
+      input: body,
+      encoding: 'utf8',
+    })
+      .trim()
+      .split('\n');
+    const expected = [
+      `Overcenter-Obligation-Key: ${claim.obligation_key}`,
+      `Overcenter-Source-Candidate: ${candidateSha}`,
+      `Overcenter-Verified-Tree: ${verification.tree_sha}`,
+      `Overcenter-Transaction-Plan: ${planDigest}`,
+    ];
+    if (canonicalDigest(trailers) !== canonicalDigest(expected)) continue;
 
     const parents = git(repo, ['show', '-s', '--format=%P', commit]).split(/\s+/).filter(Boolean);
     if (parents.length !== 1 || parents[0] !== verification.base_sha) continue;
@@ -455,7 +512,7 @@ export function integrateVerifiedSourceCandidate(
   claim: SourceClaimBinding,
   obligationId: string,
   candidateSha: string,
-  verificationValue: unknown,
+  verificationValue: TrustedSourceProofWitness,
   {
     remote = 'origin',
     ref = 'refs/heads/main',
@@ -476,8 +533,21 @@ export function integrateVerifiedSourceCandidate(
   }
 
   let verification: SourceVerification;
+  let planDigest: string;
+  let sourceProof: AdmittedSourceProof;
   try {
-    verification = validateSourceVerification(verificationValue);
+    const proof = trustedSourceProof(verificationValue);
+    sourceProof = proof;
+    planDigest = proof.plan_digest;
+    verification = {
+      schema: SOURCE_VERIFICATION_SCHEMA,
+      state: proof.state,
+      run_id: proof.run_id,
+      candidate_sha: proof.candidate_sha,
+      base_sha: proof.base_sha,
+      tree_sha: proof.tree_sha,
+      reason: proof.reason,
+    };
   } catch (error: unknown) {
     return {
       state: 'REJECTED',
@@ -505,10 +575,21 @@ export function integrateVerifiedSourceCandidate(
   }
   if (!current) return { state: 'RECOVERY_REQUIRED', reason: 'SOURCE_AUTHORITY_MISSING' };
 
-  const replay = validExistingIntegration(repo, current, claim, candidateSha, verification);
+  const replay = validExistingIntegration(
+    repo,
+    current,
+    claim,
+    candidateSha,
+    verification,
+    planDigest,
+  );
   if (replay) {
     const evidence: SourceIntegrationEvidence = {
-      schema: SOURCE_INTEGRATION_EVIDENCE_SCHEMA,
+      schema: 'overcenter-source-integration-evidence',
+      schema_version: 2,
+      plan_digest: planDigest,
+      source_proof: sourceProof,
+      source_proof_ref: evidenceRef(Buffer.from(canonicalJson(sourceProof))),
       run_id: claim.run_id,
       obligation_key: claim.obligation_key,
       source_sha: claim.source_sha,
@@ -571,7 +652,7 @@ export function integrateVerifiedSourceCandidate(
       'user.email=overcenter@local',
       'commit',
       '-m',
-      integrationMessage(claim, candidateSha, verification.tree_sha),
+      integrationMessage(claim, candidateSha, verification.tree_sha, planDigest),
     ]);
     integrated = git(candidateTree.root, ['rev-parse', 'HEAD']);
   } finally {
@@ -595,7 +676,11 @@ export function integrateVerifiedSourceCandidate(
   }
   if (observed === integrated) {
     const evidence: SourceIntegrationEvidence = {
-      schema: SOURCE_INTEGRATION_EVIDENCE_SCHEMA,
+      schema: 'overcenter-source-integration-evidence',
+      schema_version: 2,
+      plan_digest: planDigest,
+      source_proof: sourceProof,
+      source_proof_ref: evidenceRef(Buffer.from(canonicalJson(sourceProof))),
       run_id: claim.run_id,
       obligation_key: claim.obligation_key,
       source_sha: claim.source_sha,
@@ -612,11 +697,15 @@ export function integrateVerifiedSourceCandidate(
     };
   }
   const after = observed
-    ? validExistingIntegration(repo, observed, claim, candidateSha, verification)
+    ? validExistingIntegration(repo, observed, claim, candidateSha, verification, planDigest)
     : null;
   if (after) {
     const evidence: SourceIntegrationEvidence = {
-      schema: SOURCE_INTEGRATION_EVIDENCE_SCHEMA,
+      schema: 'overcenter-source-integration-evidence',
+      schema_version: 2,
+      plan_digest: planDigest,
+      source_proof: sourceProof,
+      source_proof_ref: evidenceRef(Buffer.from(canonicalJson(sourceProof))),
       run_id: claim.run_id,
       obligation_key: claim.obligation_key,
       source_sha: claim.source_sha,
