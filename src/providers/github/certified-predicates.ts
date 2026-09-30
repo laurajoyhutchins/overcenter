@@ -54,7 +54,8 @@ export function evaluateCertifiedGitHubPullRequestIdentity(
   pullNumber: number,
   expected: GitHubPullRequestExpectedIdentity,
 ): GitHubPullRequestIdentityPredicateResult {
-  if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) throw new Error('GITHUB_PR_NUMBER_INVALID');
+  if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0)
+    throw new Error('GITHUB_PR_NUMBER_INVALID');
   if (!expected.node_id) throw new Error('GITHUB_PR_NODE_ID_REQUIRED');
   if (!expected.state) throw new Error('GITHUB_PR_STATE_REQUIRED');
   if (!isGitHubObjectId(expected.head_sha)) throw new Error('GITHUB_PR_HEAD_SHA_INVALID');
