@@ -768,7 +768,8 @@ test('project.submit integrates a verified source candidate and settles the sour
       authorityRef: AUTHORITY_REF,
       remote: 'origin',
     });
-    assert.ok(acquired.run_id);
+    const runId = acquired.run_id;
+    if (!runId) throw new Error('SOURCE_RUN_ID_MISSING');
 
     const assignment = JSON.parse(
       readFileSync(join(f.root, 'source-packet', 'assignment.json'), 'utf8'),
@@ -967,7 +968,7 @@ test('reserved source effect is fenced to candidate identity and recovered by ob
       {
         ...commandContext('e'.repeat(40), 9151),
         candidate_sha: candidateSha,
-        candidate_run_id: acquired.run_id,
+        candidate_run_id: runId,
       },
       { authorityRef: AUTHORITY_REF, remote: 'origin' },
     );
