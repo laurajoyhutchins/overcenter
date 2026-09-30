@@ -239,7 +239,6 @@ test('SQLite graph reconciliation derives add rebind and no-op without extra wri
     assert.deepEqual(first.unchanged, []);
 
     const unchanged = reconcileGraphTransaction(
-
       kernel,
       [
         {
@@ -258,7 +257,6 @@ test('SQLite graph reconciliation derives add rebind and no-op without extra wri
     assert.deepEqual(unchanged.unchanged, ['leaf', 'root']);
 
     const changed = reconcileGraphTransaction(
-
       kernel,
       [
         {
@@ -306,7 +304,6 @@ test('no-op graph reconciliation remains read-only while work is in flight', () 
     assert.ok(head);
 
     const result = reconcileGraphTransaction(
-
       kernel,
       [{ id: 'a', packet: { value: 1 }, postcondition: pc(join(root, 'a'), 'A') }],
       head,
