@@ -53,15 +53,16 @@ function validateParameters(
 ): void {
   const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
   const allowed = new Set(operation.parameters.map((parameter) => parameter.name));
-  for (const reserved of ['owner', 'repo']) {
-    if (Object.hasOwn(parameters, reserved)) {
-      throw new Error(`GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:${reserved}`);
-    }
+  if (Object.hasOwn(parameters, 'owner')) {
+    throw new Error('GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:owner');
   }
-  for (const name of Object.keys(parameters)) {
+  if (Object.hasOwn(parameters, 'repo')) {
+    throw new Error('GITHUB_SEMANTIC_READ_PARAMETER_RESERVED:repo');
+  }
+  Object.keys(parameters).forEach((name) => {
     if (!allowed.has(name)) throw new Error(`GITHUB_OPERATION_PARAMETER_UNKNOWN:${name}`);
-  }
-  for (const parameter of operation.parameters) {
+  });
+  operation.parameters.forEach((parameter) => {
     if (
       parameter.required &&
       parameter.name !== 'owner' &&
@@ -70,7 +71,7 @@ function validateParameters(
     ) {
       throw new Error(`GITHUB_OPERATION_PARAMETER_REQUIRED:${parameter.name}`);
     }
-  }
+  });
 }
 
 export function observeCertifiedGitHubRead(
