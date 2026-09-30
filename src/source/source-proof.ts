@@ -7,31 +7,12 @@ import {
   isPositiveSafeInteger,
   isSha256Hex,
 } from '../validation.ts';
-import type { SourceProofContext } from './source-proof-record.ts';
+import type { AdmittedSourceProof, SourceProofContext } from './source-proof-record.ts';
+export type { AdmittedSourceProof } from './source-proof-record.ts';
 
 const WORKFLOW = '.github/workflows/agent-candidate-signal.yml';
 const RECORD_JOB = 'Record source verification';
 const REQUIRED_JOB = 'Verify source candidate / Candidate evidence';
-
-export interface AdmittedSourceProof {
-  schema: 'overcenter-admitted-source-proof/v1';
-  state: 'verified';
-  reason: null;
-  run_id: string;
-  candidate_sha: string;
-  base_sha: string;
-  tree_sha: string;
-  runtime_sha: string;
-  plan_digest: string;
-  producer: {
-    repository_id: number;
-    repository_full_name: string;
-    workflow_path: typeof WORKFLOW;
-    workflow_run_id: number;
-    workflow_run_attempt: number;
-    job_id: number;
-  };
-}
 
 const proofs = new WeakMap<object, AdmittedSourceProof>();
 declare const sourceProofBrand: unique symbol;
