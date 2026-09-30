@@ -1,7 +1,4 @@
-import {
-  observeCertifiedGitHubRead,
-  type CertifiedGitHubReadEvidence,
-} from './certified-read.ts';
+import { observeCertifiedGitHubRead, type CertifiedGitHubReadEvidence } from './certified-read.ts';
 import {
   observeCertifiedGitHubRepository,
   type CertifiedGitHubRepositoryEvidence,
@@ -102,7 +99,8 @@ export function evaluateCertifiedGitHubRef(
   expectedSha: string,
 ): GitHubRefPredicateResult {
   const observed = value as { ref: string; object: { type: string; sha: string } };
-  if (!['commit', 'tag'].includes(observed.object.type)) throw new Error('GITHUB_REF_OBJECT_TYPE_INVALID');
+  if (!['commit', 'tag'].includes(observed.object.type))
+    throw new Error('GITHUB_REF_OBJECT_TYPE_INVALID');
   if (!isGitHubObjectId(observed.object.sha)) throw new Error('GITHUB_REF_OBJECT_SHA_INVALID');
   if (canonicalGitHubRef(observed.ref) !== canonicalRef) {
     throw new Error('GITHUB_REF_RESPONSE_COORDINATE_MISMATCH');
@@ -276,7 +274,8 @@ export function observeCertifiedGitHubPullRequestIdentity(
     clock?: () => string;
   },
 ): CertifiedGitHubPullRequestIdentityResult {
-  if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) throw new Error('GITHUB_PR_NUMBER_INVALID');
+  if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0)
+    throw new Error('GITHUB_PR_NUMBER_INVALID');
   validateExpected(expected);
   try {
     const read = repositoryCertifiedRead(token, {
@@ -411,7 +410,8 @@ export function observeCertifiedGitHubCommitAncestry(
     clock,
     observerId: 'github-pull-request-branch-updated/v1',
   });
-  if (read.state !== 'observed') throw new Error('GITHUB_COMMIT_ANCESTRY_UNEXPECTED_COLLECTION_OBSERVATION');
+  if (read.state !== 'observed')
+    throw new Error('GITHUB_COMMIT_ANCESTRY_UNEXPECTED_COLLECTION_OBSERVATION');
   const predicate = evaluateCertifiedGitHubCommitAncestry(read.value, ancestorSha);
   return {
     state: predicate.relation,
