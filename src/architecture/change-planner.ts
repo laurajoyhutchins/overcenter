@@ -51,8 +51,8 @@ export interface AssurancePropertyImpact {
 export type ArtifactDependencyClosure = (rootArtifacts: readonly string[]) => readonly string[];
 
 export interface EvidenceInvalidationOptions {
-  base_package?: Record<string, unknown>;
-  head_package?: Record<string, unknown>;
+  base_package?: Record<string, unknown> | undefined;
+  head_package?: Record<string, unknown> | undefined;
 }
 
 const PACKAGE_RUNTIME_KEYS = new Set([
@@ -129,7 +129,9 @@ function minimumEvidenceCover(
 
 function runtimeEvidenceIds(db: DatabaseSync): string[] {
   return (
-    db.prepare('SELECT evidence_id FROM evidence_uses_package_runtime ORDER BY evidence_id').all() as unknown as Array<{
+    db
+      .prepare('SELECT evidence_id FROM evidence_uses_package_runtime ORDER BY evidence_id')
+      .all() as unknown as Array<{
       evidence_id: string;
     }>
   ).map((row) => row.evidence_id);
@@ -160,9 +162,7 @@ function packageEvidenceIds(
   const topLevel = changedKeys(basePackage, headPackage);
   if (topLevel.some((key) => PACKAGE_RUNTIME_KEYS.has(key))) return allRuntimeEvidence;
 
-  const unknown = topLevel.filter(
-    (key) => key !== 'scripts' && !PACKAGE_METADATA_KEYS.has(key),
-  );
+  const unknown = topLevel.filter((key) => key !== 'scripts' && !PACKAGE_METADATA_KEYS.has(key));
   if (unknown.length > 0) return allRuntimeEvidence;
   if (!topLevel.includes('scripts')) return [];
 
