@@ -10,7 +10,8 @@ import {
   baselineSourceTransactionPlan,
   sourceTransactionContextFromEnvironment,
 } from '../src/source/transaction-baseline.ts';
-import { sourceProofRecord } from '../src/source/source-proof.ts';
+import { sourceProofRecord } from '../src/source/source-proof-record.ts';
+import { validateSourceTransactionPlan } from '../src/source/transaction.ts';
 
 const repo = process.cwd();
 const runId = process.env.CANDIDATE_RUN_ID ?? '';
@@ -19,19 +20,21 @@ const kernel = new GitOvercenterKernel(repo, {
   ref: process.env.OVERCENTER_PROJECT_AUTHORITY_REF ?? 'refs/overcenter/state',
 });
 const binding = kernel.sourceTransaction(runId);
-if (!binding || binding.plan.candidate_sha !== candidateSha)
+if (!binding) throw new Error('SOURCE_TRANSACTION_RECORD_BINDING_MISSING');
+const plan = validateSourceTransactionPlan(binding.plan);
+if (plan.candidate_sha !== candidateSha)
   throw new Error('SOURCE_TRANSACTION_RECORD_BINDING_MISMATCH');
 const context = sourceTransactionContextFromEnvironment();
 if (
-  context.repository_id !== binding.plan.repository_id ||
-  context.repository_full_name !== binding.plan.repository_full_name ||
-  context.runtime_sha !== binding.plan.runtime_sha
+  context.repository_id !== plan.repository_id ||
+  context.repository_full_name !== plan.repository_full_name ||
+  context.runtime_sha !== plan.runtime_sha
 )
   throw new Error('SOURCE_TRANSACTION_RECORD_CONTEXT_MISMATCH');
-const delta = observeRepositoryDelta(repo, binding.plan.claim.source_sha, candidateSha);
+const delta = observeRepositoryDelta(repo, plan.claim.source_sha, candidateSha);
 const assurance = baselineSourceTransactionPlan(repo, delta, context);
 if (
-  canonicalDigest(assurance) !== canonicalDigest(binding.plan.assurance) ||
+  canonicalDigest(assurance) !== canonicalDigest(plan.assurance) ||
   assurance.validation_mode !== 'baseline'
 )
   throw new Error('SOURCE_TRANSACTION_RECORD_BASELINE_MISMATCH');
@@ -49,7 +52,7 @@ const matches =
 if (matches.length !== 1 || !isData(matches[0]) || !isPositiveSafeInteger(matches[0].id))
   throw new Error('SOURCE_PROOF_RECORD_JOB_UNAVAILABLE');
 const record = sourceProofRecord(
-  binding.plan,
+  plan,
   {
     workflow_run_id: Number(process.env.GITHUB_RUN_ID),
     workflow_run_attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
