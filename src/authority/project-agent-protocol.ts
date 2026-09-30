@@ -29,6 +29,10 @@ import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import { isData, isPositiveSafeInteger } from '../validation.ts';
 import { buildSourceAssignment, validateSourceTaskPacket } from '../source/source-obligation.ts';
 import {
+  readSourceVerificationProfile,
+  sourceVerificationProfileBinding,
+} from '../source/source-verification-profile.ts';
+import {
   SOURCE_VERIFICATION_SCHEMA,
   integrateVerifiedSourceCandidate,
   validateSourceIntegrationEvidence,
@@ -578,6 +582,10 @@ export function advanceProjectForAgent(
           claimed.id,
           claimed.packet,
           kernel.sourceClaimBinding(permit.id),
+          sourceVerificationProfileBinding(
+            readSourceVerificationProfile(repo, kernel.sourceClaimBinding(permit.id).source_sha)
+              .profile,
+          ),
         );
         assignmentBytes = Buffer.from(`${JSON.stringify(sourceAssignment, null, 2)}\n`, 'utf8');
       } else {
@@ -811,6 +819,11 @@ export function submitProjectCandidate(
         candidateSha,
         context: proofContext,
       });
+      const admittedProofContext = {
+        ...proofContext,
+        verification_profile_id: plan.verification_profile.profile.id,
+        verification_profile_sha256: plan.verification_profile.sha256,
+      };
       if (
         !githubToken ||
         !context.candidate_workflow_run_id ||
@@ -824,7 +837,7 @@ export function submitProjectCandidate(
           githubToken,
           expectedWorkflowRunId: context.candidate_workflow_run_id,
           expectedWorkflowRunAttempt: context.candidate_workflow_run_attempt,
-          context: proofContext,
+          context: admittedProofContext,
           get: observationContext.githubGet ?? githubGet,
         },
       );

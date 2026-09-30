@@ -13,11 +13,23 @@ import {
   validateSourceTransactionTask,
   type SourceTransactionPlan,
 } from '../src/source/transaction.ts';
+import { sourceVerificationProfileBinding } from '../src/source/source-verification-profile.ts';
+
+const profile = {
+  schema: 'overcenter-source-verification-profile/v1' as const,
+  id: 'repository-baseline',
+  workflow_path: '.github/workflows/verify.yml',
+  required_evidence_jobs: ['Verify candidate / Candidate evidence'],
+  record_job: 'Record source verification',
+  commands: ['npm run test:unit'],
+  protected_paths: ['.github', '.overcenter'],
+  baseline_test_roots: ['test'],
+};
 
 function plan(): SourceTransactionPlan {
   return {
     schema: 'overcenter-source-transaction',
-    schema_version: 1,
+    schema_version: 2,
     repository_id: 42,
     repository_full_name: 'acme/widget',
     runtime_sha: 'a'.repeat(40),
@@ -29,6 +41,7 @@ function plan(): SourceTransactionPlan {
     },
     candidate_sha: 'c'.repeat(40),
     candidate_tree: 'd'.repeat(40),
+    verification_profile: { profile, sha256: sourceVerificationProfileBinding(profile).sha256 },
     authorized_write_set: ['value.ts', 'extra.ts'],
     expected_write_set: ['value.ts'],
     observed_write_set: ['value.ts'],
@@ -98,6 +111,24 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
   mkdirSync(join(repo, '.github/workflows'), { recursive: true });
   writeFileSync(join(repo, '.github/workflows/agent-candidate-signal.yml'), 'trusted producer');
   writeFileSync(join(repo, 'baseline.txt'), 'independent checks');
+  mkdirSync(join(repo, '.overcenter'), { recursive: true });
+  writeFileSync(
+    join(repo, '.overcenter/source-verification-profile.json'),
+    `${JSON.stringify(
+      {
+        schema: 'overcenter-source-verification-profile/v1',
+        id: 'fixture',
+        workflow_path: '.github/workflows/agent-candidate-signal.yml',
+        required_evidence_jobs: ['Verify source candidate / Candidate evidence'],
+        record_job: 'Record source verification',
+        commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
+        protected_paths: ['.github', '.overcenter', 'baseline.txt'],
+        baseline_test_roots: ['test'],
+      },
+      null,
+      2,
+    )}\n`,
+  );
   writeFileSync(join(repo, 'value.ts'), 'export const value = 1;\n');
   git('add', '-A');
   git('commit', '-qm', 'base');
@@ -107,8 +138,6 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
     repository_id: 42,
     repository_full_name: 'acme/widget',
     runtime_sha: 'a'.repeat(40),
-    baseline_id: 'fixture',
-    validator_paths: ['baseline.txt', '.github/workflows'],
   };
   writeFileSync(join(repo, 'value.ts'), 'export const value = 2;\n');
   git('add', '-A');
@@ -144,6 +173,8 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
   });
   assert.deepEqual(second, first);
   assert.deepEqual(first.observed_write_set, ['value.ts']);
+  assert.equal(first.verification_profile.profile.id, 'fixture');
+  assert.match(first.verification_profile.sha256, /^[0-9a-f]{64}$/);
   validateSourceTransactionTask(first, task);
   assert.throws(
     () =>

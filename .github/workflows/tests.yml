@@ -28,10 +28,10 @@ jobs:
   evidence:
     name: Candidate evidence
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 20
     env:
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      BASE_SHA: ${{ inputs.accepted_baseline_sha || github.event.pull_request.base.sha || github.event.before || '' }}
+      BASE_SHA: ${{ inputs.accepted_baseline_sha || github.event.pull_request.base.sha || github.event.before || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -46,27 +46,69 @@ jobs:
           if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
             git fetch --no-tags --depth=1 origin "$BASE_SHA"
           fi
+      - name: Prepare trusted baseline tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "OVERCENTER_NODE_VERSION=$(git show "$BASE_SHA:.node-version")" >> "$GITHUB_ENV"
+          echo "OVERCENTER_GO_VERSION=$(git show "$BASE_SHA:.go-version")" >> "$GITHUB_ENV"
+          tool_dir="$RUNNER_TEMP/overcenter-trusted-baseline"
+          if git cat-file -e "$BASE_SHA:scripts/verify-source-profile.ts" 2>/dev/null; then
+            mkdir -p "$tool_dir"
+            git archive "$BASE_SHA" \
+              scripts/verify-source-profile.ts \
+              scripts/replay-base-tests.ts \
+              src/source/source-verification-profile.ts \
+              src/digest.ts \
+              src/validation.ts | tar -x -C "$tool_dir"
+            echo "OVERCENTER_TRUSTED_TOOL_DIR=$tool_dir" >> "$GITHUB_ENV"
+          else
+            echo "OVERCENTER_TRUSTED_TOOL_DIR=" >> "$GITHUB_ENV"
+          fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version-file: '.node-version'
+          node-version: ${{ env.OVERCENTER_NODE_VERSION }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version-file: '.go-version'
+          go-version: ${{ env.OVERCENTER_GO_VERSION }}
           cache: false
       - name: Install pinned Rust toolchain
         shell: bash
         run: |
           set -euo pipefail
-          channel="$(sed -n 's/^channel = "\([^"]*\)"$/\1/p' rust-toolchain.toml)"
+          channel="$(git show "$BASE_SHA:rust-toolchain.toml" | sed -n 's/^channel = "\([^"]*\)"$/\1/p')"
           test -n "$channel"
           rustup toolchain install "$channel" --profile minimal --component rustfmt --no-self-update
           test "$(rustc --version | awk '{print $2}')" = "$channel"
-      - name: Lint source
-        run: npm run lint
+      - name: Validate source verification profile and protected inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$OVERCENTER_TRUSTED_TOOL_DIR" ]; then
+            node --experimental-strip-types "$OVERCENTER_TRUSTED_TOOL_DIR/scripts/verify-source-profile.ts" --check-only
+          else
+            node --experimental-strip-types scripts/verify-source-profile.ts --check-only
+          fi
       - name: Install pinned TypeScript toolchain
         run: npm install --ignore-scripts --package-lock=false
-      - name: Type-check repository
-        run: npm run typecheck
+      - name: Run verification commands from the exact base profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$OVERCENTER_TRUSTED_TOOL_DIR" ]; then
+            node --experimental-strip-types "$OVERCENTER_TRUSTED_TOOL_DIR/scripts/verify-source-profile.ts"
+          else
+            node --experimental-strip-types scripts/verify-source-profile.ts
+          fi
+      - name: Replay immutable base tests against candidate code
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$OVERCENTER_TRUSTED_TOOL_DIR" ]; then
+            node --experimental-strip-types "$OVERCENTER_TRUSTED_TOOL_DIR/scripts/replay-base-tests.ts"
+          else
+            node --experimental-strip-types scripts/replay-base-tests.ts
+          fi
       - name: Analyze trusted computing base
         shell: bash
         run: |
@@ -88,30 +130,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Run deterministic regression and candidate formal proof
-        env:
-          EXPENSIVE: ${{ inputs.expensive }}
+      - name: Run candidate formal proof
+        if: ${{ inputs.expensive }}
         run: |
           set -euo pipefail
-
-          npm run test:unit &
-          unit_pid=$!
-
-          formal_pid=
-          if [ "$EXPENSIVE" = true ]; then
-            npm run proof:formal &
-            formal_pid=$!
-          fi
-
-          unit_status=0
-          formal_status=0
-          wait "$unit_pid" || unit_status=$?
-          if [ -n "$formal_pid" ]; then
-            wait "$formal_pid" || formal_status=$?
-          fi
-
-          test "$unit_status" -eq 0
-          test "$formal_status" -eq 0
+          npm run proof:formal
 
       - name: Prove production computation boundary
         if: ${{ inputs.expensive }}

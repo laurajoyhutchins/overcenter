@@ -31,8 +31,6 @@ const transactionContext = {
   repository_id: 42,
   repository_full_name: 'acme/widget',
   runtime_sha: 'a'.repeat(40),
-  baseline_id: 'fixture-baseline',
-  validator_paths: ['input.txt', '.github/workflows'],
 };
 
 function git(cwd: string, args: string[]): string {
@@ -66,6 +64,24 @@ function fixture(): {
   writeFileSync(
     join(work, '.github/workflows/agent-candidate-signal.yml'),
     'trusted fixture producer',
+  );
+  mkdirSync(join(work, '.overcenter'), { recursive: true });
+  writeFileSync(
+    join(work, '.overcenter/source-verification-profile.json'),
+    `${JSON.stringify(
+      {
+        schema: 'overcenter-source-verification-profile/v1',
+        id: 'fixture-baseline',
+        workflow_path: '.github/workflows/agent-candidate-signal.yml',
+        required_evidence_jobs: ['Verify source candidate / Candidate evidence'],
+        record_job: 'Record source verification',
+        commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
+        protected_paths: ['.github', '.overcenter', 'input.txt'],
+        baseline_test_roots: ['test'],
+      },
+      null,
+      2,
+    )}\n`,
   );
   mkdirSync(join(work, 'src'));
   writeFileSync(join(work, 'src', 'feature.txt'), 'feature:base\n');
@@ -573,6 +589,7 @@ test('project.advance materializes an exact tracked repository tree into a concr
       files.map((file) => file.path),
       [
         '.github/workflows/agent-candidate-signal.yml',
+        '.overcenter/source-verification-profile.json',
         'bin/tool.sh',
         'input.txt',
         'lib/nested.txt',
@@ -652,12 +669,14 @@ test('project.advance emits a source assignment without a worker executable', ()
     assert.equal(existsSync(join(outputDir, 'overcenter')), false);
 
     const assignment = JSON.parse(readFileSync(join(outputDir, 'assignment.json'), 'utf8'));
-    assert.equal(assignment.schema, 'overcenter-source-assignment/v1');
+    assert.equal(assignment.schema, 'overcenter-source-assignment/v2');
     assert.equal(assignment.obligation_id, 'source-work');
     assert.equal(assignment.task.kind, 'source-change');
     assert.equal(assignment.claim.run_id, receipt.run_id);
     assert.equal(assignment.claim.source_sha, sourceSha);
     assert.equal(assignment.proposal_schema, SOURCE_PROPOSAL_SCHEMA);
+    assert.equal(assignment.verification_profile.id, 'fixture-baseline');
+    assert.match(assignment.verification_profile.sha256, /^[0-9a-f]{64}$/);
     assert.equal(JSON.stringify(assignment).includes('execution_capability'), false);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
@@ -704,6 +723,53 @@ test('source proposal broker rejects control-plane mutation before candidate pub
       /SOURCE_PROPOSAL_PATH_INVALID:0/,
     );
 
+    const candidateRef = `refs/heads/overcenter/candidate/${claim.run_id}`;
+    assert.equal(git(f.work, ['ls-remote', 'origin', candidateRef]), '');
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+    rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
+test('source proposal broker rejects a profile binding that differs from the claimed base', () => {
+  const f = fixture();
+  try {
+    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    kernel.initialize();
+    const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
+    const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
+      outputDir: join(f.root, 'source-packet'),
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+    assert.ok(acquired.run_id);
+
+    const assignment = JSON.parse(
+      readFileSync(join(f.root, 'source-packet', 'assignment.json'), 'utf8'),
+    );
+    assignment.verification_profile.sha256 = '0'.repeat(64);
+    const claim = assignment.claim;
+    assert.throws(
+      () =>
+        brokerAssignedSourceProposal(
+          f.work,
+          assignment,
+          {
+            schema: SOURCE_PROPOSAL_SCHEMA,
+            run_id: claim.run_id,
+            claimed_revision: claim.claimed_revision,
+            claimed_source_sha: claim.source_sha,
+            files: [
+              {
+                path: 'src/feature.txt',
+                content_base64: Buffer.from('candidate\n').toString('base64'),
+              },
+            ],
+          },
+          { authorityRef: AUTHORITY_REF, remote: 'origin' },
+        ),
+      /SOURCE_BROKER_PROFILE_MISMATCH/,
+    );
     const candidateRef = `refs/heads/overcenter/candidate/${claim.run_id}`;
     assert.equal(git(f.work, ['ls-remote', 'origin', candidateRef]), '');
   } finally {

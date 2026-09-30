@@ -14,6 +14,9 @@ const evidenceWorkflow = readFileSync(
   new URL('../.github/workflows/tests.yml', import.meta.url),
   'utf8',
 );
+const verificationProfile = JSON.parse(
+  readFileSync(new URL('../.overcenter/source-verification-profile.json', import.meta.url), 'utf8'),
+) as { commands: string[] };
 const projectAdvanceWorkflow = readFileSync(
   new URL('../.github/workflows/operator-project-advance.yml', import.meta.url),
   'utf8',
@@ -136,13 +139,20 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
     'merge-gate evidence must share one full runner',
   );
   for (const command of [
-    'npm run test:unit',
     'npm run proof:formal',
     'npm run proof:production-boundary',
     'scripts/proof-self-application.sh',
   ]) {
     assert.ok(evidenceWorkflow.includes(command), `candidate evidence is missing ${command}`);
   }
+  assert.ok(
+    verificationProfile.commands.includes('npm run test:unit'),
+    'the repository-owned candidate profile must run unit tests',
+  );
+  assert.ok(
+    evidenceWorkflow.includes('verify-source-profile.ts'),
+    'candidate evidence must execute the exact-base verification profile',
+  );
   assert.doesNotMatch(
     evidenceWorkflow,
     /test:experiments|test:experiment-contract|scripts\/experiments\.ts/,

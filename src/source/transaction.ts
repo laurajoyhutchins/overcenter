@@ -19,17 +19,24 @@ import {
   bindSourceClaim,
   type SourceClaimBinding,
 } from './source-obligation.ts';
+import {
+  readSourceVerificationProfile,
+  sourceVerificationProfileBinding,
+  validateSourceVerificationProfile,
+  type SourceVerificationProfile,
+} from './source-verification-profile.ts';
 import type { TransactionAssurancePlan } from './transaction-planner.ts';
 
 export interface SourceTransactionPlan {
   schema: 'overcenter-source-transaction';
-  schema_version: 1;
+  schema_version: 2;
   repository_id: number;
   repository_full_name: string;
   runtime_sha: string;
   claim: SourceClaimBinding;
   candidate_sha: string;
   candidate_tree: string;
+  verification_profile: { profile: SourceVerificationProfile; sha256: string };
   authorized_write_set: string[];
   expected_write_set: string[];
   observed_write_set: string[];
@@ -86,6 +93,7 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
     'claim',
     'candidate_sha',
     'candidate_tree',
+    'verification_profile',
     'authorized_write_set',
     'expected_write_set',
     'observed_write_set',
@@ -93,7 +101,7 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
   ]);
   if (
     plan.schema !== 'overcenter-source-transaction' ||
-    plan.schema_version !== 1 ||
+    plan.schema_version !== 2 ||
     !isPositiveSafeInteger(plan.repository_id) ||
     typeof plan.repository_full_name !== 'string' ||
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(plan.repository_full_name)
@@ -103,6 +111,10 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
   sha(plan.runtime_sha);
   sha(plan.candidate_sha);
   sha(plan.candidate_tree);
+  const profile = record(plan.verification_profile, ['profile', 'sha256']);
+  const verifiedProfile = validateSourceVerificationProfile(profile.profile);
+  const profileBinding = sourceVerificationProfileBinding(verifiedProfile);
+  if (profile.sha256 !== profileBinding.sha256) throw new Error(INVALID);
   const claim = record(plan.claim, ['obligation_key', 'run_id', 'claimed_revision', 'source_sha']);
   for (const key of ['obligation_key', 'run_id', 'claimed_revision'])
     assertNonEmptyString(claim[key], INVALID);
@@ -237,7 +249,7 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
 
 export function sourceTransactionPlanDigest(plan: SourceTransactionPlan): string {
   return canonicalDigest({
-    domain: 'overcenter-source-transaction/v1',
+    domain: 'overcenter-source-transaction/v2',
     plan: validateSourceTransactionPlan(plan),
   });
 }
@@ -251,7 +263,11 @@ export function validateSourceTransactionTask(
   taskValue: unknown,
 ): void {
   const task = validateSourceTaskPacket(taskValue);
-  if (!samePaths(plan.authorized_write_set, task.writable_paths))
+  if (
+    (task.verification_profile_id !== undefined &&
+      task.verification_profile_id !== plan.verification_profile.profile.id) ||
+    !samePaths(plan.authorized_write_set, task.writable_paths ?? [])
+  )
     throw new Error('SOURCE_TRANSACTION_TASK_MISMATCH');
 }
 
@@ -281,21 +297,28 @@ export function buildSourceTransactionPlan({
     throw new Error('SOURCE_TRANSACTION_PARENT_MISMATCH');
 
   const task = validateSourceTaskPacket(taskValue);
+  const profile = readSourceVerificationProfile(repo, claim.source_sha);
+  if (
+    task.verification_profile_id !== undefined &&
+    task.verification_profile_id !== profile.profile.id
+  )
+    throw new Error('SOURCE_TRANSACTION_PROFILE_MISMATCH');
   const delta = observeRepositoryDelta(repo, claim.source_sha, candidateSha);
   assertSupportedSourceDelta(delta);
-  const assurance = baselineSourceTransactionPlan(repo, delta, context);
+  const assurance = baselineSourceTransactionPlan(repo, delta, profile.profile);
   if (assurance.validation_mode === 'unsupported')
     throw new Error('SOURCE_TRANSACTION_RECONCILIATION_REQUIRED');
 
   const plan = validateSourceTransactionPlan({
     schema: 'overcenter-source-transaction',
-    schema_version: 1,
+    schema_version: 2,
     repository_id: context.repository_id,
     repository_full_name: context.repository_full_name,
     runtime_sha: context.runtime_sha,
     claim,
     candidate_sha: candidateSha,
     candidate_tree: delta.candidate_tree,
+    verification_profile: { profile: profile.profile, sha256: profile.sha256 },
     authorized_write_set: task.writable_paths,
     expected_write_set: task.writable_paths,
     observed_write_set: delta.entries.map((entry) => entry.path),

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -10,8 +10,23 @@ import {
 } from '../src/source/transaction-baseline.ts';
 import { observeRepositoryDelta } from '../src/source/repository-delta.ts';
 import { ARCHITECTURE_SQL_PATHS } from '../src/architecture/sql-model.ts';
+import {
+  readSourceVerificationProfile,
+  validateSourceVerificationProfile,
+} from '../src/source/source-verification-profile.ts';
 
-test('baseline identity includes validator modes and every declared architecture model input', (t) => {
+const profile = {
+  schema: 'overcenter-source-verification-profile/v1',
+  id: 'fixture-profile/v1',
+  workflow_path: '.github/workflows/evidence.yml',
+  required_evidence_jobs: ['Evidence / Candidate'],
+  record_job: 'Record evidence',
+  commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
+  protected_paths: ['.github', '.overcenter', 'architecture', 'validator.sh'],
+  baseline_test_roots: ['test'],
+};
+
+test('baseline identity includes profile protected artifacts and every declared architecture model input', (t) => {
   const repo = mkdtempSync(join(tmpdir(), 'overcenter-source-baseline-'));
   t.after(() => rmSync(repo, { recursive: true, force: true }));
   const git = (...args: string[]) =>
@@ -20,22 +35,23 @@ test('baseline identity includes validator modes and every declared architecture
   git('config', 'user.name', 'Baseline');
   git('config', 'user.email', 'baseline@local');
   mkdirSync(join(repo, 'architecture'));
+  mkdirSync(join(repo, '.github/workflows'), { recursive: true });
+  mkdirSync(join(repo, '.overcenter'), { recursive: true });
   for (const path of ARCHITECTURE_SQL_PATHS) writeFileSync(join(repo, path), '-- base model');
+  writeFileSync(join(repo, '.github/workflows/evidence.yml'), 'workflow\n');
+  writeFileSync(
+    join(repo, '.overcenter/source-verification-profile.json'),
+    `${JSON.stringify(profile)}\n`,
+  );
   writeFileSync(join(repo, 'validator.sh'), 'true\n');
   git('add', '-A');
   git('commit', '-qm', 'base');
   const base = git('rev-parse', 'HEAD');
-  const context = {
-    repository_id: 42,
-    repository_full_name: 'acme/widget',
-    runtime_sha: 'a'.repeat(40),
-    baseline_id: 'fixture',
-    validator_paths: ['validator.sh'],
-  };
+  const loaded = readSourceVerificationProfile(repo, base).profile;
   const initial = baselineSourceTransactionPlan(
     repo,
     observeRepositoryDelta(repo, base, base),
-    context,
+    loaded,
   );
   for (const path of ARCHITECTURE_SQL_PATHS) {
     git('reset', '--hard', base);
@@ -46,7 +62,7 @@ test('baseline identity includes validator modes and every declared architecture
     const plan = baselineSourceTransactionPlan(
       repo,
       observeRepositoryDelta(repo, base, candidate),
-      context,
+      loaded,
     );
     assert.notEqual(plan.model_sha256, initial.model_sha256);
     assert.equal(plan.validation_mode, 'unsupported');
@@ -59,44 +75,45 @@ test('baseline identity includes validator modes and every declared architecture
   const mode = baselineSourceTransactionPlan(
     repo,
     observeRepositoryDelta(repo, base, git('rev-parse', 'HEAD')),
-    context,
+    loaded,
   );
   assert.equal(mode.baseline_sha256, initial.baseline_sha256);
   assert.ok(mode.coverage_gaps.some((gap) => gap.reason === 'validator-changed'));
   assert.equal(mode.validation_mode, 'unsupported');
 });
 
-test('trusted repository policy freezes the proof evaluator and model closure', () => {
+test('repository verification policy is owned by the committed profile, not runtime defaults', () => {
   const context = sourceTransactionContextFromEnvironment({
     GITHUB_REPOSITORY: 'laurajoyhutchins/overcenter',
     GITHUB_REPOSITORY_ID: '42',
     OVERCENTER_RUNTIME_SHA: 'a'.repeat(40),
   });
+  assert.deepEqual(Object.keys(context).sort(), [
+    'repository_full_name',
+    'repository_id',
+    'runtime_sha',
+  ]);
+  const loaded = validateSourceVerificationProfile(
+    JSON.parse(readFileSync('.overcenter/source-verification-profile.json', 'utf8')),
+  );
   for (const path of [
+    '.github',
+    '.overcenter',
+    'scripts',
     'src/analysis',
+    'src/source',
     'src/architecture',
     'src/repository',
     'src/execution',
     'architecture',
     'tcb-policy.json',
-    'src/effect-adapter.ts',
-    'src/digest.ts',
-    'src/validation.ts',
     'contracts',
+    'package.json',
   ])
-    assert.ok(context.validator_paths.includes(path));
-});
-
-test('external policy freezes canonical evidence producers, inputs and Python version', () => {
-  const context = sourceTransactionContextFromEnvironment({
-    GITHUB_REPOSITORY: 'laurajoyhutchins/azelficoast',
-    GITHUB_REPOSITORY_ID: '43',
-    OVERCENTER_RUNTIME_SHA: 'a'.repeat(40),
-  });
-  for (const path of [
-    '.python-version',
-    'src/azelficoast/research/evidence.py',
-    'experiments/evidence',
-  ])
-    assert.ok(context.validator_paths.includes(path));
+    assert.ok(loaded.protected_paths.includes(path));
+  assert.deepEqual(loaded.baseline_test_roots, [
+    'experiments/production-criticality-ranking',
+    'experiments/semantic-scaling',
+    'test',
+  ]);
 });

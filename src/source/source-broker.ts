@@ -14,6 +14,7 @@ import {
   type SourceCandidate,
   type SourceClaimBinding,
 } from './source-obligation.ts';
+import { readSourceVerificationProfile } from './source-verification-profile.ts';
 
 function candidateGit(repo: string, args: string[], env: NodeJS.ProcessEnv = process.env): string {
   return execFileSync('git', ['-C', repo, ...args], {
@@ -232,6 +233,14 @@ export function brokerAssignedSourceProposal(
   if (canonicalDigest(current.packet) !== canonicalDigest(assignment.task)) {
     throw new Error('SOURCE_BROKER_TASK_MISMATCH');
   }
+  const profile = readSourceVerificationProfile(repo, claim.source_sha);
+  if (
+    profile.profile.id !== assignment.verification_profile.id ||
+    profile.sha256 !== assignment.verification_profile.sha256 ||
+    (assignment.task.verification_profile_id !== undefined &&
+      assignment.task.verification_profile_id !== profile.profile.id)
+  )
+    throw new Error('SOURCE_BROKER_PROFILE_MISMATCH');
 
   const brokered = brokerSourceProposal(
     repo,
