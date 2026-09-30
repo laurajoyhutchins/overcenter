@@ -52,8 +52,12 @@ interface HybridScopeReport {
   hybrid_closure_semantic_loc: number;
   hybrid_closure_sha256: string;
   hybrid_closure_files: string[];
-  module_closure_files: string[];
-  symbol_closure_declarations: SymbolDeclaration[];
+  module_closure_files?: string[];
+  symbol_closure_declarations?: SymbolDeclaration[];
+  hybrid_closure_semantic_line_ranges?: Array<{
+    path: string;
+    ranges: Array<[number, number]>;
+  }>;
   external_assumptions?: string[];
   scope_sha256?: string;
 }
@@ -287,20 +291,61 @@ export function trustedUnitsForScope(
   readSource: (path: string) => string = (path) => readFileSync(path, 'utf8'),
 ): Set<string> {
   const trusted = new Set<string>();
-  const moduleFiles = new Set(scope.module_closure_files);
+  const reconstructedFiles = new Set<string>();
 
-  for (const path of scope.module_closure_files) {
-    const lines = readSource(path).split('\n');
-    lines.forEach((line, index) => {
-      if (semanticLine(line)) trusted.add(`${path}:${index + 1}`);
-    });
-  }
+  if (scope.hybrid_closure_semantic_line_ranges !== undefined) {
+    for (const entry of scope.hybrid_closure_semantic_line_ranges) {
+      requireString(entry.path, 'hybrid_closure_semantic_line_ranges.path');
+      if (reconstructedFiles.has(entry.path)) {
+        throw new Error(`SEMANTIC_SCALING_TCB_RANGE_FILE_DUPLICATE:${entry.path}`);
+      }
+      reconstructedFiles.add(entry.path);
+      const lines = readSource(entry.path).split('\n');
+      let previousEnd = 0;
+      for (const range of entry.ranges) {
+        if (
+          !Array.isArray(range) ||
+          range.length !== 2 ||
+          !Number.isSafeInteger(range[0]) ||
+          !Number.isSafeInteger(range[1]) ||
+          range[0] <= previousEnd ||
+          range[1] < range[0]
+        ) {
+          throw new Error(`SEMANTIC_SCALING_TCB_RANGE_INVALID:${entry.path}`);
+        }
+        for (let line = range[0]; line <= range[1]; line += 1) {
+          if (!semanticLine(lines[line - 1] ?? '')) {
+            throw new Error(`SEMANTIC_SCALING_TCB_RANGE_NON_SEMANTIC:${entry.path}:${line}`);
+          }
+          trusted.add(`${entry.path}:${line}`);
+        }
+        previousEnd = range[1];
+      }
+    }
+  } else {
+    if (
+      !Array.isArray(scope.module_closure_files) ||
+      !Array.isArray(scope.symbol_closure_declarations)
+    ) {
+      throw new Error('SEMANTIC_SCALING_TCB_RECONSTRUCTION_EVIDENCE_MISSING');
+    }
+    const moduleFiles = new Set(scope.module_closure_files);
 
-  for (const declaration of scope.symbol_closure_declarations) {
-    if (moduleFiles.has(declaration.path)) continue;
-    const lines = readSource(declaration.path).split('\n');
-    for (let line = declaration.start_line; line <= declaration.end_line; line += 1) {
-      if (semanticLine(lines[line - 1] ?? '')) trusted.add(`${declaration.path}:${line}`);
+    for (const path of scope.module_closure_files) {
+      reconstructedFiles.add(path);
+      const lines = readSource(path).split('\n');
+      lines.forEach((line, index) => {
+        if (semanticLine(line)) trusted.add(`${path}:${index + 1}`);
+      });
+    }
+
+    for (const declaration of scope.symbol_closure_declarations) {
+      reconstructedFiles.add(declaration.path);
+      if (moduleFiles.has(declaration.path)) continue;
+      const lines = readSource(declaration.path).split('\n');
+      for (let line = declaration.start_line; line <= declaration.end_line; line += 1) {
+        if (semanticLine(lines[line - 1] ?? '')) trusted.add(`${declaration.path}:${line}`);
+      }
     }
   }
 
@@ -310,10 +355,6 @@ export function trustedUnitsForScope(
     );
   }
 
-  const reconstructedFiles = new Set(scope.module_closure_files);
-  for (const declaration of scope.symbol_closure_declarations) {
-    reconstructedFiles.add(declaration.path);
-  }
   const expectedFiles = new Set(scope.hybrid_closure_files);
   if (
     reconstructedFiles.size !== expectedFiles.size ||
