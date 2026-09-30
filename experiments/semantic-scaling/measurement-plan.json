@@ -130,7 +130,8 @@
         "pull/7@66d9753fd8e0c321b93e32410fcacf00882a522b",
         "github-actions/35310531160",
         "src/semantics.ts",
-        "src/authority/interaction-frontier.ts"
+        "src/authority/interaction-frontier.ts",
+        "experiments/semantic-scaling/conflicting-effect-regression.test.ts"
       ],
       "observation_support": [
         "exact source revision",
