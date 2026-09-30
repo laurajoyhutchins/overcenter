@@ -119,7 +119,18 @@ function sourceControlPath(path: string): boolean {
 function changedSourcePaths(repo: string, baseSha: string, candidateSha: string): string[] {
   const paths = execFileSync(
     'git',
-    ['-C', repo, 'diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', baseSha, candidateSha],
+    [
+      '-C',
+      repo,
+      'diff-tree',
+      '--no-commit-id',
+      '--name-only',
+      '--no-renames',
+      '-r',
+      '-z',
+      baseSha,
+      candidateSha,
+    ],
     { encoding: 'utf8' },
   )
     .split('\0')
