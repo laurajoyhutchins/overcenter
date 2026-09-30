@@ -79,11 +79,27 @@ It is also **frontier-limited**:
 
 This is a second semantic family in which the measured trusted source surface stays flat only by refusing to collapse finite regression evidence into a universal equivalence claim.
 
-## Promotion boundary
+### Architectural/design frontier
 
-This experiment is pending. A positive research claim requires real tasks from materially different families, exact revision-bound property-scoped TCB attribution, observation-support evidence, and the constant hostile controls described in issue #460. Synthetic fixtures exist only to prove that the measurement vocabulary can distinguish the intended outcomes, including a known failure.
+At exact head `662fd2196a6c59e07d496e7f0b3894b6b6d8164d`, merge-gate run `36661144979` measured the relational architecture design boundary established by PR #449.
 
-The anti-cheating question for every new trusted task-specific rule is:
+The architecture rung measured **9,285 trusted semantic LOC, +0 marginal LOC, +0 task-specific LOC, +0 provider-specific LOC, no new trusted scopes, and no new external assumptions**. The deterministic regression suite passed **424/424**.
+
+It is **frontier-limited**:
+
+- mechanically established: the exact historical concepts/logic/physics architecture satisfied repository structural separation and reconciliation checks, and its TCB roots were derived mechanically under exact-head hosted evidence;
+- deliberately not established: that relational decomposition is the correct and sufficient architecture for Overcenter's intended future behavior;
+- residual judgment: whether the declared layers capture every architecturally relevant intent and remain the right decomposition as the system evolves.
+
+## Observed result
+
+The preregistered outcome is **bounded support**.
+
+Across all six rungs, trusted semantic LOC rose from **9,281** at the pure-computation baseline to **9,285** at source integration and then stayed flat. The consequential GitHub effect added provider-specific scopes and external assumptions without adding trusted source lines. Behavioral repair, migration, and architectural design also added no trusted source lines, but only because their authoritative claims remained explicitly narrower than universal semantic correctness, behavioral equivalence, or design correctness.
+
+That is a useful boundary rather than a hidden success condition. The experiment supports reusable authority and settlement mechanics inside the mechanically witnessable region. It does **not** establish general semantic convergence beyond that region, and it found no need to reproduce candidate-generating semantic reasoning inside the trusted path for the exercised tasks.
+
+The anti-cheating question for every new trusted task-specific rule remains:
 
 > Why can this not instead be supplied as untrusted evidence checked by an existing or more general trusted primitive?
 
