@@ -229,6 +229,36 @@
         "architecture-derived trusted roots and property composition",
         "exact-head merge-gate and authority-flow evidence"
       ]
+    },
+    {
+      "task_id": "architectural-judgment-attestation-stress-test",
+      "rung": "architectural-design-requirement",
+      "classification": "frontier-limited",
+      "claim": "Certified GitHub issue-comment observation establishes that repository owner laurajoyhutchins authored comment 5903129961 with the exact recorded semantic-scaling conclusion, binding that judgment record to its stable comment identity and body digest.",
+      "narrowed_from": "The relational architecture candidate 662fd2196a6c59e07d496e7f0b3894b6b6d8164d is objectively the correct and sufficient architecture for Overcenter.",
+      "residual_judgment": "Whether the attested bounded-support conclusion and the underlying relational architecture remain substantively correct and suitable as Overcenter evolves.",
+      "scopes": [
+        {
+          "kind": "property",
+          "id": "judgment-attestation-integrity",
+          "role": "new-reusable"
+        }
+      ],
+      "evidence": [
+        "issue-comment/5903129961",
+        "architectural-candidate/662fd2196a6c59e07d496e7f0b3894b6b6d8164d",
+        "src/providers/github/comment-attestation.ts",
+        "test/github-comment-attestation.test.ts"
+      ],
+      "observation_support": [
+        "repository laurajoyhutchins/overcenter id 1354872053",
+        "issue 460",
+        "comment id 5903129961",
+        "comment node IC_kwDOUMG09c8AAAABX9qdaQ",
+        "author laurajoyhutchins",
+        "body sha256 b9d99ad96b2571476839589d1165673fde3781938e0423fdae047884703f7934",
+        "comment records final architectural candidate 662fd2196a6c59e07d496e7f0b3894b6b6d8164d and bounded-support outcome"
+      ]
     }
   ]
 }

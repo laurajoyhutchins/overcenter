@@ -72,6 +72,24 @@
         "worker credentials when they are not broker credentials"
       ],
       "require_sound_symbol_closure": true
+    },
+    {
+      "id": "judgment-attestation-integrity",
+      "statement": "A positive judgment attestation is accepted only when certified GitHub issue-comment observation binds the exact repository, issue, comment identity, author login, and comment body digest.",
+      "external_assumptions": [
+        "GitHub issue-comment IDs, node IDs, author login, body, and timestamps have the documented API meaning.",
+        "The authenticated GitHub API response identifies the account recorded as the issue-comment author.",
+        "The pinned GitHub API/OpenAPI contract accurately describes the issue-comment response fields consumed by the verifier.",
+        "node:child_process launches the intended system curl executable, and curl faithfully returns the authenticated GitHub HTTPS response bytes and status metadata consumed by certified reads."
+      ],
+      "excluded": [
+        "whether the attester is substantively correct",
+        "whether the attested architectural claim is objectively true",
+        "whether the author is qualified beyond the declared author identity",
+        "social or organizational meaning not encoded in the attestation body",
+        "reasoning-agent judgment"
+      ],
+      "require_sound_symbol_closure": true
     }
   ],
   "compositions": [

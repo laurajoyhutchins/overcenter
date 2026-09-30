@@ -24,7 +24,8 @@ INSERT INTO evidence(evidence_id) VALUES
   ('canonical-content-identity-proof'),
   ('projection-reconstruction-proof'),
   ('provider-observation-proof'),
-  ('effect-core-loop-proof');
+  ('effect-core-loop-proof'),
+  ('judgment-attestation-proof');
 
 INSERT INTO capability(capability_id) VALUES
   ('canonical-content-identity'),
@@ -38,12 +39,14 @@ INSERT INTO capability(capability_id) VALUES
   ('effect-settlement'),
   ('source-integration'),
   ('github-commit-status-mutation'),
-  ('github-commit-status-observation');
+  ('github-commit-status-observation'),
+  ('judgment-attestation-observation');
 
 INSERT INTO assurance_property(property_id) VALUES
   ('broker-mutation-safety'),
   ('no-false-done'),
-  ('github-commit-status-provider');
+  ('github-commit-status-provider'),
+  ('judgment-attestation-integrity');
 
 INSERT INTO assurance_property_requires_authority(property_id, authority_id) VALUES
   ('broker-mutation-safety', 'effect-authority');
@@ -57,6 +60,7 @@ INSERT INTO assurance_property_requires_capability(property_id, capability_id) V
   ('no-false-done', 'project-lifecycle-projection'),
   ('no-false-done', 'authoritative-observation'),
   ('no-false-done', 'effect-settlement'),
+  ('judgment-attestation-integrity', 'judgment-attestation-observation'),
   ('github-commit-status-provider', 'github-commit-status-mutation'),
   ('github-commit-status-provider', 'github-commit-status-observation');
 
@@ -117,6 +121,7 @@ INSERT INTO evidence_witnesses_capability(evidence_id, capability_id) VALUES
   ('projection-reconstruction-proof', 'durable-project-facts'),
   ('projection-reconstruction-proof', 'project-lifecycle-projection'),
   ('provider-observation-proof', 'authoritative-observation'),
+  ('judgment-attestation-proof', 'judgment-attestation-observation'),
   ('effect-core-loop-proof', 'effect-authorization'),
   ('effect-core-loop-proof', 'effect-reservation'),
   ('effect-core-loop-proof', 'effect-settlement');
