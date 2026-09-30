@@ -707,16 +707,18 @@
       ],
       "evidence": {
         "status": "evaluated",
-        "evaluated_revision": "284bfdc891339dbf9fd26dc00675254d2004a671",
+        "evaluated_revision": "37a20b2ba16d7f448f1a8d8cb412b1f18a37d0bf",
         "artifacts": [
           "Issue #460 preregisters the falsification criterion, experimental ladder, anti-cheating rule, and allowed outcomes.",
           "GitHub Actions run 36653875173: exact-head TCB reconciliation and semantic-scaling measurement passed for pure computation, exact-base source integration, and GitHub commit-status safe settlement.",
           "At revision 7f95ca1c23ca089f7990e864d84ea61aaa4f6fc8 the measured ladder was 9,281 baseline trusted semantic LOC, +4 marginal LOC for source integration, and +0 marginal LOC for GitHub commit-status settlement; the GitHub rung still introduced two provider-specific scopes and five external assumptions.",
           "GitHub Actions run 36655390866: exact-head TCB reconciliation, semantic-scaling measurement, and 424/424 deterministic regressions passed for the behavioral conflicting-effect rung.",
-          "At revision 284bfdc891339dbf9fd26dc00675254d2004a671 the behavioral bug-repair rung remained at 9,285 trusted semantic LOC with +0 marginal LOC, +0 new scopes, and +0 new external assumptions, while retaining an explicit residual judgment about generalizing the regression to all relevant conflict behavior."
+          "At revision 284bfdc891339dbf9fd26dc00675254d2004a671 the behavioral bug-repair rung remained at 9,285 trusted semantic LOC with +0 marginal LOC, +0 new scopes, and +0 new external assumptions, while retaining an explicit residual judgment about generalizing the regression to all relevant conflict behavior.",
+          "GitHub Actions run 36656387619: exact-head TCB reconciliation, semantic-scaling measurement, and 424/424 deterministic regressions passed for the projection-boundary migration rung.",
+          "At revision 37a20b2ba16d7f448f1a8d8cb412b1f18a37d0bf the behavior-preserving migration rung remained at 9,285 trusted semantic LOC with +0 marginal LOC, +0 new scopes, and +0 new external assumptions, while retaining an explicit residual judgment about universal behavioral equivalence."
         ]
       },
-      "interpretation": "The first four exercised rungs show a source-line plateau after source integration, but the behavioral bug-repair rung is frontier-limited rather than convergent: existing trusted machinery can bind and verify the exact regression without adding task-specific trusted semantics, while the stronger universal bug-absence claim remains judgment. This supports reuse for the exercised paths without establishing general semantic convergence.",
+      "interpretation": "The exercised ladder now includes pure computation, source integration, a consequential GitHub effect, behavioral bug repair, and a behavior-preserving migration. Trusted source lines plateau at 9,285 after source integration. The two more semantic rungs remain frontier-limited rather than convergent: the kernel can bind exact regression evidence without adding task-specific trusted semantics, while broader semantic correctness/equivalence stays explicit judgment. This is evidence of reusable authority mechanics, not yet general semantic convergence.",
       "non_claims": [
         "Synthetic fixtures demonstrate that Overcenter's trusted semantic complexity has converged.",
         "Raw LOC is a sufficient proxy for semantic trust.",
@@ -729,7 +731,7 @@
       },
       "outcome": {
         "state": "pending",
-        "summary": "Four exercised rungs now have revision-bound marginal TCB measurements. Behavioral bug repair adds no trusted source lines or scopes only because the authoritative claim remains explicitly narrower than universal semantic correctness."
+        "summary": "Five exercised rungs have revision-bound marginal TCB measurements. Behavioral repair and migration add no trusted source lines only because their universal semantic claims remain explicitly outside mechanical settlement."
       }
     }
   ]
