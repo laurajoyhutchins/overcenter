@@ -2,10 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 import { deriveInvalidatedEvidence } from '../src/architecture/change-planner.ts';
-import {
-  ARCHITECTURE_SQL_PATHS,
-  loadArchitectureDatabase,
-} from '../src/architecture/sql-model.ts';
+import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 
 const ARCHITECTURE_PATHS = new Set<string>(ARCHITECTURE_SQL_PATHS);
 
@@ -29,11 +26,9 @@ function packageAt(revision: string): Record<string, unknown> | undefined {
 }
 
 function changedPaths(base: string, head: string): string[] {
-  return execFileSync(
-    'git',
-    ['diff', '--name-only', '--diff-filter=ACDMRT', base, head, '--'],
-    { encoding: 'utf8' },
-  )
+  return execFileSync('git', ['diff', '--name-only', '--diff-filter=ACDMRT', base, head, '--'], {
+    encoding: 'utf8',
+  })
     .split('\n')
     .filter(Boolean)
     .sort();
