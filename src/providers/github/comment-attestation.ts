@@ -2,7 +2,7 @@ import { sha256 } from '../../digest.ts';
 import {
   observeCertifiedGitHubSemanticRead,
   type CertifiedGitHubSemanticReadEvidence,
-} from './certified-read.ts';
+} from './semantic-read.ts';
 import { type GitHubJsonGet, githubGet } from './rest.ts';
 
 export const GITHUB_ISSUE_COMMENT_ATTESTATION_POLICY =
