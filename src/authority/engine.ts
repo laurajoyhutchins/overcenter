@@ -1,13 +1,4 @@
 import { canonicalDigest } from '../digest.ts';
-import {
-  SOURCE_TRANSACTION_BINDING_SCHEMA,
-  validateSourceTransactionPlan,
-  validateSourceTransactionTask,
-  sourceTransactionPlanDigest,
-  sourceTransactionPlanRef,
-  type SourceTransactionPlan,
-  type SourceTransactionBindingFact,
-} from '../source/transaction.ts';
 import { randomUUID } from 'node:crypto';
 import { sha256 } from '../digest.ts';
 import type {
@@ -34,6 +25,8 @@ import {
   GRAPH_PATCH_SCHEMA,
   RECEIPT_SCHEMA,
   SOURCE_REVISION_BINDING_SCHEMA,
+  SOURCE_TRANSACTION_BINDING_SCHEMA,
+  validateSourceTransactionBindingFact,
   materializeObligation,
   normalizeObligation,
   obligationDefinition,
@@ -51,6 +44,7 @@ import type {
   ReceiptFact,
   ReceiptKind,
   SourceRevisionBindingFact,
+  SourceTransactionBindingFact,
 } from './facts.ts';
 import { validateAdmission } from './admission.ts';
 import {
@@ -358,8 +352,7 @@ export class KernelCore {
     return structuredClone(history.transactionsByRun.get(runId) ?? null);
   }
 
-  bindSourceTransaction(permit: ExecutionPermit, input: SourceTransactionPlan): string {
-    const plan = validateSourceTransactionPlan(input);
+  bindSourceTransaction(permit: ExecutionPermit, input: Data): string {
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();
       const { history, project } = this.#historicalProjection(head);
@@ -371,26 +364,20 @@ export class KernelCore {
         history.unresolvedReservationsByRun.has(run.id)
       )
         throw new Error('SOURCE_TRANSACTION_NOT_ADMISSIBLE');
-      if (
-        plan.execution_generation !== run.execution_generation ||
-        plan.execution_authority_commit !== run.execution_authority_commit ||
-        canonicalDigest(plan.claim) !== canonicalDigest(this.sourceClaimBinding(run.id))
-      )
-        throw new Error('SOURCE_TRANSACTION_AUTHORITY_MISMATCH');
-      validateSourceTransactionTask(plan, run.obligation.packet);
       if (history.transactionsByRun.has(run.id))
         throw new Error('SOURCE_TRANSACTION_ALREADY_BOUND');
-      const fact: SourceTransactionBindingFact = {
+      const fact = validateSourceTransactionBindingFact({
         schema: SOURCE_TRANSACTION_BINDING_SCHEMA,
         schema_version: 1,
         run_id: run.id,
         obligation_id: run.obligation_id,
         execution_generation: run.execution_generation,
         execution_authority_commit: run.execution_authority_commit,
-        plan,
-        plan_digest: sourceTransactionPlanDigest(plan),
-        plan_ref: sourceTransactionPlanRef(plan),
-      };
+        plan: input,
+        plan_digest: canonicalDigest({ domain: 'overcenter-source-transaction/v1', plan: input }),
+      });
+      if (canonicalDigest(fact.plan.claim) !== canonicalDigest(this.sourceClaimBinding(run.id)))
+        throw new Error('SOURCE_TRANSACTION_AUTHORITY_MISMATCH');
       const commit = this.#store.append(head, `overcenter: bind source transaction ${run.id}`, {
         'source-transaction.json': fact,
       });
