@@ -172,11 +172,12 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
       [],
       'SOURCE_TASK_WRITE_SCOPE_INVALID',
     );
-    const readPaths = (
-      input: unknown,
-      predicate: (path: unknown) => path is string,
-    ): string[] => {
-      if (!Array.isArray(input) || !input.every(predicate) || new Set(input).size !== input.length) {
+    const readPaths = (input: unknown, predicate: (path: unknown) => path is string): string[] => {
+      if (
+        !Array.isArray(input) ||
+        !input.every(predicate) ||
+        new Set(input).size !== input.length
+      ) {
         throw new Error('SOURCE_TASK_WRITE_SCOPE_PATH_INVALID');
       }
       return [...input].sort();
@@ -274,7 +275,10 @@ export function sourceWriteScopeAllowsPath(
   ) {
     return false;
   }
-  return scope.allowed_paths.includes(path) || scope.allowed_roots.some((root) => matchesPath(path, root));
+  return (
+    scope.allowed_paths.includes(path) ||
+    scope.allowed_roots.some((root) => matchesPath(path, root))
+  );
 }
 
 export function bindSourceClaim(
