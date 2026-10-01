@@ -132,4 +132,4 @@ export type EffectAdmissionState = ExecutionAuthorityProjection & { unresolved_e
 export const effectAdmissionDecision = (s: EffectAdmissionState) =>
   s.current_authority && s.exact_revision && !s.unresolved_effect;
 
-export { effectAdmissionDecision as mutationAdmitted };
+export const mutationAdmitted = effectAdmissionDecision;
