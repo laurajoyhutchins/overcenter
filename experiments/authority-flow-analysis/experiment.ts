@@ -187,9 +187,13 @@ function scenario() {
 const soundEngine = `
 class KernelCore {
   beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority || !authority.exact_revision) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
+    const {current_authority,exact_revision}=projectExecutionAuthority(run,permit,digest);
+    const admission=effectAdmissionDecision({
+      current_authority,
+      exact_revision,
+      unresolved_effect:history.unresolvedReservationsByRun.has(run.id),
+    });
+    if (!admission.permits) throw new Error('denied');
   }
   async performEffect(permit:any,effect:any) {
     this.beginEffect(permit);
@@ -222,9 +226,13 @@ const productionMutants = [
       engine: `
 class KernelCore {
   beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority || !authority.exact_revision) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
+    const {current_authority,exact_revision}=projectExecutionAuthority(run,permit,digest);
+    const admission=effectAdmissionDecision({
+      current_authority,
+      exact_revision,
+      unresolved_effect:history.unresolvedReservationsByRun.has(run.id),
+    });
+    if (!admission.permits) throw new Error('denied');
   }
   async performEffect(permit:any,effect:any) {
     const result=await effect();
@@ -243,9 +251,35 @@ class KernelCore {
       engine: `
 class KernelCore {
   beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
+    const {current_authority}=projectExecutionAuthority(run,permit,digest);
+    const admission=effectAdmissionDecision({
+      current_authority,
+      unresolved_effect:history.unresolvedReservationsByRun.has(run.id),
+    });
+    if (!admission.permits) throw new Error('denied');
+  }
+  async performEffect(permit:any,effect:any) {
+    this.beginEffect(permit);
+    return await effect();
+  }
+}`,
+      githubStatus: safeStatus,
+      githubPullRequest: safePullRequest,
+    },
+    expected: 'PRODUCTION_EFFECT_WRAPPER_INVALID' as IssueCode,
+  },
+  {
+    name: 'beginEffect ignores authoritative permits decision',
+    input: {
+      engine: `
+class KernelCore {
+  beginEffect(permit:any) {
+    const {current_authority,exact_revision}=projectExecutionAuthority(run,permit,digest);
+    effectAdmissionDecision({
+      current_authority,
+      exact_revision,
+      unresolved_effect:history.unresolvedReservationsByRun.has(run.id),
+    });
   }
   async performEffect(permit:any,effect:any) {
     this.beginEffect(permit);
@@ -263,9 +297,13 @@ class KernelCore {
       engine: `
 class KernelCore {
   beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority || !authority.exact_revision) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
+    const {current_authority,exact_revision}=projectExecutionAuthority(run,permit,digest);
+    const admission=effectAdmissionDecision({
+      current_authority,
+      exact_revision,
+      unresolved_effect:history.unresolvedReservationsByRun.has(run.id),
+    });
+    if (!admission.permits) throw new Error('denied');
   }
   async performEffect(permit:any,effect:any) {
     if (permit) this.beginEffect(permit);

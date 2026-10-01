@@ -350,13 +350,14 @@ export class KernelCore {
       const { history, project } = this.#historicalProjection(head);
       const run = history.runs.get(permit.id);
       if (!run) throw new Error('UNKNOWN_RUN');
-      const authority = projectExecutionAuthority(
+      const { current_authority, exact_revision } = projectExecutionAuthority(
         run,
         permit,
         this.#capabilityDigest(permit.execution_capability),
       );
       const admission = effectAdmissionDecision({
-        ...authority,
+        current_authority,
+        exact_revision,
         unresolved_effect: history.unresolvedReservationsByRun.has(run.id),
       });
       if (admission.denial === 'STALE_EXECUTION_GENERATION') {
