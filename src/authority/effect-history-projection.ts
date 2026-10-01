@@ -109,6 +109,7 @@ interface BindingState {
 
 interface RunState {
   claim: ClaimFact;
+  claim_commit: string;
   source_revision?: string;
   binding: BindingState;
   authorities: Map<string, { object: FourByFourObject; generation: number }>;
@@ -305,6 +306,8 @@ function runCoordinate(
     obligation_id: run.claim.obligation_id,
     run_id: run.claim.run_id,
     claimed_revision: run.claim.claimed_revision,
+    claim_commit: run.claim_commit,
+    obligation_key: run.claim.obligation_key,
     ...(run.source_revision ? { source_revision: run.source_revision } : {}),
     execution_generation: executionGeneration,
     execution_authority_commit: executionAuthorityCommit,
@@ -452,6 +455,7 @@ export function projectDurableEffectHistory(history: readonly FactCommit[]): Fou
       );
       const run: RunState = {
         claim: fact,
+        claim_commit: record.commit,
         ...(sourceRevision ? { source_revision: sourceRevision } : {}),
         binding,
         authorities: new Map(),
