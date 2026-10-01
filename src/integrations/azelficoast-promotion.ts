@@ -1,8 +1,4 @@
 import { canonicalDigest } from '../digest.ts';
-import {
-  PROMOTION_SHADOW_SCHEMA,
-  type PromotionShadowSnapshot,
-} from '../governance/promotion-shadow.ts';
 
 const AZELFICOAST_PROMOTION_SCHEMA = 'azelficoast.battle-promotion-panel' as const;
 const AZELFICOAST_PROMOTION_SCHEMA_VERSION = 2 as const;
@@ -32,6 +28,41 @@ export interface AzelficoastPromotionEvidence {
   checks: Partial<Record<CheckName, boolean>>;
   results_digest: string;
   admitted: boolean;
+}
+
+export interface AzelficoastPromotionProjection {
+  coordinate: string;
+  objects: string[];
+  events: string[];
+  propositions: string[];
+  permits: Array<{
+    object_id: string;
+    event_id: string;
+    coordinate: string;
+  }>;
+  asserts: Array<{
+    event_id: string;
+    proposition_id: string;
+    coordinate: string;
+  }>;
+  supports: Array<{
+    object_id: string;
+    proposition_id: string;
+    coordinate: string;
+  }>;
+  requires: Array<{
+    proposition_id: string;
+    required_proposition_id: string;
+    coordinate: string;
+  }>;
+  legacy: {
+    admitted: boolean;
+  };
+  ids: {
+    promotion_proposition: string;
+    panel_complete_proposition: string;
+    check_propositions: Record<CheckName, string>;
+  };
 }
 
 function exactSha256Identity(value: unknown, label: string): asserts value is string {
@@ -83,10 +114,10 @@ export function azelficoastPromotionCoordinate(
   })}`;
 }
 
-export function projectAzelficoastPromotionShadow(
+export function projectAzelficoastPromotionRelations(
   evidence: AzelficoastPromotionEvidence,
   revision: string,
-): PromotionShadowSnapshot {
+): AzelficoastPromotionProjection {
   const coordinate = azelficoastPromotionCoordinate(evidence, revision);
   const policyDigest = canonicalDigest(evidence.policy);
   const authority = `azelficoast:promotion-policy:${policyDigest}`;
@@ -109,7 +140,6 @@ export function projectAzelficoastPromotionShadow(
     evidence.battle_count === expectedBattles;
 
   return {
-    schema: PROMOTION_SHADOW_SCHEMA,
     coordinate,
     objects: [authority, candidate, incumbent, results],
     events: [evaluation, promotion],
@@ -126,12 +156,13 @@ export function projectAzelficoastPromotionShadow(
       required_proposition_id: required,
       coordinate,
     })),
-    decision: {
-      authority_object_id: authority,
-      evaluation_event_id: evaluation,
-      promotion_event_id: promotion,
-      promotion_proposition_id: admitted,
-      legacy_admitted: evidence.admitted,
+    legacy: {
+      admitted: evidence.admitted,
+    },
+    ids: {
+      promotion_proposition: admitted,
+      panel_complete_proposition: panelComplete,
+      check_propositions: checkPropositions,
     },
   };
 }

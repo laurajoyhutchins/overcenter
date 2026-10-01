@@ -44,19 +44,37 @@ Use Azelficoast as the first external falsification test without adding Pokémon
 
 ## Required evidence
 
-- [ ] Existing Azelficoast promotion/evaluation decisions can be represented without extending the kernel vocabulary.
-- [ ] Exact experiment and candidate identities prevent evidence migration.
-- [ ] Insufficient or ambiguous playing-strength evidence cannot permit promotion.
-- [ ] Shadow comparison explains every disagreement before any authority transfer.
-- [ ] Fresh exact-head evidence exists in both repositories for the tested boundary.
+- [x] Existing Azelficoast promotion/evaluation decisions can be represented without extending the kernel vocabulary.
+- [x] Exact experiment, candidate, result, policy, deployment, and repository identities are bound into the Coordinate.
+- [ ] Stage 5's SQLite calculus proves insufficient or ambiguous playing-strength evidence cannot permit promotion.
+- [ ] A real shadow comparison explains every disagreement before any authority transfer.
+- [ ] Fresh exact-head Merge-gate evidence is green for this Overcenter head and the tested Azelficoast boundary.
 
-## Initial shadow slice
+## Dependency boundary
 
-The first implementation keeps Azelficoast's `settle_battle_panel()` result authoritative and projects that decision into a generic, read-only 4×4 snapshot.
+PR #527 is the semantic dependency for this stage. At the latest refresh,
+`post-4x4/05-sqlite-calculus` is still a contract-only branch at
+`865faf5e23731dd89da6f19acbb52b2df0d63540`; it has not yet introduced the authoritative SQLite API for permitted-event, unsupported-requirement, transitive-requirement, stale-support, or stale-permission queries.
 
-The domain adapter binds one Coordinate to the exact Azelficoast repository revision, candidate checkpoint digest, incumbent checkpoint digest, frozen deployment routing, frozen policy, evidence schema/version, and raw-results digest. The generic evaluator then derives the shadow decision only from exact-coordinate `permits`, `asserts`, `supports`, and transitive `requires` relations.
+Therefore Stage 6 deliberately does **not** implement those queries in TypeScript.
 
-The current mapping is:
+The temporary TypeScript shadow evaluator created during this draft was deleted after refreshing #527. Keeping it would make Stage 6 a second semantic owner and violate Stage 5's requirement that TypeScript remain a typed boundary around relational authority.
+
+## Current projection slice
+
+Azelficoast's existing `settle_battle_panel()` result remains authoritative. The Stage 6 adapter only converts that frozen external evidence into a typed 4×4 relation projection suitable for the Stage 5 SQLite calculus once it exists.
+
+The domain adapter binds one Coordinate to:
+
+- exact Azelficoast repository revision;
+- evidence schema and schema version;
+- candidate checkpoint digest;
+- incumbent checkpoint digest;
+- deployment routing;
+- frozen promotion policy; and
+- raw-results digest.
+
+The mapping is:
 
 ```text
 Azelficoast promotion policy        Object
@@ -71,79 +89,96 @@ promotion admissibility            Proposition
 exact experiment/revision identity Coordinate
 ```
 
-The adapter owns Azelficoast vocabulary. `src/governance/promotion-shadow.ts` contains no Pokémon, battle, rating, or experiment-policy semantics.
+The adapter emits only:
 
-Current hostile cases cover:
+```text
+Object permits Event
+Event asserts Proposition
+Object supports Proposition
+Proposition requires Proposition
+```
 
-- stale promotion permission;
-- candidate identity migration;
-- experiment/results identity migration;
-- missing or failed playing-strength evidence;
+A failed or missing Azelficoast check is not projected as an assertion. An incomplete battle panel does not project support for panel completeness. The legacy `admitted` value is retained only for later shadow comparison and never synthesizes missing 4×4 evidence.
+
+## Hostile cases covered
+
+- candidate checkpoint identity changes;
+- raw-results identity changes;
+- repository revision changes;
+- missing playing-strength checks;
+- failed playing-strength checks;
 - incomplete panel evidence;
-- a forged legacy `admitted: true` decision;
-- noncanonical external evidence schema or checkpoint identity.
+- forged legacy `admitted: true` with missing relational evidence;
+- noncanonical evidence schema/version;
+- identical candidate and incumbent checkpoint identities.
 
-Every disagreement is returned explicitly with fail-closed reasons. The shadow result cannot replace Azelficoast authority in this slice.
+These cases prove projection behavior, not promotion admission. Admission remains intentionally blocked on the Stage 5 SQLite calculus.
 
 ## Current handoff
 
-Implementation base at mutation start:
+Stage 5 base at the latest refresh:
 
 `post-4x4/05-sqlite-calculus@865faf5e23731dd89da6f19acbb52b2df0d63540`
 
-Pre-change Stage 6 head:
+Pre-correction Stage 6 head:
 
-`5a06d814d4e05182fe71f522ec4483919a339882`
+`9d917baadedb5b25d5cc1784ed371e21e6df0c7d`
 
 External boundary inspected:
 
 `laurajoyhutchins/azelficoast@806630728b472ebaa11d5f991e72d306da90628a`
 
-Files in the initial implementation slice:
+Files in the corrected implementation slice:
 
-- `src/governance/promotion-shadow.ts`
 - `src/integrations/azelficoast-promotion.ts`
 - `test/azelficoast-promotion-shadow.test.ts`
 - this handoff
 
-Semantic claim: the current Azelficoast candidate-promotion decision can be represented in shadow using only Object, Event, Proposition, Coordinate, permits, asserts, supports, and requires. No production authority is transferred.
+Deleted from the draft:
 
-Local evidence before push:
+- `src/governance/promotion-shadow.ts`, because Stage 6 must not own a parallel TypeScript 4×4 calculus.
 
-- strict TypeScript check using repository compiler semantics: PASS;
-- focused Node test suite: 7/7 PASS.
+Semantic claim: the current Azelficoast candidate-promotion evidence can be losslessly projected into the closed 4×4 vocabulary with exact identity binding. No promotion decision is derived in Stage 6 until Stage 5 supplies the authoritative SQLite calculus. No production authority is transferred.
 
-Hosted evidence: pending the exact pushed head. Azelficoast's current main has mixed workflow history at its exact revision, so no cross-repository green claim is made here.
+Local focused runtime smoke after removing the parallel evaluator: PASS, 5/5 representative tests. Full repository verification is delegated to the exact pushed head because this environment cannot fetch the repository dependency graph directly.
 
-Deletion ledger:
+Hosted Azelficoast evidence:
 
-```text
-old owner: none; Azelficoast settle_battle_panel remains authoritative
-new deterministic owner: none in this shadow stage
-4×4 relation/query: exact permit + transitive requirements satisfied by exact assertions/supports
-equivalence evidence: local shadow/hostile tests only so far
-hostile invariant preserved: stale, incomplete, ambiguous, or migrated evidence cannot permit promotion
-remaining agent judgment: none in the projected decision; authority transfer remains a later reviewed choice
-```
+- exact source revision `806630728b472ebaa11d5f991e72d306da90628a`;
+- rerun attempt 2 of workflow run `36587607383`;
+- job `test` / `110617906581`: SUCCESS, including the normal test suite and fast hostile correctness gate;
+- job `static`: SUCCESS;
+- the workflow as a whole remains red because the separate `Overcenter project.advance` integration job fails, so no whole-workflow green claim is made.
 
-Remaining uncertainty: fresh hosted evidence must demonstrate the exact Overcenter head and a relevant exact Azelficoast boundary before any authority transfer. The exact pushed Stage 6 head is recorded in the PR conversation after Git creates it, avoiding a self-referential commit hash in this file.
+Hosted Overcenter evidence before this correction:
 
-Smallest next action: run the Stage 6 exact-head checks, obtain a focused Azelficoast exact-head promotion proof, then compare real promotion evidence through the shadow before considering authority transfer.
+- Stage 6-local formatting defects were fixed;
+- exact head `9d917baadedb5b25d5cc1784ed371e21e6df0c7d` still failed candidate certification only on inherited predecessor formatting in `src/authority/engine.ts` and `src/authority/transaction-admission.ts`;
+- Static authority-flow differential: SUCCESS;
+- PR preflight consequently failed because exact-head candidate evidence was not successful.
+
+The corrected exact head is recorded in the PR conversation after Git creates it, avoiding a self-referential commit hash here.
 
 ## Deletion / generation ledger
 
-Delete no Azelficoast production authority in the initial shadow slice. Record any bespoke machinery that becomes a later deletion candidate.
-
-For each semantic deletion or generated replacement, record:
-
 ```text
-old owner:
-new deterministic owner:
-4×4 relation/query:
-equivalence evidence:
-hostile invariant preserved:
-remaining agent judgment:
+old owner: draft src/governance/promotion-shadow.ts TypeScript evaluator
+new deterministic owner: Stage 5 SQLite 4×4 calculus, once #527 implements it
+4×4 relation/query: permitted-event + transitive requirements + exact assertions/supports
+equivalence evidence: no authority transfer attempted; projection tests only
+hostile invariant preserved: legacy admission cannot manufacture absent relational evidence
+remaining agent judgment: whether/when to transfer promotion authority after real shadow comparison
 ```
+
+## Remaining uncertainty
+
+The integration is intentionally incomplete until #527 provides the SQLite calculus. The next implementation must consume that API rather than reintroduce a local evaluator.
+
+The Overcenter stack also has inherited formatting debt in `src/authority/engine.ts` and `src/authority/transaction-admission.ts` that blocks fresh candidate certification independently of this Stage 6 slice.
+
+## Smallest next action
+
+Implement and certify #527's SQLite calculus. Then wire this Azelficoast projection directly into that authority, run a real exact-coordinate shadow comparison over promotion evidence, and only then consider transferring promotion authority.
 
 ## Stop condition
 
@@ -151,4 +186,4 @@ Stop if Pokémon-specific semantics must enter the kernel. Capture the counterex
 
 ## Completion note
 
-Do not mark ready until the exact-head handoff above is written here.
+Do not mark ready until the exact-head handoff above is complete and the Stage 5 dependency is authoritative.

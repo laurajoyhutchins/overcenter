@@ -3,10 +3,9 @@ import test from 'node:test';
 
 import {
   azelficoastPromotionCoordinate,
-  projectAzelficoastPromotionShadow,
+  projectAzelficoastPromotionRelations,
   type AzelficoastPromotionEvidence,
 } from '../src/integrations/azelficoast-promotion.ts';
-import { evaluatePromotionShadow } from '../src/governance/promotion-shadow.ts';
 
 const revision = '806630728b472ebaa11d5f991e72d306da90628a';
 const candidate = `sha256:${'1'.repeat(64)}`;
@@ -33,102 +32,119 @@ const passing: AzelficoastPromotionEvidence = {
   admitted: true,
 };
 
-test('Azelficoast promotion is expressible as a 4x4 shadow without a domain primitive', () => {
-  const snapshot = projectAzelficoastPromotionShadow(passing, revision);
-  const decision = evaluatePromotionShadow(snapshot);
+test('Azelficoast promotion projects into only the canonical 4x4 relations', () => {
+  const projection = projectAzelficoastPromotionRelations(passing, revision);
 
-  assert.equal(decision.admitted, true);
-  assert.equal(decision.agrees, true);
-  assert.equal(decision.required_propositions.length, 5);
-  assert.deepEqual(decision.unsupported_requirements, []);
+  assert.equal(projection.objects.length, 4);
+  assert.equal(projection.events.length, 2);
+  assert.equal(projection.propositions.length, 6);
+  assert.equal(projection.permits.length, 1);
+  assert.equal(projection.asserts.length, 4);
+  assert.equal(projection.supports.length, 1);
+  assert.equal(projection.requires.length, 5);
+  assert.equal(projection.legacy.admitted, true);
+
+  for (const relation of [
+    ...projection.permits,
+    ...projection.asserts,
+    ...projection.supports,
+    ...projection.requires,
+  ]) {
+    assert.equal(relation.coordinate, projection.coordinate);
+  }
 });
 
-test('failed or ambiguous playing-strength evidence cannot permit promotion', () => {
+test('failed or ambiguous playing-strength evidence is not projected as an assertion', () => {
   const { superiority_p_value: _superiorityPValue, ...ambiguousChecks } = passing.checks;
   for (const checks of [{ ...passing.checks, superiority_p_value: false }, ambiguousChecks]) {
-    const evidence = { ...passing, checks, admitted: false };
-    const decision = evaluatePromotionShadow(projectAzelficoastPromotionShadow(evidence, revision));
-    assert.equal(decision.admitted, false);
-    assert.equal(decision.agrees, true);
-    assert.ok(
-      decision.unsupported_requirements.includes('azelficoast:promotion:superiority-p-value'),
+    const projection = projectAzelficoastPromotionRelations(
+      { ...passing, checks, admitted: false },
+      revision,
+    );
+    const asserted = new Set(projection.asserts.map((row) => row.proposition_id));
+
+    assert.equal(
+      asserted.has(projection.ids.check_propositions.superiority_p_value),
+      false,
     );
   }
 });
 
-test('shadow explains a forged legacy admission instead of inheriting it', () => {
-  const evidence = {
-    ...passing,
-    checks: { ...passing.checks, side_balance: false },
-    admitted: true,
-  };
-  const decision = evaluatePromotionShadow(projectAzelficoastPromotionShadow(evidence, revision));
+test('legacy admission never synthesizes missing 4x4 evidence', () => {
+  const projection = projectAzelficoastPromotionRelations(
+    {
+      ...passing,
+      checks: { ...passing.checks, side_balance: false },
+      admitted: true,
+    },
+    revision,
+  );
+  const asserted = new Set(projection.asserts.map((row) => row.proposition_id));
 
-  assert.equal(decision.admitted, false);
-  assert.equal(decision.agrees, false);
-  assert.deepEqual(decision.reasons, [
-    'UNSUPPORTED_REQUIREMENT:azelficoast:promotion:side-balance',
-    'LEGACY_DISAGREEMENT',
-  ]);
+  assert.equal(projection.legacy.admitted, true);
+  assert.equal(asserted.has(projection.ids.check_propositions.side_balance), false);
+  assert.ok(
+    projection.requires.some(
+      (row) =>
+        row.proposition_id === projection.ids.promotion_proposition &&
+        row.required_proposition_id === projection.ids.check_propositions.side_balance,
+    ),
+  );
 });
 
-test('exact coordinates prevent evidence migration between candidate or experiment identities', () => {
-  const original = projectAzelficoastPromotionShadow(passing, revision);
-  const changedCandidate = {
-    ...passing,
-    candidate_checkpoint_digest: `sha256:${'3'.repeat(64)}`,
-  };
-  const changedExperiment = {
-    ...passing,
-    results_digest: `sha256:${'b'.repeat(64)}`,
-  };
-  assert.notEqual(azelficoastPromotionCoordinate(changedCandidate, revision), original.coordinate);
-  assert.notEqual(azelficoastPromotionCoordinate(changedExperiment, revision), original.coordinate);
-
-  const migrated = projectAzelficoastPromotionShadow(changedCandidate, revision);
-  migrated.asserts = original.asserts.map((row) => ({
-    ...row,
-    event_id: migrated.decision.evaluation_event_id,
-  }));
-  migrated.supports = original.supports.map((row) => ({ ...row }));
-  const decision = evaluatePromotionShadow(migrated);
-  assert.equal(decision.admitted, false);
-  assert.equal(decision.agrees, false);
-  assert.ok(decision.stale_relation_count > 0);
-  assert.ok(decision.reasons.some((reason) => reason.startsWith('UNSUPPORTED_REQUIREMENT:')));
+test('exact coordinates change with candidate, experiment, or repository identity', () => {
+  const original = azelficoastPromotionCoordinate(passing, revision);
+  assert.notEqual(
+    azelficoastPromotionCoordinate(
+      { ...passing, candidate_checkpoint_digest: `sha256:${'3'.repeat(64)}` },
+      revision,
+    ),
+    original,
+  );
+  assert.notEqual(
+    azelficoastPromotionCoordinate(
+      { ...passing, results_digest: `sha256:${'b'.repeat(64)}` },
+      revision,
+    ),
+    original,
+  );
+  assert.notEqual(
+    azelficoastPromotionCoordinate(passing, '9'.repeat(40)),
+    original,
+  );
 });
 
-test('stale promotion permission cannot cross the coordinate boundary', () => {
-  const snapshot = projectAzelficoastPromotionShadow(passing, revision);
-  snapshot.permits[0] = { ...snapshot.permits[0]!, coordinate: 'sha256:stale' };
-  const decision = evaluatePromotionShadow(snapshot);
+test('incomplete panel evidence does not support panel completeness', () => {
+  const projection = projectAzelficoastPromotionRelations(
+    { ...passing, battle_count: 31, admitted: true },
+    revision,
+  );
 
-  assert.equal(decision.admitted, false);
-  assert.equal(decision.exact_permit, false);
-  assert.equal(decision.stale_relation_count, 1);
-  assert.deepEqual(decision.reasons, ['NO_EXACT_PERMIT', 'LEGACY_DISAGREEMENT']);
-});
-
-test('incomplete panel support fails closed even if every playing-strength check is true', () => {
-  const evidence = { ...passing, battle_count: 31, admitted: true };
-  const decision = evaluatePromotionShadow(projectAzelficoastPromotionShadow(evidence, revision));
-
-  assert.equal(decision.admitted, false);
-  assert.ok(decision.unsupported_requirements.includes('azelficoast:promotion:panel-complete'));
-  assert.equal(decision.agrees, false);
+  assert.equal(projection.supports.length, 0);
+  assert.ok(
+    projection.requires.some(
+      (row) =>
+        row.proposition_id === projection.ids.promotion_proposition &&
+        row.required_proposition_id === projection.ids.panel_complete_proposition,
+    ),
+  );
 });
 
 test('the adapter rejects a noncanonical external evidence contract', () => {
   assert.throws(
-    () => projectAzelficoastPromotionShadow({ ...passing, schema_version: 3 }, revision),
+    () => projectAzelficoastPromotionRelations({ ...passing, schema_version: 3 }, revision),
     /AZELFICOAST_PROMOTION_INVALID:SCHEMA/,
   );
   assert.throws(
     () =>
-      projectAzelficoastPromotionShadow(
+      projectAzelficoastPromotionRelations(
         { ...passing, incumbent_checkpoint_digest: candidate },
         revision,
       ),
     /AZELFICOAST_PROMOTION_INVALID:IDENTICAL_CHECKPOINTS/,
+  );
+  assert.throws(
+    () => projectAzelficoastPromotionRelations(passing, 'not-a-revision'),
+    /AZELFICOAST_PROMOTION_INVALID:REVISION/,
   );
 });
