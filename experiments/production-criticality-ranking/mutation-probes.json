@@ -79,7 +79,7 @@
       "selectors": [
         {
           "file": "src/authority/transaction-admission.ts",
-          "name": "projectExecutionAuthority"
+          "name": "executionPermits"
         }
       ],
       "tests": [
