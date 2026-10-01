@@ -219,4 +219,10 @@ test('source candidate evidence uses the immutable claimed baseline rather than 
   assert.match(handoff, /CANDIDATE_SHA_INPUT: \$\{\{ inputs.candidate_sha \}\}/);
   assert.match(handoff, /test "\$CANDIDATE_SHA_INPUT" = "\$GITHUB_SHA"/);
   assert.match(evidenceWorkflow, /BASE_SHA: \$\{\{ inputs.accepted_baseline_sha \|\|/);
+  assert.match(
+    evidenceWorkflow,
+    /inputs\.accepted_baseline_sha[\s\S]*--source-candidate/,
+    'source candidates must retain strict protected-input validation',
+  );
 });
+

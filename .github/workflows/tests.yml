@@ -84,10 +84,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          profile_args=(--check-only)
+          if [ -n "${{ inputs.accepted_baseline_sha }}" ]; then
+            profile_args+=(--source-candidate)
+          fi
           if [ -n "$OVERCENTER_TRUSTED_TOOL_DIR" ]; then
-            node --experimental-strip-types "$OVERCENTER_TRUSTED_TOOL_DIR/scripts/verify-source-profile.ts" --check-only
+            node --experimental-strip-types "$OVERCENTER_TRUSTED_TOOL_DIR/scripts/verify-source-profile.ts" "${profile_args[@]}"
           else
-            node --experimental-strip-types scripts/verify-source-profile.ts --check-only
+            node --experimental-strip-types scripts/verify-source-profile.ts "${profile_args[@]}"
           fi
       - name: Install pinned TypeScript toolchain
         run: npm install --ignore-scripts --package-lock=false
@@ -95,10 +99,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          profile_args=()
+          if [ -n "${{ inputs.accepted_baseline_sha }}" ]; then
+            profile_args+=(--source-candidate)
+          fi
           if [ -n "$OVERCENTER_TRUSTED_TOOL_DIR" ]; then
-            node --experimental-strip-types "$OVERCENTER_TRUSTED_TOOL_DIR/scripts/verify-source-profile.ts"
+            node --experimental-strip-types "$OVERCENTER_TRUSTED_TOOL_DIR/scripts/verify-source-profile.ts" "${profile_args[@]}"
           else
-            node --experimental-strip-types scripts/verify-source-profile.ts
+            node --experimental-strip-types scripts/verify-source-profile.ts "${profile_args[@]}"
           fi
       - name: Replay immutable base tests against candidate code
         shell: bash

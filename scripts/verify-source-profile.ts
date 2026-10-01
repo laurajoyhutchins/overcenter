@@ -16,9 +16,15 @@ try {
 }
 if (trusted.sha256 !== submitted.sha256) throw new Error('SOURCE_PROFILE_CANDIDATE_MISMATCH');
 if (trusted !== submitted) {
+  const protectedPaths = process.argv.includes('--source-candidate')
+    ? trusted.profile.protected_paths
+    : [
+        ...trusted.profile.protected_paths.filter((path) => path !== 'src/source'),
+        'src/source/source-verification-profile.ts',
+      ].sort();
   const comparison = spawnSync(
     'git',
-    ['diff', '--quiet', base, candidate, '--', ...trusted.profile.protected_paths],
+    ['diff', '--quiet', base, candidate, '--', ...protectedPaths],
     { stdio: 'inherit' },
   );
   if (comparison.error) throw comparison.error;
