@@ -52,11 +52,7 @@ import {
 import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
 import { advanceProjection, projectReceipt, replayProjection } from './replay.ts';
 import type { Projection } from './replay.ts';
-import {
-  mutationAdmitted,
-  projectExecutionAuthority,
-  shadowMutationAdmitted,
-} from './transaction-admission.ts';
+import { mutationAdmitted, projectExecutionAuthority } from './transaction-admission.ts';
 import {
   effectAdapterCapabilities,
   GITHUB_SOURCE_INTEGRATION_EFFECT,
@@ -359,12 +355,6 @@ export class KernelCore {
         permit,
         this.#capabilityDigest(permit.execution_capability),
       );
-      const admissionState = {
-        ...authority,
-        unresolved_effect: history.unresolvedReservationsByRun.has(run.id),
-      };
-      const legacyAdmission = mutationAdmitted(admissionState);
-      shadowMutationAdmitted(admissionState, legacyAdmission);
       if (!authority.current_authority || !authority.exact_revision) {
         throw new Error('STALE_EXECUTION_GENERATION');
       }
@@ -372,7 +362,13 @@ export class KernelCore {
       if (lifecycle?.run?.id !== run.id || lifecycle.status !== 'EXECUTING') {
         throw new Error('RUN_NOT_EXECUTING');
       }
-      if (!legacyAdmission) throw new Error('UNRESOLVED_EFFECT');
+      if (
+        !mutationAdmitted({
+          ...authority,
+          unresolved_effect: history.unresolvedReservationsByRun.has(run.id),
+        })
+      )
+        throw new Error('UNRESOLVED_EFFECT');
 
       const fact: EffectReservationFact = {
         schema: EFFECT_RESERVATION_SCHEMA,

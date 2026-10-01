@@ -1,75 +1,183 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
+import { KernelCore } from '../src/authority/engine.ts';
 import {
-  compareEffectAdmission,
-  effectPermitsFromProjection,
-  mutationAdmitted,
-  shadowMutationAdmitted,
-  type EffectAdmissionState,
-} from '../src/authority/transaction-admission.ts';
+  assertEffectAdmissionAgreement,
+  shadowEffectAdmission,
+  type EffectAdmissionShadowResult,
+} from '../src/authority/effect-admission-shadow.ts';
+import { SqliteFactStore } from '../src/storage/sqlite.ts';
+import type { ExecutionPermit } from '../src/model.ts';
 
-const bools = [false, true] as const;
+function fixture(name: string) {
+  const root = mkdtempSync(join(tmpdir(), `4x4-admission-${name}-`));
+  const store = new SqliteFactStore(join(root, 'overcenter.sqlite'));
+  const kernel = new KernelCore(store);
+  const initial = kernel.initialize();
+  const revision = kernel.define({
+    id: 'effect',
+    packet: {},
+    postcondition: {
+      verifier: 'file-content-equals/v1',
+      path: join(root, 'effect.txt'),
+      content: 'done',
+    },
+  });
+  const permit = kernel.claim('effect', revision);
+  const history = () => store.history(kernel.head()!);
+  return {
+    root,
+    store,
+    kernel,
+    initial,
+    permit,
+    history,
+    close() {
+      store.close();
+      rmSync(root, { recursive: true, force: true });
+    },
+  };
+}
 
-test('shadow effect admission agrees across the complete projected truth table', () => {
-  for (const currentAuthority of bools) {
-    for (const exactRevision of bools) {
-      for (const unresolvedEffect of bools) {
-        const state: EffectAdmissionState = {
-          current_authority: currentAuthority,
-          exact_revision: exactRevision,
-          unresolved_effect: unresolvedEffect,
-        };
-        const expected = currentAuthority && exactRevision && !unresolvedEffect;
+function flipped(
+  result: EffectAdmissionShadowResult,
+  field: 'legacy' | 'permits',
+): EffectAdmissionShadowResult {
+  return { ...result, [field]: !result[field] };
+}
 
-        assert.equal(mutationAdmitted(state), expected);
-        assert.equal(effectPermitsFromProjection(state), expected);
-        assert.equal(shadowMutationAdmitted(state), expected);
-      }
-    }
+test('current exact authority is admitted by both legacy and 4x4 permits', () => {
+  const f = fixture('current');
+  try {
+    const result = shadowEffectAdmission(f.history(), f.permit);
+    assert.equal(result.legacy, true);
+    assert.equal(result.permits, true);
+    assert.deepEqual(result.projected_state, result.legacy_state);
+  } finally {
+    f.close();
   }
 });
 
-test('shadow comparison detects a hostile legacy-path mutation', () => {
-  const state: EffectAdmissionState = {
-    current_authority: true,
-    exact_revision: true,
-    unresolved_effect: false,
-  };
-
-  assert.throws(
-    () => compareEffectAdmission(state, false, true),
-    new Error(
-      'EFFECT_ADMISSION_SHADOW_DIVERGENCE:current_authority=1:exact_revision=1:' +
-        'unresolved_effect=0:legacy=0:permits=1',
-    ),
-  );
+test('stale generation and reacquired authority agree across both paths', () => {
+  const f = fixture('reacquire');
+  try {
+    const reacquired = f.kernel.acquireExecution(f.permit.id);
+    assert.equal(shadowEffectAdmission(f.history(), f.permit).legacy, false);
+    const current = shadowEffectAdmission(f.history(), reacquired);
+    assert.equal(current.legacy, true);
+    assert.equal(current.permits, true);
+    assert.deepEqual(current.projected_state, current.legacy_state);
+  } finally {
+    f.close();
+  }
 });
 
-test('shadow comparison detects a hostile permits-path mutation', () => {
-  const state: EffectAdmissionState = {
-    current_authority: true,
-    exact_revision: true,
-    unresolved_effect: false,
-  };
-
-  assert.throws(
-    () => compareEffectAdmission(state, true, false),
-    new Error(
-      'EFFECT_ADMISSION_SHADOW_DIVERGENCE:current_authority=1:exact_revision=1:' +
-        'unresolved_effect=0:legacy=1:permits=0',
-    ),
-  );
+test('stale claim commit and obligation key are denied by the projected coordinate', () => {
+  const f = fixture('exact-revision');
+  try {
+    for (const permit of [
+      { ...f.permit, claim_commit: 'stale-claim' },
+      { ...f.permit, obligation_key: 'stale-obligation-key' },
+    ] satisfies ExecutionPermit[]) {
+      const result = shadowEffectAdmission(f.history(), permit);
+      assert.equal(result.legacy, false);
+      assert.equal(result.permits, false);
+      assert.equal(result.projected_state.exact_revision, false);
+    }
+  } finally {
+    f.close();
+  }
 });
 
-test('unresolved reservation remains denied by both independent paths', () => {
-  const state: EffectAdmissionState = {
-    current_authority: true,
-    exact_revision: true,
-    unresolved_effect: true,
-  };
+test('an unresolved reservation denies duplicate and reacquired effect admission', () => {
+  const f = fixture('unresolved');
+  try {
+    f.kernel.beginEffect(f.permit);
+    let result = shadowEffectAdmission(f.history(), f.permit);
+    assert.equal(result.legacy, false);
+    assert.equal(result.permits, false);
+    assert.equal(result.projected_state.unresolved_effect, true);
 
-  assert.equal(mutationAdmitted(state), false);
-  assert.equal(effectPermitsFromProjection(state), false);
-  assert.equal(shadowMutationAdmitted(state), false);
+    const reacquired = f.kernel.acquireExecution(f.permit.id);
+    result = shadowEffectAdmission(f.history(), reacquired);
+    assert.equal(result.legacy, false);
+    assert.equal(result.permits, false);
+    assert.equal(result.projected_state.current_authority, true);
+    assert.equal(result.projected_state.unresolved_effect, true);
+  } finally {
+    f.close();
+  }
+});
+
+test('crash-style recovery preserves unresolved denial after authority reacquisition', () => {
+  const f = fixture('recovery');
+  try {
+    f.kernel.beginEffect(f.permit);
+    f.kernel.recoverInterrupted(f.permit, { reason: 'worker-crash' });
+    const reacquired = f.kernel.acquireExecution(f.permit.id);
+    const result = shadowEffectAdmission(f.history(), reacquired);
+    assert.equal(result.lifecycle_executing, true);
+    assert.equal(result.legacy, false);
+    assert.equal(result.permits, false);
+    assert.equal(result.projected_state.unresolved_effect, true);
+  } finally {
+    f.close();
+  }
+});
+
+test('independent runs preserve admission isolation under concurrent eligibility', () => {
+  const root = mkdtempSync(join(tmpdir(), '4x4-admission-concurrency-'));
+  const store = new SqliteFactStore(join(root, 'overcenter.sqlite'));
+  const kernel = new KernelCore(store);
+  try {
+    kernel.initialize();
+    const a = kernel.define({
+      id: 'a',
+      postcondition: {
+        verifier: 'file-content-equals/v1',
+        path: join(root, 'a.txt'),
+        content: 'a',
+      },
+    });
+    const pa = kernel.claim('a', a);
+    kernel.recoverInterrupted(pa);
+    const head = kernel.head()!;
+    const b = kernel.define({
+      id: 'b',
+      postcondition: {
+        verifier: 'file-content-equals/v1',
+        path: join(root, 'b.txt'),
+        content: 'b',
+      },
+    });
+    const pb = kernel.claim('b', b);
+    const ra = kernel.acquireExecution(pa.id);
+    const history = store.history(head === kernel.head() ? head : kernel.head()!);
+    assert.equal(shadowEffectAdmission(history, ra).permits, true);
+    assert.equal(shadowEffectAdmission(history, pb).permits, true);
+  } finally {
+    store.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('hostile mutation of either decision path is detected by the shadow comparator', () => {
+  const f = fixture('hostile');
+  try {
+    const result = shadowEffectAdmission(f.history(), f.permit);
+    assert.throws(
+      () => assertEffectAdmissionAgreement(flipped(result, 'legacy')),
+      /EFFECT_ADMISSION_SHADOW_DIVERGENCE/,
+    );
+    assert.throws(
+      () => assertEffectAdmissionAgreement(flipped(result, 'permits')),
+      /EFFECT_ADMISSION_SHADOW_DIVERGENCE/,
+    );
+  } finally {
+    f.close();
+  }
 });

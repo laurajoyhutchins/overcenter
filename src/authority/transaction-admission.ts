@@ -129,43 +129,6 @@ export function executionAuthorityAdvanceError(
   return null;
 }
 
-export type EffectAdmissionState = ExecutionAuthorityProjection & {
-  unresolved_effect: boolean;
-};
-
-// Read-only 4×4 projection: the current execution Object permits a new effect Event
-// only at the exact claimed Coordinate and only when no prior effect remains unresolved.
-export const effectPermitsFromProjection = (state: EffectAdmissionState) =>
-  state.current_authority && state.exact_revision && !state.unresolved_effect;
-
-// Legacy admission remains independently authoritative throughout the shadow stage.
-export const mutationAdmitted = (state: EffectAdmissionState) =>
-  state.current_authority && state.exact_revision && !state.unresolved_effect;
-
-export function compareEffectAdmission(
-  state: EffectAdmissionState,
-  legacy: boolean,
-  permits: boolean,
-): boolean {
-  if (legacy !== permits) {
-    throw new Error(
-      [
-        'EFFECT_ADMISSION_SHADOW_DIVERGENCE',
-        `current_authority=${Number(state.current_authority)}`,
-        `exact_revision=${Number(state.exact_revision)}`,
-        `unresolved_effect=${Number(state.unresolved_effect)}`,
-        `legacy=${Number(legacy)}`,
-        `permits=${Number(permits)}`,
-      ].join(':'),
-    );
-  }
-  return legacy;
-}
-
-export function shadowMutationAdmitted(
-  state: EffectAdmissionState,
-  legacy = mutationAdmitted(state),
-  permits = effectPermitsFromProjection(state),
-): boolean {
-  return compareEffectAdmission(state, legacy, permits);
-}
+export const mutationAdmitted = (
+  s: ExecutionAuthorityProjection & { unresolved_effect: boolean },
+) => s.current_authority && s.exact_revision && !s.unresolved_effect;
