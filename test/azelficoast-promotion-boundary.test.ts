@@ -41,9 +41,7 @@ const passing: AzelficoastPromotionEvidence = {
   admitted: true,
 };
 
-function withCalculus(
-  run: (calculus: SqliteFourByFourCalculus) => void,
-): void {
+function withCalculus(run: (calculus: SqliteFourByFourCalculus) => void): void {
   const root = mkdtempSync(join(tmpdir(), 'azelficoast-promotion-'));
   const path = join(root, 'overcenter.sqlite');
   const authority = new DatabaseSync(path);
@@ -178,9 +176,7 @@ test('an incomplete panel leaves panel completeness unsupported', () => {
 
   assert.equal(decision.admitted, false);
   assert.equal(decision.agrees, false);
-  assert.ok(
-    decision.unsupported_requirements.includes(boundary.ids.panel_complete_proposition),
-  );
+  assert.ok(decision.unsupported_requirements.includes(boundary.ids.panel_complete_proposition));
 });
 
 test('the adapter rejects a noncanonical external evidence contract', () => {

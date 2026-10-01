@@ -44,15 +44,13 @@ Use Azelficoast as the first external falsification test without adding Pokémon
 
 ## Predecessor consumed
 
-Stage 5 moved while this draft was in progress. This branch was refreshed against:
-
-`post-4x4/05-sqlite-calculus@01da32b15d2964adc6f4cbbf20461972155e0c3c`
-
-That predecessor now owns the deterministic 4×4 execution semantics in
+Stage 5 now owns the deterministic 4×4 execution semantics in
 `src/authority/sqlite-calculus.ts`. Stage 6 consumes its
 `SqliteFourByFourCalculus` and frozen `FourByFourProjection` types directly.
 
 A temporary TypeScript 4×4 evaluator created earlier in this draft was deleted. Stage 6 does not recompute transitive requirements, exact support, stale support, or stale permission semantics.
+
+The exact Stage 5 base used by the final rebase is recorded in the PR conversation so concurrent stack movement cannot make this document silently authoritative.
 
 ## Implementation
 
@@ -145,12 +143,11 @@ Fresh rerun evidence on that exact revision:
 - `static`: SUCCESS;
 - the workflow as a whole remains red because the separate `Overcenter project.advance` integration job fails, so no whole-workflow green claim is made.
 
-## Overcenter evidence and dependency state
+## Overcenter dependency state
 
-Stage 5's exact head currently has successful proof, preflight, and static authority-flow checks, but candidate certification fails with
-`SOURCE_PROFILE_PROTECTED_PATH_CHANGED` because the new SQLite calculus is itself protected-code work. PR #527 remains draft and is therefore still a merge dependency for this stage.
+Stage 5 has implemented the SQLite calculus but remains a draft dependency. Its earlier exact-head candidate certification failed closed on the protected-code boundary rather than weakening that boundary.
 
-Earlier Stage 6 heads also exposed inherited formatting failures before Stage 5 moved. This branch must be judged only at the final rebased head recorded in the PR conversation.
+Stage 6 must be judged only at its final exact rebased head. It must not repair Stage 5 admission by weakening trusted-code or protected-path policy.
 
 ## Deletion / generation ledger
 
@@ -175,17 +172,17 @@ Files owned by Stage 6:
 
 Semantic claim: the current Azelficoast battle-panel promotion boundary is expressible in the closed 4×4 vocabulary and can be evaluated in shadow by Stage 5's SQLite calculus without Pokémon-specific kernel semantics.
 
-The final rebased Stage 6 head and hosted results are recorded in the PR conversation after Git creates them, avoiding a self-referential commit hash here.
+The exact base/head and hosted results are recorded in the PR conversation after Git creates the final head, avoiding a self-referential commit hash here.
 
 ## Remaining uncertainty
 
 No real Azelficoast promotion artifact has transferred authority to Overcenter. The shadow is a deterministic compatibility boundary; production promotion remains where it is until exact-head evidence and disagreement review justify transfer.
 
-PR #527's protected-code admission failure remains an upstream merge blocker and must not be weakened from Stage 6.
+PR #527 remains an upstream merge dependency and its protected-code evidence must be satisfied independently.
 
 ## Smallest next action
 
-Rebase this stage on the exact Stage 5 head, run the Stage 6 exact-head checks, and inspect every shadow disagreement. If the shadow remains exact and #527 obtains its required protected-code evidence, authority transfer can be considered as a separate explicit change.
+Run the final Stage 6 exact-head checks and inspect every shadow disagreement. If the shadow remains exact and #527 obtains its required protected-code evidence, authority transfer can be considered as a separate explicit change.
 
 ## Stop condition
 

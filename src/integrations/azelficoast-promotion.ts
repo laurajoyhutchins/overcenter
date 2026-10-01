@@ -375,9 +375,7 @@ export function shadowAzelficoastPromotion(
     stalePermissionIds.length === 0;
   const reasons: string[] = [];
   if (!exactPermit) reasons.push('NO_EXACT_PERMIT');
-  reasons.push(
-    ...unsupported.value.map((proposition) => `UNSUPPORTED_REQUIREMENT:${proposition}`),
-  );
+  reasons.push(...unsupported.value.map((proposition) => `UNSUPPORTED_REQUIREMENT:${proposition}`));
   reasons.push(...staleSupportIds.map((id) => `STALE_SUPPORT:${id}`));
   reasons.push(...stalePermissionIds.map((id) => `STALE_PERMISSION:${id}`));
   if (admitted !== boundary.legacy_admitted) reasons.push('LEGACY_DISAGREEMENT');
