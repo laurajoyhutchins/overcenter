@@ -52,15 +52,14 @@ The Stage 3 shadow comparator is removed only after the permit decision becomes 
 
 ```text
 old owner: shadowMutationAdmitted() comparison plus mutationAdmitted() boolean logic
-surviving 4×4 expression: effectAdmissionDecision(state).permits
+surviving 4×4 expression: effectAdmissionDecision(state), exported under mutationAdmitted only as a compatibility alias
 equivalence evidence: exhaustive 2×2×2 authority/revision/reservation truth table
 representation retained: existing effect-reservation facts and provider adapter contracts
 hostile invariant preserved: stale authority/revision and unresolved reservations deny admission
 new primitive: none
 ```
 
-`mutationAdmitted()` remains temporarily as a compatibility projection of the authoritative
-permit decision; it owns no independent admission rule.
+`mutationAdmitted` remains temporarily as an export alias of `effectAdmissionDecision`; both names resolve to the same function and there is no independent admission rule.
 
 ## Stop condition
 
