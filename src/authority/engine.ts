@@ -52,7 +52,11 @@ import {
 import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
 import { advanceProjection, projectReceipt, replayProjection } from './replay.ts';
 import type { Projection } from './replay.ts';
-import { projectExecutionAuthority, shadowMutationAdmitted } from './transaction-admission.ts';
+import {
+  mutationAdmitted,
+  projectExecutionAuthority,
+  shadowMutationAdmitted,
+} from './transaction-admission.ts';
 import {
   effectAdapterCapabilities,
   GITHUB_SOURCE_INTEGRATION_EFFECT,
@@ -359,7 +363,8 @@ export class KernelCore {
         ...authority,
         unresolved_effect: history.unresolvedReservationsByRun.has(run.id),
       };
-      const legacyAdmission = shadowMutationAdmitted(admissionState);
+      const legacyAdmission = mutationAdmitted(admissionState);
+      shadowMutationAdmitted(admissionState, legacyAdmission);
       if (!authority.current_authority || !authority.exact_revision) {
         throw new Error('STALE_EXECUTION_GENERATION');
       }

@@ -162,10 +162,10 @@ export function compareEffectAdmission(
   return legacy;
 }
 
-export function shadowMutationAdmitted(state: EffectAdmissionState): boolean {
-  return compareEffectAdmission(
-    state,
-    mutationAdmitted(state),
-    effectPermitsFromProjection(state),
-  );
+export function shadowMutationAdmitted(
+  state: EffectAdmissionState,
+  legacy = mutationAdmitted(state),
+  permits = effectPermitsFromProjection(state),
+): boolean {
+  return compareEffectAdmission(state, legacy, permits);
 }
