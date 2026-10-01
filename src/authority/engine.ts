@@ -432,13 +432,7 @@ export class KernelCore {
       const { history, project } = this.#historicalProjection(head);
       const run = history.runs.get(permit.id);
       if (!run) throw new Error('UNKNOWN_RUN');
-      if (
-        !executionPermits(
-          run,
-          permit,
-          this.#capabilityDigest(permit.execution_capability),
-        )
-      ) {
+      if (!executionPermits(run, permit, this.#capabilityDigest(permit.execution_capability))) {
         throw new Error('STALE_EXECUTION_GENERATION');
       }
       const lifecycle = project.lifecycles.get(run.obligation_id);
@@ -892,13 +886,7 @@ export class KernelCore {
   #requireExecutionPermit(history: Projection['history'], permit: ExecutionPermit): HistoricalRun {
     const run = history.runs.get(permit.id);
     if (!run) throw new Error('UNKNOWN_RUN');
-    if (
-      !executionPermits(
-        run,
-        permit,
-        this.#capabilityDigest(permit.execution_capability),
-      )
-    ) {
+    if (!executionPermits(run, permit, this.#capabilityDigest(permit.execution_capability))) {
       throw new Error('STALE_EXECUTION_GENERATION');
     }
     return run;
