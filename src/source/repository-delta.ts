@@ -86,6 +86,16 @@ export function observeRepositoryDelta(
   };
 }
 
+export function repositoryDeltaChangedBytes(repo: string, delta: RepositoryDelta): number {
+  return delta.entries.reduce((total, entry) => {
+    const bytes = (object: RepositoryDeltaObject | null): number =>
+      object === null
+        ? 0
+        : Number.parseInt(git(repo, ['cat-file', '-s', object.object_id]).toString('utf8').trim(), 10);
+    return total + bytes(entry.before) + bytes(entry.after);
+  }, 0);
+}
+
 export function assertSupportedSourceDelta(delta: RepositoryDelta): void {
   for (const entry of delta.entries) {
     const path = entry.path;
