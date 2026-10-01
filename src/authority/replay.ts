@@ -95,17 +95,26 @@ export function projectReceipt(
     disposition = shadowSettlementDisposition(legacyDisposition, {
       event_asserts_postcondition: verified,
       object_supports_accepted_absence: acceptedAbsence,
+      object_supports_not_dispatched: false,
       accepted_absence_requires_replay_safety: unresolvedEffect,
       object_supports_replay_safety: supportsReplaySafety,
     });
   } else {
     if (fact.observed) throw new Error('NONOBSERVATION_RECEIPT_HAS_EVIDENCE');
-    disposition =
-      fact.kind === 'judgment-required'
-        ? 'WAITING'
-        : fact.kind === 'effect-not-dispatched' && notDispatchedRelease
-          ? 'READY'
-          : 'RECOVERY_REQUIRED';
+    if (fact.kind === 'judgment-required') {
+      disposition = 'WAITING';
+    } else {
+      const supportsNotDispatched =
+        fact.kind === 'effect-not-dispatched' && notDispatchedRelease;
+      const legacyDisposition = supportsNotDispatched ? 'READY' : 'RECOVERY_REQUIRED';
+      disposition = shadowSettlementDisposition(legacyDisposition, {
+        event_asserts_postcondition: false,
+        object_supports_accepted_absence: false,
+        object_supports_not_dispatched: supportsNotDispatched,
+        accepted_absence_requires_replay_safety: false,
+        object_supports_replay_safety: false,
+      });
+    }
   }
 
   return {

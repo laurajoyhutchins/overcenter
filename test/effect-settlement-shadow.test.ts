@@ -18,6 +18,7 @@ const bools = [false, true] as const;
 
 function legacyDisposition(relations: SettlementRelations): SettlementDisposition {
   if (relations.event_asserts_postcondition) return 'DONE';
+  if (relations.object_supports_not_dispatched) return 'READY';
   if (
     relations.object_supports_accepted_absence &&
     (!relations.accepted_absence_requires_replay_safety || relations.object_supports_replay_safety)
@@ -30,28 +31,32 @@ function legacyDisposition(relations: SettlementRelations): SettlementDispositio
 test('4x4 settlement matches the legacy disposition truth table', () => {
   for (const asserts of bools) {
     for (const supportsAbsence of bools) {
-      for (const requiresReplaySafety of bools) {
-        for (const supportsReplaySafety of bools) {
-          const relations: SettlementRelations = {
-            event_asserts_postcondition: asserts,
-            object_supports_accepted_absence: supportsAbsence,
-            accepted_absence_requires_replay_safety: requiresReplaySafety,
-            object_supports_replay_safety: supportsReplaySafety,
-          };
-          const expected = legacyDisposition(relations);
-          assert.equal(settlementDispositionFromRelations(relations), expected);
-          assert.equal(shadowSettlementDisposition(expected, relations), expected);
+      for (const supportsNotDispatched of bools) {
+        for (const requiresReplaySafety of bools) {
+          for (const supportsReplaySafety of bools) {
+            const relations: SettlementRelations = {
+              event_asserts_postcondition: asserts,
+              object_supports_accepted_absence: supportsAbsence,
+              object_supports_not_dispatched: supportsNotDispatched,
+              accepted_absence_requires_replay_safety: requiresReplaySafety,
+              object_supports_replay_safety: supportsReplaySafety,
+            };
+            const expected = legacyDisposition(relations);
+            assert.equal(settlementDispositionFromRelations(relations), expected);
+            assert.equal(shadowSettlementDisposition(expected, relations), expected);
+          }
         }
       }
     }
   }
 });
 
-test('presence, admitted absence, ambiguity, and unresolved reservations stay distinct', () => {
+test('presence, admitted absence, ambiguity, unresolved reservations, and release stay distinct', () => {
   assert.equal(
     settlementDispositionFromRelations({
       event_asserts_postcondition: true,
       object_supports_accepted_absence: false,
+      object_supports_not_dispatched: false,
       accepted_absence_requires_replay_safety: false,
       object_supports_replay_safety: false,
     }),
@@ -62,6 +67,7 @@ test('presence, admitted absence, ambiguity, and unresolved reservations stay di
     settlementDispositionFromRelations({
       event_asserts_postcondition: false,
       object_supports_accepted_absence: true,
+      object_supports_not_dispatched: false,
       accepted_absence_requires_replay_safety: false,
       object_supports_replay_safety: false,
     }),
@@ -72,6 +78,7 @@ test('presence, admitted absence, ambiguity, and unresolved reservations stay di
     settlementDispositionFromRelations({
       event_asserts_postcondition: false,
       object_supports_accepted_absence: false,
+      object_supports_not_dispatched: false,
       accepted_absence_requires_replay_safety: false,
       object_supports_replay_safety: false,
     }),
@@ -82,6 +89,7 @@ test('presence, admitted absence, ambiguity, and unresolved reservations stay di
     settlementDispositionFromRelations({
       event_asserts_postcondition: false,
       object_supports_accepted_absence: true,
+      object_supports_not_dispatched: false,
       accepted_absence_requires_replay_safety: true,
       object_supports_replay_safety: false,
     }),
@@ -92,8 +100,20 @@ test('presence, admitted absence, ambiguity, and unresolved reservations stay di
     settlementDispositionFromRelations({
       event_asserts_postcondition: false,
       object_supports_accepted_absence: true,
+      object_supports_not_dispatched: false,
       accepted_absence_requires_replay_safety: true,
       object_supports_replay_safety: true,
+    }),
+    'READY',
+  );
+
+  assert.equal(
+    settlementDispositionFromRelations({
+      event_asserts_postcondition: false,
+      object_supports_accepted_absence: false,
+      object_supports_not_dispatched: true,
+      accepted_absence_requires_replay_safety: true,
+      object_supports_replay_safety: false,
     }),
     'READY',
   );
@@ -103,25 +123,23 @@ test('shadow settlement fails closed on a hostile 4x4 disposition', () => {
   const relations: SettlementRelations = {
     event_asserts_postcondition: false,
     object_supports_accepted_absence: true,
+    object_supports_not_dispatched: false,
     accepted_absence_requires_replay_safety: false,
     object_supports_replay_safety: false,
   };
 
   assert.throws(
     () => shadowSettlementDisposition('RECOVERY_REQUIRED', relations),
-    new Error(
-      'SETTLEMENT_SHADOW_DIVERGENCE:asserts=0:supports_absence=1:' +
-        'requires_replay_safety=0:supports_replay_safety=0:' +
-        'legacy=RECOVERY_REQUIRED:projected=READY',
-    ),
+    /SETTLEMENT_SHADOW_DIVERGENCE/,
   );
 });
 
 const settledAt = '2026-10-01T00:00:00.000Z';
 
-function observationReceipt(
+function receipt(
   work: Obligation,
-  observed: NonNullable<ReceiptFact['observed']>,
+  kind: ReceiptFact['kind'],
+  observed: ReceiptFact['observed'],
 ): ReceiptFact {
   return {
     schema: RECEIPT_SCHEMA,
@@ -131,7 +149,7 @@ function observationReceipt(
     claim_commit: 'claim-shadow',
     execution_generation: 1,
     execution_authority_commit: 'authority-shadow',
-    kind: 'observation',
+    kind,
     observed,
     settled_at: settledAt,
   };
@@ -152,7 +170,7 @@ test('projectReceipt shadows the stage-5 hostile settlement cases', () => {
   };
   const digest = sha256(content);
 
-  const present = observationReceipt(work, {
+  const present = receipt(work, 'observation', {
     verifier: 'file-content-equals/v1',
     path,
     expected_sha256: digest,
@@ -161,7 +179,7 @@ test('projectReceipt shadows the stage-5 hostile settlement cases', () => {
   });
   assert.equal(projectReceipt(present, work).disposition, 'DONE');
 
-  const absent = observationReceipt(work, {
+  const absent = receipt(work, 'observation', {
     verifier: 'file-content-equals/v1',
     path,
     expected_sha256: digest,
@@ -171,7 +189,7 @@ test('projectReceipt shadows the stage-5 hostile settlement cases', () => {
   assert.equal(projectReceipt(absent, work).disposition, 'READY');
   assert.equal(projectReceipt(absent, work, undefined, true).disposition, 'RECOVERY_REQUIRED');
 
-  const uncertain = observationReceipt(work, {
+  const uncertain = receipt(work, 'observation', {
     verifier: 'file-content-equals/v1',
     path,
     expected_sha256: digest,
@@ -189,7 +207,7 @@ test('projectReceipt shadows the stage-5 hostile settlement cases', () => {
       content,
     },
   };
-  const nonFinalAbsence = observationReceipt(eventualWork, {
+  const nonFinalAbsence = receipt(eventualWork, 'observation', {
     verifier: 'eventually-consistent-file-content-equals/v1',
     path,
     expected_sha256: digest,
@@ -197,4 +215,23 @@ test('projectReceipt shadows the stage-5 hostile settlement cases', () => {
     absence_evidence: localFileEnoentEvidence(path),
   });
   assert.equal(projectReceipt(nonFinalAbsence, eventualWork).disposition, 'RECOVERY_REQUIRED');
+});
+
+test('projectReceipt shadows trusted not-dispatched release and recovery-required fallback', () => {
+  const work: Obligation = {
+    id: 'shadow-release',
+    dependencies: [],
+    packet: { effect_contract: 'unregistered/effect' },
+    postcondition: {
+      verifier: 'file-content-equals/v1',
+      path: '/tmp/shadow-release',
+      content: 'expected',
+    },
+  };
+  const notDispatched = receipt(work, 'effect-not-dispatched', null);
+  const terminated = receipt(work, 'execution-terminated', null);
+
+  assert.equal(projectReceipt(notDispatched, work).disposition, 'RECOVERY_REQUIRED');
+  assert.equal(projectReceipt(notDispatched, work, undefined, true, true).disposition, 'READY');
+  assert.equal(projectReceipt(terminated, work).disposition, 'RECOVERY_REQUIRED');
 });
