@@ -55,6 +55,7 @@
     "test:semantic-scaling-behavioral": "node --experimental-strip-types --test experiments/semantic-scaling/conflicting-effect-regression.test.ts",
     "test:github-comment-attestation": "node --experimental-strip-types --test test/github-comment-attestation.test.ts",
     "verify:source-profile": "node --experimental-strip-types scripts/verify-source-profile.ts",
+    "verify:4x4-source-contract": "node --experimental-strip-types scripts/verify-4x4-source-contract.ts",
     "verify:base-tests": "node --experimental-strip-types scripts/replay-base-tests.ts"
   },
   "devDependencies": {
