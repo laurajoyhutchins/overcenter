@@ -151,17 +151,11 @@ test('4x4 extractor rejects semantic mutations to admission and release', () => 
     /FOUR_BY_FOUR_SOURCE_CALL_MISSING:admission:mutationAdmitted/,
   );
 
-  const releaseMutation = original.replace(
-    /'effect-release\.json'\s*:/,
-    "'unknown-release.json':",
-  );
+  const releaseMutation = original.replace(/'effect-release\.json'\s*:/, "'unknown-release.json':");
   assert.notEqual(releaseMutation, original);
   assert.throws(
     () =>
-      assertExtractedFourByFourContract(
-        extractFourByFourSourceContract(releaseMutation),
-        expected,
-      ),
+      assertExtractedFourByFourContract(extractFourByFourSourceContract(releaseMutation), expected),
     /FOUR_BY_FOUR_SOURCE_LITERAL_MISSING:release:effect-release\.json/,
   );
 });

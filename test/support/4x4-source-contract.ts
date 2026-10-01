@@ -79,9 +79,7 @@ export function extractFourByFourSourceContract(sourceText: string): ExtractedSo
   );
   if (kernels.length !== 1) throw new Error('FOUR_BY_FOUR_SOURCE_KERNEL_SHAPE_UNKNOWN');
   const methods = kernels[0]!.members.filter(ts.isMethodDeclaration);
-  const byName = new Map(
-    methods.map((method) => [method.name.getText(source), method] as const),
-  );
+  const byName = new Map(methods.map((method) => [method.name.getText(source), method] as const));
   const expectedSymbols = {
     admission: 'beginEffect',
     release: 'releaseEffectReservation',
@@ -129,9 +127,7 @@ export function assertExtractedFourByFourContract(
 }
 
 export function loadFourByFourSourceContract(root = process.cwd()): SourceContract {
-  return JSON.parse(
-    readFileSync(resolve(root, CONTRACT_PATH), 'utf8'),
-  ) as SourceContract;
+  return JSON.parse(readFileSync(resolve(root, CONTRACT_PATH), 'utf8')) as SourceContract;
 }
 
 export function verifyFourByFourSourceContract(root = process.cwd()): void {
