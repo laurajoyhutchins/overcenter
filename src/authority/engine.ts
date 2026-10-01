@@ -52,7 +52,11 @@ import {
 import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
 import { advanceProjection, projectReceipt, replayProjection } from './replay.ts';
 import type { Projection } from './replay.ts';
-import { effectAdmissionDecision, projectExecutionAuthority } from './transaction-admission.ts';
+import {
+  effectAdmissionDecision,
+  mutationAdmitted,
+  projectExecutionAuthority,
+} from './transaction-admission.ts';
 import {
   effectAdapterCapabilities,
   GITHUB_SOURCE_INTEGRATION_EFFECT,
@@ -355,11 +359,16 @@ export class KernelCore {
         permit,
         this.#capabilityDigest(permit.execution_capability),
       );
-      const admission = effectAdmissionDecision({
+      const admissionState = {
         current_authority,
         exact_revision,
         unresolved_effect: history.unresolvedReservationsByRun.has(run.id),
-      });
+      };
+      const admission = effectAdmissionDecision(admissionState);
+      // Preserve the established TCB proof surface as a projection only.
+      if (mutationAdmitted(admissionState) !== admission.permits) {
+        throw new Error('EFFECT_ADMISSION_PROJECTION_DIVERGENCE');
+      }
       if (admission.denial === 'STALE_EXECUTION_GENERATION') {
         throw new Error(admission.denial);
       }

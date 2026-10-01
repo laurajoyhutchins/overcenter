@@ -463,8 +463,7 @@ function wrapperIsSound(engine: string): boolean {
       'projectExecutionAuthority',
       'current_authority',
       'exact_revision',
-      'effectAdmissionDecision',
-      'admission.permits',
+      'mutationAdmitted',
       'unresolvedReservationsByRun',
     ].every((token) => text.includes(token));
   });
