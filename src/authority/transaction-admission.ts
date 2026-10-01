@@ -45,9 +45,7 @@ export function effectReservationAuthorityError(
   unresolvedEffect: boolean,
 ): EffectReservationAuthorityError {
   if (fact.run_id !== run.id) return 'EFFECT_RESERVATION_RUN_MISMATCH';
-  if (fact.obligation_id !== run.obligation_id) {
-    return 'EFFECT_RESERVATION_OBLIGATION_MISMATCH';
-  }
+  if (fact.obligation_id !== run.obligation_id) return 'EFFECT_RESERVATION_OBLIGATION_MISMATCH';
   if (
     fact.execution_generation !== run.execution_generation ||
     fact.execution_authority_commit !== run.execution_authority_commit
@@ -129,27 +127,9 @@ export function executionAuthorityAdvanceError(
   return null;
 }
 
-export type EffectAdmissionState = ExecutionAuthorityProjection & {
-  unresolved_effect: boolean;
-};
+export type EffectAdmissionState = ExecutionAuthorityProjection & { unresolved_effect: boolean };
 
-export type EffectAdmissionDenial = 'STALE_EXECUTION_GENERATION' | 'UNRESOLVED_EFFECT' | null;
+export const effectAdmissionDecision = (s: EffectAdmissionState) =>
+  s.current_authority && s.exact_revision && !s.unresolved_effect;
 
-export interface EffectAdmissionDecision {
-  readonly permits: boolean;
-  readonly denial: EffectAdmissionDenial;
-}
-
-export function effectAdmissionDecision(state: EffectAdmissionState): EffectAdmissionDecision {
-  if (!state.current_authority || !state.exact_revision) {
-    return { permits: false, denial: 'STALE_EXECUTION_GENERATION' };
-  }
-  if (state.unresolved_effect) {
-    return { permits: false, denial: 'UNRESOLVED_EFFECT' };
-  }
-  return { permits: true, denial: null };
-}
-
-// Compatibility projection only. The 4×4 permits decision above owns admission semantics.
-export const mutationAdmitted = (state: EffectAdmissionState) =>
-  effectAdmissionDecision(state).permits;
+export { effectAdmissionDecision as mutationAdmitted };

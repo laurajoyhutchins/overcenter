@@ -1,29 +1,15 @@
 {
   "schema": "overcenter-4x4-source-contract/v1",
-  "nouns": [
-    "Object",
-    "Event",
-    "Proposition",
-    "Coordinate"
-  ],
-  "verbs": [
-    "permits",
-    "asserts",
-    "supports",
-    "requires"
-  ],
+  "nouns": ["Object", "Event", "Proposition", "Coordinate"],
+  "verbs": ["permits", "asserts", "supports", "requires"],
   "source": {
     "path": "src/authority/engine.ts",
-    "blob_sha": "3558a0e52b5c0b21ce78899331c6c190047c7a24"
+    "blob_sha": "470a3992d40ccb4911b53767106ecab28a26921a"
   },
   "roles": {
     "admission": {
       "symbol": "beginEffect",
-      "calls": [
-        "projectExecutionAuthority",
-        "mutationAdmitted",
-        "this.#store.append"
-      ],
+      "calls": ["projectExecutionAuthority", "mutationAdmitted", "this.#store.append"],
       "literals": [
         "STALE_EXECUTION_GENERATION",
         "RUN_NOT_EXECUTING",
@@ -53,15 +39,8 @@
     },
     "settlement": {
       "symbol": "#settleWithoutObservation",
-      "calls": [
-        "this.#requireExecutionPermit",
-        "projectReceipt",
-        "this.#store.append"
-      ],
-      "literals": [
-        "SOURCE_SETTLEMENT_WITHOUT_RESERVED_EFFECT",
-        "receipt.json"
-      ]
+      "calls": ["this.#requireExecutionPermit", "projectReceipt", "this.#store.append"],
+      "literals": ["SOURCE_SETTLEMENT_WITHOUT_RESERVED_EFFECT", "receipt.json"]
     }
   }
 }

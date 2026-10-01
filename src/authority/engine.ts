@@ -52,11 +52,7 @@ import {
 import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
 import { advanceProjection, projectReceipt, replayProjection } from './replay.ts';
 import type { Projection } from './replay.ts';
-import {
-  effectAdmissionDecision,
-  mutationAdmitted,
-  projectExecutionAuthority,
-} from './transaction-admission.ts';
+import { mutationAdmitted, projectExecutionAuthority } from './transaction-admission.ts';
 import {
   effectAdapterCapabilities,
   GITHUB_SOURCE_INTEGRATION_EFFECT,
@@ -354,34 +350,25 @@ export class KernelCore {
       const { history, project } = this.#historicalProjection(head);
       const run = history.runs.get(permit.id);
       if (!run) throw new Error('UNKNOWN_RUN');
-      const { current_authority, exact_revision } = projectExecutionAuthority(
+      const authority = projectExecutionAuthority(
         run,
         permit,
         this.#capabilityDigest(permit.execution_capability),
       );
-      const admissionState = {
-        current_authority,
-        exact_revision,
-        unresolved_effect: history.unresolvedReservationsByRun.has(run.id),
-      };
-      const admission = effectAdmissionDecision(admissionState);
-      // Preserve the established TCB proof surface as a projection only.
-      if (mutationAdmitted(admissionState) !== admission.permits) {
-        throw new Error('EFFECT_ADMISSION_PROJECTION_DIVERGENCE');
-      }
-      if (admission.denial === 'STALE_EXECUTION_GENERATION') {
-        throw new Error(admission.denial);
+      if (!authority.current_authority || !authority.exact_revision) {
+        throw new Error('STALE_EXECUTION_GENERATION');
       }
       const lifecycle = project.lifecycles.get(run.obligation_id);
       if (lifecycle?.run?.id !== run.id || lifecycle.status !== 'EXECUTING') {
         throw new Error('RUN_NOT_EXECUTING');
       }
-      if (!admission.permits) {
-        if (admission.denial !== 'UNRESOLVED_EFFECT') {
-          throw new Error('EFFECT_ADMISSION_DENIED');
-        }
-        throw new Error(admission.denial);
-      }
+      if (
+        !mutationAdmitted({
+          ...authority,
+          unresolved_effect: history.unresolvedReservationsByRun.has(run.id),
+        })
+      )
+        throw new Error('UNRESOLVED_EFFECT');
 
       const fact: EffectReservationFact = {
         schema: EFFECT_RESERVATION_SCHEMA,
