@@ -8,13 +8,6 @@ FORMAL="$ROOT/formal"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/overcenter-research/tla"
 JAR="${TLA2TOOLS_JAR:-$CACHE_DIR/tla2tools-${TLA_VERSION}.jar}"
 
-LEAN_VERSION="4.23.0"
-LEAN_SHA256="ecd028d6f642b61b451c8687aeeb24dd53789fbfdcb7d4adb8f5cf60eb2022ba"
-LEAN_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/overcenter-research/lean"
-LEAN_ARCHIVE="$LEAN_CACHE_DIR/lean-${LEAN_VERSION}-linux.tar.zst"
-LEAN_ROOT="$LEAN_CACHE_DIR/lean-${LEAN_VERSION}-linux"
-LEAN_BIN="$LEAN_ROOT/bin/lean"
-
 mkdir -p "$CACHE_DIR"
 
 sha256() {
@@ -42,41 +35,6 @@ if [[ "$actual_sha" != "$TLA_SHA256" ]]; then
   echo "actual:   $actual_sha" >&2
   exit 2
 fi
-
-check_lean() {
-  mkdir -p "$LEAN_CACHE_DIR"
-  if [[ ! -f "$LEAN_ARCHIVE" ]]; then
-    curl -fsSL --retry 3 --retry-delay 2 \
-      -o "$LEAN_ARCHIVE" \
-      "https://github.com/leanprover/lean4/releases/download/v${LEAN_VERSION}/lean-${LEAN_VERSION}-linux.tar.zst"
-  fi
-
-  local actual_sha
-  actual_sha="$(sha256 "$LEAN_ARCHIVE")"
-  if [[ "$actual_sha" != "$LEAN_SHA256" ]]; then
-    echo "unexpected Lean archive sha256" >&2
-    echo "expected: $LEAN_SHA256" >&2
-    echo "actual:   $actual_sha" >&2
-    exit 2
-  fi
-
-  if [[ ! -x "$LEAN_BIN" ]]; then
-    rm -rf "$LEAN_ROOT"
-    tar --zstd -xf "$LEAN_ARCHIVE" -C "$LEAN_CACHE_DIR"
-  fi
-  "$LEAN_BIN" --version | grep -q "version ${LEAN_VERSION}"
-
-  if grep -nE '\b(sorry|admit|sorryAx)\b' "$FORMAL/FourByFourEffect.lean"; then
-    echo "Lean proof contains an admitted theorem" >&2
-    exit 1
-  fi
-
-  local lean_out
-  lean_out="$(mktemp -d)"
-  "$LEAN_BIN" -o "$lean_out/FourByFourEffect.olean" "$FORMAL/FourByFourEffect.lean"
-  rm -rf "$lean_out"
-  echo "Lean 4x4 refinement proof checked with no admitted theorems."
-}
 
 run_tlc() {
   local module="$1"
@@ -152,8 +110,6 @@ check_expected_temporal_failure() {
   grep -Em1 "Temporal propert(y|ies).*violated|Property.*violated" "$log"
 }
 
-check_lean
-
 check_good "TransitionKernel" "TransitionKernel.cfg" "authoritative kernel"
 check_expected_failure "TransitionKernel" "BrokenNoFence.cfg" "MutationAuthoritySafety"
 check_expected_failure "TransitionKernel" "BrokenNoRevision.cfg" "ExactRevisionEvidence"
@@ -164,10 +120,6 @@ check_expected_failure "TransitionKernel" "BrokenNoEvidence.cfg" "NoFalseDone"
 check_good "ResourceContainment" "ResourceContainment.cfg" "resource containment protocol"
 check_expected_failure "ResourceContainment" "BrokenResourceIdentity.cfg" "ExactLeafAuthority"
 check_expected_failure "ResourceContainment" "BrokenResourceEarlyEvidence.cfg" "FinalEvidenceSafety"
-
-check_good "FourByFourEffect" "FourByFourEffect.cfg" "4x4 effect lifecycle refinement"
-check_expected_failure "FourByFourEffect" "BrokenRecoveryCertainty.cfg" "RecoveryCertainty"
-check_expected_failure "FourByFourEffect" "BrokenReservationIsAuthority.cfg" "ReservationExistenceIsAuthority"
 
 check_good "AsyncEffectKernel" "AsyncEffectKernel.cfg" "asynchronous effect finality kernel"
 check_expected_failure "AsyncEffectKernel" "BrokenAsyncNoTerminality.cfg" "NoDoubleExecution"
@@ -184,4 +136,4 @@ check_expected_temporal_failure "SchedulerLiveness" "SchedulerFreshFlood.cfg"
 check_good "SchedulerServiceAge" "SchedulerServiceAge.cfg" "service-age scheduler liveness"
 check_expected_temporal_failure "SchedulerServiceAge" "BrokenServiceAgeNonMonotone.cfg"
 
-echo "Lean and TLA+ safety and conditional-liveness models, including all negative controls, behaved as expected."
+echo "TLA+ safety and conditional-liveness models, including all negative controls, behaved as expected."

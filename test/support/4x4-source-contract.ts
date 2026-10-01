@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import * as ts from 'typescript';
 
 export const FOUR_BY_FOUR_NOUNS = ['Object', 'Event', 'Proposition', 'Coordinate'] as const;
@@ -32,6 +31,7 @@ export interface ExtractedSourceContract {
 }
 
 const ROLE_NAMES = ['admission', 'release', 'settlement'] as const;
+const CONTRACT_PATH = 'docs/migrations/4x4-strangler/formal/source-contract.json';
 
 function functionLike(node: ts.Node): boolean {
   return (
@@ -130,7 +130,7 @@ export function assertExtractedFourByFourContract(
 
 export function loadFourByFourSourceContract(root = process.cwd()): SourceContract {
   return JSON.parse(
-    readFileSync(resolve(root, 'formal/4x4-source-contract.json'), 'utf8'),
+    readFileSync(resolve(root, CONTRACT_PATH), 'utf8'),
   ) as SourceContract;
 }
 
@@ -147,12 +147,4 @@ export function verifyFourByFourSourceContract(root = process.cwd()): void {
   }
   const sourceText = readFileSync(resolve(root, contract.source.path), 'utf8');
   assertExtractedFourByFourContract(extractFourByFourSourceContract(sourceText), contract);
-}
-
-if (
-  process.argv[1] &&
-  resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))
-) {
-  verifyFourByFourSourceContract();
-  console.log('4x4 production source contract verified.');
 }
