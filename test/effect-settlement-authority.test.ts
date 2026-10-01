@@ -9,10 +9,9 @@ import { localFileEnoentEvidence } from '../src/observation/evidence.ts';
 
 import {
   settlementDispositionFromRelations,
-  shadowSettlementDisposition,
   type SettlementDisposition,
   type SettlementRelations,
-} from '../src/authority/settlement-shadow.ts';
+} from '../src/authority/settlement.ts';
 
 const bools = [false, true] as const;
 
@@ -28,7 +27,7 @@ function legacyDisposition(relations: SettlementRelations): SettlementDispositio
   return 'RECOVERY_REQUIRED';
 }
 
-test('4x4 settlement matches the legacy disposition truth table', () => {
+test('4x4 settlement owns the proven disposition truth table', () => {
   for (const asserts of bools) {
     for (const supportsAbsence of bools) {
       for (const supportsNotDispatched of bools) {
@@ -43,7 +42,6 @@ test('4x4 settlement matches the legacy disposition truth table', () => {
             };
             const expected = legacyDisposition(relations);
             assert.equal(settlementDispositionFromRelations(relations), expected);
-            assert.equal(shadowSettlementDisposition(expected, relations), expected);
           }
         }
       }
@@ -119,21 +117,6 @@ test('presence, admitted absence, ambiguity, unresolved reservations, and releas
   );
 });
 
-test('shadow settlement fails closed on a hostile 4x4 disposition', () => {
-  const relations: SettlementRelations = {
-    event_asserts_postcondition: false,
-    object_supports_accepted_absence: true,
-    object_supports_not_dispatched: false,
-    accepted_absence_requires_replay_safety: false,
-    object_supports_replay_safety: false,
-  };
-
-  assert.throws(
-    () => shadowSettlementDisposition('RECOVERY_REQUIRED', relations),
-    /SETTLEMENT_SHADOW_DIVERGENCE/,
-  );
-});
-
 const settledAt = '2026-10-01T00:00:00.000Z';
 
 function receipt(
@@ -155,7 +138,7 @@ function receipt(
   };
 }
 
-test('projectReceipt shadows the stage-5 hostile settlement cases', () => {
+test('projectReceipt preserves the stage-5 hostile settlement cases', () => {
   const path = '/tmp/shadow-settlement';
   const content = 'expected';
   const work: Obligation = {
@@ -217,7 +200,7 @@ test('projectReceipt shadows the stage-5 hostile settlement cases', () => {
   assert.equal(projectReceipt(nonFinalAbsence, eventualWork).disposition, 'RECOVERY_REQUIRED');
 });
 
-test('projectReceipt shadows trusted not-dispatched release and recovery-required fallback', () => {
+test('projectReceipt makes trusted not-dispatched release authoritative without weakening recovery', () => {
   const work: Obligation = {
     id: 'shadow-release',
     dependencies: [],

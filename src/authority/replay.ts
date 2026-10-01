@@ -26,7 +26,7 @@ import type {
 import { validateGraph } from '../graph/topology.ts';
 import { settlementSemantics } from '../semantics.ts';
 import { reservedEffectReleaseWitnessSafe, reservedEffectReplaySafe } from '../effect-adapter.ts';
-import { shadowSettlementDisposition } from './settlement-shadow.ts';
+import { settlementDispositionFromRelations } from './settlement.ts';
 import {
   effectReleaseAuthorityError,
   effectReservationAuthorityError,
@@ -86,13 +86,7 @@ export function projectReceipt(
       policy.acceptedAbsenceEvidenceKinds.includes(absenceEvidence.kind);
     const supportsReplaySafety =
       absenceEvidence !== null && reservedEffectReplaySafe(work, absenceEvidence);
-    const replaySafe = !unresolvedEffect || supportsReplaySafety;
-    const legacyDisposition = verified
-      ? 'DONE'
-      : acceptedAbsence && replaySafe
-        ? 'READY'
-        : 'RECOVERY_REQUIRED';
-    disposition = shadowSettlementDisposition(legacyDisposition, {
+    disposition = settlementDispositionFromRelations({
       event_asserts_postcondition: verified,
       object_supports_accepted_absence: acceptedAbsence,
       object_supports_not_dispatched: false,
@@ -106,8 +100,7 @@ export function projectReceipt(
     } else {
       const supportsNotDispatched =
         fact.kind === 'effect-not-dispatched' && notDispatchedRelease;
-      const legacyDisposition = supportsNotDispatched ? 'READY' : 'RECOVERY_REQUIRED';
-      disposition = shadowSettlementDisposition(legacyDisposition, {
+      disposition = settlementDispositionFromRelations({
         event_asserts_postcondition: false,
         object_supports_accepted_absence: false,
         object_supports_not_dispatched: supportsNotDispatched,

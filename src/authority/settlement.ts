@@ -23,25 +23,3 @@ export function settlementDispositionFromRelations(
   }
   return 'RECOVERY_REQUIRED';
 }
-
-export function shadowSettlementDisposition(
-  legacy: SettlementDisposition,
-  relations: SettlementRelations,
-): SettlementDisposition {
-  const projected = settlementDispositionFromRelations(relations);
-  if (legacy !== projected) {
-    throw new Error(
-      [
-        'SETTLEMENT_SHADOW_DIVERGENCE',
-        `asserts=${Number(relations.event_asserts_postcondition)}`,
-        `supports_absence=${Number(relations.object_supports_accepted_absence)}`,
-        `supports_not_dispatched=${Number(relations.object_supports_not_dispatched)}`,
-        `requires_replay_safety=${Number(relations.accepted_absence_requires_replay_safety)}`,
-        `supports_replay_safety=${Number(relations.object_supports_replay_safety)}`,
-        `legacy=${legacy}`,
-        `projected=${projected}`,
-      ].join(':'),
-    );
-  }
-  return legacy;
-}
