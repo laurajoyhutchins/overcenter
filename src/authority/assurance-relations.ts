@@ -1,18 +1,45 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { isDeepStrictEqual } from 'node:util';
 
-import {
-  deriveAssuranceChangePlan,
-  type AssuranceChangePlan,
-} from '../architecture/change-planner.ts';
 import { deriveAssurancePropertyTrustRoots } from '../architecture/tcb.ts';
 
 export const ASSURANCE_RELATION_COORDINATE = 'architecture/current' as const;
+
+export interface AssuranceChangePlan {
+  properties: string[];
+  effects: string[];
+  obligations: string[];
+  evidence: Array<{
+    evidence_id: string;
+    obligation_ids: string[];
+    artifact_ids: string[];
+  }>;
+  realization_roots: Array<{
+    artifact_id: string;
+    symbol_id: string;
+    basis: 'authority' | 'capability' | 'effect';
+    requirement_id: string;
+  }>;
+}
 
 export interface PropositionSupport {
   object_id: string;
   proposition_id: string;
   coordinate: string;
+}
+
+export interface PropositionSupportExplanation {
+  proposition_id: string;
+  resolution: 'already-supported' | 'selected-evidence';
+  object_ids: string[];
+}
+
+export interface MinimumSufficientEvidenceSet {
+  coordinate: string;
+  required_propositions: string[];
+  already_supported_propositions: string[];
+  selected_object_ids: string[];
+  alternative_minimum_object_sets: string[][];
+  explanations: PropositionSupportExplanation[];
 }
 
 interface EvidenceArtifactRow {
@@ -24,38 +51,64 @@ function placeholders(values: readonly unknown[]): string {
   return values.map(() => '?').join(', ');
 }
 
-export function minimumSupportCover(
-  propositions: readonly string[],
-  rows: readonly PropositionSupport[],
-  coordinate: string,
-): string[] {
-  if (propositions.length === 0) return [];
+function compareStringSets(left: readonly string[], right: readonly string[]): number {
+  const length = Math.min(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const comparison = left[index]!.localeCompare(right[index]!);
+    if (comparison !== 0) return comparison;
+  }
+  return left.length - right.length;
+}
 
-  const required = new Set(propositions);
-  const coverage = new Map<string, Set<string>>();
-  for (const row of rows) {
-    if (row.coordinate !== coordinate || !required.has(row.proposition_id)) continue;
-    const covered = coverage.get(row.object_id) ?? new Set<string>();
-    covered.add(row.proposition_id);
-    coverage.set(row.object_id, covered);
+export function minimumSufficientEvidenceSet(
+  propositions: readonly string[],
+  availableSupports: readonly PropositionSupport[],
+  coordinate: string,
+  existingSupports: readonly PropositionSupport[] = [],
+): MinimumSufficientEvidenceSet {
+  const required = [...new Set(propositions)].sort();
+  const requiredSet = new Set(required);
+
+  const existingByProposition = new Map<string, Set<string>>();
+  for (const support of existingSupports) {
+    if (support.coordinate !== coordinate || !requiredSet.has(support.proposition_id)) continue;
+    const objects = existingByProposition.get(support.proposition_id) ?? new Set<string>();
+    objects.add(support.object_id);
+    existingByProposition.set(support.proposition_id, objects);
   }
 
-  const uncovered = propositions.filter(
+  const alreadySupported = [...existingByProposition.keys()].sort();
+  const pending = required.filter((proposition) => !existingByProposition.has(proposition));
+  const pendingSet = new Set(pending);
+
+  const coverage = new Map<string, Set<string>>();
+  for (const support of availableSupports) {
+    if (support.coordinate !== coordinate || !pendingSet.has(support.proposition_id)) continue;
+    const covered = coverage.get(support.object_id) ?? new Set<string>();
+    covered.add(support.proposition_id);
+    coverage.set(support.object_id, covered);
+  }
+
+  const uncovered = pending.filter(
     (proposition) => ![...coverage.values()].some((covered) => covered.has(proposition)),
   );
   if (uncovered.length > 0) {
-    throw new Error(`ASSURANCE_SUPPORT_INCOMPLETE:${uncovered.join(',')}`);
+    throw new Error(`ASSURANCE_SUPPORT_INCOMPLETE:${uncovered.join(',')}:coordinate=${coordinate}`);
   }
 
   const candidates = [...coverage.keys()].sort();
-  let best: string[] | null = null;
+  const minimumSets: string[][] = [];
+  let bestSize = Number.POSITIVE_INFINITY;
   const search = (index: number, selected: string[], covered: Set<string>): void => {
-    if (best && selected.length >= best.length) return;
-    if ([...required].every((proposition) => covered.has(proposition))) {
-      best = selected;
+    if (pending.every((proposition) => covered.has(proposition))) {
+      if (selected.length < bestSize) {
+        bestSize = selected.length;
+        minimumSets.length = 0;
+      }
+      if (selected.length === bestSize) minimumSets.push(selected);
       return;
     }
-    if (index >= candidates.length) return;
+    if (index >= candidates.length || selected.length >= bestSize) return;
 
     const objectId = candidates[index]!;
     search(
@@ -67,21 +120,47 @@ export function minimumSupportCover(
   };
 
   search(0, [], new Set());
-  if (!best) throw new Error('ASSURANCE_SUPPORT_INCOMPLETE');
-  return best;
+  if (minimumSets.length === 0) {
+    throw new Error(`ASSURANCE_SUPPORT_INCOMPLETE:${pending.join(',')}:coordinate=${coordinate}`);
+  }
+  minimumSets.sort(compareStringSets);
+  const selected = minimumSets[0] ?? [];
+
+  const explanations = required.map((proposition): PropositionSupportExplanation => {
+    const existing = existingByProposition.get(proposition);
+    if (existing) {
+      return {
+        proposition_id: proposition,
+        resolution: 'already-supported',
+        object_ids: [...existing].sort(),
+      };
+    }
+    return {
+      proposition_id: proposition,
+      resolution: 'selected-evidence',
+      object_ids: selected
+        .filter((objectId) => coverage.get(objectId)?.has(proposition))
+        .sort(),
+    };
+  });
+
+  return {
+    coordinate,
+    required_propositions: required,
+    already_supported_propositions: alreadySupported,
+    selected_object_ids: selected,
+    alternative_minimum_object_sets: minimumSets.slice(1),
+    explanations,
+  };
 }
 
-export function assuranceChangePlanFromRelations(
-  db: DatabaseSync,
-  propertyId: string,
-  coordinate = ASSURANCE_RELATION_COORDINATE,
-): AssuranceChangePlan {
+export function assuranceRequirementClosure(db: DatabaseSync, propertyId: string): string[] {
   const known = db
     .prepare('SELECT property_id FROM assurance_property WHERE property_id = ?')
     .get(propertyId) as { property_id: string } | undefined;
   if (!known) throw new Error(`ASSURANCE_PROPERTY_UNKNOWN:${propertyId}`);
 
-  const closure = (
+  return (
     db
       .prepare(`
         WITH RECURSIVE
@@ -103,9 +182,29 @@ export function assuranceChangePlanFromRelations(
           UNION
 
           SELECT
-            'property:' || property_id,
-            'proof:' || property_id || ':' || evidence_id
-          FROM evidence_witnesses_assurance_property
+            'property:' || property.property_id,
+            'proof:' || property.property_id
+          FROM assurance_property AS property
+          WHERE NOT EXISTS (
+            SELECT 1 FROM assurance_property_composes_with AS composition
+            WHERE composition.property_id = property.property_id
+          )
+            AND NOT EXISTS (
+              SELECT 1 FROM assurance_property_guards_effect AS guarded
+              WHERE guarded.property_id = property.property_id
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM assurance_property_requires_authority AS authority
+              WHERE authority.property_id = property.property_id
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM assurance_property_requires_capability AS capability
+              WHERE capability.property_id = property.property_id
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM assurance_property_requires_effect_implementation AS implementation
+              WHERE implementation.property_id = property.property_id
+            )
         ),
         closure(proposition_id) AS (
           SELECT 'property:' || ?
@@ -123,7 +222,55 @@ export function assuranceChangePlanFromRelations(
       `)
       .all(propertyId) as unknown as Array<{ proposition_id: string }>
   ).map((row) => row.proposition_id);
+}
 
+function candidateSupports(db: DatabaseSync, coordinate: string): PropositionSupport[] {
+  return db
+    .prepare(`
+      SELECT
+        evidence_id AS object_id,
+        'obligation:' || obligation_id AS proposition_id,
+        ? AS coordinate
+      FROM evidence_witnesses_obligation
+
+      UNION ALL
+
+      SELECT
+        evidence_id AS object_id,
+        'proof:' || property_id AS proposition_id,
+        ? AS coordinate
+      FROM evidence_witnesses_assurance_property
+
+      ORDER BY object_id, proposition_id
+    `)
+    .all(coordinate, coordinate) as unknown as PropositionSupport[];
+}
+
+export function deriveAssuranceEvidenceFrontier(
+  db: DatabaseSync,
+  propertyId: string,
+  coordinate = ASSURANCE_RELATION_COORDINATE,
+  existingSupports: readonly PropositionSupport[] = [],
+): MinimumSufficientEvidenceSet {
+  const closure = assuranceRequirementClosure(db, propertyId);
+  const requiredProofs = closure.filter(
+    (proposition) => proposition.startsWith('obligation:') || proposition.startsWith('proof:'),
+  );
+  return minimumSufficientEvidenceSet(
+    requiredProofs,
+    candidateSupports(db, coordinate),
+    coordinate,
+    existingSupports,
+  );
+}
+
+export function deriveAssuranceChangePlan(
+  db: DatabaseSync,
+  propertyId: string,
+  coordinate = ASSURANCE_RELATION_COORDINATE,
+  existingSupports: readonly PropositionSupport[] = [],
+): AssuranceChangePlan {
+  const closure = assuranceRequirementClosure(db, propertyId);
   const properties = closure
     .filter((proposition) => proposition.startsWith('property:'))
     .map((proposition) => proposition.slice('property:'.length));
@@ -133,7 +280,6 @@ export function assuranceChangePlanFromRelations(
   const obligations = obligationPropositions.map((proposition) =>
     proposition.slice('obligation:'.length),
   );
-  const proofPropositions = closure.filter((proposition) => proposition.startsWith('proof:'));
 
   const effects = (
     db
@@ -146,32 +292,16 @@ export function assuranceChangePlanFromRelations(
       .all(...properties) as unknown as Array<{ effect_id: string }>
   ).map((row) => row.effect_id);
 
-  const supports = db
-    .prepare(`
-      SELECT
-        evidence_id AS object_id,
-        'obligation:' || obligation_id AS proposition_id,
-        ? AS coordinate
-      FROM evidence_witnesses_obligation
-
-      UNION ALL
-
-      SELECT
-        evidence_id AS object_id,
-        'proof:' || property_id || ':' || evidence_id AS proposition_id,
-        ? AS coordinate
-      FROM evidence_witnesses_assurance_property
-
-      ORDER BY object_id, proposition_id
-    `)
-    .all(coordinate, coordinate) as unknown as PropositionSupport[];
-
-  const selectedEvidence = [
-    ...new Set([
-      ...minimumSupportCover(obligationPropositions, supports, coordinate),
-      ...minimumSupportCover(proofPropositions, supports, coordinate),
-    ]),
-  ].sort();
+  const supports = candidateSupports(db, coordinate);
+  const frontier = minimumSufficientEvidenceSet(
+    closure.filter(
+      (proposition) => proposition.startsWith('obligation:') || proposition.startsWith('proof:'),
+    ),
+    supports,
+    coordinate,
+    existingSupports,
+  );
+  const selectedEvidence = frontier.selected_object_ids;
 
   const witnessRows =
     selectedEvidence.length === 0
@@ -224,16 +354,4 @@ export function assuranceChangePlanFromRelations(
     evidence,
     realization_roots: realizationRoots,
   };
-}
-
-export function shadowAssuranceChangePlan(
-  db: DatabaseSync,
-  propertyId: string,
-): AssuranceChangePlan {
-  const legacy = deriveAssuranceChangePlan(db, propertyId);
-  const projected = assuranceChangePlanFromRelations(db, propertyId);
-  if (!isDeepStrictEqual(projected, legacy)) {
-    throw new Error(`ASSURANCE_PLANNER_SHADOW_DIVERGENCE:${propertyId}`);
-  }
-  return legacy;
 }
