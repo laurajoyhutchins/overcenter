@@ -123,10 +123,11 @@ test('crash-style recovery preserves unresolved denial after authority reacquisi
     f.kernel.recoverInterrupted(f.permit, { reason: 'worker-crash' });
     const reacquired = f.kernel.acquireExecution(f.permit.id);
     const result = shadowEffectAdmission(f.history(), reacquired);
-    assert.equal(result.lifecycle_executing, true);
+    assert.equal(result.lifecycle_executing, false);
     assert.equal(result.legacy, false);
     assert.equal(result.permits, false);
     assert.equal(result.projected_state.unresolved_effect, true);
+    assert.throws(() => f.kernel.beginEffect(reacquired), /RUN_NOT_EXECUTING/);
   } finally {
     f.close();
   }
