@@ -93,13 +93,19 @@ function methodFacts(source: SourceFile, method: Node): RoleFacts {
 }
 
 function extractFromSource(source: SourceFile): ExtractedSourceContract {
-  const kernels = source.statements.filter(
-    (node) => isClassDeclaration(node) && node.name?.text === 'KernelCore',
-  );
-  if (kernels.length !== 1) throw new Error('FOUR_BY_FOUR_SOURCE_KERNEL_SHAPE_UNKNOWN');
-  const kernel = kernels[0]!;
-  const methods = kernel.members.filter(isMethodDeclaration);
-  const byName = new Map(methods.map((method) => [method.name.getText(source), method] as const));
+  let kernel: Node | null = null;
+  for (const statement of source.statements) {
+    if (!isClassDeclaration(statement) || statement.name?.text !== 'KernelCore') continue;
+    if (kernel !== null) throw new Error('FOUR_BY_FOUR_SOURCE_KERNEL_SHAPE_UNKNOWN');
+    kernel = statement;
+  }
+  if (kernel === null || !isClassDeclaration(kernel)) {
+    throw new Error('FOUR_BY_FOUR_SOURCE_KERNEL_SHAPE_UNKNOWN');
+  }
+  const byName = new Map<string, Node>();
+  for (const member of kernel.members) {
+    if (isMethodDeclaration(member)) byName.set(member.name.getText(source), member);
+  }
   const expectedSymbols = {
     admission: 'beginEffect',
     release: 'releaseEffectReservation',
