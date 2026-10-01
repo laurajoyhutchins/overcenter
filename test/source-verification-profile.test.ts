@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
+// The claim's source SHA is the immutable profile selector.
+
 const profileModule = await import('../src/source/source-verification-profile.ts').catch(
   () => null,
 );
