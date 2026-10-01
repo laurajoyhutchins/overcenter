@@ -61,7 +61,7 @@ The unresolved-event query intentionally matches the existing effect-admission p
 Local evidence on Node 22.16.0:
 
 - `node --experimental-strip-types --test test/sqlite-calculus.test.ts`: 9/9 pass.
-- `node --experimental-strip-types experiments/sqlite-4x4-calculus/benchmark.ts`: 5,000 rows / 64 Coordinates / 40 iterations; SQLite 3.812 ms vs projection-style TypeScript 15.001 ms, 3.93× in this run. This is directional evidence, not a performance threshold.
+- `node --experimental-strip-types test/benchmarks/sqlite-4x4-calculus.ts`: 5,000 rows / 64 Coordinates / 40 iterations; SQLite 3.812 ms vs projection-style TypeScript 15.001 ms, 3.93× in this run. This is directional evidence, not a performance threshold.
 
 Hostile cases cover cyclic requirements, coordinate-mismatched support, stale permissions, unresolved/released effect attempts, durable-head drift, invalid typed foreign-key edges, and reconstruction without durable-history mutation.
 
@@ -71,7 +71,7 @@ Hostile cases cover cyclic requirements, coordinate-mismatched support, stale pe
 old owner: TypeScript projection scans for deterministic relation questions
 new deterministic owner: typed SQLite materialization and indexed SQL queries
 4×4 relation/query: permits; requires closure; exact supports; stale support/permission; unresolved effect-attempt
- equivalence evidence: SQL-vs-TypeScript hostile fixture plus current unresolved-effect reservation semantics
+equivalence evidence: SQL-vs-TypeScript hostile fixture plus current unresolved-effect reservation semantics
 hostile invariant preserved: stale durable head fails closed; typed relation endpoints use foreign keys; fact history is untouched
 remaining agent judgment: none inside the six queries; production call-site transfer remains a later authority change
 ```
@@ -81,7 +81,7 @@ No TypeScript reference path is deleted in this stage. The SQL owner is shadow/e
 ## Exact-head handoff
 
 - predecessor/base refreshed to `post-4x4/04-minimum-evidence` at `719ecc178a96cf2f591edb145fce6970fa56a0ac` before mutation.
-- files changed in this stage: `src/authority/sqlite-calculus.ts`, `test/sqlite-calculus.test.ts`, `experiments/sqlite-4x4-calculus/benchmark.ts`, and this manifest.
+- files changed in this stage: `src/authority/sqlite-calculus.ts`, `test/sqlite-calculus.test.ts`, `test/benchmarks/sqlite-4x4-calculus.ts`, and this manifest.
 - semantic claim: the six deterministic calculus queries can execute from the frozen 4×4 projection in embedded SQLite without becoming durable authority or adding ontology.
 - hosted evidence: pending on the final PR #527 exact head; keep this PR draft until it passes and the exact run is attached to the PR.
 - remaining uncertainty: no production call site has transferred authority to the SQL implementation yet; this stage establishes the typed/indexed execution substrate and equivalence boundary only.
