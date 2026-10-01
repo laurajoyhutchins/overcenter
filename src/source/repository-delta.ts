@@ -91,7 +91,10 @@ export function repositoryDeltaChangedBytes(repo: string, delta: RepositoryDelta
     const bytes = (object: RepositoryDeltaObject | null): number =>
       object === null
         ? 0
-        : Number.parseInt(git(repo, ['cat-file', '-s', object.object_id]).toString('utf8').trim(), 10);
+        : Number.parseInt(
+            git(repo, ['cat-file', '-s', object.object_id]).toString('utf8').trim(),
+            10,
+          );
     return total + bytes(entry.before) + bytes(entry.after);
   }, 0);
 }
