@@ -98,8 +98,7 @@ export function projectReceipt(
     if (fact.kind === 'judgment-required') {
       disposition = 'WAITING';
     } else {
-      const supportsNotDispatched =
-        fact.kind === 'effect-not-dispatched' && notDispatchedRelease;
+      const supportsNotDispatched = fact.kind === 'effect-not-dispatched' && notDispatchedRelease;
       disposition = settlementDispositionFromRelations({
         event_asserts_postcondition: false,
         object_supports_accepted_absence: false,
