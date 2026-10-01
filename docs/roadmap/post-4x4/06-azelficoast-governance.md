@@ -50,6 +50,86 @@ Use Azelficoast as the first external falsification test without adding Pokémon
 - [ ] Shadow comparison explains every disagreement before any authority transfer.
 - [ ] Fresh exact-head evidence exists in both repositories for the tested boundary.
 
+## Initial shadow slice
+
+The first implementation keeps Azelficoast's `settle_battle_panel()` result authoritative and projects that decision into a generic, read-only 4×4 snapshot.
+
+The domain adapter binds one Coordinate to the exact Azelficoast repository revision, candidate checkpoint digest, incumbent checkpoint digest, frozen deployment routing, frozen policy, evidence schema/version, and raw-results digest. The generic evaluator then derives the shadow decision only from exact-coordinate `permits`, `asserts`, `supports`, and transitive `requires` relations.
+
+The current mapping is:
+
+```text
+Azelficoast promotion policy        Object
+candidate checkpoint               Object
+incumbent checkpoint               Object
+raw battle-result evidence         Object
+panel evaluation                   Event
+candidate promotion                Event
+playing-strength checks            Propositions
+panel completeness                 Proposition
+promotion admissibility            Proposition
+exact experiment/revision identity Coordinate
+```
+
+The adapter owns Azelficoast vocabulary. `src/governance/promotion-shadow.ts` contains no Pokémon, battle, rating, or experiment-policy semantics.
+
+Current hostile cases cover:
+
+- stale promotion permission;
+- candidate identity migration;
+- experiment/results identity migration;
+- missing or failed playing-strength evidence;
+- incomplete panel evidence;
+- a forged legacy `admitted: true` decision;
+- noncanonical external evidence schema or checkpoint identity.
+
+Every disagreement is returned explicitly with fail-closed reasons. The shadow result cannot replace Azelficoast authority in this slice.
+
+## Current handoff
+
+Implementation base at mutation start:
+
+`post-4x4/05-sqlite-calculus@865faf5e23731dd89da6f19acbb52b2df0d63540`
+
+Pre-change Stage 6 head:
+
+`5a06d814d4e05182fe71f522ec4483919a339882`
+
+External boundary inspected:
+
+`laurajoyhutchins/azelficoast@806630728b472ebaa11d5f991e72d306da90628a`
+
+Files in the initial implementation slice:
+
+- `src/governance/promotion-shadow.ts`
+- `src/integrations/azelficoast-promotion.ts`
+- `test/azelficoast-promotion-shadow.test.ts`
+- this handoff
+
+Semantic claim: the current Azelficoast candidate-promotion decision can be represented in shadow using only Object, Event, Proposition, Coordinate, permits, asserts, supports, and requires. No production authority is transferred.
+
+Local evidence before push:
+
+- strict TypeScript check using repository compiler semantics: PASS;
+- focused Node test suite: 7/7 PASS.
+
+Hosted evidence: pending the exact pushed head. Azelficoast's current main has mixed workflow history at its exact revision, so no cross-repository green claim is made here.
+
+Deletion ledger:
+
+```text
+old owner: none; Azelficoast settle_battle_panel remains authoritative
+new deterministic owner: none in this shadow stage
+4×4 relation/query: exact permit + transitive requirements satisfied by exact assertions/supports
+equivalence evidence: local shadow/hostile tests only so far
+hostile invariant preserved: stale, incomplete, ambiguous, or migrated evidence cannot permit promotion
+remaining agent judgment: none in the projected decision; authority transfer remains a later reviewed choice
+```
+
+Remaining uncertainty: fresh hosted evidence must demonstrate the exact Overcenter head and a relevant exact Azelficoast boundary before any authority transfer. The exact pushed Stage 6 head is recorded in the PR conversation after Git creates it, avoiding a self-referential commit hash in this file.
+
+Smallest next action: run the Stage 6 exact-head checks, obtain a focused Azelficoast exact-head promotion proof, then compare real promotion evidence through the shadow before considering authority transfer.
+
 ## Deletion / generation ledger
 
 Delete no Azelficoast production authority in the initial shadow slice. Record any bespoke machinery that becomes a later deletion candidate.
