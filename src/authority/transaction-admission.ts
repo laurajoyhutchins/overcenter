@@ -7,31 +7,23 @@ import type {
 } from './facts.ts';
 import type { ExecutionPermit, Run } from '../model.ts';
 
-export interface ExecutionAuthorityProjection {
-  current_authority: boolean;
-  exact_revision: boolean;
-}
-
-export function projectExecutionAuthority(
+export function executionPermits(
   run: Run,
   permit: ExecutionPermit,
   capabilitySha256: string,
-): ExecutionAuthorityProjection {
-  return {
-    current_authority:
-      permit.id === run.id &&
-      permit.obligation_id === run.obligation_id &&
-      permit.execution_generation === run.execution_generation &&
-      permit.execution_authority_commit === run.execution_authority_commit &&
-      permit.execution_capability_sha256 === run.execution_capability_sha256 &&
-      capabilitySha256 === run.execution_capability_sha256,
-    exact_revision:
-      permit.claimed_revision === run.claimed_revision &&
-      permit.claim_commit === run.claim_commit &&
-      permit.obligation_key === run.obligation_key,
-  };
+): boolean {
+  return (
+    permit.id === run.id &&
+    permit.obligation_id === run.obligation_id &&
+    permit.claimed_revision === run.claimed_revision &&
+    permit.claim_commit === run.claim_commit &&
+    permit.obligation_key === run.obligation_key &&
+    permit.execution_generation === run.execution_generation &&
+    permit.execution_authority_commit === run.execution_authority_commit &&
+    permit.execution_capability_sha256 === run.execution_capability_sha256 &&
+    capabilitySha256 === run.execution_capability_sha256
+  );
 }
-
 export type EffectReservationAuthorityError =
   | 'EFFECT_RESERVATION_RUN_MISMATCH'
   | 'EFFECT_RESERVATION_OBLIGATION_MISMATCH'
@@ -129,27 +121,27 @@ export function executionAuthorityAdvanceError(
   return null;
 }
 
-export type EffectAdmissionState = ExecutionAuthorityProjection & {
-  unresolved_effect: boolean;
-};
-
-export type EffectAdmissionDenial = 'STALE_EXECUTION_GENERATION' | 'UNRESOLVED_EFFECT' | null;
+export type EffectAdmissionDenial =
+  | 'STALE_EXECUTION_GENERATION'
+  | 'UNRESOLVED_EFFECT'
+  | null;
 
 export interface EffectAdmissionDecision {
   readonly permits: boolean;
   readonly denial: EffectAdmissionDenial;
 }
 
-export function effectAdmissionDecision(state: EffectAdmissionState): EffectAdmissionDecision {
-  if (!state.current_authority || !state.exact_revision) {
+export function effectAdmissionDecision(
+  run: Run,
+  permit: ExecutionPermit,
+  capabilitySha256: string,
+  unresolvedEffect: boolean,
+): EffectAdmissionDecision {
+  if (!executionPermits(run, permit, capabilitySha256)) {
     return { permits: false, denial: 'STALE_EXECUTION_GENERATION' };
   }
-  if (state.unresolved_effect) {
+  if (unresolvedEffect) {
     return { permits: false, denial: 'UNRESOLVED_EFFECT' };
   }
   return { permits: true, denial: null };
 }
-
-// Compatibility projection only. The 4×4 permits decision above owns admission semantics.
-export const mutationAdmitted = (state: EffectAdmissionState) =>
-  effectAdmissionDecision(state).permits;

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { projectExecutionAuthority } from '../src/authority/transaction-admission.ts';
+import { executionPermits } from '../src/authority/transaction-admission.ts';
 
 import './semantic-identity-hostile.test.ts';
 import './observation-hostile.test.ts';
 
-test('execution authority projection rejects every inexact identity component', () => {
+test('execution permits rejects every inexact identity component', () => {
   const run = {
     id: 'run',
     obligation_id: 'obligation',
@@ -18,11 +18,8 @@ test('execution authority projection rejects every inexact identity component', 
     execution_capability_sha256: 'capability',
   };
   const permit = { ...run, execution_capability: 'secret' };
-  assert.deepEqual(projectExecutionAuthority(run, permit, 'capability'), {
-    current_authority: true,
-    exact_revision: true,
-  });
-  for (const [hostile, presented = 'capability'] of [
+  assert.equal(executionPermits(run, permit, 'capability'), true);
+  for (const [candidate, presented = 'capability'] of [
     [{ ...permit, id: 'other' }],
     [{ ...permit, obligation_id: 'other' }],
     [{ ...permit, claimed_revision: 'other' }],
@@ -33,7 +30,6 @@ test('execution authority projection rejects every inexact identity component', 
     [{ ...permit, execution_capability_sha256: 'other' }],
     [permit, 'other'],
   ] as const) {
-    const projected = projectExecutionAuthority(run, hostile, presented);
-    assert.equal(projected.current_authority && projected.exact_revision, false);
+    assert.equal(executionPermits(run, candidate, presented), false);
   }
 });

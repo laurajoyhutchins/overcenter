@@ -445,30 +445,41 @@ function isDirectCallStatement(statement: Statement, name: string): boolean {
   );
 }
 
-function wrapperIsSound(engine: string): boolean {
+function authorityRelationIsSound(transactionAdmission: string): boolean {
+  return [
+    'executionPermits',
+    'permit.id',
+    'permit.obligation_id',
+    'permit.claimed_revision',
+    'permit.claim_commit',
+    'permit.obligation_key',
+    'permit.execution_generation',
+    'permit.execution_authority_commit',
+    'permit.execution_capability_sha256',
+    'capabilitySha256',
+    'effectAdmissionDecision',
+    'unresolvedEffect',
+  ].every((token) => transactionAdmission.includes(token));
+}
+
+function wrapperIsSound(engine: string, transactionAdmission: string): boolean {
+  if (!authorityRelationIsSound(transactionAdmission)) return false;
   return withSource('engine.ts', engine, (source) => {
     const perform = methodNamed(source, 'performEffect');
     const begin = methodNamed(source, 'beginEffect');
     if (!perform?.body || !begin?.body) return false;
-
     const statements = [...perform.body.statements];
     const beginIndex = statements.findIndex((statement) =>
       isDirectCallStatement(statement, 'beginEffect'),
     );
     const effectIndex = statements.findIndex((statement) => containsCall(statement, 'effect'));
     if (beginIndex < 0 || effectIndex < 0 || beginIndex >= effectIndex) return false;
-
     const text = begin.body.getText(source);
-    return [
-      'projectExecutionAuthority',
-      'current_authority',
-      'exact_revision',
-      'mutationAdmitted',
-      'unresolvedReservationsByRun',
-    ].every((token) => text.includes(token));
+    return ['effectAdmissionDecision', 'unresolvedReservationsByRun', 'admission.permits'].every(
+      (token) => text.includes(token),
+    );
   });
 }
-
 function sinkInsidePerformEffect(node: CallExpression): boolean {
   let current: Node | undefined = node;
   while (current) {
@@ -517,11 +528,12 @@ function providerIssues(filename: string, sourceText: string, sinkName: string):
 
 export function analyzeProductionBoundary(input: {
   engine: string;
+  transactionAdmission?: string;
   githubStatus: string;
   githubPullRequest: string;
 }): FlowIssue[] {
   const issues: FlowIssue[] = [];
-  if (!wrapperIsSound(input.engine)) {
+  if (!wrapperIsSound(input.engine, input.transactionAdmission ?? '')) {
     issues.push({
       code: 'PRODUCTION_EFFECT_WRAPPER_INVALID',
       line: 1,

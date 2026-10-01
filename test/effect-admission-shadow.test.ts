@@ -3,64 +3,52 @@ import test from 'node:test';
 
 import {
   effectAdmissionDecision,
-  mutationAdmitted,
-  type EffectAdmissionDenial,
-  type EffectAdmissionState,
+  executionPermits,
 } from '../src/authority/transaction-admission.ts';
+import type { ExecutionPermit, Run } from '../src/model.ts';
 
-const bools = [false, true] as const;
+const run: Run = {
+  id: 'run',
+  obligation_id: 'obligation',
+  claimed_revision: 'revision',
+  claim_commit: 'claim',
+  obligation_key: 'key',
+  execution_generation: 7,
+  execution_authority_commit: 'authority',
+  execution_capability_sha256: 'capability',
+};
+const permit: ExecutionPermit = { ...run, execution_capability: 'secret' };
 
-test('4×4 permits owns the complete effect-admission truth table', () => {
-  for (const currentAuthority of bools) {
-    for (const exactRevision of bools) {
-      for (const unresolvedEffect of bools) {
-        const state: EffectAdmissionState = {
-          current_authority: currentAuthority,
-          exact_revision: exactRevision,
-          unresolved_effect: unresolvedEffect,
-        };
-        const expectedPermits = currentAuthority && exactRevision && !unresolvedEffect;
-        const expectedDenial: EffectAdmissionDenial =
-          !currentAuthority || !exactRevision
-            ? 'STALE_EXECUTION_GENERATION'
-            : unresolvedEffect
-              ? 'UNRESOLVED_EFFECT'
-              : null;
-
-        const decision = effectAdmissionDecision(state);
-        assert.equal(decision.permits, expectedPermits);
-        assert.equal(decision.denial, expectedDenial);
-        assert.equal(mutationAdmitted(state), decision.permits);
-      }
-    }
-  }
-});
-
-test('legacy mutation admission is only a projection of authoritative permits', () => {
-  const admitted: EffectAdmissionState = {
-    current_authority: true,
-    exact_revision: true,
-    unresolved_effect: false,
-  };
-  const duplicate: EffectAdmissionState = {
-    ...admitted,
-    unresolved_effect: true,
-  };
-  const stale: EffectAdmissionState = {
-    ...admitted,
-    exact_revision: false,
-  };
-
-  assert.deepEqual(effectAdmissionDecision(admitted), { permits: true, denial: null });
-  assert.deepEqual(effectAdmissionDecision(duplicate), {
+test('4×4 permits owns effect admission through the exact current capability relation', () => {
+  assert.equal(executionPermits(run, permit, 'capability'), true);
+  assert.deepEqual(effectAdmissionDecision(run, permit, 'capability', false), {
+    permits: true,
+    denial: null,
+  });
+  assert.deepEqual(effectAdmissionDecision(run, permit, 'capability', true), {
     permits: false,
     denial: 'UNRESOLVED_EFFECT',
   });
-  assert.deepEqual(effectAdmissionDecision(stale), {
+});
+
+test('inexact permits fail closed before reservation state can broaden admission', () => {
+  for (const candidate of [
+    { ...permit, id: 'other' },
+    { ...permit, obligation_id: 'other' },
+    { ...permit, claimed_revision: 'other' },
+    { ...permit, claim_commit: 'other' },
+    { ...permit, obligation_key: 'other' },
+    { ...permit, execution_generation: 8 },
+    { ...permit, execution_authority_commit: 'other' },
+    { ...permit, execution_capability_sha256: 'other' },
+  ]) {
+    assert.deepEqual(effectAdmissionDecision(run, candidate, 'capability', false), {
+      permits: false,
+      denial: 'STALE_EXECUTION_GENERATION',
+    });
+  }
+  assert.deepEqual(effectAdmissionDecision(run, permit, 'other', false), {
     permits: false,
     denial: 'STALE_EXECUTION_GENERATION',
   });
-  assert.equal(mutationAdmitted(admitted), true);
-  assert.equal(mutationAdmitted(duplicate), false);
-  assert.equal(mutationAdmitted(stale), false);
 });

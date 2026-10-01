@@ -184,19 +184,40 @@ function scenario() {
   },
 ];
 
+const soundTransactionAdmission = `
+function executionPermits(run:any,permit:any,capabilitySha256:any) {
+  return permit.id === run.id &&
+    permit.obligation_id === run.obligation_id &&
+    permit.claimed_revision === run.claimed_revision &&
+    permit.claim_commit === run.claim_commit &&
+    permit.obligation_key === run.obligation_key &&
+    permit.execution_generation === run.execution_generation &&
+    permit.execution_authority_commit === run.execution_authority_commit &&
+    permit.execution_capability_sha256 === run.execution_capability_sha256 &&
+    capabilitySha256 === run.execution_capability_sha256;
+}
+function effectAdmissionDecision(run:any,permit:any,capabilitySha256:any,unresolvedEffect:any) {
+  if (!executionPermits(run,permit,capabilitySha256)) return {permits:false,denial:'stale'};
+  if (unresolvedEffect) return {permits:false,denial:'unresolved'};
+  return {permits:true,denial:null};
+}`;
+
 const soundEngine = `
 class KernelCore {
   beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority || !authority.exact_revision) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
+    const admission=effectAdmissionDecision(
+      run,
+      permit,
+      digest,
+      history.unresolvedReservationsByRun.has(run.id),
+    );
+    if (!admission.permits) throw new Error(admission.denial);
   }
   async performEffect(permit:any,effect:any) {
     this.beginEffect(permit);
     return await effect();
   }
 }`;
-
 const safeStatus = `
 async function status(kernel:any,permit:any,post:any) {
   return kernel.performEffect(permit,async()=>await post(token,path,body));
@@ -211,6 +232,7 @@ const productionMutants = [
     name: 'provider mutation escapes performEffect',
     input: {
       engine: soundEngine,
+      transactionAdmission: soundTransactionAdmission,
       githubStatus: `async function status(post:any) { return await post(token,path,body); }`,
       githubPullRequest: safePullRequest,
     },
@@ -222,9 +244,8 @@ const productionMutants = [
       engine: `
 class KernelCore {
   beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority || !authority.exact_revision) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
+    const admission=effectAdmissionDecision(run,permit,digest,history.unresolvedReservationsByRun.has(run.id));
+    if (!admission.permits) throw new Error(admission.denial);
   }
   async performEffect(permit:any,effect:any) {
     const result=await effect();
@@ -232,26 +253,20 @@ class KernelCore {
     return result;
   }
 }`,
+      transactionAdmission: soundTransactionAdmission,
       githubStatus: safeStatus,
       githubPullRequest: safePullRequest,
     },
     expected: 'PRODUCTION_EFFECT_WRAPPER_INVALID' as IssueCode,
   },
   {
-    name: 'beginEffect loses exact revision fence',
+    name: 'permit relation loses exact revision fence',
     input: {
-      engine: `
-class KernelCore {
-  beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
-  }
-  async performEffect(permit:any,effect:any) {
-    this.beginEffect(permit);
-    return await effect();
-  }
-}`,
+      engine: soundEngine,
+      transactionAdmission: soundTransactionAdmission.replace(
+        'permit.claimed_revision === run.claimed_revision &&',
+        '',
+      ),
       githubStatus: safeStatus,
       githubPullRequest: safePullRequest,
     },
@@ -263,22 +278,21 @@ class KernelCore {
       engine: `
 class KernelCore {
   beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority || !authority.exact_revision) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
+    const admission=effectAdmissionDecision(run,permit,digest,history.unresolvedReservationsByRun.has(run.id));
+    if (!admission.permits) throw new Error(admission.denial);
   }
   async performEffect(permit:any,effect:any) {
     if (permit) this.beginEffect(permit);
     return await effect();
   }
 }`,
+      transactionAdmission: soundTransactionAdmission,
       githubStatus: safeStatus,
       githubPullRequest: safePullRequest,
     },
     expected: 'PRODUCTION_EFFECT_WRAPPER_INVALID' as IssueCode,
   },
 ];
-
 const started = performance.now();
 let classified = 0;
 for (const testCase of [...safe, ...hostile]) {
@@ -306,6 +320,7 @@ for (const mutant of productionMutants) {
 
 const productionIssues = analyzeProductionBoundary({
   engine: readFileSync('src/authority/engine.ts', 'utf8'),
+  transactionAdmission: readFileSync('src/authority/transaction-admission.ts', 'utf8'),
   githubStatus: readFileSync('src/providers/github/status-effect.ts', 'utf8'),
   githubPullRequest: readFileSync('src/providers/github/pr-update-branch-effect.ts', 'utf8'),
 });
