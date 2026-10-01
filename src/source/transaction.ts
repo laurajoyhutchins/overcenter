@@ -108,7 +108,6 @@ function writeScope(value: unknown): AuthorizedSourceWriteScope {
   return structuredClone(scope) as unknown as AuthorizedSourceWriteScope;
 }
 
-
 function samePaths(left: string[], right: string[]): boolean {
   return canonicalDigest([...left].sort()) === canonicalDigest([...right].sort());
 }
@@ -162,8 +161,8 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
   if (
     !plan.expected_write_set.length ||
     plan.expected_write_set.length > scope.max_changed_files ||
-    plan.expected_write_set.some((path) =>
-      !sourceWriteScopeAllowsPath(scope, path, verifiedProfile.protected_paths)
+    plan.expected_write_set.some(
+      (path) => !sourceWriteScopeAllowsPath(scope, path, verifiedProfile.protected_paths),
     )
   ) {
     throw new Error('SOURCE_TRANSACTION_SCOPE');
