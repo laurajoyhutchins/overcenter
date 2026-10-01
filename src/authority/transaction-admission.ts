@@ -121,10 +121,7 @@ export function executionAuthorityAdvanceError(
   return null;
 }
 
-export type EffectAdmissionDenial =
-  | 'STALE_EXECUTION_GENERATION'
-  | 'UNRESOLVED_EFFECT'
-  | null;
+export type EffectAdmissionDenial = 'STALE_EXECUTION_GENERATION' | 'UNRESOLVED_EFFECT' | null;
 
 export interface EffectAdmissionDecision {
   readonly permits: boolean;
