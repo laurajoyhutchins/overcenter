@@ -2,7 +2,7 @@ import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
 
 export const SOURCE_TASK_SCHEMA = 'overcenter-source-task/v1' as const;
-export const SOURCE_ASSIGNMENT_SCHEMA = 'overcenter-source-assignment/v2' as const;
+export const SOURCE_ASSIGNMENT_SCHEMA = 'overcenter-source-assignment/v1' as const;
 export const SOURCE_PROPOSAL_SCHEMA = 'overcenter-source-proposal/v1' as const;
 export const SOURCE_CANDIDATE_SCHEMA = 'overcenter-source-candidate/v1' as const;
 
@@ -33,7 +33,6 @@ export interface SourceAssignment {
   obligation_id: string;
   task: SourceTaskPacket;
   claim: SourceClaimBinding;
-  verification_profile: { id: string; sha256: string };
   proposal_schema: typeof SOURCE_PROPOSAL_SCHEMA;
 }
 
@@ -189,31 +188,18 @@ export function buildSourceAssignment(
   obligationId: string,
   task: unknown,
   claim: SourceClaimBinding,
-  profileBinding: unknown,
 ): SourceAssignment {
   assertNonEmptyString(obligationId, 'SOURCE_ASSIGNMENT_OBLIGATION_INVALID');
-  if (!isData(profileBinding)) throw new Error('SOURCE_ASSIGNMENT_PROFILE_INVALID');
-  assertExactKeys(profileBinding, ['id', 'sha256'], [], 'SOURCE_ASSIGNMENT_PROFILE_INVALID');
-  assertNonEmptyString(profileBinding.id, 'SOURCE_ASSIGNMENT_PROFILE_INVALID');
-  if (typeof profileBinding.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(profileBinding.sha256))
-    throw new Error('SOURCE_ASSIGNMENT_PROFILE_INVALID');
-  const validatedTask = validateSourceTaskPacket(task);
-  if (
-    validatedTask.verification_profile_id !== undefined &&
-    validatedTask.verification_profile_id !== profileBinding.id
-  )
-    throw new Error('SOURCE_ASSIGNMENT_PROFILE_MISMATCH');
   return {
     schema: SOURCE_ASSIGNMENT_SCHEMA,
     obligation_id: obligationId,
-    task: validatedTask,
+    task: validateSourceTaskPacket(task),
     claim: bindSourceClaim(
       claim.obligation_key,
       claim.run_id,
       claim.claimed_revision,
       claim.source_sha,
     ),
-    verification_profile: { id: profileBinding.id, sha256: profileBinding.sha256 },
     proposal_schema: SOURCE_PROPOSAL_SCHEMA,
   };
 }
@@ -222,7 +208,7 @@ export function validateSourceAssignment(value: unknown): SourceAssignment {
   if (!isData(value)) throw new Error('SOURCE_ASSIGNMENT_INVALID');
   assertExactKeys(
     value,
-    ['schema', 'obligation_id', 'task', 'claim', 'verification_profile', 'proposal_schema'],
+    ['schema', 'obligation_id', 'task', 'claim', 'proposal_schema'],
     [],
     'SOURCE_ASSIGNMENT_INVALID',
   );
@@ -255,7 +241,6 @@ export function validateSourceAssignment(value: unknown): SourceAssignment {
       value.claim.claimed_revision,
       value.claim.source_sha,
     ),
-    value.verification_profile,
   );
 }
 
