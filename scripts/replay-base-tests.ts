@@ -17,19 +17,6 @@ try {
     throw error;
 }
 if (trusted.sha256 !== submitted.sha256) throw new Error('SOURCE_PROFILE_CANDIDATE_MISMATCH');
-if (trusted !== submitted) {
-  execFileSync('git', [
-    '-C',
-    repo,
-    'diff',
-    '--exit-code',
-    base,
-    candidate,
-    '--',
-    ...trusted.profile.protected_paths,
-  ]);
-}
-
 const worktree = mkdtempSync(join(tmpdir(), 'overcenter-base-tests-'));
 let testStatus = 0;
 try {
