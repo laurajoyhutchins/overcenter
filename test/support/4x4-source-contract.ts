@@ -1,7 +1,22 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import * as ts from 'typescript';
+
+import { API } from 'typescript/unstable/sync';
+import {
+  SyntaxKind,
+  isArrowFunction,
+  isCallExpression,
+  isClassDeclaration,
+  isConstructorDeclaration,
+  isFunctionDeclaration,
+  isFunctionExpression,
+  isGetAccessorDeclaration,
+  isMethodDeclaration,
+  isSetAccessorDeclaration,
+  type Node,
+  type SourceFile,
+} from 'typescript/unstable/ast';
 
 export const FOUR_BY_FOUR_NOUNS = ['Object', 'Event', 'Proposition', 'Coordinate'] as const;
 export const FOUR_BY_FOUR_VERBS = ['permits', 'asserts', 'supports', 'requires'] as const;
@@ -33,29 +48,41 @@ export interface ExtractedSourceContract {
 const ROLE_NAMES = ['admission', 'release', 'settlement'] as const;
 const CONTRACT_PATH = 'docs/migrations/4x4-strangler/formal/source-contract.json';
 
-function functionLike(node: ts.Node): boolean {
+function functionLike(node: Node): boolean {
   return (
-    ts.isFunctionDeclaration(node) ||
-    ts.isFunctionExpression(node) ||
-    ts.isArrowFunction(node) ||
-    ts.isMethodDeclaration(node) ||
-    ts.isConstructorDeclaration(node) ||
-    ts.isGetAccessorDeclaration(node) ||
-    ts.isSetAccessorDeclaration(node)
+    isFunctionDeclaration(node) ||
+    isFunctionExpression(node) ||
+    isArrowFunction(node) ||
+    isMethodDeclaration(node) ||
+    isConstructorDeclaration(node) ||
+    isGetAccessorDeclaration(node) ||
+    isSetAccessorDeclaration(node)
   );
 }
 
-function methodFacts(source: ts.SourceFile, method: ts.MethodDeclaration): RoleFacts {
-  if (!method.body) throw new Error('FOUR_BY_FOUR_SOURCE_METHOD_BODY_MISSING');
+function stringLiteral(node: Node, source: SourceFile): string | null {
+  if (node.kind !== SyntaxKind.StringLiteral) return null;
+  const text = node.getText(source);
+  if (text.length < 2) return null;
+  return text.slice(1, -1);
+}
+
+function methodFacts(source: SourceFile, method: Node): RoleFacts {
+  if (!isMethodDeclaration(method) || !method.body) {
+    throw new Error('FOUR_BY_FOUR_SOURCE_METHOD_BODY_MISSING');
+  }
   const calls = new Set<string>();
   const literals = new Set<string>();
-  const visit = (node: ts.Node): void => {
+  const visit = (node: Node): void => {
     if (node !== method.body && functionLike(node)) {
       throw new Error('FOUR_BY_FOUR_SOURCE_UNSUPPORTED_NESTED_EXECUTABLE');
     }
-    if (ts.isCallExpression(node)) calls.add(node.expression.getText(source));
-    if (ts.isStringLiteral(node)) literals.add(node.text);
-    ts.forEachChild(node, visit);
+    if (isCallExpression(node)) calls.add(node.expression.getText(source));
+    const literal = stringLiteral(node, source);
+    if (literal !== null) literals.add(literal);
+    node.forEachChild((child) => {
+      visit(child);
+    });
   };
   visit(method.body);
   return {
@@ -65,20 +92,13 @@ function methodFacts(source: ts.SourceFile, method: ts.MethodDeclaration): RoleF
   };
 }
 
-export function extractFourByFourSourceContract(sourceText: string): ExtractedSourceContract {
-  const source = ts.createSourceFile(
-    'src/authority/engine.ts',
-    sourceText,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  );
+function extractFromSource(source: SourceFile): ExtractedSourceContract {
   const kernels = source.statements.filter(
-    (node): node is ts.ClassDeclaration =>
-      ts.isClassDeclaration(node) && node.name?.text === 'KernelCore',
+    (node) => isClassDeclaration(node) && node.name?.text === 'KernelCore',
   );
   if (kernels.length !== 1) throw new Error('FOUR_BY_FOUR_SOURCE_KERNEL_SHAPE_UNKNOWN');
-  const methods = kernels[0]!.members.filter(ts.isMethodDeclaration);
+  const kernel = kernels[0]!;
+  const methods = kernel.members.filter(isMethodDeclaration);
   const byName = new Map(methods.map((method) => [method.name.getText(source), method] as const));
   const expectedSymbols = {
     admission: 'beginEffect',
@@ -95,6 +115,28 @@ export function extractFourByFourSourceContract(sourceText: string): ExtractedSo
       }),
     ) as ExtractedSourceContract['roles'],
   };
+}
+
+export function extractFourByFourSourceContract(
+  sourcePath: string,
+  root = process.cwd(),
+): ExtractedSourceContract {
+  const absolute = resolve(root, sourcePath);
+  const configPath = resolve(root, 'tsconfig.json');
+  const api = new API({ cwd: root });
+  const snapshot = api.updateSnapshot({ openProjects: [configPath], openFiles: [absolute] });
+  try {
+    const project =
+      snapshot.getDefaultProjectForFile(absolute) ??
+      snapshot.getProject(configPath) ??
+      snapshot.getProjects()[0];
+    const source = project?.program.getSourceFile(absolute);
+    if (!source) throw new Error('FOUR_BY_FOUR_SOURCE_UNAVAILABLE');
+    return extractFromSource(source);
+  } finally {
+    snapshot.dispose();
+    api.close();
+  }
 }
 
 export function assertExtractedFourByFourContract(
@@ -141,6 +183,8 @@ export function verifyFourByFourSourceContract(root = process.cwd()): void {
   if (blob !== contract.source.blob_sha) {
     throw new Error('FOUR_BY_FOUR_SOURCE_IDENTITY_DRIFT');
   }
-  const sourceText = readFileSync(resolve(root, contract.source.path), 'utf8');
-  assertExtractedFourByFourContract(extractFourByFourSourceContract(sourceText), contract);
+  assertExtractedFourByFourContract(
+    extractFourByFourSourceContract(contract.source.path, root),
+    contract,
+  );
 }

@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -58,6 +59,17 @@ async function fileSha256(path: string): Promise<string> {
 function download(url: string, path: string): void {
   if (existsSync(path)) return;
   run('curl', ['-fsSL', '--retry', '3', '--retry-delay', '2', '-o', path, url]);
+}
+
+function mutatedContract(sourceText: string) {
+  const directory = mkdtempSync(resolve(ROOT, 'test/.4x4-boundary-'));
+  const path = join(directory, 'engine.ts');
+  try {
+    writeFileSync(path, sourceText, 'utf8');
+    return extractFourByFourSourceContract(path, ROOT);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 async function checkFormalModels(): Promise<void> {
@@ -143,19 +155,14 @@ test('4x4 extractor rejects semantic mutations to admission and release', () => 
   const admissionMutation = original.replace(/\bmutationAdmitted\s*\(/, 'Boolean(');
   assert.notEqual(admissionMutation, original);
   assert.throws(
-    () =>
-      assertExtractedFourByFourContract(
-        extractFourByFourSourceContract(admissionMutation),
-        expected,
-      ),
+    () => assertExtractedFourByFourContract(mutatedContract(admissionMutation), expected),
     /FOUR_BY_FOUR_SOURCE_CALL_MISSING:admission:mutationAdmitted/,
   );
 
   const releaseMutation = original.replace(/'effect-release\.json'\s*:/, "'unknown-release.json':");
   assert.notEqual(releaseMutation, original);
   assert.throws(
-    () =>
-      assertExtractedFourByFourContract(extractFourByFourSourceContract(releaseMutation), expected),
+    () => assertExtractedFourByFourContract(mutatedContract(releaseMutation), expected),
     /FOUR_BY_FOUR_SOURCE_LITERAL_MISSING:release:effect-release\.json/,
   );
 });
@@ -168,7 +175,7 @@ test('4x4 extractor fails closed on nested executable control flow', () => {
   );
   assert.notEqual(nestedMutation, original);
   assert.throws(
-    () => extractFourByFourSourceContract(nestedMutation),
+    () => mutatedContract(nestedMutation),
     /FOUR_BY_FOUR_SOURCE_UNSUPPORTED_NESTED_EXECUTABLE/,
   );
 });
