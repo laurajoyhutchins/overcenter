@@ -29,10 +29,6 @@ import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import { isData, isPositiveSafeInteger } from '../validation.ts';
 import { buildSourceAssignment, validateSourceTaskPacket } from '../source/source-obligation.ts';
 import {
-  readSourceVerificationProfile,
-  sourceVerificationProfileBinding,
-} from '../source/source-verification-profile.ts';
-import {
   SOURCE_VERIFICATION_SCHEMA,
   integrateVerifiedSourceCandidate,
   validateSourceIntegrationEvidence,
@@ -582,10 +578,6 @@ export function advanceProjectForAgent(
           claimed.id,
           claimed.packet,
           kernel.sourceClaimBinding(permit.id),
-          sourceVerificationProfileBinding(
-            readSourceVerificationProfile(repo, kernel.sourceClaimBinding(permit.id).source_sha)
-              .profile,
-          ),
         );
         assignmentBytes = Buffer.from(`${JSON.stringify(sourceAssignment, null, 2)}\n`, 'utf8');
       } else {
