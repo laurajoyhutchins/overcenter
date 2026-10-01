@@ -232,7 +232,6 @@ export function brokerAssignedSourceProposal(
   if (canonicalDigest(current.packet) !== canonicalDigest(assignment.task)) {
     throw new Error('SOURCE_BROKER_TASK_MISMATCH');
   }
-
   const brokered = brokerSourceProposal(
     repo,
     assignment.obligation_id,

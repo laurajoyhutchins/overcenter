@@ -811,6 +811,11 @@ export function submitProjectCandidate(
         candidateSha,
         context: proofContext,
       });
+      const admittedProofContext = {
+        ...proofContext,
+        verification_profile_id: plan.verification_profile.profile.id,
+        verification_profile_sha256: plan.verification_profile.sha256,
+      };
       if (
         !githubToken ||
         !context.candidate_workflow_run_id ||
@@ -824,7 +829,7 @@ export function submitProjectCandidate(
           githubToken,
           expectedWorkflowRunId: context.candidate_workflow_run_id,
           expectedWorkflowRunAttempt: context.candidate_workflow_run_attempt,
-          context: proofContext,
+          context: admittedProofContext,
           get: observationContext.githubGet ?? githubGet,
         },
       );

@@ -1,17 +1,16 @@
 import { ARCHITECTURE_SQL_PATHS } from '../architecture/sql-model.ts';
 import { execFileSync } from 'node:child_process';
 import { canonicalDigest } from '../digest.ts';
-import { assertNonEmptyString, isPositiveSafeInteger } from '../validation.ts';
+import { isPositiveSafeInteger } from '../validation.ts';
 import { repositorySnapshot } from '../evidence/repository-snapshot.ts';
 import type { RepositoryDelta } from './repository-delta.ts';
 import type { TransactionAssurancePlan } from './transaction-planner.ts';
+import type { SourceVerificationProfile } from './source-verification-profile.ts';
 
 export interface SourceTransactionContext {
   repository_id: number;
   repository_full_name: string;
   runtime_sha: string;
-  baseline_id: string;
-  validator_paths: readonly string[];
 }
 
 export function validateSourceTransactionContext(context: SourceTransactionContext): void {
@@ -21,26 +20,13 @@ export function validateSourceTransactionContext(context: SourceTransactionConte
     !/^[0-9a-f]{40}$/.test(context.runtime_sha)
   )
     throw new Error('SOURCE_TRANSACTION_CONTEXT_INVALID');
-  assertNonEmptyString(context.baseline_id, 'SOURCE_TRANSACTION_BASELINE_INVALID');
-  if (
-    !context.validator_paths.length ||
-    context.validator_paths.some(
-      (path) =>
-        !path ||
-        path.startsWith('/') ||
-        path.includes('\\') ||
-        path.split('/').some((part) => ['.', '..', '.git'].includes(part) || !part),
-    )
-  )
-    throw new Error('SOURCE_TRANSACTION_BASELINE_INVALID');
 }
 
 export function observeSourceBaseline(
   repo: string,
   revision: string,
-  context: SourceTransactionContext,
+  profile: SourceVerificationProfile,
 ) {
-  validateSourceTransactionContext(context);
   const snapshot = repositorySnapshot(repo, revision);
   const raw = execFileSync('git', ['-C', repo, 'ls-tree', '-r', '-z', revision]);
   const text = raw.toString('utf8');
@@ -58,10 +44,10 @@ export function observeSourceBaseline(
   const files = entries.map((entry) => entry.path);
   const matched = files
     .filter((file) =>
-      context.validator_paths.some((path) => file === path || file.startsWith(`${path}/`)),
+      profile.protected_paths.some((path) => file === path || file.startsWith(`${path}/`)),
     )
     .sort();
-  for (const path of context.validator_paths)
+  for (const path of profile.protected_paths)
     if (!matched.some((file) => file === path || file.startsWith(`${path}/`)))
       throw new Error(`SOURCE_TRANSACTION_BASELINE_UNAVAILABLE:${path}`);
   const artifacts = matched.map((path) => ({
@@ -73,7 +59,7 @@ export function observeSourceBaseline(
     artifacts,
     digest: canonicalDigest({
       domain: 'overcenter-source-baseline/v1',
-      id: context.baseline_id,
+      id: profile.id,
       artifacts,
     }),
   };
@@ -84,10 +70,10 @@ export function observeSourceBaseline(
 export function baselineSourceTransactionPlan(
   repo: string,
   delta: RepositoryDelta,
-  context: SourceTransactionContext,
+  profile: SourceVerificationProfile,
 ): TransactionAssurancePlan {
-  const baseline = observeSourceBaseline(repo, delta.base_revision, context);
-  const candidateBaseline = observeSourceBaseline(repo, delta.candidate_revision, context);
+  const baseline = observeSourceBaseline(repo, delta.base_revision, profile);
+  const candidateBaseline = observeSourceBaseline(repo, delta.candidate_revision, profile);
   const changed = delta.entries.map((entry) => entry.path);
   const source = repositorySnapshot(repo, delta.base_revision);
   const candidate = repositorySnapshot(repo, delta.candidate_revision);
@@ -120,7 +106,7 @@ export function baselineSourceTransactionPlan(
       reason: (ARCHITECTURE_SQL_PATHS as readonly string[]).includes(artifact_id)
         ? ('model-changed' as const)
         : baselineChanged &&
-            context.validator_paths.some(
+            profile.protected_paths.some(
               (path) => artifact_id === path || artifact_id.startsWith(`${path}/`),
             )
           ? ('validator-changed' as const)
@@ -129,7 +115,7 @@ export function baselineSourceTransactionPlan(
             : ('unsupported-language' as const),
     })),
     validation_mode: baselineChanged || modelChanged ? 'unsupported' : 'baseline',
-    baseline_id: context.baseline_id,
+    baseline_id: profile.id,
     baseline_sha256: baseline.digest,
   };
 }
@@ -140,57 +126,7 @@ export function sourceTransactionContextFromEnvironment(
   const name = env.OVERCENTER_COMMAND_REPOSITORY ?? env.GITHUB_REPOSITORY ?? '';
   const runtime = env.OVERCENTER_RUNTIME_SHA ?? env.OVERCENTER_COMMAND_SOURCE_SHA ?? '';
   const repository_id = Number(env.OVERCENTER_COMMAND_REPOSITORY_ID ?? env.GITHUB_REPOSITORY_ID);
-  const policy = ['laurajoyhutchins/overcenter', 'laurajoyhutchins/overcenter-research'].includes(
-    name.toLowerCase(),
-  )
-    ? {
-        baseline_id: 'overcenter-repository-checks/v1',
-        validator_paths: [
-          '.github/workflows',
-          'test',
-          'scripts',
-          'formal',
-          'experiments',
-          'rust-toolchain.toml',
-          'architecture',
-          'tcb-policy.json',
-          'src/analysis',
-          'src/architecture',
-          'src/repository',
-          'src/execution',
-          'src/effect-adapter.ts',
-          'src/digest.ts',
-          'src/validation.ts',
-          'contracts',
-          'package.json',
-          'tsconfig.json',
-          'biome.json',
-          '.node-version',
-          '.go-version',
-        ],
-      }
-    : name.toLowerCase() === 'laurajoyhutchins/azelficoast'
-      ? {
-          baseline_id: 'azelficoast-repository-checks/v1',
-          validator_paths: [
-            '.github',
-            'pyproject.toml',
-            '.python-version',
-            'src/azelficoast/research/evidence.py',
-            'experiments/evidence',
-            'uv.lock',
-            'tests',
-            'package.json',
-            'jsconfig.showdown.json',
-            'eslint.config.mjs',
-            'showdown/verification',
-            'src/azelficoast/research/verification',
-            'src/azelficoast/research/experiments',
-          ],
-        }
-      : null;
-  if (!policy) throw new Error('SOURCE_TRANSACTION_REPOSITORY_POLICY_UNAVAILABLE');
-  const context = { repository_id, repository_full_name: name, runtime_sha: runtime, ...policy };
+  const context = { repository_id, repository_full_name: name, runtime_sha: runtime };
   validateSourceTransactionContext(context);
   return context;
 }

@@ -18,6 +18,7 @@ import {
 } from '../src/source/transaction.ts';
 import { baselineSourceTransactionPlan } from '../src/source/transaction-baseline.ts';
 import { observeRepositoryDelta } from '../src/source/repository-delta.ts';
+import { readSourceVerificationProfile } from '../src/source/source-verification-profile.ts';
 
 test('source proof admission binds provider jobs to reconstructed plan and trusted baseline', (t) => {
   const repo = mkdtempSync(join(tmpdir(), 'overcenter-source-proof-'));
@@ -30,6 +31,24 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
   mkdirSync(join(repo, '.github/workflows'), { recursive: true });
   writeFileSync(join(repo, '.github/workflows/agent-candidate-signal.yml'), 'trusted producer');
   writeFileSync(join(repo, 'baseline.txt'), 'independent checks');
+  mkdirSync(join(repo, '.overcenter'), { recursive: true });
+  writeFileSync(
+    join(repo, '.overcenter/source-verification-profile.json'),
+    `${JSON.stringify(
+      {
+        schema: 'overcenter-source-verification-profile/v1',
+        id: 'fixture',
+        workflow_path: '.github/workflows/agent-candidate-signal.yml',
+        required_evidence_jobs: ['Verify source candidate / Candidate evidence'],
+        record_job: 'Record source verification',
+        commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
+        protected_paths: ['.github', '.overcenter', 'baseline.txt'],
+        baseline_test_roots: ['test'],
+      },
+      null,
+      2,
+    )}\n`,
+  );
   writeFileSync(join(repo, 'value.ts'), 'export const value = 1;');
   git('add', '-A');
   git('commit', '-qm', 'base');
@@ -39,8 +58,6 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
     repository_id: 42,
     repository_full_name: 'acme/widget',
     runtime_sha: 'a'.repeat(40),
-    baseline_id: 'fixture',
-    validator_paths: ['baseline.txt', '.github/workflows'],
   };
   writeFileSync(join(repo, 'value.ts'), 'export const value = 2;');
   git('add', '-A');
@@ -68,6 +85,8 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
   });
   const producer = { workflow_run_id: 123, workflow_run_attempt: 2, job_id: 11 };
   const record = sourceProofRecord(plan, producer, 'success');
+  assert.equal(record.verification_profile_id, plan.verification_profile.profile.id);
+  assert.equal(record.verification_profile_sha256, plan.verification_profile.sha256);
   const run = {
     id: 123,
     path: '.github/workflows/agent-candidate-signal.yml',
@@ -111,7 +130,11 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
     get,
     expectedWorkflowRunId: 123,
     expectedWorkflowRunAttempt: 2,
-    context,
+    context: {
+      ...context,
+      verification_profile_id: plan.verification_profile.profile.id,
+      verification_profile_sha256: plan.verification_profile.sha256,
+    },
   };
   const witness = admitSourceProof(plan, record, options);
   assert.equal(trustedSourceProof(witness).plan_digest, sourceTransactionPlanDigest(plan));
@@ -136,6 +159,7 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
 
   for (const changed of [
     { plan_digest: '0'.repeat(64) },
+    { verification_profile_sha256: '0'.repeat(64) },
     { candidate_sha: base },
     { runtime_sha: 'b'.repeat(40) },
     { baseline_sha256: '0'.repeat(64) },
@@ -177,9 +201,12 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
   git('commit', '-qm', 'weakened validator');
   const changed = git('rev-parse', 'HEAD');
   assert.equal(
-    baselineSourceTransactionPlan(repo, observeRepositoryDelta(repo, base, changed), context)
-      .validation_mode,
+    baselineSourceTransactionPlan(
+      repo,
+      observeRepositoryDelta(repo, base, changed),
+      readSourceVerificationProfile(repo, base).profile,
+    ).validation_mode,
     'unsupported',
   );
-  assert.equal((record as SourceProofRecord).schema_version, 2);
+  assert.equal((record as SourceProofRecord).schema_version, 3);
 });

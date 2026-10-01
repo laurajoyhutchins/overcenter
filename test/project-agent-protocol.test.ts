@@ -31,8 +31,6 @@ const transactionContext = {
   repository_id: 42,
   repository_full_name: 'acme/widget',
   runtime_sha: 'a'.repeat(40),
-  baseline_id: 'fixture-baseline',
-  validator_paths: ['input.txt', '.github/workflows'],
 };
 
 function git(cwd: string, args: string[]): string {
@@ -66,6 +64,24 @@ function fixture(): {
   writeFileSync(
     join(work, '.github/workflows/agent-candidate-signal.yml'),
     'trusted fixture producer',
+  );
+  mkdirSync(join(work, '.overcenter'), { recursive: true });
+  writeFileSync(
+    join(work, '.overcenter/source-verification-profile.json'),
+    `${JSON.stringify(
+      {
+        schema: 'overcenter-source-verification-profile/v1',
+        id: 'fixture-baseline',
+        workflow_path: '.github/workflows/agent-candidate-signal.yml',
+        required_evidence_jobs: ['Verify source candidate / Candidate evidence'],
+        record_job: 'Record source verification',
+        commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
+        protected_paths: ['.github', '.overcenter', 'input.txt'],
+        baseline_test_roots: ['test'],
+      },
+      null,
+      2,
+    )}\n`,
   );
   mkdirSync(join(work, 'src'));
   writeFileSync(join(work, 'src', 'feature.txt'), 'feature:base\n');
@@ -573,6 +589,7 @@ test('project.advance materializes an exact tracked repository tree into a concr
       files.map((file) => file.path),
       [
         '.github/workflows/agent-candidate-signal.yml',
+        '.overcenter/source-verification-profile.json',
         'bin/tool.sh',
         'input.txt',
         'lib/nested.txt',

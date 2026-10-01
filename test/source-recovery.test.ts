@@ -38,6 +38,24 @@ function fixture(t: TestContext) {
   git('config', 'user.email', 'recovery@local');
   mkdirSync(join(repo, '.github/workflows'), { recursive: true });
   writeFileSync(join(repo, '.github/workflows/agent-candidate-signal.yml'), 'immutable workflow');
+  mkdirSync(join(repo, '.overcenter'), { recursive: true });
+  writeFileSync(
+    join(repo, '.overcenter/source-verification-profile.json'),
+    `${JSON.stringify(
+      {
+        schema: 'overcenter-source-verification-profile/v1',
+        id: 'fixture',
+        workflow_path: '.github/workflows/agent-candidate-signal.yml',
+        required_evidence_jobs: ['Verify source candidate / Candidate evidence'],
+        record_job: 'Record source verification',
+        commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
+        protected_paths: ['.github', '.overcenter', 'baseline.txt'],
+        baseline_test_roots: ['test'],
+      },
+      null,
+      2,
+    )}\n`,
+  );
   writeFileSync(join(repo, 'baseline.txt'), 'independent checks');
   writeFileSync(join(repo, 'value.ts'), 'export const value = 1;\n');
   git('add', '-A');
@@ -66,8 +84,6 @@ function fixture(t: TestContext) {
     repository_id: 42,
     repository_full_name: 'acme/widget',
     runtime_sha: 'a'.repeat(40),
-    baseline_id: 'fixture',
-    validator_paths: ['baseline.txt', '.github/workflows'],
   };
   const assignment = buildSourceAssignment('source', task, claim);
   const proposal = {
@@ -139,7 +155,11 @@ function fixture(t: TestContext) {
     githubToken: 'fixture',
     expectedWorkflowRunId: 123,
     expectedWorkflowRunAttempt: 1,
-    context,
+    context: {
+      ...context,
+      verification_profile_id: plan.verification_profile.profile.id,
+      verification_profile_sha256: plan.verification_profile.sha256,
+    },
     get,
   });
   const proof = trustedSourceProof(proofWitness);
@@ -283,7 +303,7 @@ test('broker retry never replaces an already-published candidate', (t) => {
   );
 });
 
-test('changed policy produces a different proof plan without changing the canonical candidate', (t) => {
+test('changed runtime identity produces a different proof plan without changing the canonical candidate', (t) => {
   const f = fixture(t);
   const originalPlan = buildSourceTransactionPlan({
     repo: f.repo,
@@ -297,7 +317,7 @@ test('changed policy produces a different proof plan without changing the canoni
     taskValue: f.assignment.task,
     claim: f.assignment.claim,
     candidateSha: f.brokered.candidate.commit_sha,
-    context: { ...f.context, baseline_id: 'different-policy' },
+    context: { ...f.context, runtime_sha: 'b'.repeat(40) },
   });
   assert.notEqual(
     sourceTransactionPlanDigest(changedPlan),
