@@ -135,7 +135,7 @@ test('independent runs preserve admission isolation under concurrent eligibility
   const kernel = new KernelCore(store);
   try {
     kernel.initialize();
-    const a = kernel.define({
+    kernel.define({
       id: 'a',
       postcondition: {
         verifier: 'file-content-equals/v1',
@@ -143,10 +143,7 @@ test('independent runs preserve admission isolation under concurrent eligibility
         content: 'a',
       },
     });
-    const pa = kernel.claim('a', a);
-    kernel.recoverInterrupted(pa);
-    const head = kernel.head()!;
-    const b = kernel.define({
+    const revision = kernel.define({
       id: 'b',
       postcondition: {
         verifier: 'file-content-equals/v1',
@@ -154,10 +151,15 @@ test('independent runs preserve admission isolation under concurrent eligibility
         content: 'b',
       },
     });
-    const pb = kernel.claim('b', b);
-    const ra = kernel.acquireExecution(pa.id);
-    const history = store.history(head === kernel.head() ? head : kernel.head()!);
-    assert.equal(shadowEffectAdmission(history, ra).permits, true);
+    const pa = kernel.claim('a', revision);
+    const pb = kernel.claim('b', kernel.head()!);
+    let history = store.history(kernel.head()!);
+    assert.equal(shadowEffectAdmission(history, pa).permits, true);
+    assert.equal(shadowEffectAdmission(history, pb).permits, true);
+
+    kernel.beginEffect(pa);
+    history = store.history(kernel.head()!);
+    assert.equal(shadowEffectAdmission(history, pa).permits, false);
     assert.equal(shadowEffectAdmission(history, pb).permits, true);
   } finally {
     store.close();
