@@ -7,6 +7,7 @@ import test from 'node:test';
 import { KernelCore } from '../src/authority/engine.ts';
 import {
   assertEffectAdmissionAgreement,
+  effectPermitsFromProjection,
   shadowEffectAdmission,
   type EffectAdmissionShadowResult,
 } from '../src/authority/effect-admission-shadow.ts';
@@ -80,6 +81,7 @@ test('stale claim commit and obligation key are denied by the projected coordina
   const f = fixture('exact-revision');
   try {
     for (const permit of [
+      { ...f.permit, claimed_revision: 'stale-revision' },
       { ...f.permit, claim_commit: 'stale-claim' },
       { ...f.permit, obligation_key: 'stale-obligation-key' },
     ] satisfies ExecutionPermit[]) {
@@ -101,6 +103,7 @@ test('an unresolved reservation denies duplicate and reacquired effect admission
     assert.equal(result.legacy, false);
     assert.equal(result.permits, false);
     assert.equal(result.projected_state.unresolved_effect, true);
+    assert.throws(() => f.kernel.beginEffect(f.permit), /UNRESOLVED_EFFECT/);
 
     const reacquired = f.kernel.acquireExecution(f.permit.id);
     result = shadowEffectAdmission(f.history(), reacquired);
@@ -164,6 +167,23 @@ test('independent runs preserve admission isolation under concurrent eligibility
   } finally {
     store.close();
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('bounded admission state exploration matches the formal reserve predicate', () => {
+  for (const current_authority of [false, true]) {
+    for (const exact_revision of [false, true]) {
+      for (const unresolved_effect of [false, true]) {
+        assert.equal(
+          effectPermitsFromProjection({
+            current_authority,
+            exact_revision,
+            unresolved_effect,
+          }),
+          current_authority && exact_revision && !unresolved_effect,
+        );
+      }
+    }
   }
 });
 
