@@ -26,6 +26,7 @@ import type {
 import { validateGraph } from '../graph/topology.ts';
 import { settlementSemantics } from '../semantics.ts';
 import { reservedEffectReleaseWitnessSafe, reservedEffectReplaySafe } from '../effect-adapter.ts';
+import { shadowSettlementDisposition } from './settlement-shadow.ts';
 import {
   effectReleaseAuthorityError,
   effectReservationAuthorityError,
@@ -81,11 +82,22 @@ export function projectReceipt(
     const policy = settlementSemantics(work.postcondition);
     const absenceEvidence = authoritativeAbsenceEvidence(work.postcondition, fact.observed);
     const acceptedAbsence =
-      absenceEvidence && policy.acceptedAbsenceEvidenceKinds.includes(absenceEvidence.kind);
-    const replaySafe =
-      !unresolvedEffect ||
-      (absenceEvidence !== null && reservedEffectReplaySafe(work, absenceEvidence));
-    disposition = verified ? 'DONE' : acceptedAbsence && replaySafe ? 'READY' : 'RECOVERY_REQUIRED';
+      absenceEvidence !== null &&
+      policy.acceptedAbsenceEvidenceKinds.includes(absenceEvidence.kind);
+    const supportsReplaySafety =
+      absenceEvidence !== null && reservedEffectReplaySafe(work, absenceEvidence);
+    const replaySafe = !unresolvedEffect || supportsReplaySafety;
+    const legacyDisposition = verified
+      ? 'DONE'
+      : acceptedAbsence && replaySafe
+        ? 'READY'
+        : 'RECOVERY_REQUIRED';
+    disposition = shadowSettlementDisposition(legacyDisposition, {
+      event_asserts_postcondition: verified,
+      object_supports_accepted_absence: acceptedAbsence,
+      accepted_absence_requires_replay_safety: unresolvedEffect,
+      object_supports_replay_safety: supportsReplaySafety,
+    });
   } else {
     if (fact.observed) throw new Error('NONOBSERVATION_RECEIPT_HAS_EVIDENCE');
     disposition =
