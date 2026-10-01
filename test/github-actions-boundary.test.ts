@@ -225,4 +225,3 @@ test('source candidate evidence uses the immutable claimed baseline rather than 
     'source candidates must retain strict protected-input validation',
   );
 });
-
