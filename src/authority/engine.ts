@@ -52,7 +52,7 @@ import {
 import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
 import { advanceProjection, projectReceipt, replayProjection } from './replay.ts';
 import type { Projection } from './replay.ts';
-import { mutationAdmitted, projectExecutionAuthority } from './transaction-admission.ts';
+import { effectAdmissionDecision, projectExecutionAuthority } from './transaction-admission.ts';
 import {
   effectAdapterCapabilities,
   GITHUB_SOURCE_INTEGRATION_EFFECT,
@@ -355,20 +355,23 @@ export class KernelCore {
         permit,
         this.#capabilityDigest(permit.execution_capability),
       );
-      if (!authority.current_authority || !authority.exact_revision) {
-        throw new Error('STALE_EXECUTION_GENERATION');
+      const admission = effectAdmissionDecision({
+        ...authority,
+        unresolved_effect: history.unresolvedReservationsByRun.has(run.id),
+      });
+      if (admission.denial === 'STALE_EXECUTION_GENERATION') {
+        throw new Error(admission.denial);
       }
       const lifecycle = project.lifecycles.get(run.obligation_id);
       if (lifecycle?.run?.id !== run.id || lifecycle.status !== 'EXECUTING') {
         throw new Error('RUN_NOT_EXECUTING');
       }
-      if (
-        !mutationAdmitted({
-          ...authority,
-          unresolved_effect: history.unresolvedReservationsByRun.has(run.id),
-        })
-      )
-        throw new Error('UNRESOLVED_EFFECT');
+      if (!admission.permits) {
+        if (admission.denial !== 'UNRESOLVED_EFFECT') {
+          throw new Error('EFFECT_ADMISSION_DENIED');
+        }
+        throw new Error(admission.denial);
+      }
 
       const fact: EffectReservationFact = {
         schema: EFFECT_RESERVATION_SCHEMA,

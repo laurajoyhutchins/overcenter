@@ -129,26 +129,30 @@ export function executionAuthorityAdvanceError(
   return null;
 }
 
-export const mutationAdmitted = (
-  s: ExecutionAuthorityProjection & { unresolved_effect: boolean },
-) => s.current_authority && s.exact_revision && !s.unresolved_effect;
+export type EffectAdmissionState = ExecutionAuthorityProjection & {
+  unresolved_effect: boolean;
+};
 
-export function shadowMutationAdmitted(
-  state: ExecutionAuthorityProjection & { unresolved_effect: boolean },
-  permits: boolean,
-): boolean {
-  const legacy = mutationAdmitted(state);
-  if (legacy !== permits) {
-    throw new Error(
-      [
-        'EFFECT_ADMISSION_SHADOW_DIVERGENCE',
-        `current_authority=${Number(state.current_authority)}`,
-        `exact_revision=${Number(state.exact_revision)}`,
-        `unresolved_effect=${Number(state.unresolved_effect)}`,
-        `legacy=${Number(legacy)}`,
-        `permits=${Number(permits)}`,
-      ].join(':'),
-    );
-  }
-  return legacy;
+export type EffectAdmissionDenial =
+  | 'STALE_EXECUTION_GENERATION'
+  | 'UNRESOLVED_EFFECT'
+  | null;
+
+export interface EffectAdmissionDecision {
+  readonly permits: boolean;
+  readonly denial: EffectAdmissionDenial;
 }
+
+export function effectAdmissionDecision(state: EffectAdmissionState): EffectAdmissionDecision {
+  if (!state.current_authority || !state.exact_revision) {
+    return { permits: false, denial: 'STALE_EXECUTION_GENERATION' };
+  }
+  if (state.unresolved_effect) {
+    return { permits: false, denial: 'UNRESOLVED_EFFECT' };
+  }
+  return { permits: true, denial: null };
+}
+
+// Compatibility projection only. The 4×4 permits decision above owns admission semantics.
+export const mutationAdmitted = (state: EffectAdmissionState) =>
+  effectAdmissionDecision(state).permits;
