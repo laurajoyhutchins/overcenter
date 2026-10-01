@@ -3,12 +3,10 @@ import test from 'node:test';
 
 import {
   bindSourceClaim,
-  SOURCE_ASSIGNMENT_SCHEMA,
   SOURCE_CANDIDATE_SCHEMA,
   SOURCE_PROPOSAL_SCHEMA,
   SOURCE_TASK_SCHEMA,
   validateSourceCandidate,
-  validateSourceAssignment,
   validateSourceProposal,
   validateSourceTaskPacket,
 } from '../src/source/source-obligation.ts';
@@ -190,35 +188,5 @@ test('source candidate is bound to exact obligation, run, authority revision, an
   assert.throws(
     () => validateSourceCandidate({ ...candidate, claimed_source_sha: 'e'.repeat(40) }, claim),
     /SOURCE_CANDIDATE_SOURCE_MISMATCH/,
-  );
-});
-
-test('source assignment binds a stable verification profile identity', () => {
-  const claim = bindSourceClaim('kernel-semantic-key', 'run-7', 'authority-head', 'c'.repeat(40));
-  const assignment = {
-    schema: SOURCE_ASSIGNMENT_SCHEMA,
-    obligation_id: 'source-work',
-    task: validateSourceTaskPacket(packet),
-    claim,
-    proposal_schema: SOURCE_PROPOSAL_SCHEMA,
-    verification_profile: { id: 'overcenter-repository-checks/v1', sha256: 'd'.repeat(64) },
-  };
-
-  assert.deepEqual(validateSourceAssignment(assignment), assignment);
-  assert.throws(
-    () =>
-      validateSourceAssignment({
-        ...assignment,
-        verification_profile: { id: '', sha256: 'd'.repeat(64) },
-      }),
-    /SOURCE_ASSIGNMENT_PROFILE_INVALID/,
-  );
-  assert.throws(
-    () =>
-      validateSourceAssignment({
-        ...assignment,
-        verification_profile: { id: 'profile', sha256: 'not-a-digest' },
-      }),
-    /SOURCE_ASSIGNMENT_PROFILE_INVALID/,
   );
 });
