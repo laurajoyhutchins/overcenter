@@ -45,10 +45,7 @@ test('Azelficoast promotion is expressible as a 4x4 shadow without a domain prim
 
 test('failed or ambiguous playing-strength evidence cannot permit promotion', () => {
   const { superiority_p_value: _superiorityPValue, ...ambiguousChecks } = passing.checks;
-  for (const checks of [
-    { ...passing.checks, superiority_p_value: false },
-    ambiguousChecks,
-  ]) {
+  for (const checks of [{ ...passing.checks, superiority_p_value: false }, ambiguousChecks]) {
     const evidence = { ...passing, checks, admitted: false };
     const decision = evaluatePromotionShadow(projectAzelficoastPromotionShadow(evidence, revision));
     assert.equal(decision.admitted, false);
@@ -85,14 +82,8 @@ test('exact coordinates prevent evidence migration between candidate or experime
     ...passing,
     results_digest: `sha256:${'b'.repeat(64)}`,
   };
-  assert.notEqual(
-    azelficoastPromotionCoordinate(changedCandidate, revision),
-    original.coordinate,
-  );
-  assert.notEqual(
-    azelficoastPromotionCoordinate(changedExperiment, revision),
-    original.coordinate,
-  );
+  assert.notEqual(azelficoastPromotionCoordinate(changedCandidate, revision), original.coordinate);
+  assert.notEqual(azelficoastPromotionCoordinate(changedExperiment, revision), original.coordinate);
 
   const migrated = projectAzelficoastPromotionShadow(changedCandidate, revision);
   migrated.asserts = original.asserts.map((row) => ({

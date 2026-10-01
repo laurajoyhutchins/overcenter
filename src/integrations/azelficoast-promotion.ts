@@ -120,9 +120,7 @@ export function projectAzelficoastPromotionShadow(
       proposition_id: checkPropositions[check],
       coordinate,
     })),
-    supports: complete
-      ? [{ object_id: results, proposition_id: panelComplete, coordinate }]
-      : [],
+    supports: complete ? [{ object_id: results, proposition_id: panelComplete, coordinate }] : [],
     requires: requirements.map((required) => ({
       proposition_id: admitted,
       required_proposition_id: required,

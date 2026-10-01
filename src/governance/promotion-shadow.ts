@@ -102,7 +102,9 @@ function requirementClosure(snapshot: PromotionShadowSnapshot): string[] {
   return [...visited].sort();
 }
 
-export function evaluatePromotionShadow(snapshot: PromotionShadowSnapshot): PromotionShadowDecision {
+export function evaluatePromotionShadow(
+  snapshot: PromotionShadowSnapshot,
+): PromotionShadowDecision {
   if (snapshot.schema !== PROMOTION_SHADOW_SCHEMA) {
     throw new Error('PROMOTION_SHADOW_INVALID:SCHEMA');
   }
@@ -147,10 +149,7 @@ export function evaluatePromotionShadow(snapshot: PromotionShadowSnapshot): Prom
     assertNonEmpty(row.coordinate, 'SUPPORTS_COORDINATE');
   }
   for (const row of snapshot.requires) {
-    if (
-      !propositions.has(row.proposition_id) ||
-      !propositions.has(row.required_proposition_id)
-    ) {
+    if (!propositions.has(row.proposition_id) || !propositions.has(row.required_proposition_id)) {
       throw new Error('PROMOTION_SHADOW_INVALID:REQUIRES_REFERENCE');
     }
     if (row.proposition_id === row.required_proposition_id) {
@@ -171,8 +170,7 @@ export function evaluatePromotionShadow(snapshot: PromotionShadowSnapshot): Prom
     snapshot.asserts
       .filter(
         (row) =>
-          row.coordinate === snapshot.coordinate &&
-          row.event_id === decision.evaluation_event_id,
+          row.coordinate === snapshot.coordinate && row.event_id === decision.evaluation_event_id,
       )
       .map((row) => row.proposition_id),
   );
