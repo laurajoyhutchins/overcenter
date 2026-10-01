@@ -132,3 +132,23 @@ export function executionAuthorityAdvanceError(
 export const mutationAdmitted = (
   s: ExecutionAuthorityProjection & { unresolved_effect: boolean },
 ) => s.current_authority && s.exact_revision && !s.unresolved_effect;
+
+export function shadowMutationAdmitted(
+  state: ExecutionAuthorityProjection & { unresolved_effect: boolean },
+  permits: boolean,
+): boolean {
+  const legacy = mutationAdmitted(state);
+  if (legacy !== permits) {
+    throw new Error(
+      [
+        'EFFECT_ADMISSION_SHADOW_DIVERGENCE',
+        `current_authority=${Number(state.current_authority)}`,
+        `exact_revision=${Number(state.exact_revision)}`,
+        `unresolved_effect=${Number(state.unresolved_effect)}`,
+        `legacy=${Number(legacy)}`,
+        `permits=${Number(permits)}`,
+      ].join(':'),
+    );
+  }
+  return legacy;
+}
