@@ -17,10 +17,6 @@ import {
   buildSourceAssignment,
   validateSourceTaskPacket,
 } from '../src/source/source-obligation.ts';
-import {
-  readSourceVerificationProfile,
-  sourceVerificationProfileBinding,
-} from '../src/source/source-verification-profile.ts';
 import { admitSourceProof, trustedSourceProof } from '../src/source/source-proof.ts';
 import { sourceProofRecord } from '../src/source/source-proof-record.ts';
 import { reportSourceTransaction } from '../src/source/transaction-report.ts';
@@ -89,13 +85,7 @@ function fixture(t: TestContext) {
     repository_full_name: 'acme/widget',
     runtime_sha: 'a'.repeat(40),
   };
-  const profile = readSourceVerificationProfile(repo, base);
-  const assignment = buildSourceAssignment(
-    'source',
-    task,
-    claim,
-    sourceVerificationProfileBinding(profile.profile),
-  );
+  const assignment = buildSourceAssignment('source', task, claim);
   const proposal = {
     schema: 'overcenter-source-proposal/v1',
     run_id: claim.run_id,
