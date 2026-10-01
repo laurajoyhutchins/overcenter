@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url';
 
 import { ARCHITECTURE_SQL_PATHS } from '../src/architecture/sql-model.ts';
 import type { AssurancePropertyImpact } from '../src/architecture/change-planner.ts';
-import type { deriveAssuranceChangePlan } from '../src/architecture/change-planner.ts';
+import type { deriveAssuranceChangePlan } from '../src/authority/assurance-relations.ts';
 import { observeRepositoryDelta } from '../src/source/repository-delta.ts';
 import {
   planSourceTransaction,

@@ -2,10 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import {
-  deriveAffectedAssuranceProperties,
-  deriveAssuranceChangePlan,
-} from '../src/architecture/change-planner.ts';
+import { deriveAffectedAssuranceProperties } from '../src/architecture/change-planner.ts';
+import { deriveAssuranceChangePlan } from '../src/authority/assurance-relations.ts';
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import { deriveRuntimeDispatchBindings, trustRootsForEffect } from '../src/architecture/tcb.ts';
 import {
@@ -233,7 +231,7 @@ test('assurance proof planning fails closed when a required obligation has no wi
 
     assert.throws(
       () => deriveAssuranceChangePlan(db, 'github-commit-status-provider'),
-      /ASSURANCE_EVIDENCE_INCOMPLETE:authoritative-settlement/,
+      /ASSURANCE_SUPPORT_INCOMPLETE:obligation:authoritative-settlement/,
     );
   } finally {
     db.close();

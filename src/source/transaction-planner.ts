@@ -7,10 +7,12 @@ import { API } from 'typescript/unstable/sync';
 import { runtimeModuleClosure } from '../analysis/typescript-runtime.ts';
 import {
   deriveAffectedAssuranceProperties,
-  deriveAssuranceChangePlan,
   type AssurancePropertyImpact,
-  type AssuranceChangePlan,
 } from '../architecture/change-planner.ts';
+import {
+  deriveAssuranceChangePlan,
+  type AssuranceChangePlan,
+} from '../authority/assurance-relations.ts';
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../architecture/sql-model.ts';
 import { deriveAssurancePropertyTrustRoots } from '../architecture/tcb.ts';
 import { canonicalDigest } from '../digest.ts';
