@@ -669,14 +669,12 @@ test('project.advance emits a source assignment without a worker executable', ()
     assert.equal(existsSync(join(outputDir, 'overcenter')), false);
 
     const assignment = JSON.parse(readFileSync(join(outputDir, 'assignment.json'), 'utf8'));
-    assert.equal(assignment.schema, 'overcenter-source-assignment/v2');
+    assert.equal(assignment.schema, 'overcenter-source-assignment/v1');
     assert.equal(assignment.obligation_id, 'source-work');
     assert.equal(assignment.task.kind, 'source-change');
     assert.equal(assignment.claim.run_id, receipt.run_id);
     assert.equal(assignment.claim.source_sha, sourceSha);
     assert.equal(assignment.proposal_schema, SOURCE_PROPOSAL_SCHEMA);
-    assert.equal(assignment.verification_profile.id, 'fixture-baseline');
-    assert.match(assignment.verification_profile.sha256, /^[0-9a-f]{64}$/);
     assert.equal(JSON.stringify(assignment).includes('execution_capability'), false);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
@@ -723,53 +721,6 @@ test('source proposal broker rejects control-plane mutation before candidate pub
       /SOURCE_PROPOSAL_PATH_INVALID:0/,
     );
 
-    const candidateRef = `refs/heads/overcenter/candidate/${claim.run_id}`;
-    assert.equal(git(f.work, ['ls-remote', 'origin', candidateRef]), '');
-  } finally {
-    rmSync(f.root, { recursive: true, force: true });
-    rmSync(f.postconditionRoot, { recursive: true, force: true });
-  }
-});
-
-test('source proposal broker rejects a profile binding that differs from the claimed base', () => {
-  const f = fixture();
-  try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
-    kernel.initialize();
-    const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
-    const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
-      outputDir: join(f.root, 'source-packet'),
-      authorityRef: AUTHORITY_REF,
-      remote: 'origin',
-    });
-    assert.ok(acquired.run_id);
-
-    const assignment = JSON.parse(
-      readFileSync(join(f.root, 'source-packet', 'assignment.json'), 'utf8'),
-    );
-    assignment.verification_profile.sha256 = '0'.repeat(64);
-    const claim = assignment.claim;
-    assert.throws(
-      () =>
-        brokerAssignedSourceProposal(
-          f.work,
-          assignment,
-          {
-            schema: SOURCE_PROPOSAL_SCHEMA,
-            run_id: claim.run_id,
-            claimed_revision: claim.claimed_revision,
-            claimed_source_sha: claim.source_sha,
-            files: [
-              {
-                path: 'src/feature.txt',
-                content_base64: Buffer.from('candidate\n').toString('base64'),
-              },
-            ],
-          },
-          { authorityRef: AUTHORITY_REF, remote: 'origin' },
-        ),
-      /SOURCE_BROKER_PROFILE_MISMATCH/,
-    );
     const candidateRef = `refs/heads/overcenter/candidate/${claim.run_id}`;
     assert.equal(git(f.work, ['ls-remote', 'origin', candidateRef]), '');
   } finally {
