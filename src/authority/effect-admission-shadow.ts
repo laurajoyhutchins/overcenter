@@ -64,9 +64,7 @@ export function projectEffectAdmissionState(
     0,
     ...authorities.map((item) => Number(item.value.generation)),
   );
-  const current = authorities.find(
-    (item) => Number(item.value.generation) === currentGeneration,
-  );
+  const current = authorities.find((item) => Number(item.value.generation) === currentGeneration);
   const at = current ? coordinate(projection, current.coordinate) : undefined;
   const capability = sha256(permit.execution_capability);
   return {
