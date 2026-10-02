@@ -13,10 +13,7 @@ export interface ImplementationTransitionSources {
 }
 
 export interface ImplementationTransition {
-  readonly id:
-    | 'release-not-dispatched'
-    | 'observation-receipt'
-    | 'source-integration-receipt';
+  readonly id: 'release-not-dispatched' | 'observation-receipt' | 'source-integration-receipt';
   readonly durable: boolean;
   readonly relations: readonly FourByFourRelation[];
   readonly formalActions: readonly string[];
