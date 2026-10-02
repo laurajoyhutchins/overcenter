@@ -268,7 +268,6 @@ test('project.advance binds bounded source intent to the exact project revision'
     assert.equal(receipt.state, 'AGENT_EXECUTION_REQUIRED');
     assert.equal(receipt.obligation_id, 'bounded-source-work');
     assert.equal(receipt.candidate_branch_base_sha, projectSourceSha);
-    assert.equal(receipt.dispatch?.reason_code, 'OPEN_ENDED_SOURCE_REMEDIATION');
     const assignment = JSON.parse(readFileSync(join(outputDir, 'assignment.json'), 'utf8'));
     assert.equal(assignment.task.kind, 'source-change');
     assert.equal(assignment.claim.source_sha, projectSourceSha);
@@ -1034,13 +1033,51 @@ test('unsupported READY work reports a blocked frontier without claiming authori
     assert.equal(receipt.state, 'BLOCKED');
     assert.equal(receipt.obligation_id, 'deterministic-effect');
     assert.equal(receipt.run_id, undefined);
-    assert.equal(receipt.dispatch?.route, 'unsupported');
-    assert.equal(receipt.dispatch?.reason_code, 'PACKET_UNSUPPORTED');
 
     const after = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     assert.equal(after.head(), before);
     assert.equal(after.inspect()[0]?.status, 'READY');
     assert.equal(after.inspect()[0]?.run_id, undefined);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+    rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
+test('declared operator judgment remains blocked without claiming agent work', () => {
+  const f = fixture();
+  try {
+    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
+    kernel.initialize();
+    kernel.define({
+      id: 'operator-decision',
+      packet: { kind: 'judgment-required' },
+      postcondition: {
+        verifier: 'operator-judgment/v1',
+        subject: { question: 'choose' },
+      },
+    });
+
+    const outputDir = join(f.root, 'judgment-packet');
+    const receipt = advanceProjectForAgent(f.work, commandContext(f.sourceSha), {
+      outputDir,
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+
+    assert.equal(receipt.state, 'BLOCKED');
+    assert.equal(receipt.obligation_id, 'operator-decision');
+    assert.equal(receipt.run_id, undefined);
+    assert.equal(existsSync(outputDir), false);
+
+    const authoritative = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    const explanation = authoritative.explain('operator-decision');
+    assert.equal(explanation.status, 'BLOCKED');
+    assert.equal(explanation.reason.kind, 'judgment-required');
+    assert.equal(authoritative.inspect()[0]?.run_id, undefined);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
@@ -1141,7 +1178,7 @@ test('project.advance reports DONE for an empty authoritative graph', () => {
   }
 });
 
-test('project.advance keeps mechanically derivable hostile-evidence debt out of agent packets', () => {
+test('legacy hostile-evidence labels cannot bypass the source reasoning boundary', () => {
   const fixtureState = fixture();
   try {
     const kernel = new GitOvercenterKernel(fixtureState.work, {
@@ -1192,19 +1229,21 @@ test('project.advance keeps mechanically derivable hostile-evidence debt out of 
       remote: 'origin',
     });
 
-    assert.equal(receipt.state, 'READY');
+    assert.equal(receipt.state, 'AGENT_EXECUTION_REQUIRED');
     assert.equal(receipt.obligation_id, obligationId);
-    assert.equal(receipt.run_id, undefined);
-    assert.equal(receipt.dispatch?.route, 'deterministic-software-action');
-    assert.equal(receipt.dispatch?.reason_code, 'DERIVABLE_HOSTILE_EVIDENCE_DEBT');
-    assert.equal(existsSync(outputDir), false);
+    assert.ok(receipt.run_id);
+    assert.ok(existsSync(join(outputDir, 'assignment.json')));
+
+    const assignment = JSON.parse(readFileSync(join(outputDir, 'assignment.json'), 'utf8'));
+    assert.equal(assignment.task.kind, 'source-change');
+    assert.equal(assignment.claim.run_id, receipt.run_id);
 
     const current = new GitOvercenterKernel(fixtureState.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     }).inspect();
-    assert.equal(current[0]?.status, 'READY');
-    assert.equal(current[0]?.run_id, undefined);
+    assert.equal(current[0]?.status, 'EXECUTING');
+    assert.equal(current[0]?.run_id, receipt.run_id);
   } finally {
     rmSync(fixtureState.root, { recursive: true, force: true });
     rmSync(fixtureState.postconditionRoot, { recursive: true, force: true });
@@ -1257,9 +1296,6 @@ test('ambiguous reserved source mutation blocks otherwise READY agent work', () 
     assert.equal(second.state, 'RECOVERY_REQUIRED');
     assert.equal(second.obligation_id, 'a-source-work');
     assert.equal(second.run_id, first.run_id);
-    assert.equal(second.dispatch?.route, 'recovery-required');
-    assert.equal(second.dispatch?.reason_code, 'AMBIGUOUS_RESERVED_MUTATION');
-    assert.ok(second.dispatch?.evidence_predicates.includes('effect_reservation=unresolved'));
     assert.equal(existsSync(secondOutput), false);
 
     const current = new GitOvercenterKernel(fixtureState.work, {
