@@ -3,9 +3,16 @@ import {
   type RelationalEventExplanation,
   type RelationalExplanationInput,
 } from './relational-explanation.ts';
-import { settlementDispositionFromRelations, type SettlementRelations } from './settlement.ts';
 
 export type RecoveryEvent = 'reconcile' | 'retry' | 'settle';
+
+export interface RecoveryRelations {
+  event_asserts_postcondition: boolean;
+  object_supports_accepted_absence: boolean;
+  object_supports_not_dispatched: boolean;
+  accepted_absence_requires_replay_safety: boolean;
+  object_supports_replay_safety: boolean;
+}
 export type PossibleEffectOutcome = 'postcondition-asserted' | 'not-dispatched';
 
 export interface PossibleEffectWorld {
@@ -32,7 +39,7 @@ const RECOVERY_EVENTS = [
   'settle',
 ] as const satisfies readonly RecoveryEvent[];
 
-function retryEstablished(relations: SettlementRelations): boolean {
+function retryEstablished(relations: RecoveryRelations): boolean {
   if (relations.object_supports_not_dispatched) return true;
   return (
     relations.object_supports_accepted_absence &&
@@ -46,7 +53,7 @@ function world(coordinate: string, outcome: PossibleEffectOutcome): PossibleEffe
 
 export function possibleEffectWorlds(
   coordinate: string,
-  relations: SettlementRelations,
+  relations: RecoveryRelations,
 ): PossibleEffectWorld[] {
   if (!coordinate) throw new Error('RECOVERY_COORDINATE_INVALID');
 
@@ -149,7 +156,7 @@ export function recoveryEventsPermittedInAllWorlds(
 
 export function deriveRecoveryPlan(
   coordinate: string,
-  relations: SettlementRelations,
+  relations: RecoveryRelations,
 ): RecoveryPlan {
   const worlds = possibleEffectWorlds(coordinate, relations);
   const permitted = recoveryEventsPermittedInAllWorlds(coordinate, worlds);
@@ -161,16 +168,22 @@ export function deriveRecoveryPlan(
   return { coordinate, worlds, permitted, preferred };
 }
 
-function legacyRecoveryEvent(relations: SettlementRelations): RecoveryEvent {
-  const disposition = settlementDispositionFromRelations(relations);
-  if (disposition === 'DONE') return 'settle';
-  if (disposition === 'READY') return 'retry';
+function legacyRecoveryEvent(relations: RecoveryRelations): RecoveryEvent {
+  if (relations.event_asserts_postcondition) return 'settle';
+  if (
+    relations.object_supports_not_dispatched ||
+    (relations.object_supports_accepted_absence &&
+      (!relations.accepted_absence_requires_replay_safety ||
+        relations.object_supports_replay_safety))
+  ) {
+    return 'retry';
+  }
   return 'reconcile';
 }
 
 export function shadowRecoveryRouting(
   coordinate: string,
-  relations: SettlementRelations,
+  relations: RecoveryRelations,
 ): RecoveryRoutingShadow {
   const legacy = legacyRecoveryEvent(relations);
   const derived = deriveRecoveryPlan(coordinate, relations).preferred;
