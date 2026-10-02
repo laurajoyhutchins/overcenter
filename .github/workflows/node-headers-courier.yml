@@ -1,0 +1,30 @@
+name: Node Headers Courier
+
+on:
+  push:
+    branches:
+      - agent/datalog-vm-bootstrap-20261002
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  headers:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fetch Node 22.16.0 headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o node-headers.tar.gz https://nodejs.org/dist/v22.16.0/node-v22.16.0-headers.tar.gz
+          tar -xzf node-headers.tar.gz
+          test -f node-v22.16.0/include/node/node_api.h
+          tar -C node-v22.16.0/include -czf node-22.16.0-include.tar.gz node
+
+      - name: Upload headers
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-22.16.0-headers
+          path: node-22.16.0-include.tar.gz
+          retention-days: 1
