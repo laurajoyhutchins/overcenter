@@ -40,21 +40,17 @@ import { planGraphReconciliation } from '../graph/reconciliation.ts';
 import { repositorySnapshot } from '../evidence/repository-snapshot.ts';
 import type { ObservationContext } from '../observation/observe.ts';
 import type { Work } from '../model.ts';
-import { classifyJudgmentFrontier, type JudgmentFrontierDecision } from './judgment-frontier.ts';
+import { classifyJudgmentFrontier } from './judgment-frontier.ts';
+import type {
+  ProjectAdvanceResult,
+  ProjectSubmitResult,
+  ProjectVisibleState,
+} from './project-protocol.ts';
 
 export const PROJECT_ADVANCE_RECEIPT_SCHEMA = 'overcenter-project-advance/v1' as const;
 export const PROJECT_SUBMIT_RECEIPT_SCHEMA = 'overcenter-project-submit/v1' as const;
 export const PROJECT_ADVANCE_COMMAND = 'project.advance' as const;
 export const PROJECT_SUBMIT_COMMAND = 'project.submit' as const;
-
-type ProjectVisibleState =
-  | 'READY'
-  | 'EXECUTING'
-  | 'WAITING'
-  | 'BLOCKED'
-  | 'RECOVERY_REQUIRED'
-  | 'DONE'
-  | 'AGENT_EXECUTION_REQUIRED';
 
 export interface ProjectCommandContext {
   repository_id: number;
@@ -65,7 +61,7 @@ export interface ProjectCommandContext {
   command_run_attempt: number;
 }
 
-export interface ProjectAdvanceReceipt {
+export interface ProjectAdvanceReceipt extends ProjectAdvanceResult {
   schema: typeof PROJECT_ADVANCE_RECEIPT_SCHEMA;
   command: typeof PROJECT_ADVANCE_COMMAND;
   transport: 'github-actions-job-rerun';
@@ -75,15 +71,8 @@ export interface ProjectAdvanceReceipt {
   command_run_id: number;
   command_run_attempt: number;
   authority_ref: string;
-  authority_head: string;
-  state: ProjectVisibleState;
-  obligation_id?: string;
-  run_id?: string;
-  claimed_revision?: string;
-  assignment_sha256?: string;
   candidate_branch?: string;
   candidate_branch_base_sha?: string;
-  dispatch?: JudgmentFrontierDecision;
   receipt_digest: string;
 }
 
@@ -94,7 +83,7 @@ export interface ProjectSubmitContext extends ProjectCommandContext {
   candidate_run_id: string;
 }
 
-export interface ProjectSubmitReceipt {
+export interface ProjectSubmitReceipt extends ProjectSubmitResult {
   schema: typeof PROJECT_SUBMIT_RECEIPT_SCHEMA;
   command: typeof PROJECT_SUBMIT_COMMAND;
   transport: 'github-actions-job-rerun';
@@ -104,18 +93,8 @@ export interface ProjectSubmitReceipt {
   command_run_id: number;
   command_run_attempt: number;
   authority_ref: string;
-  authority_head: string;
   candidate_sha: string;
-  obligation_id: string;
-  run_id: string;
-  claimed_revision: string;
-  assignment_sha256?: string;
-  output_sha256?: string;
   integration_commit?: string;
-  disposition: 'DONE' | 'READY' | 'RECOVERY_REQUIRED';
-  verified: boolean;
-  settlement_commit: string | null;
-  already_settled: boolean;
   receipt_digest: string;
 }
 
