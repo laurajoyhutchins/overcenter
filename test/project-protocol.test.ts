@@ -38,8 +38,6 @@ test('project advance result excludes transport envelope metadata', () => {
     run_id: 'run:one',
     claimed_revision: 'authority:before',
     assignment_sha256: 'b'.repeat(64),
-    candidate_branch: 'overcenter/candidate/run:one',
-    candidate_branch_base_sha: 'c'.repeat(40),
     dispatch: receipt.dispatch,
   });
 });
@@ -56,7 +54,6 @@ test('project submit result excludes transport envelope metadata', () => {
     command_run_attempt: 2,
     authority_ref: 'refs/overcenter/state',
     authority_head: 'authority:def',
-    candidate_sha: 'e'.repeat(40),
     obligation_id: 'work:one',
     run_id: 'run:one',
     claimed_revision: 'authority:before',
@@ -78,7 +75,6 @@ test('project submit result excludes transport envelope metadata', () => {
     claimed_revision: 'authority:before',
     assignment_sha256: 'b'.repeat(64),
     output_sha256: 'f'.repeat(64),
-    integration_commit: '1'.repeat(40),
     disposition: 'DONE',
     verified: true,
     settlement_commit: 'authority:settled',
