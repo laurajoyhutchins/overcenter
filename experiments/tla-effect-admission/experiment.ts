@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -89,8 +89,10 @@ function runTlc(fence: boolean, duplicate: boolean): TlcResult {
   const root = mkdtempSync(join(tmpdir(), 'overcenter-tlc-admission-'));
   try {
     const cfg = join(root, 'Model.cfg');
+    const model = join(root, 'EffectAdmissionTemporal.tla');
     const meta = join(root, 'states');
     writeFileSync(cfg, config(fence, duplicate));
+    writeFileSync(model, readFileSync(MODEL));
     const started = performance.now();
     const result = spawnSync(
       'java',
@@ -104,10 +106,10 @@ function runTlc(fence: boolean, duplicate: boolean): TlcResult {
         '-metadir',
         meta,
         '-config',
-        cfg,
-        MODEL,
+        'Model.cfg',
+        'EffectAdmissionTemporal.tla',
       ],
-      { encoding: 'utf8' },
+      { cwd: root, encoding: 'utf8' },
     );
     if (result.error) throw result.error;
     const elapsed_ms = performance.now() - started;
