@@ -34,15 +34,7 @@ function rejects(
 
 test('selected live consequential transitions refine through the trusted 4x4 model', () => {
   const refinement = verifyImplementationTransitionRefinement(sources);
-  assert.deepEqual(
-    refinement.transitions.map(({ id, durable, relations, formalActions }) => ({
-      id,
-      durable,
-      relations,
-      formalActions,
-    })),
-    [],
-  );
+  assert.deepEqual(refinement.transitions, []);
   assert.deepEqual(refinement.hostileGuards, {});
 });
 
