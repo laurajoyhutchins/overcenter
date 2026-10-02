@@ -1,25 +1,9 @@
 import type { DatabaseSync } from 'node:sqlite';
 
+import type { AssuranceChangePlan } from '../architecture/change-planner.ts';
 import { deriveAssurancePropertyTrustRoots } from '../architecture/tcb.ts';
 
 export const ASSURANCE_RELATION_COORDINATE = 'architecture/current' as const;
-
-export interface AssuranceChangePlan {
-  properties: string[];
-  effects: string[];
-  obligations: string[];
-  evidence: Array<{
-    evidence_id: string;
-    obligation_ids: string[];
-    artifact_ids: string[];
-  }>;
-  realization_roots: Array<{
-    artifact_id: string;
-    symbol_id: string;
-    basis: 'authority' | 'capability' | 'effect';
-    requirement_id: string;
-  }>;
-}
 
 export interface PropositionSupport {
   object_id: string;
@@ -60,6 +44,10 @@ function compareStringSets(left: readonly string[], right: readonly string[]): n
   return left.length - right.length;
 }
 
+function propertyIds(value: string | readonly string[]): string[] {
+  return [...new Set(typeof value === 'string' ? [value] : value)].sort();
+}
+
 export function minimumSufficientEvidenceSet(
   propositions: readonly string[],
   availableSupports: readonly PropositionSupport[],
@@ -80,7 +68,6 @@ export function minimumSufficientEvidenceSet(
   const alreadySupported = [...existingByProposition.keys()].sort();
   const pending = required.filter((proposition) => !existingByProposition.has(proposition));
   const pendingSet = new Set(pending);
-
   const coverage = new Map<string, Set<string>>();
   for (const support of availableSupports) {
     if (support.coordinate !== coordinate || !pendingSet.has(support.proposition_id)) continue;
@@ -126,39 +113,59 @@ export function minimumSufficientEvidenceSet(
   minimumSets.sort(compareStringSets);
   const selected = minimumSets[0] ?? [];
 
-  const explanations = required.map((proposition): PropositionSupportExplanation => {
-    const existing = existingByProposition.get(proposition);
-    if (existing) {
-      return {
-        proposition_id: proposition,
-        resolution: 'already-supported',
-        object_ids: [...existing].sort(),
-      };
-    }
-    return {
-      proposition_id: proposition,
-      resolution: 'selected-evidence',
-      object_ids: selected
-        .filter((objectId) => coverage.get(objectId)?.has(proposition))
-        .sort(),
-    };
-  });
-
   return {
     coordinate,
     required_propositions: required,
     already_supported_propositions: alreadySupported,
     selected_object_ids: selected,
     alternative_minimum_object_sets: minimumSets.slice(1),
-    explanations,
+    explanations: required.map((proposition): PropositionSupportExplanation => {
+      const existing = existingByProposition.get(proposition);
+      if (existing) {
+        return {
+          proposition_id: proposition,
+          resolution: 'already-supported',
+          object_ids: [...existing].sort(),
+        };
+      }
+      return {
+        proposition_id: proposition,
+        resolution: 'selected-evidence',
+        object_ids: selected.filter((objectId) => coverage.get(objectId)?.has(proposition)).sort(),
+      };
+    }),
   };
 }
 
-export function assuranceRequirementClosure(db: DatabaseSync, propertyId: string): string[] {
-  const known = db
-    .prepare('SELECT property_id FROM assurance_property WHERE property_id = ?')
-    .get(propertyId) as { property_id: string } | undefined;
-  if (!known) throw new Error(`ASSURANCE_PROPERTY_UNKNOWN:${propertyId}`);
+export function minimumSupportCover(
+  propositions: readonly string[],
+  rows: readonly PropositionSupport[],
+  coordinate: string,
+): string[] {
+  return minimumSufficientEvidenceSet(propositions, rows, coordinate).selected_object_ids;
+}
+
+export function assuranceRequirementClosure(
+  db: DatabaseSync,
+  properties: string | readonly string[],
+): string[] {
+  const goals = propertyIds(properties);
+  if (goals.length === 0) return [];
+
+  const known = new Set(
+    (
+      db
+        .prepare(`
+          SELECT property_id
+          FROM assurance_property
+          WHERE property_id IN (${placeholders(goals)})
+          ORDER BY property_id
+        `)
+        .all(...goals) as unknown as Array<{ property_id: string }>
+    ).map((row) => row.property_id),
+  );
+  const unknown = goals.filter((propertyId) => !known.has(propertyId));
+  if (unknown.length > 0) throw new Error(`ASSURANCE_PROPERTY_UNKNOWN:${unknown.join(',')}`);
 
   return (
     db
@@ -207,7 +214,9 @@ export function assuranceRequirementClosure(db: DatabaseSync, propertyId: string
             )
         ),
         closure(proposition_id) AS (
-          SELECT 'property:' || ?
+          SELECT 'property:' || property_id
+          FROM assurance_property
+          WHERE property_id IN (${placeholders(goals)})
 
           UNION
 
@@ -220,7 +229,7 @@ export function assuranceRequirementClosure(db: DatabaseSync, propertyId: string
         FROM closure
         ORDER BY proposition_id
       `)
-      .all(propertyId) as unknown as Array<{ proposition_id: string }>
+      .all(...goals) as unknown as Array<{ proposition_id: string }>
   ).map((row) => row.proposition_id);
 }
 
@@ -246,13 +255,13 @@ function candidateSupports(db: DatabaseSync, coordinate: string): PropositionSup
     .all(coordinate, coordinate) as unknown as PropositionSupport[];
 }
 
-export function deriveAssuranceEvidenceFrontier(
+export function assuranceEvidenceFrontierFromRelations(
   db: DatabaseSync,
-  propertyId: string,
-  coordinate = ASSURANCE_RELATION_COORDINATE,
+  properties: string | readonly string[],
+  coordinate: string = ASSURANCE_RELATION_COORDINATE,
   existingSupports: readonly PropositionSupport[] = [],
 ): MinimumSufficientEvidenceSet {
-  const closure = assuranceRequirementClosure(db, propertyId);
+  const closure = assuranceRequirementClosure(db, properties);
   const requiredProofs = closure.filter(
     (proposition) => proposition.startsWith('obligation:') || proposition.startsWith('proof:'),
   );
@@ -264,23 +273,26 @@ export function deriveAssuranceEvidenceFrontier(
   );
 }
 
-export function deriveAssuranceChangePlan(
+export function assuranceChangePlanForPropertiesFromRelations(
   db: DatabaseSync,
-  propertyId: string,
-  coordinate = ASSURANCE_RELATION_COORDINATE,
+  propertyIdsValue: readonly string[],
+  coordinate: string = ASSURANCE_RELATION_COORDINATE,
   existingSupports: readonly PropositionSupport[] = [],
 ): AssuranceChangePlan {
-  const closure = assuranceRequirementClosure(db, propertyId);
+  const closure = assuranceRequirementClosure(db, propertyIdsValue);
   const properties = closure
     .filter((proposition) => proposition.startsWith('property:'))
     .map((proposition) => proposition.slice('property:'.length));
+  if (properties.length === 0) {
+    return { properties: [], effects: [], obligations: [], evidence: [], realization_roots: [] };
+  }
+
   const obligationPropositions = closure.filter((proposition) =>
     proposition.startsWith('obligation:'),
   );
   const obligations = obligationPropositions.map((proposition) =>
     proposition.slice('obligation:'.length),
   );
-
   const effects = (
     db
       .prepare(`
@@ -302,7 +314,6 @@ export function deriveAssuranceChangePlan(
     existingSupports,
   );
   const selectedEvidence = frontier.selected_object_ids;
-
   const witnessRows =
     selectedEvidence.length === 0
       ? []
@@ -354,4 +365,18 @@ export function deriveAssuranceChangePlan(
     evidence,
     realization_roots: realizationRoots,
   };
+}
+
+export function assuranceChangePlanFromRelations(
+  db: DatabaseSync,
+  propertyId: string,
+  coordinate: string = ASSURANCE_RELATION_COORDINATE,
+  existingSupports: readonly PropositionSupport[] = [],
+): AssuranceChangePlan {
+  return assuranceChangePlanForPropertiesFromRelations(
+    db,
+    [propertyId],
+    coordinate,
+    existingSupports,
+  );
 }

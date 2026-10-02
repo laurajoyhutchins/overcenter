@@ -28,14 +28,36 @@ function projection(size: number, coordinateCount: number): FourByFourProjection
     const id = String(index).padStart(6, '0');
     const coordinate = `c-${String(index % coordinateCount).padStart(3, '0')}`;
     const reservation = `r-${id}`;
-    objects.push({ id: `o-${id}`, coordinate, role: 'execution-authority', value: { index }, sources });
-    events.push({ id: `e-${id}`, coordinate, role: 'effect-attempt', value: { reservation_commit: reservation }, sources });
+    objects.push({
+      id: `o-${id}`,
+      coordinate,
+      role: 'execution-authority',
+      value: { index },
+      sources,
+    });
+    events.push({
+      id: `e-${id}`,
+      coordinate,
+      role: 'effect-attempt',
+      value: { reservation_commit: reservation },
+      sources,
+    });
     propositions.push({ id: `p-${id}`, coordinate, role: 'receipt', value: { index }, sources });
     permits.push({ id: `permit-${id}`, object: `o-${id}`, event: `e-${id}`, sources });
-    if (index % 3 === 0) asserts.push({ id: `assert-${id}`, event: `e-${id}`, proposition: `p-${id}`, sources });
+    if (index % 3 === 0)
+      asserts.push({ id: `assert-${id}`, event: `e-${id}`, proposition: `p-${id}`, sources });
   }
 
-  return { coordinates, objects, events, propositions, permits, asserts, supports: [], requires: [] };
+  return {
+    coordinates,
+    objects,
+    events,
+    propositions,
+    permits,
+    asserts,
+    supports: [],
+    requires: [],
+  };
 }
 
 function referencePermitted(value: FourByFourProjection, coordinate: string): string[] {
@@ -79,14 +101,20 @@ try {
   for (let index = 0; index < iterations; index += 1) referencePermitted(value, target);
   const typescriptMs = performance.now() - start;
 
-  console.log(JSON.stringify({
-    rows: size,
-    coordinates: coordinateCount,
-    iterations,
-    sqlite_ms: Number(sqliteMs.toFixed(3)),
-    typescript_ms: Number(typescriptMs.toFixed(3)),
-    speedup: Number((typescriptMs / sqliteMs).toFixed(2)),
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        rows: size,
+        coordinates: coordinateCount,
+        iterations,
+        sqlite_ms: Number(sqliteMs.toFixed(3)),
+        typescript_ms: Number(typescriptMs.toFixed(3)),
+        speedup: Number((typescriptMs / sqliteMs).toFixed(2)),
+      },
+      null,
+      2,
+    ),
+  );
   calculus.close();
 } finally {
   rmSync(root, { recursive: true, force: true });

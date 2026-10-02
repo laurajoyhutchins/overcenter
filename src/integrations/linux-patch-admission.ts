@@ -218,17 +218,16 @@ export function projectLinuxPatchAdmissionBoundary(
     ]),
   ) as Record<MechanicalCheck, string>;
 
+  const externalProposition = (item: LinuxExternalPrerequisite): string =>
+    semanticId('proposition', {
+      coordinate,
+      role: 'external-prerequisite',
+      id: item.id,
+      project: item.project,
+      revision: item.revision,
+    });
   const externalPropositions = Object.fromEntries(
-    evidence.external_prerequisites.map((item) => [
-      item.id,
-      semanticId('proposition', {
-        coordinate,
-        role: 'external-prerequisite',
-        id: item.id,
-        project: item.project,
-        revision: item.revision,
-      }),
-    ]),
+    evidence.external_prerequisites.map((item) => [item.id, externalProposition(item)]),
   );
 
   const externalObjects = evidence.external_prerequisites.map((item) => ({
@@ -356,7 +355,7 @@ export function projectLinuxPatchAdmissionBoundary(
         sources: [...sources],
       })),
       ...evidence.external_prerequisites.map((item) => ({
-        id: externalPropositions[item.id],
+        id: externalProposition(item),
         coordinate,
         role: 'external-prerequisite',
         value: {
@@ -388,10 +387,10 @@ export function projectLinuxPatchAdmissionBoundary(
       ...satisfiedExternal.map((item) => ({
         id: semanticId('asserts', {
           event: observation,
-          proposition: externalPropositions[item.id],
+          proposition: externalProposition(item),
         }),
         event: observation,
-        proposition: externalPropositions[item.id],
+        proposition: externalProposition(item),
         sources: [...sources],
       })),
       ...(evidence.maintainer_disposition === 'accepted'
@@ -419,17 +418,15 @@ export function projectLinuxPatchAdmissionBoundary(
         sources: [...sources],
       })),
       ...satisfiedExternal.map((item) => {
-        const object = externalObjects.find(
-          (candidate) => candidate.value.id === item.id,
-        );
+        const object = externalObjects.find((candidate) => candidate.value.id === item.id);
         if (!object) throw new Error('LINUX_PATCH_INTERNAL:MISSING_EXTERNAL_OBJECT');
         return {
           id: semanticId('supports', {
             object: object.id,
-            proposition: externalPropositions[item.id],
+            proposition: externalProposition(item),
           }),
           object: object.id,
-          proposition: externalPropositions[item.id],
+          proposition: externalProposition(item),
           sources: [...sources],
         };
       }),
@@ -460,10 +457,10 @@ export function projectLinuxPatchAdmissionBoundary(
       ...evidence.external_prerequisites.map((item) => ({
         id: semanticId('requires', {
           proposition: admission,
-          required: externalPropositions[item.id],
+          required: externalProposition(item),
         }),
         proposition: admission,
-        required: externalPropositions[item.id],
+        required: externalProposition(item),
         sources: [...sources],
       })),
       {
