@@ -1,10 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { isDeepStrictEqual } from 'node:util';
 
-import {
-  deriveAssuranceChangePlan,
-  type AssuranceChangePlan,
-} from '../architecture/change-planner.ts';
+import type { AssuranceChangePlan } from '../architecture/change-planner.ts';
 import { deriveAssurancePropertyTrustRoots } from '../architecture/tcb.ts';
 
 export const ASSURANCE_RELATION_COORDINATE = 'architecture/current' as const;
@@ -226,14 +222,5 @@ export function assuranceChangePlanFromRelations(
   };
 }
 
-export function shadowAssuranceChangePlan(
-  db: DatabaseSync,
-  propertyId: string,
-): AssuranceChangePlan {
-  const legacy = deriveAssuranceChangePlan(db, propertyId);
-  const projected = assuranceChangePlanFromRelations(db, propertyId);
-  if (!isDeepStrictEqual(projected, legacy)) {
-    throw new Error(`ASSURANCE_PLANNER_SHADOW_DIVERGENCE:${propertyId}`);
-  }
-  return legacy;
-}
+// Immutable-base compatibility only; both names execute the same relational planner.
+export const shadowAssuranceChangePlan = assuranceChangePlanFromRelations;
