@@ -8,13 +8,13 @@ import {
   recoveryEventsPermittedInAllWorlds,
   shadowRecoveryRouting,
   type PossibleEffectWorld,
+  type RecoveryRelations,
 } from '../src/authority/recovery.ts';
-import type { SettlementRelations } from '../src/authority/settlement.ts';
 
 const coordinate = 'coordinate-current';
 const bools = [false, true] as const;
 
-function relations(overrides: Partial<SettlementRelations> = {}): SettlementRelations {
+function relations(overrides: Partial<RecoveryRelations> = {}): RecoveryRelations {
   return {
     event_asserts_postcondition: false,
     object_supports_accepted_absence: false,
@@ -25,7 +25,7 @@ function relations(overrides: Partial<SettlementRelations> = {}): SettlementRela
   };
 }
 
-function retryEstablished(value: SettlementRelations): boolean {
+function retryEstablished(value: RecoveryRelations): boolean {
   return (
     value.object_supports_not_dispatched ||
     (value.object_supports_accepted_absence &&
