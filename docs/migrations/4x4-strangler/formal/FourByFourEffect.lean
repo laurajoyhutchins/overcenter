@@ -115,12 +115,20 @@ def uncertainRecovery : World := {
 
 theorem reservation_existence_is_not_authority :
     staleReservation.reservation = true ∧ ¬currentAuthority staleReservation := by
-  decide
+  constructor
+  · rfl
+  · intro h
+    have revisionMismatch : (0 : Nat) = 1 := congrArg Coordinate.revision h
+    cases revisionMismatch
 
 theorem recovery_without_observation_is_not_settlement :
     uncertainRecovery.reservation = true ∧
       uncertainRecovery.observedPresent = false ∧
       uncertainRecovery.settled = false := by
-  decide
+  constructor
+  · rfl
+  · constructor
+    · rfl
+    · rfl
 
 end Overcenter.FourByFour
