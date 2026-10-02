@@ -63,11 +63,7 @@ test('northbound MCP advertises only the three semantic tools', async () => {
   assert.ok(listed.result);
   assert.deepEqual(
     (listed.result.tools as Array<{ name: string }>).map(({ name }) => name),
-    [
-      'overcenter.query_possible_events',
-      'overcenter.explain_event',
-      'overcenter.request_event',
-    ],
+    ['overcenter.query_possible_events', 'overcenter.explain_event', 'overcenter.request_event'],
   );
 });
 
