@@ -1,0 +1,5 @@
+name = "leanAuthorityCoordinate"
+version = "0.0.0"
+
+[[lean_lib]]
+name = "AuthorityCoordinate"
