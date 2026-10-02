@@ -32,14 +32,8 @@ export function projectExecutionAuthority(
   };
 }
 
-export function executionPermits(
-  run: Run,
-  permit: ExecutionPermit,
-  capabilitySha256: string,
-): boolean {
-  const authority = projectExecutionAuthority(run, permit, capabilitySha256);
-  return authority.current_authority && authority.exact_revision;
-}
+export const executionPermits = (run: Run, permit: ExecutionPermit, capabilitySha256: string) =>
+  Object.values(projectExecutionAuthority(run, permit, capabilitySha256)).every(Boolean);
 
 export type EffectReservationAuthorityError =
   | 'EFFECT_RESERVATION_RUN_MISMATCH'
