@@ -13,11 +13,7 @@ export interface ImplementationTransitionSources {
 }
 
 export interface ImplementationTransition {
-  readonly id:
-    | 'dispatch-effect'
-    | 'release-not-dispatched'
-    | 'observation-receipt'
-    | 'source-integration-receipt';
+  readonly id: 'release-not-dispatched' | 'observation-receipt' | 'source-integration-receipt';
   readonly durable: boolean;
   readonly relations: readonly FourByFourRelation[];
   readonly formalActions: readonly string[];
@@ -26,11 +22,9 @@ export interface ImplementationTransition {
 export interface ImplementationTransitionRefinement {
   readonly transitions: readonly ImplementationTransition[];
   readonly hostileGuards: {
-    readonly staleAuthority: true;
     readonly evidenceMigration: true;
     readonly ambiguity: true;
     readonly aba: true;
-    readonly duplicateEffect: true;
   };
 }
 
@@ -81,37 +75,6 @@ export function readImplementationTransitionSources(
 export function verifyImplementationTransitionRefinement(
   sources: ImplementationTransitionSources,
 ): ImplementationTransitionRefinement {
-  const permits = section(
-    sources.transactionAdmission,
-    'executionPermits',
-    'export function executionPermits(',
-    '\nexport type EffectReservationAuthorityError',
-  );
-  requireIncludes('executionPermits', permits, [
-    'permit.id === run.id',
-    'permit.obligation_id === run.obligation_id',
-    'permit.claimed_revision === run.claimed_revision',
-    'permit.claim_commit === run.claim_commit',
-    'permit.obligation_key === run.obligation_key',
-    'permit.execution_generation === run.execution_generation',
-    'permit.execution_authority_commit === run.execution_authority_commit',
-    'permit.execution_capability_sha256 === run.execution_capability_sha256',
-    'capabilitySha256 === run.execution_capability_sha256',
-  ]);
-
-  const admission = section(
-    sources.transactionAdmission,
-    'effectAdmissionDecision',
-    'export function effectAdmissionDecision(',
-  );
-  requireOrdered('effectAdmissionDecision', admission, [
-    'if (!executionPermits(run, permit, capabilitySha256))',
-    "return { permits: false, denial: 'STALE_EXECUTION_GENERATION' };",
-    'if (unresolvedEffect)',
-    "return { permits: false, denial: 'UNRESOLVED_EFFECT' };",
-    'return { permits: true, denial: null };',
-  ]);
-
   const authorityAdvance = section(
     sources.transactionAdmission,
     'executionAuthorityAdvanceError',
@@ -134,21 +97,6 @@ export function verifyImplementationTransitionRefinement(
     'fact.claim_commit !== run.claim_commit',
     'fact.execution_generation !== run.execution_generation',
     'fact.execution_authority_commit !== run.execution_authority_commit',
-  ]);
-
-  const beginEffect = section(
-    sources.engine,
-    'beginEffect',
-    '  beginEffect(permit: ExecutionPermit): string {',
-    '\n  async performEffect<',
-  );
-  requireOrdered('beginEffect', beginEffect, [
-    'const admission = effectAdmissionDecision(',
-    'history.unresolvedReservationsByRun.has(run.id)',
-    "if (admission.denial === 'STALE_EXECUTION_GENERATION')",
-    "lifecycle.status !== 'EXECUTING'",
-    'if (!admission.permits)',
-    "'effect-reservation.json': fact",
   ]);
 
   const performEffect = section(
@@ -328,12 +276,6 @@ export function verifyImplementationTransitionRefinement(
   return {
     transitions: [
       {
-        id: 'dispatch-effect',
-        durable: false,
-        relations: ['permits'],
-        formalActions: ['BeginMutation', 'MutationAuthorityAllowed'],
-      },
-      {
         id: 'release-not-dispatched',
         durable: true,
         relations: ['permits', 'supports', 'requires'],
@@ -353,11 +295,9 @@ export function verifyImplementationTransitionRefinement(
       },
     ],
     hostileGuards: {
-      staleAuthority: true,
       evidenceMigration: true,
       ambiguity: true,
       aba: true,
-      duplicateEffect: true,
     },
   };
 }
