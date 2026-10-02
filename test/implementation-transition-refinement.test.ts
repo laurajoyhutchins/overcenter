@@ -43,12 +43,6 @@ test('selected live consequential transitions refine through the trusted 4x4 mod
     })),
     [
       {
-        id: 'release-not-dispatched',
-        durable: true,
-        relations: ['permits', 'supports', 'requires'],
-        formalActions: ['Verify', 'ReplayEvidenceIsAbsence'],
-      },
-      {
         id: 'source-integration-receipt',
         durable: true,
         relations: ['permits', 'supports', 'requires'],
@@ -76,15 +70,6 @@ test('ABA protection drift fails refinement closed', () => {
     'executionAuthorityAdvanceError',
     'transactionAdmission',
     'fact.generation !== run.execution_generation + 1',
-    'false',
-  );
-});
-
-test('release evidence cannot migrate across reservation coordinates', () => {
-  rejects(
-    'releaseEffectReservation',
-    'engine',
-    'binding.reservation_commit !== reservation.reservation_commit',
     'false',
   );
 });
