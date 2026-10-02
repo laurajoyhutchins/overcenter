@@ -54,4 +54,7 @@ jobs:
           leanchecker: false
 
       - name: Exhaust effect-admission boundary
-        run: node --experimental-strip-types experiments/lean-effect-admission/experiment.ts
+        working-directory: experiments/lean-effect-admission
+        run: |
+          LEAN_EFFECT_ADMISSION_BIN="$(elan which lean)" \
+            node --experimental-strip-types experiment.ts
