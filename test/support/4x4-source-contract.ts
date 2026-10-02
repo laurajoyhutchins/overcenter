@@ -81,7 +81,7 @@ export interface SourceContract {
   nouns: string[];
   verbs: string[];
   source: { path: string; blob_sha: string };
-  roles: Record<'admission' | 'release' | 'settlement', RoleExpectation>;
+  roles: Record<'release', RoleExpectation>;
 }
 
 interface RoleFacts {
@@ -91,10 +91,10 @@ interface RoleFacts {
 }
 
 export interface ExtractedSourceContract {
-  roles: Record<'admission' | 'release' | 'settlement', RoleFacts>;
+  roles: Record<'release', RoleFacts>;
 }
 
-const ROLE_NAMES = ['admission', 'release', 'settlement'] as const;
+const ROLE_NAMES = ['release'] as const;
 const CONTRACT_PATH = 'docs/migrations/4x4-strangler/formal/source-contract.json';
 
 function functionLike(node: Node): boolean {
@@ -156,9 +156,7 @@ function extractFromSource(source: SourceFile): ExtractedSourceContract {
     if (isMethodDeclaration(member)) byName.set(member.name.getText(source), member);
   }
   const expectedSymbols = {
-    admission: 'beginEffect',
     release: 'releaseEffectReservation',
-    settlement: '#settleWithoutObservation',
   } as const;
   return {
     roles: Object.fromEntries(
