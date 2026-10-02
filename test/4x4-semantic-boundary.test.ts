@@ -16,6 +16,7 @@ import test from 'node:test';
 
 import {
   assertExtractedFourByFourContract,
+  assertSemanticKernelProjectionSource,
   extractFourByFourSourceContract,
   loadFourByFourSourceContract,
   verifyFourByFourSourceContract,
@@ -23,6 +24,7 @@ import {
 
 const ROOT = process.cwd();
 const ENGINE = resolve(ROOT, 'src/authority/engine.ts');
+const PROJECTION = resolve(ROOT, 'src/authority/effect-history-projection.ts');
 const FORMAL = resolve(ROOT, 'docs/migrations/4x4-strangler/formal');
 const TLA_VERSION = '1.7.4';
 const TLA_SHA256 = '936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88';
@@ -147,6 +149,37 @@ async function checkFormalModels(): Promise<void> {
 
 test('4x4 contract is bound to the exact production source identity', () => {
   verifyFourByFourSourceContract(ROOT);
+});
+
+test('4x4 kernel namespace is closed to four nouns and four relations', () => {
+  const projection = readFileSync(PROJECTION, 'utf8');
+  assert.doesNotThrow(() => {
+    assertSemanticKernelProjectionSource(projection);
+  });
+
+  assert.throws(
+    () =>
+      assertSemanticKernelProjectionSource(
+        `${projection}\nexport interface FourByFourAuthority { id: string; }\n`,
+      ),
+    /FOUR_BY_FOUR_KERNEL_PRIMITIVE_DRIFT:FourByFourAuthority/,
+  );
+
+  const aliasedRelation = projection.replace(
+    '  requires: FourByFourRequires[];',
+    '  requires: FourByFourRequires[];\n  governs: FourByFourRequires[];',
+  );
+  assert.notEqual(aliasedRelation, projection);
+  assert.throws(
+    () => assertSemanticKernelProjectionSource(aliasedRelation),
+    /FOUR_BY_FOUR_KERNEL_PROJECTION_DRIFT/,
+  );
+
+  assert.doesNotThrow(() => {
+    assertSemanticKernelProjectionSource(
+      `${projection}\nexport interface GitHubProviderVocabulary { id: string; }\n`,
+    );
+  });
 });
 
 test('4x4 extractor rejects semantic mutations to admission and release', () => {
