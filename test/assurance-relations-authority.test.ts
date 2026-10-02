@@ -9,11 +9,10 @@ import { loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import {
   assuranceChangePlanFromRelations,
   minimumSupportCover,
-  shadowAssuranceChangePlan,
 } from '../src/authority/assurance-relations.ts';
 import { GOLDEN_TRANSACTION_CASE } from './fixtures/golden-transaction.ts';
 
-test('requires/supports planner is equivalent for every current assurance property', () => {
+test('requires/supports planner preserves the pre-migration assurance contract for every current property', () => {
   const db = loadArchitectureDatabase();
   try {
     const properties = db
@@ -23,7 +22,6 @@ test('requires/supports planner is equivalent for every current assurance proper
     for (const { property_id } of properties) {
       const legacy = deriveAssuranceChangePlan(db, property_id);
       assert.deepEqual(assuranceChangePlanFromRelations(db, property_id), legacy, property_id);
-      assert.deepEqual(shadowAssuranceChangePlan(db, property_id), legacy, property_id);
     }
   } finally {
     db.close();
