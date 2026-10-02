@@ -54,6 +54,7 @@ test('project submit result excludes transport envelope metadata', () => {
     command_run_attempt: 2,
     authority_ref: 'refs/overcenter/state',
     authority_head: 'authority:def',
+    candidate_sha: 'e'.repeat(40),
     obligation_id: 'work:one',
     run_id: 'run:one',
     claimed_revision: 'authority:before',
@@ -69,7 +70,6 @@ test('project submit result excludes transport envelope metadata', () => {
 
   assert.deepEqual(projectSubmitResult(receipt), {
     authority_head: 'authority:def',
-    candidate_sha: 'e'.repeat(40),
     obligation_id: 'work:one',
     run_id: 'run:one',
     claimed_revision: 'authority:before',
