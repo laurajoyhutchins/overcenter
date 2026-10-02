@@ -45,9 +45,7 @@ export function effectReservationAuthorityError(
   unresolvedEffect: boolean,
 ): EffectReservationAuthorityError {
   if (fact.run_id !== run.id) return 'EFFECT_RESERVATION_RUN_MISMATCH';
-  if (fact.obligation_id !== run.obligation_id) {
-    return 'EFFECT_RESERVATION_OBLIGATION_MISMATCH';
-  }
+  if (fact.obligation_id !== run.obligation_id) return 'EFFECT_RESERVATION_OBLIGATION_MISMATCH';
   if (
     fact.execution_generation !== run.execution_generation ||
     fact.execution_authority_commit !== run.execution_authority_commit
@@ -129,6 +127,9 @@ export function executionAuthorityAdvanceError(
   return null;
 }
 
-export const mutationAdmitted = (
-  s: ExecutionAuthorityProjection & { unresolved_effect: boolean },
-) => s.current_authority && s.exact_revision && !s.unresolved_effect;
+export type EffectAdmissionState = ExecutionAuthorityProjection & { unresolved_effect: boolean };
+
+export const effectAdmissionDecision = (s: EffectAdmissionState) =>
+  s.current_authority && s.exact_revision && !s.unresolved_effect;
+
+export const mutationAdmitted = effectAdmissionDecision;
