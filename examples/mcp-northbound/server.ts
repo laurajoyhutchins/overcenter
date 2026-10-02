@@ -247,7 +247,12 @@ function toolResult(
   });
 }
 
-function errorResponse(id: JsonRpcId, code: number, message: string, data?: JsonValue): JsonRpcResponse {
+function errorResponse(
+  id: JsonRpcId,
+  code: number,
+  message: string,
+  data?: JsonValue,
+): JsonRpcResponse {
   return {
     jsonrpc: '2.0',
     id,
