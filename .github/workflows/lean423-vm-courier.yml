@@ -1,0 +1,33 @@
+name: Lean 4.23 VM Courier
+
+on:
+  push:
+    branches:
+      - agent/datalog-vm-bootstrap-20261002
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  courier:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download and verify Lean 4.23.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          url=https://github.com/leanprover/lean4/releases/download/v4.23.0/lean-4.23.0-linux.tar.zst
+          curl -fL --retry 3 -o lean-4.23.0-linux.tar.zst "$url"
+          echo "ecd028d6f642b61b451c8687aeeb24dd53789fbfdcb7d4adb8f5cf60eb2022ba  lean-4.23.0-linux.tar.zst" | sha256sum -c -
+          mkdir lean-root
+          tar --zstd -xf lean-4.23.0-linux.tar.zst -C lean-root
+          ./lean-root/lean-4.23.0-linux/bin/lean --version
+
+      - name: Upload Lean runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: lean-4.23.0-linux
+          path: lean-4.23.0-linux.tar.zst
+          if-no-files-found: error
+          retention-days: 1
