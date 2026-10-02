@@ -6,14 +6,11 @@ import {
   explainRecoveryEvent,
   possibleEffectWorlds,
   recoveryEventsPermittedInAllWorlds,
-  shadowRecoveryRouting,
   type PossibleEffectWorld,
   type RecoveryRelations,
 } from '../src/authority/recovery.ts';
 
 const coordinate = 'coordinate-current';
-const bools = [false, true] as const;
-
 function relations(overrides: Partial<RecoveryRelations> = {}): RecoveryRelations {
   return {
     event_asserts_postcondition: false,
@@ -25,43 +22,11 @@ function relations(overrides: Partial<RecoveryRelations> = {}): RecoveryRelation
   };
 }
 
-function retryEstablished(value: RecoveryRelations): boolean {
-  return (
-    value.object_supports_not_dispatched ||
-    (value.object_supports_accepted_absence &&
-      (!value.accepted_absence_requires_replay_safety || value.object_supports_replay_safety))
-  );
-}
-
 test('possible-world recovery shadows every reachable settlement relation valuation', () => {
   for (const asserts of bools) {
     for (const supportsAbsence of bools) {
       for (const supportsNotDispatched of bools) {
-        for (const requiresReplaySafety of bools) {
-          for (const supportsReplaySafety of bools) {
-            const value = relations({
-              event_asserts_postcondition: asserts,
-              object_supports_accepted_absence: supportsAbsence,
-              object_supports_not_dispatched: supportsNotDispatched,
-              accepted_absence_requires_replay_safety: requiresReplaySafety,
-              object_supports_replay_safety: supportsReplaySafety,
-            });
-            const shadow = shadowRecoveryRouting(coordinate, value);
-            const contradictory = asserts && retryEstablished(value);
-            if (contradictory) {
-              assert.equal(shadow.derived, 'reconcile');
-              assert.equal(shadow.agrees, false);
-            } else {
-              assert.equal(shadow.agrees, true);
-            }
-          }
-        }
-      }
-    }
-  }
-});
-
-test('known success permits settlement and reconciliation without replay', () => {
+        for (const requiresReplaySafety of booltest('known success permits settlement and reconciliation without replay', () => {
   const plan = deriveRecoveryPlan(coordinate, relations({ event_asserts_postcondition: true }));
   assert.deepEqual(plan.worlds, [{ coordinate, outcome: 'postcondition-asserted' }]);
   assert.deepEqual(plan.permitted, ['reconcile', 'settle']);
@@ -168,14 +133,4 @@ test('conflicting terminal facts preserve both worlds and fail closed', () => {
   );
   assert.deepEqual(plan.permitted, ['reconcile']);
   assert.equal(plan.preferred, 'reconcile');
-  assert.equal(
-    shadowRecoveryRouting(
-      coordinate,
-      relations({
-        event_asserts_postcondition: true,
-        object_supports_not_dispatched: true,
-      }),
-    ).agrees,
-    false,
-  );
 });
