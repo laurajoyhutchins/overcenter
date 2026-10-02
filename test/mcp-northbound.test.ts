@@ -60,8 +60,9 @@ test('northbound MCP advertises only the three semantic tools', async () => {
   assert.equal(discover.result?.cacheScope, 'private');
 
   const listed = await handle(request(2, 'tools/list'));
+  assert.ok(listed.result);
   assert.deepEqual(
-    (listed.result?.tools as Array<{ name: string }>).map(({ name }) => name),
+    (listed.result.tools as Array<{ name: string }>).map(({ name }) => name),
     [
       'overcenter.query_possible_events',
       'overcenter.explain_event',
