@@ -22,11 +22,7 @@ function relations(overrides: Partial<RecoveryRelations> = {}): RecoveryRelation
   };
 }
 
-test('possible-world recovery shadows every reachable settlement relation valuation', () => {
-  for (const asserts of bools) {
-    for (const supportsAbsence of bools) {
-      for (const supportsNotDispatched of bools) {
-        for (const requiresReplaySafety of booltest('known success permits settlement and reconciliation without replay', () => {
+test('known success permits settlement and reconciliation without replay', () => {
   const plan = deriveRecoveryPlan(coordinate, relations({ event_asserts_postcondition: true }));
   assert.deepEqual(plan.worlds, [{ coordinate, outcome: 'postcondition-asserted' }]);
   assert.deepEqual(plan.permitted, ['reconcile', 'settle']);
