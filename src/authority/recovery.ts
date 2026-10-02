@@ -27,12 +27,6 @@ export interface RecoveryPlan {
   preferred: RecoveryEvent;
 }
 
-export interface RecoveryRoutingShadow {
-  legacy: RecoveryEvent;
-  derived: RecoveryEvent;
-  agrees: boolean;
-}
-
 const RECOVERY_EVENTS = [
   'reconcile',
   'retry',
@@ -166,26 +160,4 @@ export function deriveRecoveryPlan(
       ? 'retry'
       : 'reconcile';
   return { coordinate, worlds, permitted, preferred };
-}
-
-function legacyRecoveryEvent(relations: RecoveryRelations): RecoveryEvent {
-  if (relations.event_asserts_postcondition) return 'settle';
-  if (
-    relations.object_supports_not_dispatched ||
-    (relations.object_supports_accepted_absence &&
-      (!relations.accepted_absence_requires_replay_safety ||
-        relations.object_supports_replay_safety))
-  ) {
-    return 'retry';
-  }
-  return 'reconcile';
-}
-
-export function shadowRecoveryRouting(
-  coordinate: string,
-  relations: RecoveryRelations,
-): RecoveryRoutingShadow {
-  const legacy = legacyRecoveryEvent(relations);
-  const derived = deriveRecoveryPlan(coordinate, relations).preferred;
-  return { legacy, derived, agrees: legacy === derived };
 }
