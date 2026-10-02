@@ -1,0 +1,60 @@
+name: Lean effect admission oracle
+
+on:
+  push:
+    branches:
+      - experiment/lean-effect-admission-micro-verifier
+    paths:
+      - src/authority/transaction-admission.ts
+      - src/model.ts
+      - experiments/lean-effect-admission/**
+      - .github/workflows/lean-effect-admission.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - src/authority/transaction-admission.ts
+      - src/model.ts
+      - experiments/lean-effect-admission/**
+      - .github/workflows/lean-effect-admission.yml
+
+permissions:
+  contents: read
+
+jobs:
+  oracle:
+    name: TypeScript vs Lean effect admission
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Node 22.16
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install pinned Lean 4.19.0
+        uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
+        with:
+          lake-package-directory: experiments/lean-effect-admission
+          auto-config: false
+          build: false
+          test: false
+          lint: false
+          use-github-cache: false
+          use-mathlib-cache: false
+          leanchecker: false
+
+      - name: Exhaust effect-admission boundary
+        working-directory: experiments/lean-effect-admission
+        run: |
+          LEAN_EFFECT_ADMISSION_BIN="$(elan which lean)" \
+            node --experimental-strip-types experiment.ts
