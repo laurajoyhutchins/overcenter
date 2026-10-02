@@ -6,14 +6,12 @@ export type FourByFourRelation = 'permits' | 'asserts' | 'supports' | 'requires'
 export interface ImplementationTransitionSources {
   readonly transactionAdmission: string;
   readonly engine: string;
-  readonly replay: string;
-  readonly settlement: string;
   readonly formalKernel: string;
   readonly formalConfig: string;
 }
 
 export interface ImplementationTransition {
-  readonly id: 'release-not-dispatched' | 'observation-receipt' | 'source-integration-receipt';
+  readonly id: 'release-not-dispatched' | 'source-integration-receipt';
   readonly durable: boolean;
   readonly relations: readonly FourByFourRelation[];
   readonly formalActions: readonly string[];
@@ -23,7 +21,6 @@ export interface ImplementationTransitionRefinement {
   readonly transitions: readonly ImplementationTransition[];
   readonly hostileGuards: {
     readonly evidenceMigration: true;
-    readonly ambiguity: true;
     readonly aba: true;
   };
 }
@@ -65,8 +62,6 @@ export function readImplementationTransitionSources(
       'utf8',
     ),
     engine: readFileSync(resolve(root, 'src/authority/engine.ts'), 'utf8'),
-    replay: readFileSync(resolve(root, 'src/authority/replay.ts'), 'utf8'),
-    settlement: readFileSync(resolve(root, 'src/authority/settlement.ts'), 'utf8'),
     formalKernel: readFileSync(resolve(root, 'formal/TransitionKernel.tla'), 'utf8'),
     formalConfig: readFileSync(resolve(root, 'formal/TransitionKernel.cfg'), 'utf8'),
   };
@@ -160,30 +155,6 @@ export function verifyImplementationTransitionRefinement(
     "receipt.disposition !== 'DONE' || !receipt.verified",
   ]);
 
-  const resolution = section(
-    sources.engine,
-    'resolutionCandidate',
-    '  #resolutionCandidate(permit: ExecutionPermit):',
-    '\n  #commitObservation(',
-  );
-  requireOrdered('resolutionCandidate', resolution, [
-    'const run = this.#requireExecutionPermit(history, permit);',
-    "['EXECUTING', 'RECOVERY_REQUIRED', 'WAITING'].includes(lifecycle.status)",
-    'unresolvedEffect: history.unresolvedReservationsByRun.has(runId)',
-  ]);
-
-  const commitObservation = section(
-    sources.engine,
-    'commitObservation',
-    '  #commitObservation(',
-    '\n  #settleWithoutObservation(',
-  );
-  requireOrdered('commitObservation', commitObservation, [
-    "this.#receiptFact(run, work.id, 'observation', observed, diagnostic)",
-    'projectReceipt(fact, work, undefined, unresolvedEffect)',
-    "'receipt.json': fact",
-  ]);
-
   const settleWithoutObservation = section(
     sources.engine,
     'settleWithoutObservation',
@@ -198,44 +169,6 @@ export function verifyImplementationTransitionRefinement(
     'validate?.({ run, work });',
     'const receipt = projectReceipt(fact, work);',
     "'receipt.json': fact",
-  ]);
-
-  const projectReceipt = section(
-    sources.replay,
-    'projectReceipt',
-    'export function projectReceipt(',
-    '\nexport function replayProjection(',
-  );
-  requireIncludes('projectReceipt', projectReceipt, [
-    'event_asserts_postcondition: verified',
-    'object_supports_accepted_absence: acceptedAbsence',
-    'object_supports_not_dispatched: supportsNotDispatched',
-    'accepted_absence_requires_replay_safety: unresolvedEffect',
-    'object_supports_replay_safety: supportsReplaySafety',
-    'settlementDispositionFromRelations({',
-  ]);
-
-  const replayReceipt = section(
-    sources.replay,
-    'replayReceipt',
-    '    if (record.receipt == null) continue;',
-    '\n    receipts.push(receipt);',
-  );
-  requireOrdered('replayReceipt', replayReceipt, [
-    'const receiptError = receiptAuthorityError(run, fact);',
-    'if (receiptError) throw new Error(receiptError);',
-    "if (previous && ['DONE', 'READY'].includes(previous.disposition))",
-    'const receipt = projectReceipt(',
-    "if (receipt.disposition === 'DONE' || receipt.disposition === 'READY')",
-    'unresolvedReservationsByRun.delete(run.id);',
-  ]);
-
-  requireOrdered('settlementDispositionFromRelations', sources.settlement, [
-    'if (relations.event_asserts_postcondition)',
-    'if (relations.object_supports_not_dispatched)',
-    'relations.object_supports_accepted_absence',
-    '!relations.accepted_absence_requires_replay_safety || relations.object_supports_replay_safety',
-    "return 'RECOVERY_REQUIRED';",
   ]);
 
   requireIncludes('TransitionKernel authority refinement', sources.formalKernel, [
@@ -282,12 +215,6 @@ export function verifyImplementationTransitionRefinement(
         formalActions: ['Verify', 'ReplayEvidenceIsAbsence'],
       },
       {
-        id: 'observation-receipt',
-        durable: true,
-        relations: ['permits', 'asserts', 'supports', 'requires'],
-        formalActions: ['Verify', 'Settle', 'ExactEvidenceAllowed'],
-      },
-      {
         id: 'source-integration-receipt',
         durable: true,
         relations: ['permits', 'supports', 'requires'],
@@ -296,7 +223,6 @@ export function verifyImplementationTransitionRefinement(
     ],
     hostileGuards: {
       evidenceMigration: true,
-      ambiguity: true,
       aba: true,
     },
   };
