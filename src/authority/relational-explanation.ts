@@ -1,7 +1,4 @@
-import {
-  executionPermits,
-  projectExecutionAuthority,
-} from './transaction-admission.ts';
+import { executionPermits, projectExecutionAuthority } from './transaction-admission.ts';
 import type { ExecutionPermit, Run } from '../model.ts';
 
 export interface RelationalExplanationInput {
