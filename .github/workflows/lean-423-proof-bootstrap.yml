@@ -1,4 +1,4 @@
-name: Lean 4.23 proof bootstrap
+name: 4x4 formal repair bootstrap
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Download pinned Lean 4.23.0
+      - name: Install exact Lean and TLC
         run: |
           set -euo pipefail
           curl -fsSL --retry 3 --retry-delay 2 \
@@ -22,8 +22,24 @@ jobs:
             https://github.com/leanprover/lean4/releases/download/v4.23.0/lean-4.23.0-linux.tar.zst
           echo "ecd028d6f642b61b451c8687aeeb24dd53789fbfdcb7d4adb8f5cf60eb2022ba  lean-4.23.0-linux.tar.zst" | sha256sum -c -
           tar --zstd -xf lean-4.23.0-linux.tar.zst
-      - name: Compile exact 4x4 proof
+          curl -fsSL --retry 3 --retry-delay 2 \
+            -o tla2tools.jar \
+            https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+          echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  tla2tools.jar" | sha256sum -c -
+      - name: Compile Lean proof
+        run: |
+          ./lean-4.23.0-linux/bin/lean docs/migrations/4x4-strangler/formal/FourByFourEffect.lean
+      - name: Check positive TLC model
+        working-directory: docs/migrations/4x4-strangler/formal
+        run: |
+          java -XX:+UseParallelGC -jar "$GITHUB_WORKSPACE/tla2tools.jar" -workers auto -config FourByFourEffect.cfg FourByFourEffect.tla
+      - name: Require hostile TLC controls to fail
+        working-directory: docs/migrations/4x4-strangler/formal
         run: |
           set -euo pipefail
-          ./lean-4.23.0-linux/bin/lean \
-            docs/migrations/4x4-strangler/formal/FourByFourEffect.lean
+          for cfg in BrokenRecoveryCertainty.cfg BrokenReservationIsAuthority.cfg; do
+            if java -XX:+UseParallelGC -jar "$GITHUB_WORKSPACE/tla2tools.jar" -workers auto -config "$cfg" FourByFourEffect.tla; then
+              echo "negative control unexpectedly passed: $cfg" >&2
+              exit 1
+            fi
+          done
