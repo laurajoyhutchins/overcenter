@@ -44,6 +44,8 @@ ReacquireAuthority ==
 DispatchAmbiguous ==
     /\ CurrentAuthority
     /\ reservation
+    /\ ~releaseProof
+    /\ ~settled
     /\ knowledge = "Unknown"
     /\ effect' \in Effects
     /\ UNCHANGED <<authorityCoordinate, executionCoordinate, reservation, knowledge, releaseProof, settled>>
@@ -64,6 +66,7 @@ ProveNotDispatched ==
 Release ==
     /\ reservation
     /\ releaseProof
+    /\ ~settled
     /\ reservation' = FALSE
     /\ releaseProof' = FALSE
     /\ UNCHANGED <<authorityCoordinate, executionCoordinate, effect, knowledge, settled>>
