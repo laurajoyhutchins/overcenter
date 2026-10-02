@@ -48,7 +48,7 @@ Move deterministic relational queries onto the SQLite hot path while preserving 
 
 The materialized calculus is a reconstructible projection, not durable authority. Every read transaction verifies that its materialized head still equals the embedded SQLite fact store's durable `authority.head`. If durable history advances, reads fail closed with `FOUR_BY_FOUR_PROJECTION_STALE`; replacement also checks the durable head before and after materialization.
 
-The unresolved-event query intentionally matches the existing effect-admission projection semantics: an `effect-attempt` remains unresolved until an asserted `not-dispatched` Proposition identifies the same reservation. It does not use the tempting but false shortcut "the same Event has no assertion," because effect attempts and receipt/observation Events are distinct in the current projection.
+The unresolved-event query intentionally matches the existing not-dispatched release projection predicate: an `effect-attempt` remains unresolved until an asserted `not-dispatched` Proposition identifies the same reservation. It does not use the tempting but false shortcut "the same Event has no assertion," because effect attempts and receipt/observation Events are distinct in the current projection. This predicate is not equivalent to the full live unresolved-reservation lifecycle: successful observation and source-integration settlement also clear live reservations. Transferring live unresolved-reservation authority requires additional settlement coverage and proof.
 
 ## Required evidence
 
@@ -71,7 +71,7 @@ Hostile cases cover cyclic requirements, coordinate-mismatched support, stale pe
 old owner: TypeScript projection scans for deterministic relation questions
 new deterministic owner: typed SQLite materialization and indexed SQL queries
 4×4 relation/query: permits; requires closure; exact supports; stale support/permission; unresolved effect-attempt
-equivalence evidence: SQL-vs-TypeScript hostile fixture plus current unresolved-effect reservation semantics
+equivalence evidence: SQL-vs-TypeScript hostile fixture plus the not-dispatched release predicate; full live settlement equivalence remains unproved
 hostile invariant preserved: stale durable head fails closed; typed relation endpoints use foreign keys; fact history is untouched
 remaining agent judgment: none inside the six queries; production call-site transfer remains a later authority change
 ```
