@@ -52,7 +52,11 @@ import {
 import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
 import { advanceProjection, projectReceipt, replayProjection } from './replay.ts';
 import type { Projection } from './replay.ts';
-import { mutationAdmitted, projectExecutionAuthority } from './transaction-admission.ts';
+import {
+  executionPermits,
+  mutationAdmitted,
+  projectExecutionAuthority,
+} from './transaction-admission.ts';
 import {
   effectAdapterCapabilities,
   GITHUB_SOURCE_INTEGRATION_EFFECT,
@@ -432,12 +436,7 @@ export class KernelCore {
       const { history, project } = this.#historicalProjection(head);
       const run = history.runs.get(permit.id);
       if (!run) throw new Error('UNKNOWN_RUN');
-      const projectedAuthority = projectExecutionAuthority(
-        run,
-        permit,
-        this.#capabilityDigest(permit.execution_capability),
-      );
-      if (!projectedAuthority.current_authority || !projectedAuthority.exact_revision) {
+      if (!executionPermits(run, permit, this.#capabilityDigest(permit.execution_capability))) {
         throw new Error('STALE_EXECUTION_GENERATION');
       }
       const lifecycle = project.lifecycles.get(run.obligation_id);
@@ -891,12 +890,7 @@ export class KernelCore {
   #requireExecutionPermit(history: Projection['history'], permit: ExecutionPermit): HistoricalRun {
     const run = history.runs.get(permit.id);
     if (!run) throw new Error('UNKNOWN_RUN');
-    const authority = projectExecutionAuthority(
-      run,
-      permit,
-      this.#capabilityDigest(permit.execution_capability),
-    );
-    if (!authority.current_authority || !authority.exact_revision) {
+    if (!executionPermits(run, permit, this.#capabilityDigest(permit.execution_capability))) {
       throw new Error('STALE_EXECUTION_GENERATION');
     }
     return run;
