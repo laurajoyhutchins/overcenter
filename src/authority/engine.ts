@@ -68,6 +68,7 @@ import {
   type TrustedEffectReleaseWitness,
 } from '../effect-release-witness.ts';
 import {
+  sourceIntegrationSettlementError,
   trustedSourceIntegrationEvidence,
   type TrustedSourceIntegrationWitness,
 } from '../source/source-integration.ts';
@@ -507,20 +508,8 @@ export class KernelCore {
       'source-integration',
       { source_integration: evidence },
       ({ run, work }) => {
-        if (
-          work.packet.kind !== 'source-change' ||
-          work.packet.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT ||
-          work.postcondition.verifier !== 'source-integration/v1'
-        ) {
-          throw new Error('SOURCE_SETTLEMENT_WORK_INVALID');
-        }
-        if (
-          evidence.run_id !== run.id ||
-          evidence.obligation_key !== run.obligation_key ||
-          evidence.source_sha !== run.source_revision
-        ) {
-          throw new Error('SOURCE_INTEGRATION_EVIDENCE_BINDING_MISMATCH');
-        }
+        const error = sourceIntegrationSettlementError(run, work, evidence);
+        if (error) throw new Error(error);
       },
     );
     if (receipt.disposition !== 'DONE' || !receipt.verified) {
