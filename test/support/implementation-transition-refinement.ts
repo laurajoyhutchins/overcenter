@@ -11,7 +11,7 @@ export interface ImplementationTransitionSources {
 }
 
 export interface ImplementationTransition {
-  readonly id: 'release-not-dispatched' | 'source-integration-receipt';
+  readonly id: 'source-integration-receipt';
   readonly durable: boolean;
   readonly relations: readonly FourByFourRelation[];
   readonly formalActions: readonly string[];
@@ -116,29 +116,6 @@ export function verifyImplementationTransitionRefinement(
     'return effect(attempt);',
   ]);
 
-  const release = section(
-    sources.engine,
-    'releaseEffectReservation',
-    '  releaseEffectReservation<',
-    '\n  settleSourceIntegration(',
-  );
-  requireOrdered('releaseEffectReservation', release, [
-    '!executionPermits(',
-    "throw new Error('STALE_EXECUTION_GENERATION')",
-    'history.unresolvedReservationsByRun.get(run.id)',
-    'binding.run_id !== run.id',
-    'binding.obligation_id !== run.obligation_id',
-    'binding.execution_generation !== run.execution_generation',
-    'binding.execution_authority_commit !== run.execution_authority_commit',
-    'binding.reservation_commit !== reservation.reservation_commit',
-    'binding.effect_contract !== effectContract',
-    'reservedEffectReleaseWitnessSafe(',
-    'retainEffectReleaseEvidence(validatedWitness)',
-    "'effect-release.json': release",
-    "'receipt.json': receiptFact",
-    "receipt.disposition !== 'READY'",
-  ]);
-
   const sourceIntegration = section(
     sources.engine,
     'settleSourceIntegration',
@@ -208,12 +185,6 @@ export function verifyImplementationTransitionRefinement(
 
   return {
     transitions: [
-      {
-        id: 'release-not-dispatched',
-        durable: true,
-        relations: ['permits', 'supports', 'requires'],
-        formalActions: ['Verify', 'ReplayEvidenceIsAbsence'],
-      },
       {
         id: 'source-integration-receipt',
         durable: true,
