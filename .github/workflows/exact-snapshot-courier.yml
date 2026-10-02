@@ -29,15 +29,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude=.git -czf overcenter-6f92f6c0.tar.gz .
-          sha256sum overcenter-6f92f6c0.tar.gz > overcenter-6f92f6c0.tar.gz.sha256
+          tar --exclude=.git -czf /tmp/overcenter-6f92f6c0.tar.gz .
+          sha256sum /tmp/overcenter-6f92f6c0.tar.gz | sed 's#/tmp/##' > /tmp/overcenter-6f92f6c0.tar.gz.sha256
 
       - name: Upload exact repository snapshot
         uses: actions/upload-artifact@v4
         with:
           name: overcenter-6f92f6c0
           path: |
-            overcenter-6f92f6c0.tar.gz
-            overcenter-6f92f6c0.tar.gz.sha256
+            /tmp/overcenter-6f92f6c0.tar.gz
+            /tmp/overcenter-6f92f6c0.tar.gz.sha256
           if-no-files-found: error
           retention-days: 1
