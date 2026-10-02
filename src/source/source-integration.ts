@@ -47,6 +47,7 @@ export interface SourceIntegrationEvidence {
 }
 
 export type SourceIntegrationSettlementError =
+  | 'SOURCE_SETTLEMENT_WITHOUT_RESERVED_EFFECT'
   | 'SOURCE_SETTLEMENT_WORK_INVALID'
   | 'SOURCE_INTEGRATION_EVIDENCE_BINDING_MISMATCH'
   | null;
@@ -55,7 +56,9 @@ export function sourceIntegrationSettlementError(
   run: Pick<Run, 'id' | 'obligation_key' | 'source_revision'>,
   work: Obligation,
   evidence: Pick<SourceIntegrationEvidence, 'run_id' | 'obligation_key' | 'source_sha'>,
+  unresolvedEffect: boolean,
 ): SourceIntegrationSettlementError {
+  if (!unresolvedEffect) return 'SOURCE_SETTLEMENT_WITHOUT_RESERVED_EFFECT';
   if (
     work.packet.kind !== 'source-change' ||
     work.packet.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT ||
