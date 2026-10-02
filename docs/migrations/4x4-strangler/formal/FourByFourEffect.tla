@@ -42,6 +42,7 @@ ReacquireAuthority ==
     /\ UNCHANGED <<authorityCoordinate, reservation, effect, knowledge, releaseProof, settled>>
 
 DispatchAmbiguous ==
+    /\ ~settled
     /\ CurrentAuthority
     /\ reservation
     /\ knowledge = "Unknown"
@@ -49,12 +50,14 @@ DispatchAmbiguous ==
     /\ UNCHANGED <<authorityCoordinate, executionCoordinate, reservation, knowledge, releaseProof, settled>>
 
 Observe ==
+    /\ ~settled
     /\ reservation
     /\ knowledge = "Unknown"
     /\ knowledge' = effect
     /\ UNCHANGED <<authorityCoordinate, executionCoordinate, reservation, effect, releaseProof, settled>>
 
 ProveNotDispatched ==
+    /\ ~settled
     /\ reservation
     /\ effect = "Absent"
     /\ knowledge = "Unknown"
@@ -62,6 +65,7 @@ ProveNotDispatched ==
     /\ UNCHANGED <<authorityCoordinate, executionCoordinate, reservation, effect, knowledge, settled>>
 
 Release ==
+    /\ ~settled
     /\ reservation
     /\ releaseProof
     /\ reservation' = FALSE
@@ -69,6 +73,7 @@ Release ==
     /\ UNCHANGED <<authorityCoordinate, executionCoordinate, effect, knowledge, settled>>
 
 Settle ==
+    /\ ~settled
     /\ CurrentAuthority
     /\ reservation
     /\ (knowledge = "Present" \/ AllowUncertainSettlement)
