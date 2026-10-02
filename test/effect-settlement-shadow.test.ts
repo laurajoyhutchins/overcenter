@@ -16,9 +16,7 @@ interface SettlementRelations {
   object_supports_replay_safety: boolean;
 }
 
-function settlementDispositionFromRelations(
-  relations: SettlementRelations,
-): SettlementDisposition {
+function settlementDispositionFromRelations(relations: SettlementRelations): SettlementDisposition {
   if (relations.event_asserts_postcondition) return 'DONE';
   if (
     relations.object_supports_accepted_absence &&
