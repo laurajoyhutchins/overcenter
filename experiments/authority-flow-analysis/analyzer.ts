@@ -445,27 +445,31 @@ function isDirectCallStatement(statement: Statement, name: string): boolean {
   );
 }
 
+function wrapperMethodReservesBeforeEffect(
+  source: SourceFile,
+  name: 'performEffect' | 'performEffectSync',
+): boolean {
+  const method = methodNamed(source, name);
+  if (!method?.body) return false;
+
+  const statements = [...method.body.statements];
+  const permitIndex = statements.findIndex((statement) =>
+    isDirectCallStatement(statement, 'effectAuthorityPermit'),
+  );
+  const reservationIndex = statements.findIndex((statement) =>
+    isDirectCallStatement(statement, 'beginEffect'),
+  );
+  const effectIndex = statements.findIndex((statement) => containsCall(statement, 'effect'));
+  return permitIndex >= 0 && reservationIndex > permitIndex && effectIndex > reservationIndex;
+}
+
 function wrapperIsSound(engine: string): boolean {
   return withSource('engine.ts', engine, (source) => {
-    const perform = methodNamed(source, 'performEffect');
-    const begin = methodNamed(source, 'beginEffect');
-    if (!perform?.body || !begin?.body) return false;
-
-    const statements = [...perform.body.statements];
-    const beginIndex = statements.findIndex((statement) =>
-      isDirectCallStatement(statement, 'beginEffect'),
+    if (!methodNamed(source, 'beginEffect')?.body) return false;
+    return (
+      wrapperMethodReservesBeforeEffect(source, 'performEffect') &&
+      wrapperMethodReservesBeforeEffect(source, 'performEffectSync')
     );
-    const effectIndex = statements.findIndex((statement) => containsCall(statement, 'effect'));
-    if (beginIndex < 0 || effectIndex < 0 || beginIndex >= effectIndex) return false;
-
-    const text = begin.body.getText(source);
-    return [
-      'projectExecutionAuthority',
-      'current_authority',
-      'exact_revision',
-      'mutationAdmitted',
-      'unresolvedReservationsByRun',
-    ].every((token) => text.includes(token));
   });
 }
 
@@ -525,7 +529,7 @@ export function analyzeProductionBoundary(input: {
     issues.push({
       code: 'PRODUCTION_EFFECT_WRAPPER_INVALID',
       line: 1,
-      detail: 'performEffect/beginEffect no longer establishes the required authority fence.',
+      detail: 'effect wrapper no longer reserves before invoking the effect callback.',
     });
   }
   issues.push(...providerIssues('status-effect.ts', input.githubStatus, 'post'));
