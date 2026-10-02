@@ -114,12 +114,7 @@ test('ABA protection drift fails refinement closed', () => {
 });
 
 test('duplicate-effect protection drift fails refinement closed', () => {
-  rejects(
-    'beginEffect',
-    'engine',
-    'history.unresolvedReservationsByRun.has(run.id)',
-    'false',
-  );
+  rejects('beginEffect', 'engine', 'history.unresolvedReservationsByRun.has(run.id)', 'false');
 });
 
 test('release evidence cannot migrate across reservation coordinates', () => {
@@ -146,5 +141,14 @@ test('formal negative-control drift fails refinement closed', () => {
     'formalConfig',
     'EnableReservationCheck = TRUE',
     'EnableReservationCheck = FALSE',
+  );
+});
+
+test('live receipt ambiguity guard drift fails refinement closed', () => {
+  rejects(
+    'projectReceipt',
+    'replay',
+    "disposition = verified ? 'DONE' : acceptedAbsence && replaySafe ? 'READY' : 'RECOVERY_REQUIRED';",
+    "disposition = verified ? 'DONE' : acceptedAbsence && replaySafe ? 'READY' : 'READY';",
   );
 });

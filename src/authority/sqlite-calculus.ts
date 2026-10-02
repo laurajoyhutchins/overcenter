@@ -1,10 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 
 import type { Data } from '../model.ts';
-import type {
-  FourByFourProjection,
-  FourByFourSource,
-} from './effect-history-projection.ts';
+import type { FourByFourProjection, FourByFourSource } from './effect-history-projection.ts';
 
 export interface StaleSupport {
   id: string;
@@ -26,14 +23,45 @@ export interface CalculusResult<T> {
   value: T;
 }
 
-interface HeadRow { head: string | null }
-interface IdRow { id: string }
-interface StoredCoordinateRow { id: string; value_json: string; sources_json: string }
-interface StoredNounRow extends StoredCoordinateRow { coordinate_id: string; role: string }
-interface StoredPermitsRow { id: string; object_id: string; event_id: string; sources_json: string }
-interface StoredAssertsRow { id: string; event_id: string; proposition_id: string; sources_json: string }
-interface StoredSupportsRow { id: string; object_id: string; proposition_id: string; sources_json: string }
-interface StoredRequiresRow { id: string; proposition_id: string; required_proposition_id: string; sources_json: string }
+interface HeadRow {
+  head: string | null;
+}
+interface IdRow {
+  id: string;
+}
+interface StoredCoordinateRow {
+  id: string;
+  value_json: string;
+  sources_json: string;
+}
+interface StoredNounRow extends StoredCoordinateRow {
+  coordinate_id: string;
+  role: string;
+}
+interface StoredPermitsRow {
+  id: string;
+  object_id: string;
+  event_id: string;
+  sources_json: string;
+}
+interface StoredAssertsRow {
+  id: string;
+  event_id: string;
+  proposition_id: string;
+  sources_json: string;
+}
+interface StoredSupportsRow {
+  id: string;
+  object_id: string;
+  proposition_id: string;
+  sources_json: string;
+}
+interface StoredRequiresRow {
+  id: string;
+  proposition_id: string;
+  required_proposition_id: string;
+  sources_json: string;
+}
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS four_by_four_projection (
@@ -105,8 +133,12 @@ CREATE INDEX IF NOT EXISTS four_by_four_requires_proposition ON four_by_four_req
 CREATE INDEX IF NOT EXISTS four_by_four_requires_required ON four_by_four_requires(required_proposition_id, proposition_id);
 `;
 
-function encoded(value: unknown): string { return JSON.stringify(value); }
-function decoded<T>(value: string): T { return JSON.parse(value) as T; }
+function encoded(value: unknown): string {
+  return JSON.stringify(value);
+}
+function decoded<T>(value: string): T {
+  return JSON.parse(value) as T;
+}
 
 export class SqliteFourByFourCalculus {
   readonly path: string;
@@ -121,7 +153,9 @@ export class SqliteFourByFourCalculus {
     this.#db.exec(SCHEMA);
   }
 
-  close(): void { this.#db.close(); }
+  close(): void {
+    this.#db.close();
+  }
 
   replaceProjection(head: string, projection: FourByFourProjection): void {
     if (head.trim().length === 0) throw new Error('FOUR_BY_FOUR_HEAD_INVALID');
@@ -130,15 +164,19 @@ export class SqliteFourByFourCalculus {
       this.#assertDurableHead(head);
       this.#clearProjection();
       this.#insertProjection(projection);
-      this.#db.prepare(`
+      this.#db
+        .prepare(`
         INSERT INTO four_by_four_projection(singleton, head)
         VALUES(1, ?)
         ON CONFLICT(singleton) DO UPDATE SET head = excluded.head
-      `).run(head);
+      `)
+        .run(head);
       this.#assertDurableHead(head);
       this.#db.exec('COMMIT');
     } catch (error) {
-      try { this.#db.exec('ROLLBACK'); } catch {}
+      try {
+        this.#db.exec('ROLLBACK');
+      } catch {}
       throw error;
     }
   }
@@ -147,9 +185,13 @@ export class SqliteFourByFourCalculus {
     return this.#read((head) => ({
       head,
       value: {
-        coordinates: (this.#db.prepare(`
+        coordinates: (
+          this.#db
+            .prepare(`
           SELECT id, value_json, sources_json FROM four_by_four_coordinate ORDER BY id
-        `).all() as unknown as StoredCoordinateRow[]).map((row) => ({
+        `)
+            .all() as unknown as StoredCoordinateRow[]
+        ).map((row) => ({
           id: row.id,
           value: decoded<Data>(row.value_json),
           sources: decoded<FourByFourSource[]>(row.sources_json),
@@ -157,34 +199,50 @@ export class SqliteFourByFourCalculus {
         objects: this.#nouns('object'),
         events: this.#nouns('event'),
         propositions: this.#nouns('proposition'),
-        permits: (this.#db.prepare(`
+        permits: (
+          this.#db
+            .prepare(`
           SELECT id, object_id, event_id, sources_json FROM four_by_four_permits ORDER BY id
-        `).all() as unknown as StoredPermitsRow[]).map((row) => ({
+        `)
+            .all() as unknown as StoredPermitsRow[]
+        ).map((row) => ({
           id: row.id,
           object: row.object_id,
           event: row.event_id,
           sources: decoded<FourByFourSource[]>(row.sources_json),
         })),
-        asserts: (this.#db.prepare(`
+        asserts: (
+          this.#db
+            .prepare(`
           SELECT id, event_id, proposition_id, sources_json FROM four_by_four_asserts ORDER BY id
-        `).all() as unknown as StoredAssertsRow[]).map((row) => ({
+        `)
+            .all() as unknown as StoredAssertsRow[]
+        ).map((row) => ({
           id: row.id,
           event: row.event_id,
           proposition: row.proposition_id,
           sources: decoded<FourByFourSource[]>(row.sources_json),
         })),
-        supports: (this.#db.prepare(`
+        supports: (
+          this.#db
+            .prepare(`
           SELECT id, object_id, proposition_id, sources_json FROM four_by_four_supports ORDER BY id
-        `).all() as unknown as StoredSupportsRow[]).map((row) => ({
+        `)
+            .all() as unknown as StoredSupportsRow[]
+        ).map((row) => ({
           id: row.id,
           object: row.object_id,
           proposition: row.proposition_id,
           sources: decoded<FourByFourSource[]>(row.sources_json),
         })),
-        requires: (this.#db.prepare(`
+        requires: (
+          this.#db
+            .prepare(`
           SELECT id, proposition_id, required_proposition_id, sources_json
           FROM four_by_four_requires ORDER BY id
-        `).all() as unknown as StoredRequiresRow[]).map((row) => ({
+        `)
+            .all() as unknown as StoredRequiresRow[]
+        ).map((row) => ({
           id: row.id,
           proposition: row.proposition_id,
           required: row.required_proposition_id,
@@ -197,21 +255,25 @@ export class SqliteFourByFourCalculus {
   permittedEvents(coordinate?: string): CalculusResult<string[]> {
     return this.#read((head) => {
       const rows = (coordinate === undefined
-        ? this.#db.prepare(`
+        ? this.#db
+            .prepare(`
             SELECT DISTINCT event.id
             FROM four_by_four_event AS event
             JOIN four_by_four_permits AS permits INDEXED BY four_by_four_permits_event
               ON permits.event_id = event.id
             ORDER BY event.id
-          `).all()
-        : this.#db.prepare(`
+          `)
+            .all()
+        : this.#db
+            .prepare(`
             SELECT DISTINCT event.id
             FROM four_by_four_event AS event INDEXED BY four_by_four_event_coordinate
             JOIN four_by_four_permits AS permits INDEXED BY four_by_four_permits_event
               ON permits.event_id = event.id
             WHERE event.coordinate_id = ?
             ORDER BY event.id
-          `).all(coordinate)) as unknown as IdRow[];
+          `)
+            .all(coordinate)) as unknown as IdRow[];
       return { head, value: rows.map((row) => row.id) };
     });
   }
@@ -219,7 +281,8 @@ export class SqliteFourByFourCalculus {
   transitiveRequirements(proposition: string): CalculusResult<string[]> {
     return this.#read((head) => {
       this.#assertProposition(proposition);
-      const rows = this.#db.prepare(`
+      const rows = this.#db
+        .prepare(`
         WITH RECURSIVE requirement(id) AS (
           SELECT required_proposition_id
           FROM four_by_four_requires INDEXED BY four_by_four_requires_proposition
@@ -230,7 +293,8 @@ export class SqliteFourByFourCalculus {
           JOIN requirement AS current ON edge.proposition_id = current.id
         )
         SELECT id FROM requirement WHERE id <> ? ORDER BY id
-      `).all(proposition, proposition) as unknown as IdRow[];
+      `)
+        .all(proposition, proposition) as unknown as IdRow[];
       return { head, value: rows.map((row) => row.id) };
     });
   }
@@ -238,7 +302,8 @@ export class SqliteFourByFourCalculus {
   unsupportedRequirements(proposition: string): CalculusResult<string[]> {
     return this.#read((head) => {
       this.#assertProposition(proposition);
-      const rows = this.#db.prepare(`
+      const rows = this.#db
+        .prepare(`
         WITH RECURSIVE requirement(id) AS (
           SELECT required_proposition_id
           FROM four_by_four_requires INDEXED BY four_by_four_requires_proposition
@@ -259,14 +324,16 @@ export class SqliteFourByFourCalculus {
         LEFT JOIN exact_support ON exact_support.id = requirement.id
         WHERE exact_support.id IS NULL AND requirement.id <> ?
         ORDER BY requirement.id
-      `).all(proposition, proposition) as unknown as IdRow[];
+      `)
+        .all(proposition, proposition) as unknown as IdRow[];
       return { head, value: rows.map((row) => row.id) };
     });
   }
 
   staleSupports(currentCoordinate: string): CalculusResult<StaleSupport[]> {
     return this.#read((head) => {
-      const rows = this.#db.prepare(`
+      const rows = this.#db
+        .prepare(`
         SELECT supports.id, supports.object_id AS object,
           supports.proposition_id AS proposition,
           object.coordinate_id AS object_coordinate,
@@ -277,21 +344,24 @@ export class SqliteFourByFourCalculus {
         WHERE proposition.coordinate_id <> ?
            OR object.coordinate_id <> proposition.coordinate_id
         ORDER BY supports.id
-      `).all(currentCoordinate) as unknown as StaleSupport[];
+      `)
+        .all(currentCoordinate) as unknown as StaleSupport[];
       return { head, value: rows.map((row) => ({ ...row })) };
     });
   }
 
   stalePermissions(currentCoordinate: string): CalculusResult<StalePermission[]> {
     return this.#read((head) => {
-      const rows = this.#db.prepare(`
+      const rows = this.#db
+        .prepare(`
         SELECT permits.id, permits.object_id AS object, permits.event_id AS event,
           event.coordinate_id AS event_coordinate
         FROM four_by_four_permits AS permits
         JOIN four_by_four_event AS event ON event.id = permits.event_id
         WHERE event.coordinate_id <> ?
         ORDER BY permits.id
-      `).all(currentCoordinate) as unknown as StalePermission[];
+      `)
+        .all(currentCoordinate) as unknown as StalePermission[];
       return { head, value: rows.map((row) => ({ ...row })) };
     });
   }
@@ -320,7 +390,9 @@ export class SqliteFourByFourCalculus {
           )
         ORDER BY event.id
       `);
-      const rows = (coordinate === undefined ? statement.all() : statement.all(coordinate)) as unknown as IdRow[];
+      const rows = (coordinate === undefined
+        ? statement.all()
+        : statement.all(coordinate)) as unknown as IdRow[];
       return { head, value: rows.map((row) => row.id) };
     });
   }
@@ -333,18 +405,21 @@ export class SqliteFourByFourCalculus {
       this.#db.exec('COMMIT');
       return result;
     } catch (error) {
-      try { this.#db.exec('ROLLBACK'); } catch {}
+      try {
+        this.#db.exec('ROLLBACK');
+      } catch {}
       throw error;
     }
   }
 
   #boundHead(): string {
     const durable = this.#durableHead();
-    const projection = this.#db.prepare(
-      'SELECT head FROM four_by_four_projection WHERE singleton = 1',
-    ).get() as HeadRow | undefined;
+    const projection = this.#db
+      .prepare('SELECT head FROM four_by_four_projection WHERE singleton = 1')
+      .get() as HeadRow | undefined;
     if (!projection) throw new Error('FOUR_BY_FOUR_PROJECTION_MISSING');
-    if (durable === null || projection.head !== durable) throw new Error('FOUR_BY_FOUR_PROJECTION_STALE');
+    if (durable === null || projection.head !== durable)
+      throw new Error('FOUR_BY_FOUR_PROJECTION_STALE');
     return durable;
   }
 
@@ -353,21 +428,27 @@ export class SqliteFourByFourCalculus {
   }
 
   #durableHead(): string | null {
-    const row = this.#db.prepare('SELECT head FROM authority WHERE singleton = 1').get() as HeadRow | undefined;
+    const row = this.#db.prepare('SELECT head FROM authority WHERE singleton = 1').get() as
+      | HeadRow
+      | undefined;
     if (!row) throw new Error('FOUR_BY_FOUR_DURABLE_AUTHORITY_MISSING');
     return row.head;
   }
 
   #requireDurableAuthority(): void {
-    const authority = this.#db.prepare(`
+    const authority = this.#db
+      .prepare(`
       SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'authority'
-    `).get() as { present: number } | undefined;
+    `)
+      .get() as { present: number } | undefined;
     if (!authority) throw new Error('FOUR_BY_FOUR_DURABLE_AUTHORITY_MISSING');
     this.#durableHead();
   }
 
   #assertProposition(id: string): void {
-    const row = this.#db.prepare('SELECT id FROM four_by_four_proposition WHERE id = ?').get(id) as IdRow | undefined;
+    const row = this.#db.prepare('SELECT id FROM four_by_four_proposition WHERE id = ?').get(id) as
+      | IdRow
+      | undefined;
     if (!row) throw new Error(`FOUR_BY_FOUR_PROPOSITION_UNKNOWN:${id}`);
   }
 
@@ -388,44 +469,54 @@ export class SqliteFourByFourCalculus {
     const coordinate = this.#db.prepare(`
       INSERT INTO four_by_four_coordinate(id, value_json, sources_json) VALUES(?, ?, ?)
     `);
-    for (const row of projection.coordinates) coordinate.run(row.id, encoded(row.value), encoded(row.sources));
+    for (const row of projection.coordinates)
+      coordinate.run(row.id, encoded(row.value), encoded(row.sources));
 
     for (const [kind, rows] of [
-      ['object', projection.objects], ['event', projection.events], ['proposition', projection.propositions],
+      ['object', projection.objects],
+      ['event', projection.events],
+      ['proposition', projection.propositions],
     ] as const) {
       const insert = this.#db.prepare(`
         INSERT INTO four_by_four_${kind}(id, coordinate_id, role, value_json, sources_json)
         VALUES(?, ?, ?, ?, ?)
       `);
-      for (const row of rows) insert.run(row.id, row.coordinate, row.role, encoded(row.value), encoded(row.sources));
+      for (const row of rows)
+        insert.run(row.id, row.coordinate, row.role, encoded(row.value), encoded(row.sources));
     }
 
     const permits = this.#db.prepare(`
       INSERT INTO four_by_four_permits(id, object_id, event_id, sources_json) VALUES(?, ?, ?, ?)
     `);
-    for (const row of projection.permits) permits.run(row.id, row.object, row.event, encoded(row.sources));
+    for (const row of projection.permits)
+      permits.run(row.id, row.object, row.event, encoded(row.sources));
 
     const asserts = this.#db.prepare(`
       INSERT INTO four_by_four_asserts(id, event_id, proposition_id, sources_json) VALUES(?, ?, ?, ?)
     `);
-    for (const row of projection.asserts) asserts.run(row.id, row.event, row.proposition, encoded(row.sources));
+    for (const row of projection.asserts)
+      asserts.run(row.id, row.event, row.proposition, encoded(row.sources));
 
     const supports = this.#db.prepare(`
       INSERT INTO four_by_four_supports(id, object_id, proposition_id, sources_json) VALUES(?, ?, ?, ?)
     `);
-    for (const row of projection.supports) supports.run(row.id, row.object, row.proposition, encoded(row.sources));
+    for (const row of projection.supports)
+      supports.run(row.id, row.object, row.proposition, encoded(row.sources));
 
     const requires = this.#db.prepare(`
       INSERT INTO four_by_four_requires(id, proposition_id, required_proposition_id, sources_json)
       VALUES(?, ?, ?, ?)
     `);
-    for (const row of projection.requires) requires.run(row.id, row.proposition, row.required, encoded(row.sources));
+    for (const row of projection.requires)
+      requires.run(row.id, row.proposition, row.required, encoded(row.sources));
   }
 
   #nouns(kind: 'object' | 'event' | 'proposition') {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(`
       SELECT id, coordinate_id, role, value_json, sources_json FROM four_by_four_${kind} ORDER BY id
-    `).all() as unknown as StoredNounRow[];
+    `)
+      .all() as unknown as StoredNounRow[];
     return rows.map((row) => ({
       id: row.id,
       coordinate: row.coordinate_id,

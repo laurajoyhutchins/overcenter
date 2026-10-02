@@ -257,12 +257,13 @@ export function verifyImplementationTransitionRefinement(
     '\nexport function replayProjection(',
   );
   requireIncludes('projectReceipt', projectReceipt, [
-    'event_asserts_postcondition: verified',
-    'object_supports_accepted_absence: acceptedAbsence',
-    'object_supports_not_dispatched: supportsNotDispatched',
-    'accepted_absence_requires_replay_safety: unresolvedEffect',
-    'object_supports_replay_safety: supportsReplaySafety',
-    'settlementDispositionFromRelations({',
+    'verified = observationVerified(work.postcondition, fact.observed);',
+    'const absenceEvidence = authoritativeAbsenceEvidence(work.postcondition, fact.observed);',
+    'absenceEvidence && policy.acceptedAbsenceEvidenceKinds.includes(absenceEvidence.kind)',
+    '!unresolvedEffect ||',
+    '(absenceEvidence !== null && reservedEffectReplaySafe(work, absenceEvidence))',
+    "disposition = verified ? 'DONE' : acceptedAbsence && replaySafe ? 'READY' : 'RECOVERY_REQUIRED';",
+    "fact.kind === 'effect-not-dispatched' && notDispatchedRelease",
   ]);
 
   const replayReceipt = section(
@@ -282,9 +283,10 @@ export function verifyImplementationTransitionRefinement(
 
   requireOrdered('settlementDispositionFromRelations', sources.settlement, [
     'if (relations.event_asserts_postcondition)',
-    'if (relations.object_supports_not_dispatched)',
+    'relations.object_supports_not_dispatched ||',
     'relations.object_supports_accepted_absence',
-    '!relations.accepted_absence_requires_replay_safety || relations.object_supports_replay_safety',
+    '!relations.accepted_absence_requires_replay_safety ||',
+    'relations.object_supports_replay_safety',
     "return 'RECOVERY_REQUIRED';",
   ]);
 

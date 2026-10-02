@@ -6,8 +6,8 @@ import { loadArchitectureDatabase } from '../src/architecture/sql-model.ts';
 import {
   ASSURANCE_RELATION_COORDINATE,
   assuranceRequirementClosure,
-  deriveAssuranceChangePlan,
-  deriveAssuranceEvidenceFrontier,
+  assuranceChangePlanFromRelations,
+  assuranceEvidenceFrontierFromRelations,
   minimumSufficientEvidenceSet,
 } from '../src/authority/assurance-relations.ts';
 import { GOLDEN_TRANSACTION_CASE } from './fixtures/golden-transaction.ts';
@@ -34,7 +34,7 @@ test('golden transaction keeps the same minimum sufficient evidence set', () => 
     const evidence = [
       ...new Map(
         GOLDEN_TRANSACTION_CASE.expected_assurance_impacts
-          .flatMap((impact) => deriveAssuranceChangePlan(db, impact.property_id).evidence)
+          .flatMap((impact) => assuranceChangePlanFromRelations(db, impact.property_id).evidence)
           .map((item) => [item.evidence_id, item]),
       ).values(),
     ].sort((left, right) => left.evidence_id.localeCompare(right.evidence_id));
@@ -59,7 +59,7 @@ test('representative repository deltas still derive assurance plans', () => {
       const impacts = deriveAffectedAssuranceProperties(db, changed, (roots) => roots);
       assert.ok(impacts.length > 0, changed.join(','));
       for (const impact of impacts) {
-        assert.doesNotThrow(() => deriveAssuranceChangePlan(db, impact.property_id));
+        assert.doesNotThrow(() => assuranceChangePlanFromRelations(db, impact.property_id));
       }
     }
   } finally {
@@ -141,7 +141,7 @@ test('missing obligation support fails closed with the exact missing proposition
     ).run();
 
     assert.throws(
-      () => deriveAssuranceChangePlan(db, 'github-commit-status-provider'),
+      () => assuranceChangePlanFromRelations(db, 'github-commit-status-provider'),
       /ASSURANCE_SUPPORT_INCOMPLETE:obligation:authoritative-settlement/,
     );
   } finally {
@@ -152,12 +152,15 @@ test('missing obligation support fails closed with the exact missing proposition
 test('terminal protected and trusted-scope proofs remain required when witness routing disappears', () => {
   const db = loadArchitectureDatabase();
   try {
-    for (const propertyId of ['authority-flow-integrity', 'substrate-capability-admission-integrity']) {
+    for (const propertyId of [
+      'authority-flow-integrity',
+      'substrate-capability-admission-integrity',
+    ]) {
       db.prepare('DELETE FROM evidence_witnesses_assurance_property WHERE property_id = ?').run(
         propertyId,
       );
       assert.throws(
-        () => deriveAssuranceEvidenceFrontier(db, propertyId, ASSURANCE_RELATION_COORDINATE),
+        () => assuranceEvidenceFrontierFromRelations(db, propertyId, ASSURANCE_RELATION_COORDINATE),
         new RegExp(`ASSURANCE_SUPPORT_INCOMPLETE:proof:${propertyId}`),
         propertyId,
       );
