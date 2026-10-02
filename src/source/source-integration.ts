@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import type { Obligation, Run } from '../model.ts';
+import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
 import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
 import {
@@ -42,6 +44,33 @@ export interface SourceIntegrationEvidence {
   verified_tree_sha: string;
   integration_commit: string;
   state: 'integrated' | 'already-integrated';
+}
+
+export type SourceIntegrationSettlementError =
+  | 'SOURCE_SETTLEMENT_WORK_INVALID'
+  | 'SOURCE_INTEGRATION_EVIDENCE_BINDING_MISMATCH'
+  | null;
+
+export function sourceIntegrationSettlementError(
+  run: Pick<Run, 'id' | 'obligation_key' | 'source_revision'>,
+  work: Obligation,
+  evidence: Pick<SourceIntegrationEvidence, 'run_id' | 'obligation_key' | 'source_sha'>,
+): SourceIntegrationSettlementError {
+  if (
+    work.packet.kind !== 'source-change' ||
+    work.packet.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT ||
+    work.postcondition.verifier !== 'source-integration/v1'
+  ) {
+    return 'SOURCE_SETTLEMENT_WORK_INVALID';
+  }
+  if (
+    evidence.run_id !== run.id ||
+    evidence.obligation_key !== run.obligation_key ||
+    evidence.source_sha !== run.source_revision
+  ) {
+    return 'SOURCE_INTEGRATION_EVIDENCE_BINDING_MISMATCH';
+  }
+  return null;
 }
 
 const sourceIntegrationWitnessBrand: unique symbol = Symbol('source-integration-witness');
