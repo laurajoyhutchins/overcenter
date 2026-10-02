@@ -116,3 +116,6 @@ remaining agent judgment: none for evidence membership; an external cost policy 
 ```
 
 Do not mark ready until the predecessor is green and a fresh exact-head Merge gate passes.
+## Restack handoff
+
+Reconciled onto `post-4x4/03-derived-recovery@8a9f0993327ff2c82d8178e250995244dd2dce34` after the relational-explanation TCB repair. The stage remains limited to minimum-sufficient-evidence derivation and planner integration.
