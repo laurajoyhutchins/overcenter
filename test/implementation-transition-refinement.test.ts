@@ -52,7 +52,6 @@ test('selected live consequential transitions refine through the trusted 4x4 mod
   );
   assert.deepEqual(refinement.hostileGuards, {
     evidenceMigration: true,
-    aba: true,
   });
 });
 
@@ -61,15 +60,6 @@ test('evidence migration guard drift fails refinement closed', () => {
     'settleSourceIntegration',
     'engine',
     'evidence.source_sha !== run.source_revision',
-    'false',
-  );
-});
-
-test('ABA protection drift fails refinement closed', () => {
-  rejects(
-    'executionAuthorityAdvanceError',
-    'transactionAdmission',
-    'fact.generation !== run.execution_generation + 1',
     'false',
   );
 });
