@@ -32,6 +32,9 @@ export function projectExecutionAuthority(
   };
 }
 
+export const executionPermits = (run: Run, permit: ExecutionPermit, capabilitySha256: string) =>
+  Object.values(projectExecutionAuthority(run, permit, capabilitySha256)).every((value) => value);
+
 export type EffectReservationAuthorityError =
   | 'EFFECT_RESERVATION_RUN_MISMATCH'
   | 'EFFECT_RESERVATION_OBLIGATION_MISMATCH'
