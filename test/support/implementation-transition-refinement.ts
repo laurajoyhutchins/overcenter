@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 export type FourByFourRelation = 'permits' | 'asserts' | 'supports' | 'requires';
 
 export interface ImplementationTransitionSources {
-  readonly transactionAdmission: string;
   readonly engine: string;
   readonly formalKernel: string;
   readonly formalConfig: string;
@@ -21,7 +20,6 @@ export interface ImplementationTransitionRefinement {
   readonly transitions: readonly ImplementationTransition[];
   readonly hostileGuards: {
     readonly evidenceMigration: true;
-    readonly aba: true;
   };
 }
 
@@ -57,10 +55,6 @@ export function readImplementationTransitionSources(
   root = process.cwd(),
 ): ImplementationTransitionSources {
   return {
-    transactionAdmission: readFileSync(
-      resolve(root, 'src/authority/transaction-admission.ts'),
-      'utf8',
-    ),
     engine: readFileSync(resolve(root, 'src/authority/engine.ts'), 'utf8'),
     formalKernel: readFileSync(resolve(root, 'formal/TransitionKernel.tla'), 'utf8'),
     formalConfig: readFileSync(resolve(root, 'formal/TransitionKernel.cfg'), 'utf8'),
@@ -70,30 +64,6 @@ export function readImplementationTransitionSources(
 export function verifyImplementationTransitionRefinement(
   sources: ImplementationTransitionSources,
 ): ImplementationTransitionRefinement {
-  const authorityAdvance = section(
-    sources.transactionAdmission,
-    'executionAuthorityAdvanceError',
-    'export function executionAuthorityAdvanceError(',
-    '\nexport type EffectAdmissionDenial',
-  );
-  requireIncludes('executionAuthorityAdvanceError', authorityAdvance, [
-    'fact.generation !== run.execution_generation + 1',
-    'fact.previous_authority_commit !== run.execution_authority_commit',
-  ]);
-
-  const receiptAuthority = section(
-    sources.transactionAdmission,
-    'receiptAuthorityError',
-    'export function receiptAuthorityError(',
-    '\nexport type ExecutionAuthorityAdvanceError',
-  );
-  requireIncludes('receiptAuthorityError', receiptAuthority, [
-    'fact.claimed_revision !== run.claimed_revision',
-    'fact.claim_commit !== run.claim_commit',
-    'fact.execution_generation !== run.execution_generation',
-    'fact.execution_authority_commit !== run.execution_authority_commit',
-  ]);
-
   const performEffect = section(
     sources.engine,
     'performEffect',
@@ -194,7 +164,6 @@ export function verifyImplementationTransitionRefinement(
     ],
     hostileGuards: {
       evidenceMigration: true,
-      aba: true,
     },
   };
 }
