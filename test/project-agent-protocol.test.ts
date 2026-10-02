@@ -18,6 +18,7 @@ import test from 'node:test';
 
 import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
 import {
+  advanceProject,
   advanceProjectForAgent,
   submitProjectCandidate,
 } from '../src/authority/project-agent-protocol.ts';
@@ -269,6 +270,7 @@ test('project.advance binds bounded source intent to the exact project revision'
     assert.equal(receipt.obligation_id, 'bounded-source-work');
     assert.equal(receipt.candidate_branch_base_sha, projectSourceSha);
     assert.equal(receipt.dispatch?.reason_code, 'OPEN_ENDED_SOURCE_REMEDIATION');
+    assert.equal('assignment' in receipt, false);
     const assignment = JSON.parse(readFileSync(join(outputDir, 'assignment.json'), 'utf8'));
     assert.equal(assignment.task.kind, 'source-change');
     assert.equal(assignment.claim.source_sha, projectSourceSha);
@@ -647,35 +649,38 @@ test('project intent accepts repository-tree selectors without embedding a sourc
   assert.equal(JSON.stringify(compiledTask.packet).includes('source_sha'), false);
 });
 
-test('project.advance emits a source assignment without a worker executable', () => {
+test('project advance returns a source assignment without transport materialization', () => {
   const f = fixture();
   try {
     const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
     kernel.initialize();
     const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
-    const outputDir = join(f.root, 'source-packet');
 
-    const receipt = advanceProjectForAgent(f.work, commandContext(sourceSha), {
-      outputDir,
-      authorityRef: AUTHORITY_REF,
-      remote: 'origin',
-    });
+    const result = advanceProject(
+      f.work,
+      {
+        repository_id: 42,
+        repository_full_name: 'acme/widget',
+        source_revision: sourceSha,
+      },
+      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+    );
 
-    assert.equal(receipt.state, 'AGENT_EXECUTION_REQUIRED');
-    assert.equal(receipt.obligation_id, 'source-work');
-    assert.equal(receipt.candidate_branch_base_sha, sourceSha);
-    assert.ok(receipt.run_id);
-    assert.match(receipt.assignment_sha256 ?? '', /^[0-9a-f]{64}$/);
-    assert.equal(existsSync(join(outputDir, 'overcenter')), false);
-
-    const assignment = JSON.parse(readFileSync(join(outputDir, 'assignment.json'), 'utf8'));
-    assert.equal(assignment.schema, 'overcenter-source-assignment/v1');
-    assert.equal(assignment.obligation_id, 'source-work');
-    assert.equal(assignment.task.kind, 'source-change');
-    assert.equal(assignment.claim.run_id, receipt.run_id);
-    assert.equal(assignment.claim.source_sha, sourceSha);
-    assert.equal(assignment.proposal_schema, SOURCE_PROPOSAL_SCHEMA);
-    assert.equal(JSON.stringify(assignment).includes('execution_capability'), false);
+    assert.equal(result.state, 'AGENT_EXECUTION_REQUIRED');
+    assert.equal(result.obligation_id, 'source-work');
+    assert.ok(result.run_id);
+    assert.match(result.assignment_sha256 ?? '', /^[0-9a-f]{64}$/);
+    assert.ok(result.assignment);
+    assert.equal(result.assignment.schema, 'overcenter-source-assignment/v1');
+    if (result.assignment.schema !== 'overcenter-source-assignment/v1') {
+      throw new Error('expected source assignment');
+    }
+    assert.equal(result.assignment.obligation_id, 'source-work');
+    assert.equal(result.assignment.task.kind, 'source-change');
+    assert.equal(result.assignment.claim.run_id, result.run_id);
+    assert.equal(result.assignment.claim.source_sha, sourceSha);
+    assert.equal(result.assignment.proposal_schema, SOURCE_PROPOSAL_SCHEMA);
+    assert.equal(JSON.stringify(result.assignment).includes('execution_capability'), false);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
@@ -1041,6 +1046,42 @@ test('unsupported READY work reports a blocked frontier without claiming authori
     assert.equal(after.head(), before);
     assert.equal(after.inspect()[0]?.status, 'READY');
     assert.equal(after.inspect()[0]?.run_id, undefined);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+    rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
+test('project advance returns the immutable assignment before transport materialization', () => {
+  const f = fixture();
+  try {
+    defineAgentWork(f.work, f.postconditionPath);
+
+    const result = advanceProject(
+      f.work,
+      {
+        repository_id: 42,
+        repository_full_name: 'acme/widget',
+        source_revision: f.sourceSha,
+      },
+      { authorityRef: AUTHORITY_REF, remote: 'origin' },
+    );
+
+    assert.equal(result.state, 'AGENT_EXECUTION_REQUIRED');
+    assert.ok(result.run_id);
+    assert.ok(result.claimed_revision);
+    assert.ok(result.assignment_sha256);
+    assert.ok(result.assignment);
+    assert.equal(result.assignment.schema, 'overcenter-agent-assignment/v2');
+    assert.equal(JSON.stringify(result.assignment).includes('execution_capability'), false);
+    if (result.assignment.schema !== 'overcenter-agent-assignment/v2') {
+      throw new Error('expected pure-candidate assignment');
+    }
+    assert.equal(result.assignment.source_revision, f.sourceSha);
+    assert.deepEqual(result.assignment.files.map((file) => file.path).sort(), [
+      'input.txt',
+      'task.mjs',
+    ]);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
