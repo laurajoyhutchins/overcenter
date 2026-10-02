@@ -2,7 +2,7 @@ import {
   explainRelationalEvent,
   type RelationalEventExplanation,
   type RelationalExplanationInput,
-} from './relational-explanation.ts';
+} from './project-state.ts';
 
 export type RecoveryEvent = 'reconcile' | 'retry' | 'settle';
 
