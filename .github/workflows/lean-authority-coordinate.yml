@@ -1,0 +1,61 @@
+name: Lean authority coordinate oracle
+
+on:
+  push:
+    branches:
+      - experiment/lean-authority-coordinate-micro-verifier
+    paths:
+      - src/authority/transaction-admission.ts
+      - src/authority/facts.ts
+      - src/model.ts
+      - experiments/lean-authority-coordinate/**
+      - .github/workflows/lean-authority-coordinate.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - src/authority/transaction-admission.ts
+      - src/authority/facts.ts
+      - src/model.ts
+      - experiments/lean-authority-coordinate/**
+      - .github/workflows/lean-authority-coordinate.yml
+
+permissions:
+  contents: read
+
+jobs:
+  oracle:
+    name: TypeScript vs Lean authority coordinates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Node 22.16
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install pinned Lean 4.19.0
+        uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
+        with:
+          lake-package-directory: experiments/lean-authority-coordinate
+          auto-config: false
+          build: false
+          test: false
+          lint: false
+          use-github-cache: false
+          use-mathlib-cache: false
+          leanchecker: false
+
+      - name: Exhaust authority coordinate boundary
+        working-directory: experiments/lean-authority-coordinate
+        run: |
+          LEAN_AUTHORITY_COORDINATE_BIN="$(elan which lean)"             node --experimental-strip-types experiment.ts
