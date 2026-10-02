@@ -43,9 +43,7 @@ export interface NorthboundEventRequestReceipt {
 
 export interface NorthboundMcpSurface {
   listPossibleEvents(): NorthboundEventFrontier | Promise<NorthboundEventFrontier>;
-  explainEvent(
-    eventId: string,
-  ): NorthboundEventExplanation | Promise<NorthboundEventExplanation>;
+  explainEvent(eventId: string): NorthboundEventExplanation | Promise<NorthboundEventExplanation>;
   requestEvent?(
     request: NorthboundEventRequest,
   ): NorthboundEventRequestReceipt | Promise<NorthboundEventRequestReceipt>;
