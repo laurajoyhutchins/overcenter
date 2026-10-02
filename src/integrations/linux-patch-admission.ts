@@ -141,6 +141,8 @@ function validateEvidence(evidence: LinuxPatchAdmissionEvidence): void {
     nonEmpty(prerequisite.project, 'EXTERNAL_PROJECT');
     gitIdentity(prerequisite.revision, 'EXTERNAL_REVISION');
     exactSha256Identity(prerequisite.evidence_digest, 'EXTERNAL_EVIDENCE');
+    if (typeof prerequisite.satisfied !== 'boolean')
+      throw new Error('LINUX_PATCH_INVALID:EXTERNAL_SATISFIED');
     if (seen.has(prerequisite.id)) throw new Error('LINUX_PATCH_INVALID:DUPLICATE_EXTERNAL_ID');
     seen.add(prerequisite.id);
   }
@@ -250,7 +252,9 @@ export function projectLinuxPatchAdmissionBoundary(
   }));
 
   const supportedChecks = MECHANICAL_CHECKS.filter((check) => evidence.checks[check] === true);
-  const satisfiedExternal = evidence.external_prerequisites.filter((item) => item.satisfied);
+  const satisfiedExternal = evidence.external_prerequisites.filter(
+    (item) => item.satisfied === true,
+  );
 
   const projection: FourByFourProjection = {
     coordinates: [

@@ -110,6 +110,11 @@ export function verifyImplementationTransitionRefinement(
     '.every((value) => value)',
   ]);
 
+  requireIncludes('mutationAdmitted', sources.transactionAdmission, [
+    's.current_authority && s.exact_revision && !s.unresolved_effect',
+    'export const mutationAdmitted = effectAdmissionDecision;',
+  ]);
+
   const authorityAdvance = section(
     sources.transactionAdmission,
     'executionAuthorityAdvanceError',
@@ -141,10 +146,13 @@ export function verifyImplementationTransitionRefinement(
     '\n  async performEffect<',
   );
   requireOrdered('beginEffect', beginEffect, [
-    '!executionPermits(run, permit, this.#capabilityDigest(permit.execution_capability))',
+    'const authority = projectExecutionAuthority(',
+    '!authority.current_authority || !authority.exact_revision',
     "throw new Error('STALE_EXECUTION_GENERATION')",
     "lifecycle.status !== 'EXECUTING'",
-    'history.unresolvedReservationsByRun.has(run.id)',
+    '!mutationAdmitted({',
+    '...authority',
+    'unresolved_effect: history.unresolvedReservationsByRun.has(run.id)',
     "throw new Error('UNRESOLVED_EFFECT')",
     "'effect-reservation.json': fact",
   ]);

@@ -115,6 +115,7 @@ def uncertainRecovery : World := {
 
 theorem reservation_existence_is_not_authority :
     staleReservation.reservation = true ∧ ¬currentAuthority staleReservation := by
+  unfold currentAuthority
   decide
 
 theorem recovery_without_observation_is_not_settlement :

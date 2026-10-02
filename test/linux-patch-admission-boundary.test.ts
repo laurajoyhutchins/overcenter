@@ -266,3 +266,18 @@ test('malformed external evidence fails closed at the boundary', () => {
     /LINUX_PATCH_INVALID:DUPLICATE_EXTERNAL_ID/,
   );
 });
+
+test('external prerequisite satisfaction must be a boolean', () => {
+  const prerequisite = accepted.external_prerequisites[0];
+  assert.ok(prerequisite);
+  for (const satisfied of ['false', 'true', 1, null]) {
+    assert.throws(
+      () =>
+        projectLinuxPatchAdmissionBoundary({
+          ...accepted,
+          external_prerequisites: [{ ...prerequisite, satisfied }],
+        } as unknown as LinuxPatchAdmissionEvidence),
+      /LINUX_PATCH_INVALID:EXTERNAL_SATISFIED/,
+    );
+  }
+});
