@@ -14,23 +14,9 @@
   ],
   "source": {
     "path": "src/authority/engine.ts",
-    "blob_sha": "c0350f54d46d8c6d17944bfb3786f728f0cb30b1"
+    "blob_sha": "2d51867ed92b1ee2f29dbd14124c9cce51db9fec"
   },
   "roles": {
-    "admission": {
-      "symbol": "beginEffect",
-      "calls": [
-        "projectExecutionAuthority",
-        "mutationAdmitted",
-        "this.#store.append"
-      ],
-      "literals": [
-        "STALE_EXECUTION_GENERATION",
-        "RUN_NOT_EXECUTING",
-        "UNRESOLVED_EFFECT",
-        "effect-reservation.json"
-      ]
-    },
     "release": {
       "symbol": "releaseEffectReservation",
       "calls": [
@@ -48,18 +34,6 @@
         "EFFECT_RELEASE_EVIDENCE_BINDING_MISMATCH",
         "EFFECT_RELEASE_EVIDENCE_NOT_AUTHORIZED",
         "effect-release.json",
-        "receipt.json"
-      ]
-    },
-    "settlement": {
-      "symbol": "#settleWithoutObservation",
-      "calls": [
-        "this.#requireExecutionPermit",
-        "projectReceipt",
-        "this.#store.append"
-      ],
-      "literals": [
-        "SOURCE_SETTLEMENT_WITHOUT_RESERVED_EFFECT",
         "receipt.json"
       ]
     }
