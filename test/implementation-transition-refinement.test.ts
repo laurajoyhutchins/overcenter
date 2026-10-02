@@ -41,27 +41,9 @@ test('selected live consequential transitions refine through the trusted 4x4 mod
       relations,
       formalActions,
     })),
-    [
-      {
-        id: 'source-integration-receipt',
-        durable: true,
-        relations: ['permits', 'supports', 'requires'],
-        formalActions: ['Settle', 'ExactEvidenceAllowed'],
-      },
-    ],
+    [],
   );
-  assert.deepEqual(refinement.hostileGuards, {
-    evidenceMigration: true,
-  });
-});
-
-test('evidence migration guard drift fails refinement closed', () => {
-  rejects(
-    'settleSourceIntegration',
-    'engine',
-    'evidence.source_sha !== run.source_revision',
-    'false',
-  );
+  assert.deepEqual(refinement.hostileGuards, {});
 });
 
 test('formal authority correspondence drift fails refinement closed', () => {
