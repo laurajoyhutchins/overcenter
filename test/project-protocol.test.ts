@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  projectAdvanceResult,
-  projectSubmitResult,
-} from '../src/authority/project-protocol.ts';
+import { projectAdvanceResult, projectSubmitResult } from '../src/authority/project-protocol.ts';
 
 test('project advance result excludes transport envelope metadata', () => {
   const receipt = {
