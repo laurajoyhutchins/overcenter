@@ -1,19 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-export type FourByFourRelation = 'permits' | 'asserts' | 'supports' | 'requires';
-
 export interface ImplementationTransitionSources {
   readonly engine: string;
   readonly formalKernel: string;
   readonly formalConfig: string;
-}
-
-export interface ImplementationTransition {
-  readonly id: 'source-integration-receipt';
-  readonly durable: boolean;
-  readonly relations: readonly FourByFourRelation[];
-  readonly formalActions: readonly string[];
 }
 
 export interface ImplementationTransitionRefinement {
