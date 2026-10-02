@@ -12,7 +12,7 @@ export interface ExecutionAuthorityProjection {
   exact_revision: boolean;
 }
 
-function executionPermitProjection(
+export function projectExecutionAuthority(
   run: Run,
   permit: ExecutionPermit,
   capabilitySha256: string,
@@ -32,27 +32,9 @@ function executionPermitProjection(
   };
 }
 
-function projectedPermit(projection: ExecutionAuthorityProjection): boolean {
-  return projection.current_authority && projection.exact_revision;
-}
+export const executionPermits = (run: Run, permit: ExecutionPermit, capabilitySha256: string) =>
+  Object.values(projectExecutionAuthority(run, permit, capabilitySha256)).every((value) => value);
 
-export function executionPermits(
-  run: Run,
-  permit: ExecutionPermit,
-  capabilitySha256: string,
-): boolean {
-  return projectedPermit(executionPermitProjection(run, permit, capabilitySha256));
-}
-
-// Trusted verification still names this historical view. It is a projection of the
-// same relation consumed by executionPermits(), not an independent authority rule.
-export function projectExecutionAuthority(
-  run: Run,
-  permit: ExecutionPermit,
-  capabilitySha256: string,
-): ExecutionAuthorityProjection {
-  return executionPermitProjection(run, permit, capabilitySha256);
-}
 export type EffectReservationAuthorityError =
   | 'EFFECT_RESERVATION_RUN_MISMATCH'
   | 'EFFECT_RESERVATION_OBLIGATION_MISMATCH'
@@ -66,9 +48,7 @@ export function effectReservationAuthorityError(
   unresolvedEffect: boolean,
 ): EffectReservationAuthorityError {
   if (fact.run_id !== run.id) return 'EFFECT_RESERVATION_RUN_MISMATCH';
-  if (fact.obligation_id !== run.obligation_id) {
-    return 'EFFECT_RESERVATION_OBLIGATION_MISMATCH';
-  }
+  if (fact.obligation_id !== run.obligation_id) return 'EFFECT_RESERVATION_OBLIGATION_MISMATCH';
   if (
     fact.execution_generation !== run.execution_generation ||
     fact.execution_authority_commit !== run.execution_authority_commit
@@ -150,37 +130,9 @@ export function executionAuthorityAdvanceError(
   return null;
 }
 
-export type EffectAdmissionDenial = 'STALE_EXECUTION_GENERATION' | 'UNRESOLVED_EFFECT' | null;
+export type EffectAdmissionState = ExecutionAuthorityProjection & { unresolved_effect: boolean };
 
-export interface EffectAdmissionDecision {
-  readonly permits: boolean;
-  readonly denial: EffectAdmissionDenial;
-}
+export const effectAdmissionDecision = (s: EffectAdmissionState) =>
+  s.current_authority && s.exact_revision && !s.unresolved_effect;
 
-function admissionDecision(permits: boolean, unresolvedEffect: boolean): EffectAdmissionDecision {
-  if (!permits) {
-    return { permits: false, denial: 'STALE_EXECUTION_GENERATION' };
-  }
-  if (unresolvedEffect) {
-    return { permits: false, denial: 'UNRESOLVED_EFFECT' };
-  }
-  return { permits: true, denial: null };
-}
-
-export function effectAdmissionDecision(
-  run: Run,
-  permit: ExecutionPermit,
-  capabilitySha256: string,
-  unresolvedEffect: boolean,
-): EffectAdmissionDecision {
-  return admissionDecision(executionPermits(run, permit, capabilitySha256), unresolvedEffect);
-}
-
-export type EffectAdmissionState = ExecutionAuthorityProjection & {
-  unresolved_effect: boolean;
-};
-
-// Compatibility projection for the accepted verifier. Admission semantics live in
-// admissionDecision(executionPermits(...), unresolvedEffect).
-export const mutationAdmitted = (state: EffectAdmissionState): boolean =>
-  admissionDecision(projectedPermit(state), state.unresolved_effect).permits;
+export const mutationAdmitted = effectAdmissionDecision;
