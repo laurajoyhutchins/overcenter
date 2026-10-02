@@ -43,9 +43,7 @@ export function projectAdvanceResult(value: ProjectAdvanceResult): ProjectAdvanc
     state: value.state,
     ...(value.obligation_id === undefined ? {} : { obligation_id: value.obligation_id }),
     ...(value.run_id === undefined ? {} : { run_id: value.run_id }),
-    ...(value.claimed_revision === undefined
-      ? {}
-      : { claimed_revision: value.claimed_revision }),
+    ...(value.claimed_revision === undefined ? {} : { claimed_revision: value.claimed_revision }),
     ...(value.assignment_sha256 === undefined
       ? {}
       : { assignment_sha256: value.assignment_sha256 }),
