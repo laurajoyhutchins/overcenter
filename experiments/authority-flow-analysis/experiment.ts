@@ -187,13 +187,19 @@ function scenario() {
 const soundEngine = `
 class KernelCore {
   beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority || !authority.exact_revision) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
+    return 'reservation';
   }
-  async performEffect(permit:any,effect:any) {
-    this.beginEffect(permit);
-    return await effect();
+  async performEffect(authority:any,effect:any) {
+    const permit=effectAuthorityPermit(authority);
+    const reservationCommit=this.beginEffect(permit);
+    const attempt={reservation_commit:reservationCommit};
+    return await effect(attempt);
+  }
+  performEffectSync(authority:any,effect:any) {
+    const permit=effectAuthorityPermit(authority);
+    const reservationCommit=this.beginEffect(permit);
+    const attempt={reservation_commit:reservationCommit};
+    return effect(attempt);
   }
 }`;
 
@@ -217,17 +223,42 @@ const productionMutants = [
     expected: 'PRODUCTION_MUTATION_OUTSIDE_WRAPPER' as IssueCode,
   },
   {
-    name: 'effect executes before authority fence',
+    name: 'async effect executes before reservation',
     input: {
       engine: `
 class KernelCore {
-  beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority || !authority.exact_revision) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
-  }
-  async performEffect(permit:any,effect:any) {
+  beginEffect(permit:any) { return 'reservation'; }
+  async performEffect(authority:any,effect:any) {
+    const permit=effectAuthorityPermit(authority);
     const result=await effect();
+    this.beginEffect(permit);
+    return result;
+  }
+  performEffectSync(authority:any,effect:any) {
+    const permit=effectAuthorityPermit(authority);
+    this.beginEffect(permit);
+    return effect();
+  }
+}`,
+      githubStatus: safeStatus,
+      githubPullRequest: safePullRequest,
+    },
+    expected: 'PRODUCTION_EFFECT_WRAPPER_INVALID' as IssueCode,
+  },
+  {
+    name: 'sync effect executes before reservation',
+    input: {
+      engine: `
+class KernelCore {
+  beginEffect(permit:any) { return 'reservation'; }
+  async performEffect(authority:any,effect:any) {
+    const permit=effectAuthorityPermit(authority);
+    this.beginEffect(permit);
+    return await effect();
+  }
+  performEffectSync(authority:any,effect:any) {
+    const permit=effectAuthorityPermit(authority);
+    const result=effect();
     this.beginEffect(permit);
     return result;
   }
@@ -238,38 +269,20 @@ class KernelCore {
     expected: 'PRODUCTION_EFFECT_WRAPPER_INVALID' as IssueCode,
   },
   {
-    name: 'beginEffect loses exact revision fence',
+    name: 'conditional reservation does not dominate effect',
     input: {
       engine: `
 class KernelCore {
-  beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
-  }
-  async performEffect(permit:any,effect:any) {
-    this.beginEffect(permit);
-    return await effect();
-  }
-}`,
-      githubStatus: safeStatus,
-      githubPullRequest: safePullRequest,
-    },
-    expected: 'PRODUCTION_EFFECT_WRAPPER_INVALID' as IssueCode,
-  },
-  {
-    name: 'conditional authority fence does not dominate effect',
-    input: {
-      engine: `
-class KernelCore {
-  beginEffect(permit:any) {
-    const authority=projectExecutionAuthority(run,permit,digest);
-    if (!authority.current_authority || !authority.exact_revision) throw new Error('stale');
-    if (!mutationAdmitted({...authority,unresolved_effect:history.unresolvedReservationsByRun.has(run.id)})) throw new Error('unresolved');
-  }
-  async performEffect(permit:any,effect:any) {
+  beginEffect(permit:any) { return 'reservation'; }
+  async performEffect(authority:any,effect:any) {
+    const permit=effectAuthorityPermit(authority);
     if (permit) this.beginEffect(permit);
     return await effect();
+  }
+  performEffectSync(authority:any,effect:any) {
+    const permit=effectAuthorityPermit(authority);
+    this.beginEffect(permit);
+    return effect();
   }
 }`,
       githubStatus: safeStatus,
