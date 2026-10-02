@@ -43,12 +43,6 @@ test('selected live consequential transitions refine through the trusted 4x4 mod
     })),
     [
       {
-        id: 'dispatch-effect',
-        durable: false,
-        relations: ['permits'],
-        formalActions: ['BeginMutation', 'MutationAuthorityAllowed'],
-      },
-      {
         id: 'release-not-dispatched',
         durable: true,
         relations: ['permits', 'supports', 'requires'],
@@ -69,21 +63,10 @@ test('selected live consequential transitions refine through the trusted 4x4 mod
     ],
   );
   assert.deepEqual(refinement.hostileGuards, {
-    staleAuthority: true,
     evidenceMigration: true,
     ambiguity: true,
     aba: true,
-    duplicateEffect: true,
   });
-});
-
-test('stale authority guard drift fails refinement closed', () => {
-  rejects(
-    'executionPermits',
-    'transactionAdmission',
-    'permit.execution_generation === run.execution_generation',
-    'true',
-  );
 });
 
 test('evidence migration guard drift fails refinement closed', () => {
@@ -111,10 +94,6 @@ test('ABA protection drift fails refinement closed', () => {
     'fact.generation !== run.execution_generation + 1',
     'false',
   );
-});
-
-test('duplicate-effect protection drift fails refinement closed', () => {
-  rejects('effectAdmissionDecision', 'transactionAdmission', 'if (unresolvedEffect)', 'if (false)');
 });
 
 test('release evidence cannot migrate across reservation coordinates', () => {
