@@ -1,0 +1,29 @@
+name: Lean 4.23 proof bootstrap
+
+on:
+  push:
+    branches:
+      - agent/lean-423-proof-bootstrap-20261002
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download pinned Lean 4.23.0
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-delay 2 \
+            -o lean-4.23.0-linux.tar.zst \
+            https://github.com/leanprover/lean4/releases/download/v4.23.0/lean-4.23.0-linux.tar.zst
+          echo "ecd028d6f642b61b451c8687aeeb24dd53789fbfdcb7d4adb8f5cf60eb2022ba  lean-4.23.0-linux.tar.zst" | sha256sum -c -
+      - name: Upload Lean
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lean-4.23.0-linux
+          path: lean-4.23.0-linux.tar.zst
+          compression-level: 0
+          retention-days: 1
