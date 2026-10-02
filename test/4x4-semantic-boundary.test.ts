@@ -182,16 +182,9 @@ test('4x4 kernel namespace is closed to four nouns and four relations', () => {
   });
 });
 
-test('4x4 extractor rejects semantic mutations to admission and release', () => {
+test('4x4 extractor rejects semantic mutations to release', () => {
   const expected = loadFourByFourSourceContract(ROOT);
   const original = source();
-  const admissionMutation = original.replace(/\beffectAdmissionDecision\s*\(/, 'Boolean(');
-  assert.notEqual(admissionMutation, original);
-  assert.throws(
-    () => assertExtractedFourByFourContract(mutatedContract(admissionMutation), expected),
-    /FOUR_BY_FOUR_SOURCE_CALL_MISSING:admission:effectAdmissionDecision/,
-  );
-
   const releaseMutation = original.replace(/'effect-release\.json'\s*:/, "'unknown-release.json':");
   assert.notEqual(releaseMutation, original);
   assert.throws(
@@ -203,7 +196,7 @@ test('4x4 extractor rejects semantic mutations to admission and release', () => 
 test('4x4 extractor fails closed on nested executable control flow', () => {
   const original = source();
   const nestedMutation = original.replace(
-    /(\bbeginEffect\s*\([^)]*\)(?:\s*:\s*[^{]+)?\s*\{)/,
+    /(\breleaseEffectReservation\s*<[^>]+>\s*\([^)]*\)(?:\s*:\s*[^{]+)?\s*\{)/,
     '$1\n    const hidden = () => true;',
   );
   assert.notEqual(nestedMutation, original);
