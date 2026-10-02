@@ -1,0 +1,67 @@
+name: Datalog VM Bootstrap
+
+on:
+  push:
+    branches:
+      - agent/datalog-vm-bootstrap-20261002
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fetch and verify Souffle 2.5
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkg=x86_64-ubuntu-2404-souffle-2.5-Linux.deb
+          base=https://github.com/souffle-lang/souffle/releases/download/2.5
+          curl -fL --retry 3 -o "$pkg" "$base/$pkg"
+          curl -fL --retry 3 -o sha512sum.txt "$base/sha512sum.txt"
+          grep "  $pkg\$" sha512sum.txt | sha512sum -c -
+          mkdir souffle-root
+          dpkg-deb -x "$pkg" souffle-root
+          ./souffle-root/usr/bin/souffle --version
+
+      - name: Smoke-test real Datalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reach.dl <<'EOF'
+          .decl edge(x:symbol, y:symbol)
+          .decl reachable(x:symbol, y:symbol)
+
+          edge("reserve", "mutate").
+          edge("mutate", "observe").
+          edge("observe", "resolve").
+
+          reachable(x, y) :- edge(x, y).
+          reachable(x, z) :- reachable(x, y), edge(y, z).
+
+          .output reachable
+          EOF
+          mkdir runner-out
+          ./souffle-root/usr/bin/souffle reach.dl -D runner-out
+          cat runner-out/reachable.csv
+
+      - name: Package extracted runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C souffle-root -czf souffle-2.5-ubuntu2404-root.tar.gz .
+          sha256sum souffle-2.5-ubuntu2404-root.tar.gz > souffle-2.5-ubuntu2404-root.tar.gz.sha256
+          cp sha512sum.txt souffle-release-sha512sum.txt
+
+      - name: Upload runtime courier
+        uses: actions/upload-artifact@v4
+        with:
+          name: souffle-2.5-linux-x86_64
+          path: |
+            souffle-2.5-ubuntu2404-root.tar.gz
+            souffle-2.5-ubuntu2404-root.tar.gz.sha256
+            souffle-release-sha512sum.txt
+          if-no-files-found: error
+          retention-days: 1
