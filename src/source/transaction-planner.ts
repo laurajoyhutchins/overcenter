@@ -8,9 +8,11 @@ import { runtimeModuleClosure } from '../analysis/typescript-runtime.ts';
 import {
   deriveAffectedAssuranceProperties,
   type AssurancePropertyImpact,
-  type AssuranceChangePlan,
 } from '../architecture/change-planner.ts';
-import { assuranceChangePlanForPropertiesFromRelations } from '../authority/assurance-relations.ts';
+import {
+  deriveAssuranceChangePlan,
+  type AssuranceChangePlan,
+} from '../authority/assurance-relations.ts';
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../architecture/sql-model.ts';
 import { deriveAssurancePropertyTrustRoots } from '../architecture/tcb.ts';
 import { canonicalDigest } from '../digest.ts';
@@ -232,21 +234,13 @@ export function planSourceTransaction(
               ...new Set([...impact.via_properties, ...(prior?.via_properties ?? [])]),
             ].sort(),
           });
-        }
-        if (impacts.length > 0) {
           try {
-            const proof = assuranceChangePlanForPropertiesFromRelations(
-              db,
-              impacts.map((impact) => impact.property_id),
-              `revision:${sha}`,
-            );
+            const proof = deriveAssuranceChangePlan(db, impact.property_id);
             proofs.set(canonicalDigest(proof), proof);
           } catch {
-            for (const impact of impacts) {
-              impact.changed_artifacts.forEach((path) => {
-                addGap(path, 'evidence-unmapped');
-              });
-            }
+            impact.changed_artifacts.forEach((path) => {
+              addGap(path, 'evidence-unmapped');
+            });
           }
         }
       } finally {
