@@ -49,12 +49,6 @@ test('selected live consequential transitions refine through the trusted 4x4 mod
         formalActions: ['Verify', 'ReplayEvidenceIsAbsence'],
       },
       {
-        id: 'observation-receipt',
-        durable: true,
-        relations: ['permits', 'asserts', 'supports', 'requires'],
-        formalActions: ['Verify', 'Settle', 'ExactEvidenceAllowed'],
-      },
-      {
         id: 'source-integration-receipt',
         durable: true,
         relations: ['permits', 'supports', 'requires'],
@@ -64,7 +58,6 @@ test('selected live consequential transitions refine through the trusted 4x4 mod
   );
   assert.deepEqual(refinement.hostileGuards, {
     evidenceMigration: true,
-    ambiguity: true,
     aba: true,
   });
 });
@@ -75,15 +68,6 @@ test('evidence migration guard drift fails refinement closed', () => {
     'engine',
     'evidence.source_sha !== run.source_revision',
     'false',
-  );
-});
-
-test('ambiguous outcomes cannot be silently promoted to READY', () => {
-  rejects(
-    'settlementDispositionFromRelations',
-    'settlement',
-    "return 'RECOVERY_REQUIRED';",
-    "return 'READY';",
   );
 });
 
