@@ -7,51 +7,22 @@ import type {
 } from './facts.ts';
 import type { ExecutionPermit, Run } from '../model.ts';
 
-export interface ExecutionAuthorityProjection {
-  current_authority: boolean;
-  exact_revision: boolean;
-}
-
-function executionPermitProjection(
-  run: Run,
-  permit: ExecutionPermit,
-  capabilitySha256: string,
-): ExecutionAuthorityProjection {
-  return {
-    current_authority:
-      permit.id === run.id &&
-      permit.obligation_id === run.obligation_id &&
-      permit.execution_generation === run.execution_generation &&
-      permit.execution_authority_commit === run.execution_authority_commit &&
-      permit.execution_capability_sha256 === run.execution_capability_sha256 &&
-      capabilitySha256 === run.execution_capability_sha256,
-    exact_revision:
-      permit.claimed_revision === run.claimed_revision &&
-      permit.claim_commit === run.claim_commit &&
-      permit.obligation_key === run.obligation_key,
-  };
-}
-
-function projectedPermit(projection: ExecutionAuthorityProjection): boolean {
-  return projection.current_authority && projection.exact_revision;
-}
-
 export function executionPermits(
   run: Run,
   permit: ExecutionPermit,
   capabilitySha256: string,
 ): boolean {
-  return projectedPermit(executionPermitProjection(run, permit, capabilitySha256));
-}
-
-// Trusted verification still names this historical view. It is a projection of the
-// same relation consumed by executionPermits(), not an independent authority rule.
-export function projectExecutionAuthority(
-  run: Run,
-  permit: ExecutionPermit,
-  capabilitySha256: string,
-): ExecutionAuthorityProjection {
-  return executionPermitProjection(run, permit, capabilitySha256);
+  return (
+    permit.id === run.id &&
+    permit.obligation_id === run.obligation_id &&
+    permit.claimed_revision === run.claimed_revision &&
+    permit.claim_commit === run.claim_commit &&
+    permit.obligation_key === run.obligation_key &&
+    permit.execution_generation === run.execution_generation &&
+    permit.execution_authority_commit === run.execution_authority_commit &&
+    permit.execution_capability_sha256 === run.execution_capability_sha256 &&
+    capabilitySha256 === run.execution_capability_sha256
+  );
 }
 export type EffectReservationAuthorityError =
   | 'EFFECT_RESERVATION_RUN_MISMATCH'
@@ -157,8 +128,13 @@ export interface EffectAdmissionDecision {
   readonly denial: EffectAdmissionDenial;
 }
 
-function admissionDecision(permits: boolean, unresolvedEffect: boolean): EffectAdmissionDecision {
-  if (!permits) {
+export function effectAdmissionDecision(
+  run: Run,
+  permit: ExecutionPermit,
+  capabilitySha256: string,
+  unresolvedEffect: boolean,
+): EffectAdmissionDecision {
+  if (!executionPermits(run, permit, capabilitySha256)) {
     return { permits: false, denial: 'STALE_EXECUTION_GENERATION' };
   }
   if (unresolvedEffect) {
@@ -166,21 +142,3 @@ function admissionDecision(permits: boolean, unresolvedEffect: boolean): EffectA
   }
   return { permits: true, denial: null };
 }
-
-export function effectAdmissionDecision(
-  run: Run,
-  permit: ExecutionPermit,
-  capabilitySha256: string,
-  unresolvedEffect: boolean,
-): EffectAdmissionDecision {
-  return admissionDecision(executionPermits(run, permit, capabilitySha256), unresolvedEffect);
-}
-
-export type EffectAdmissionState = ExecutionAuthorityProjection & {
-  unresolved_effect: boolean;
-};
-
-// Compatibility projection for the accepted verifier. Admission semantics live in
-// admissionDecision(executionPermits(...), unresolvedEffect).
-export const mutationAdmitted = (state: EffectAdmissionState): boolean =>
-  admissionDecision(projectedPermit(state), state.unresolved_effect).permits;
