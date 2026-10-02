@@ -68,6 +68,7 @@ import {
   type TrustedEffectReleaseWitness,
 } from '../effect-release-witness.ts';
 import {
+  sourceIntegrationSettlementError,
   trustedSourceIntegrationEvidence,
   type TrustedSourceIntegrationWitness,
 } from '../source/source-integration.ts';
@@ -506,21 +507,9 @@ export class KernelCore {
       permit,
       'source-integration',
       { source_integration: evidence },
-      ({ run, work }) => {
-        if (
-          work.packet.kind !== 'source-change' ||
-          work.packet.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT ||
-          work.postcondition.verifier !== 'source-integration/v1'
-        ) {
-          throw new Error('SOURCE_SETTLEMENT_WORK_INVALID');
-        }
-        if (
-          evidence.run_id !== run.id ||
-          evidence.obligation_key !== run.obligation_key ||
-          evidence.source_sha !== run.source_revision
-        ) {
-          throw new Error('SOURCE_INTEGRATION_EVIDENCE_BINDING_MISMATCH');
-        }
+      ({ run, work, unresolvedEffect }) => {
+        const error = sourceIntegrationSettlementError(run, work, evidence, unresolvedEffect);
+        if (error) throw new Error(error);
       },
     );
     if (receipt.disposition !== 'DONE' || !receipt.verified) {
@@ -751,7 +740,11 @@ export class KernelCore {
       'judgment-required' | 'execution-terminated' | 'source-integration' | 'source-retry'
     >,
     diagnostic: Data,
-    validate?: (context: { run: HistoricalRun; work: HistoricalRun['obligation'] }) => void,
+    validate?: (context: {
+      run: HistoricalRun;
+      work: HistoricalRun['obligation'];
+      unresolvedEffect: boolean;
+    }) => void,
   ): Receipt {
     const runId = permit.id;
     const policy =
@@ -800,13 +793,10 @@ export class KernelCore {
         throw new Error(policy.lifecycleError);
       }
       const unresolvedEffect = history.unresolvedReservationsByRun.has(runId);
-      if (kind === 'source-integration' && !unresolvedEffect) {
-        throw new Error('SOURCE_SETTLEMENT_WITHOUT_RESERVED_EFFECT');
-      }
       if (policy.unresolvedError && unresolvedEffect) {
         throw new Error(policy.unresolvedError);
       }
-      validate?.({ run, work });
+      validate?.({ run, work, unresolvedEffect });
 
       const fact = this.#receiptFact(run, work.id, kind, null, diagnostic);
       const receipt = projectReceipt(fact, work);
