@@ -57,7 +57,7 @@ Release ==
       )
   /\ released' = TRUE
   /\ unsafeRelease' =
-       unsafeRelease \/ outcome # "PreDispatch" \/ ~bindingValid
+       (unsafeRelease \/ outcome # "PreDispatch" \/ ~bindingValid)
   /\ reserved' = IF ClearOnRelease THEN FALSE ELSE TRUE
   /\ UNCHANGED outcome
   /\ UNCHANGED bindingValid
