@@ -5,7 +5,7 @@ import {
   createNorthboundMcpHandler,
   kernelNorthboundSurface,
   type NorthboundMcpSurface,
-} from '../experiments/mcp-northbound/server.ts';
+} from '../examples/mcp-northbound/server.ts';
 
 const MODERN_META = {
   'io.modelcontextprotocol/protocolVersion': '2026-07-28',
