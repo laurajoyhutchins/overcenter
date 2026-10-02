@@ -10,6 +10,147 @@ import {
 import { obligationKey } from '../graph/identity.ts';
 import type { CurrentRealizationJudgment } from './realization-reuse.ts';
 
+export interface RelationalExplanationInput {
+  coordinates: readonly { id: string }[];
+  objects: readonly { id: string; coordinate: string }[];
+  events: readonly { id: string; coordinate: string }[];
+  propositions: readonly { id: string; coordinate: string }[];
+  permits: readonly { object: string; event: string }[];
+  supports: readonly { object: string; proposition: string }[];
+  requires: readonly { proposition: string; required: string }[];
+}
+
+export type RelationalRequirementState = 'supported' | 'stale-support' | 'unsupported';
+
+export interface RelationalRequirementExplanation {
+  proposition: string;
+  coordinate: string;
+  state: RelationalRequirementState;
+  supporting_objects: string[];
+  stale_supporting_objects: string[];
+}
+
+export interface RelationalEventExplanation {
+  event: string;
+  coordinate: string;
+  root_proposition: string;
+  permitted_by: string[];
+  stale_authority: string[];
+  requirements: RelationalRequirementExplanation[];
+}
+
+function uniqueSorted(values: Iterable<string>): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
+export function explainRelationalEvent(
+  input: RelationalExplanationInput,
+  eventId: string,
+  rootPropositionId: string,
+): RelationalEventExplanation {
+  const coordinates = new Set(input.coordinates.map(({ id }) => id));
+  const objects = new Map(input.objects.map((item) => [item.id, item]));
+  const events = new Map(input.events.map((item) => [item.id, item]));
+  const propositions = new Map(input.propositions.map((item) => [item.id, item]));
+  const event = events.get(eventId);
+  const root = propositions.get(rootPropositionId);
+  if (!event) throw new Error(`RELATIONAL_EXPLANATION_EVENT_UNKNOWN:${eventId}`);
+  if (!root) throw new Error(`RELATIONAL_EXPLANATION_PROPOSITION_UNKNOWN:${rootPropositionId}`);
+
+  for (const item of [...objects.values(), ...events.values(), ...propositions.values()]) {
+    if (!coordinates.has(item.coordinate)) {
+      throw new Error(`RELATIONAL_EXPLANATION_COORDINATE_UNKNOWN:${item.coordinate}`);
+    }
+  }
+
+  const required = new Set<string>();
+  const visiting = new Set<string>();
+  const visit = (propositionId: string): void => {
+    if (visiting.has(propositionId)) {
+      throw new Error(`RELATIONAL_EXPLANATION_REQUIREMENT_CYCLE:${propositionId}`);
+    }
+    visiting.add(propositionId);
+    const edges = input.requires
+      .filter((edge) => edge.proposition === propositionId)
+      .sort((left, right) => left.required.localeCompare(right.required));
+    for (const edge of edges) {
+      if (!propositions.has(edge.required)) {
+        throw new Error(`RELATIONAL_EXPLANATION_REQUIRED_PROPOSITION_UNKNOWN:${edge.required}`);
+      }
+      if (!required.has(edge.required)) {
+        required.add(edge.required);
+        visit(edge.required);
+      }
+    }
+    visiting.delete(propositionId);
+  };
+  visit(root.id);
+
+  const requirements = [...required]
+    .sort((left, right) => left.localeCompare(right))
+    .map((propositionId): RelationalRequirementExplanation => {
+      const proposition = propositions.get(propositionId)!;
+      const supporting = input.supports
+        .filter((edge) => edge.proposition === propositionId)
+        .map((edge) => {
+          const object = objects.get(edge.object);
+          if (!object) {
+            throw new Error(`RELATIONAL_EXPLANATION_SUPPORT_OBJECT_UNKNOWN:${edge.object}`);
+          }
+          return object;
+        });
+      const supportingObjects = uniqueSorted(
+        supporting
+          .filter((object) => object.coordinate === proposition.coordinate)
+          .map((object) => object.id),
+      );
+      const staleSupportingObjects = uniqueSorted(
+        supporting
+          .filter((object) => object.coordinate !== proposition.coordinate)
+          .map((object) => object.id),
+      );
+      return {
+        proposition: propositionId,
+        coordinate: proposition.coordinate,
+        state:
+          supportingObjects.length > 0
+            ? 'supported'
+            : staleSupportingObjects.length > 0
+              ? 'stale-support'
+              : 'unsupported',
+        supporting_objects: supportingObjects,
+        stale_supporting_objects: staleSupportingObjects,
+      };
+    });
+
+  const permitting = input.permits
+    .filter((edge) => edge.event === eventId)
+    .map((edge) => {
+      const object = objects.get(edge.object);
+      if (!object) {
+        throw new Error(`RELATIONAL_EXPLANATION_PERMIT_OBJECT_UNKNOWN:${edge.object}`);
+      }
+      return object;
+    });
+
+  return {
+    event: event.id,
+    coordinate: event.coordinate,
+    root_proposition: root.id,
+    permitted_by: uniqueSorted(
+      permitting
+        .filter((object) => object.coordinate === event.coordinate)
+        .map((object) => object.id),
+    ),
+    stale_authority: uniqueSorted(
+      permitting
+        .filter((object) => object.coordinate !== event.coordinate)
+        .map((object) => object.id),
+    ),
+    requirements,
+  };
+}
+
 export type RealizationStatus =
   | 'UNREALIZED'
   | 'EXECUTING'
@@ -392,6 +533,65 @@ function requiredStatus(statusById: Map<string, WorkStatus>, obligationId: strin
   return status;
 }
 
+function claimRelationalExplanation(
+  obligation: Obligation,
+  projected: Work,
+  claimability: Claimability,
+  semanticKey: string | null,
+  receiptsByRun: Map<string, Receipt>,
+  statusById: Map<string, WorkStatus>,
+) {
+  const coordinate = `revision:${projected.revision}`;
+  const eventId = `claim:${obligation.id}`;
+  const rootId = `claimable:${obligation.id}`;
+  const coordinates = new Set([coordinate]);
+  const objects: Array<{ id: string; coordinate: string }> = [];
+  const propositions: Array<{ id: string; coordinate: string }> = [{ id: rootId, coordinate }];
+  const supports: Array<{ object: string; proposition: string }> = [];
+  const requires: Array<{ proposition: string; required: string }> = [];
+
+  const require = (id: string, supportCoordinate: string | null): void => {
+    propositions.push({ id, coordinate });
+    requires.push({ proposition: rootId, required: id });
+    if (supportCoordinate === null) return;
+    coordinates.add(supportCoordinate);
+    const object = `support:${id}`;
+    objects.push({ id: object, coordinate: supportCoordinate });
+    supports.push({ object, proposition: id });
+  };
+
+  dependencyUpstreams(obligation).forEach((dependency, index) => {
+    require(`dependency:${index}:${dependency}`, requiredStatus(statusById, dependency) === 'DONE'
+      ? coordinate
+      : null);
+  });
+  require('semantic-identity', semanticKey === null ? null : coordinate);
+
+  if (obligation.postcondition.verifier === 'operator-judgment/v1') {
+    require('operator-judgment', null);
+  }
+  if (claimability.indeterminateRealization) {
+    const { run } = claimability.indeterminateRealization;
+    const receipt = receiptsByRun.get(run.id);
+    require('current-realization', `historical:${receipt?.settlement_commit ?? run.claim_commit}`);
+  }
+  if (claimability.staticConflict) require('static-effect-ordering', null);
+
+  return explainRelationalEvent(
+    {
+      coordinates: [...coordinates].map((id) => ({ id })),
+      objects,
+      events: [{ id: eventId, coordinate }],
+      propositions,
+      permits: [],
+      supports,
+      requires,
+    },
+    eventId,
+    rootId,
+  );
+}
+
 function deriveExplanation(
   obligation: Obligation,
   projected: Work,
@@ -470,9 +670,41 @@ function deriveExplanation(
         };
   }
 
+  const relational = claimRelationalExplanation(
+    obligation,
+    projected,
+    claimability,
+    semanticKey,
+    receiptsByRun,
+    statusById,
+  );
+  const blockedRequirements = relational.requirements
+    .filter((requirement) => requirement.state !== 'supported')
+    .map((requirement) => requirement.proposition);
+  const blocks = (id: string): boolean => blockedRequirements.includes(id);
+  const dependencyBlocked = blockedRequirements.some((id) => id.startsWith('dependency:'));
+  const relationalError = blocks('operator-judgment')
+    ? 'JUDGMENT_REQUIRED'
+    : blocks('current-realization')
+      ? 'CURRENT_REALIZATION_ADMISSIBILITY_INDETERMINATE'
+      : dependencyBlocked
+        ? 'DEPENDENCIES_NOT_DONE'
+        : blocks('semantic-identity')
+          ? 'SEMANTIC_DEPENDENCY_UNRESOLVED'
+          : blocks('static-effect-ordering')
+            ? (claimability.staticConflict?.code ?? null)
+            : null;
+  if (relationalError !== claimability.error) {
+    throw new Error(
+      `PROJECT_EXPLANATION_RELATION_DIVERGENCE:${obligation.id}:${String(
+        claimability.error,
+      )}:${String(relationalError)}`,
+    );
+  }
+
   if (projected.status === 'BLOCKED') {
     if (
-      claimability.error === 'JUDGMENT_REQUIRED' &&
+      blocks('operator-judgment') &&
       obligation.postcondition.verifier === 'operator-judgment/v1'
     ) {
       return {
@@ -484,10 +716,7 @@ function deriveExplanation(
         },
       };
     }
-    if (
-      claimability.error === 'CURRENT_REALIZATION_ADMISSIBILITY_INDETERMINATE' &&
-      claimability.indeterminateRealization
-    ) {
+    if (blocks('current-realization') && claimability.indeterminateRealization) {
       const { run, judgment } = claimability.indeterminateRealization;
       const receipt = receiptsByRun.get(run.id);
       return {
@@ -501,7 +730,7 @@ function deriveExplanation(
         },
       };
     }
-    if (claimability.error === 'DEPENDENCIES_NOT_DONE') {
+    if (dependencyBlocked) {
       return {
         obligation_id: obligation.id,
         status: 'BLOCKED',
@@ -514,7 +743,7 @@ function deriveExplanation(
         },
       };
     }
-    if (claimability.error === 'SEMANTIC_DEPENDENCY_UNRESOLVED') {
+    if (blocks('semantic-identity')) {
       return {
         obligation_id: obligation.id,
         status: 'BLOCKED',
@@ -527,7 +756,7 @@ function deriveExplanation(
         },
       };
     }
-    if (!claimability.error) {
+    if (!blocks('static-effect-ordering') || !claimability.error) {
       throw new Error(`EXPLANATION_BLOCKED_WITHOUT_REASON:${obligation.id}`);
     }
     const conflict = claimability.staticConflict;
@@ -547,8 +776,8 @@ function deriveExplanation(
     };
   }
 
-  if (!semanticKey) {
-    throw new Error(`EXPLANATION_READY_WITHOUT_SEMANTIC_KEY:${obligation.id}`);
+  if (blockedRequirements.length > 0 || !semanticKey) {
+    throw new Error(`EXPLANATION_READY_WITH_UNSATISFIED_RELATION:${obligation.id}`);
   }
   const latest = latestMatchingRuns.get(obligation.id);
   const receipt = latest ? receiptsByRun.get(latest.id) : undefined;
