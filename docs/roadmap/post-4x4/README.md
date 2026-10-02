@@ -9,8 +9,8 @@ Order:
 3. Derive recovery.
 4. Derive minimum evidence.
 5. Execute relational calculus in SQLite.
-6. Govern one Azelficoast boundary.
+6. Stress-test Linux patch admission against public history.
 7. Prove implementation transition refinement.
 8. Delete orchestration that deterministic relations now own.
 
-The success criterion is not more ontology. It is less machinery, fewer agent judgments, and stronger exact-head evidence.
+The success criterion is not more ontology. It is less machinery, fewer agent judgments, stronger exact-head evidence, and survival against an external project whose rules we do not control.
