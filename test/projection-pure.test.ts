@@ -11,7 +11,7 @@ import {
 import type { FactCommit, GraphPatchFact, ReceiptFact } from '../src/authority/facts.ts';
 import { obligationKey } from '../src/graph/identity.ts';
 import { advanceProjection, projectReceipt, replayProjection } from '../src/authority/replay.ts';
-import { deriveClaimPrerequisites } from '../src/authority/project-state.ts';
+import { deriveClaimPrerequisites, explainProjectWork } from '../src/authority/project-state.ts';
 import type { Obligation } from '../src/model.ts';
 import { localFileEnoentEvidence } from '../src/observation/evidence.ts';
 
@@ -185,6 +185,34 @@ test('replay and projection share claim prerequisite semantics', () => {
       ]),
     /CLAIM_WITH_UNSATISFIED_DEPENDENCIES/,
   );
+});
+
+test('project explanations preserve blocked dependency semantics through relational queries', () => {
+  const first: Obligation = {
+    ...obligation,
+    id: 'first',
+  };
+  const second: Obligation = {
+    ...obligation,
+    id: 'second',
+    dependencies: [{ kind: 'control', upstream: 'first' }],
+  };
+  const projected = replayProjection([
+    {
+      commit: 'define-explanation',
+      parent: null,
+      graph_patch: graphPatch(first, second),
+    },
+  ]);
+
+  assert.deepEqual(explainProjectWork(projected.project, 'second'), {
+    obligation_id: 'second',
+    status: 'BLOCKED',
+    reason: {
+      kind: 'unsatisfied-dependencies',
+      dependencies: [{ obligation_id: 'first', status: 'READY' }],
+    },
+  });
 });
 
 test('replay rejects duplicate graph patch identities', () => {
