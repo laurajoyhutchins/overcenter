@@ -72,3 +72,14 @@ Stop on any decision that depends on genuine judgment, policy choice, or missing
 ## Completion note
 
 Do not mark ready until the exact-head handoff above is written here.
+
+
+## Integration repair for PR #559
+
+Reconciled with repaired #556–#558. Removed the production judgment-frontier module and redundant dispatch metadata; authoritative project state, unresolved reservations, `isSystemEvidenceWork()`, and supported packet kinds own routing. Source work still requires reasoning; operator decisions and unsupported packets remain blocked; unresolved mutations take priority.
+
+The deleted classifier test entry point is retained with live protocol regressions for system evidence, operator judgment, and unsupported work. These tests moved from the existing protocol suite and share its unchanged fixture setup. This preserves test migration under immutable-base replay without restoring the classifier or changing the replay verifier. Ambiguous-reservation and source-reasoning tests remain in the protocol suite.
+
+Typecheck passes; focused live protocol and refinement tests are required, followed by hosted immutable-base replay and exact-head certification. This stage removes one production semantic owner and remains deletion-dominant.
+
+The legacy hostile-evidence source label no longer bypasses source reasoning. This is an explicit routing policy correction, not an equivalence claim for that retired heuristic. Declared system-evidence packets keep the deterministic path. Physical artifact and hosted dependency rows for the deleted classifier are removed; base-snapshot assurance impact remains preserved by the existing planner.

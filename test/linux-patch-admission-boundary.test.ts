@@ -116,9 +116,7 @@ test('mechanically complete history without maintainer judgment remains judgment
   assert.equal(decision.admitted, false);
   assert.equal(decision.judgment_required, true);
   assert.ok(
-    decision.unsupported_requirements.includes(
-      boundary.ids.maintainer_acceptance_proposition,
-    ),
+    decision.unsupported_requirements.includes(boundary.ids.maintainer_acceptance_proposition),
   );
   assert.ok(decision.reasons.includes('MAINTAINER_JUDGMENT_REQUIRED'));
 });
@@ -133,9 +131,7 @@ test('public accepted state cannot manufacture missing exact-base evidence', () 
 
   assert.equal(decision.admitted, false);
   assert.equal(decision.agrees_with_public_acceptance, false);
-  assert.ok(
-    decision.unsupported_requirements.includes(boundary.ids.check_propositions.exact_base),
-  );
+  assert.ok(decision.unsupported_requirements.includes(boundary.ids.check_propositions.exact_base));
   assert.ok(decision.reasons.includes('PUBLIC_HISTORY_DISAGREEMENT'));
 });
 
@@ -223,11 +219,9 @@ test('missing cross-repository prerequisite blocks integration', () => {
   const decision = shadow(boundary);
 
   assert.equal(decision.admitted, false);
-  assert.ok(
-    decision.unsupported_requirements.includes(
-      boundary.ids.external_propositions['iproute2-uapi-sync'],
-    ),
-  );
+  const prerequisite = boundary.ids.external_propositions['iproute2-uapi-sync'];
+  assert.ok(prerequisite);
+  assert.ok(decision.unsupported_requirements.includes(prerequisite));
 });
 
 test('missing required test evidence remains an ordinary unsupported requirement', () => {
@@ -240,13 +234,13 @@ test('missing required test evidence remains an ordinary unsupported requirement
 
   assert.equal(decision.admitted, false);
   assert.ok(
-    decision.unsupported_requirements.includes(
-      boundary.ids.check_propositions.required_tests,
-    ),
+    decision.unsupported_requirements.includes(boundary.ids.check_propositions.required_tests),
   );
 });
 
 test('malformed external evidence fails closed at the boundary', () => {
+  const prerequisite = accepted.external_prerequisites[0];
+  assert.ok(prerequisite);
   assert.throws(
     () =>
       projectLinuxPatchAdmissionBoundary({
@@ -267,11 +261,23 @@ test('malformed external evidence fails closed at the boundary', () => {
     () =>
       projectLinuxPatchAdmissionBoundary({
         ...accepted,
-        external_prerequisites: [
-          accepted.external_prerequisites[0],
-          accepted.external_prerequisites[0],
-        ],
+        external_prerequisites: [prerequisite, prerequisite],
       }),
     /LINUX_PATCH_INVALID:DUPLICATE_EXTERNAL_ID/,
   );
+});
+
+test('external prerequisite satisfaction must be a boolean', () => {
+  const prerequisite = accepted.external_prerequisites[0];
+  assert.ok(prerequisite);
+  for (const satisfied of ['false', 'true', 1, null]) {
+    assert.throws(
+      () =>
+        projectLinuxPatchAdmissionBoundary({
+          ...accepted,
+          external_prerequisites: [{ ...prerequisite, satisfied }],
+        } as unknown as LinuxPatchAdmissionEvidence),
+      /LINUX_PATCH_INVALID:EXTERNAL_SATISFIED/,
+    );
+  }
 });

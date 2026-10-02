@@ -48,7 +48,7 @@ Move deterministic relational queries onto the SQLite hot path while preserving 
 
 The materialized calculus is a reconstructible projection, not durable authority. Every read transaction verifies that its materialized head still equals the embedded SQLite fact store's durable `authority.head`. If durable history advances, reads fail closed with `FOUR_BY_FOUR_PROJECTION_STALE`; replacement also checks the durable head before and after materialization.
 
-The unresolved-event query intentionally matches the existing effect-admission projection semantics: an `effect-attempt` remains unresolved until an asserted `not-dispatched` Proposition identifies the same reservation. It does not use the tempting but false shortcut "the same Event has no assertion," because effect attempts and receipt/observation Events are distinct in the current projection.
+The unresolved-event query intentionally matches the existing not-dispatched release projection predicate: an `effect-attempt` remains unresolved until an asserted `not-dispatched` Proposition identifies the same reservation. It does not use the tempting but false shortcut "the same Event has no assertion," because effect attempts and receipt/observation Events are distinct in the current projection. This predicate is not equivalent to the full live unresolved-reservation lifecycle: successful observation and source-integration settlement also clear live reservations. Transferring live unresolved-reservation authority requires additional settlement coverage and proof.
 
 ## Required evidence
 
@@ -94,3 +94,9 @@ Stop if a proposed SQL representation erases type distinctions or turns the mode
 ## Completion note
 
 Do not mark ready until the exact-head hosted handoff is attached and the Merge gate passes.
+
+## Integration repair for PR #556
+
+Refreshed main at `6f92f6c064221163725d33e08b70d9f5bf837863`, through #555. The restacked SQLite stage had replayed an older single-property assurance planner over the landed multi-property planner. Restored `src/authority/assurance-relations.ts` exactly from main; stage tests now call the existing relational API. The architecture reconciliation test stays unchanged from main. SQLite adds only its projection/query implementation and equivalence evidence; production planner authority is unchanged.
+
+Local verification on Node 24.19.0: typecheck passes; 45 focused SQLite/assurance/reconciliation tests pass; handwritten TypeScript formatting passes. Benchmark: 5,000 rows, 64 coordinates, 40 iterations; SQLite 6.147 ms, TypeScript 28.536 ms (4.64× in this run, not a threshold). Full suite and hosted exact-head certification are required before landing.
