@@ -27,27 +27,6 @@ function settlementDispositionFromRelations(relations: SettlementRelations): Set
   return 'RECOVERY_REQUIRED';
 }
 
-function shadowSettlementDisposition(
-  legacy: SettlementDisposition,
-  relations: SettlementRelations,
-): SettlementDisposition {
-  const projected = settlementDispositionFromRelations(relations);
-  if (legacy !== projected) {
-    throw new Error(
-      [
-        'SETTLEMENT_SHADOW_DIVERGENCE',
-        `asserts=${Number(relations.event_asserts_postcondition)}`,
-        `supports_absence=${Number(relations.object_supports_accepted_absence)}`,
-        `requires_replay_safety=${Number(relations.accepted_absence_requires_replay_safety)}`,
-        `supports_replay_safety=${Number(relations.object_supports_replay_safety)}`,
-        `legacy=${legacy}`,
-        `projected=${projected}`,
-      ].join(':'),
-    );
-  }
-  return legacy;
-}
-
 const bools = [false, true] as const;
 
 function legacyDisposition(relations: SettlementRelations): SettlementDisposition {
@@ -61,7 +40,7 @@ function legacyDisposition(relations: SettlementRelations): SettlementDispositio
   return 'RECOVERY_REQUIRED';
 }
 
-test('4x4 settlement matches the legacy disposition truth table', () => {
+test('4x4 settlement relations preserve the authoritative disposition truth table', () => {
   for (const asserts of bools) {
     for (const supportsAbsence of bools) {
       for (const requiresReplaySafety of bools) {
@@ -74,7 +53,6 @@ test('4x4 settlement matches the legacy disposition truth table', () => {
           };
           const expected = legacyDisposition(relations);
           assert.equal(settlementDispositionFromRelations(relations), expected);
-          assert.equal(shadowSettlementDisposition(expected, relations), expected);
         }
       }
     }
@@ -133,24 +111,6 @@ test('presence, admitted absence, ambiguity, and unresolved reservations stay di
   );
 });
 
-test('shadow settlement fails closed on a hostile 4x4 disposition', () => {
-  const relations: SettlementRelations = {
-    event_asserts_postcondition: false,
-    object_supports_accepted_absence: true,
-    accepted_absence_requires_replay_safety: false,
-    object_supports_replay_safety: false,
-  };
-
-  assert.throws(
-    () => shadowSettlementDisposition('RECOVERY_REQUIRED', relations),
-    new Error(
-      'SETTLEMENT_SHADOW_DIVERGENCE:asserts=0:supports_absence=1:' +
-        'requires_replay_safety=0:supports_replay_safety=0:' +
-        'legacy=RECOVERY_REQUIRED:projected=READY',
-    ),
-  );
-});
-
 const settledAt = '2026-10-01T00:00:00.000Z';
 
 function observationReceipt(
@@ -171,7 +131,7 @@ function observationReceipt(
   };
 }
 
-test('projectReceipt shadows the stage-5 hostile settlement cases', () => {
+test('projectReceipt owns the stage-5 hostile settlement cases', () => {
   const path = '/tmp/shadow-settlement';
   const content = 'expected';
   const work: Obligation = {
