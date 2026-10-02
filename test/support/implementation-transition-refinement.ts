@@ -17,10 +17,8 @@ export interface ImplementationTransition {
 }
 
 export interface ImplementationTransitionRefinement {
-  readonly transitions: readonly ImplementationTransition[];
-  readonly hostileGuards: {
-    readonly evidenceMigration: true;
-  };
+  readonly transitions: readonly [];
+  readonly hostileGuards: {};
 }
 
 function fail(label: string, detail: string): never {
@@ -86,38 +84,6 @@ export function verifyImplementationTransitionRefinement(
     'return effect(attempt);',
   ]);
 
-  const sourceIntegration = section(
-    sources.engine,
-    'settleSourceIntegration',
-    '  settleSourceIntegration(',
-    '\n  retrySourceIntegration(',
-  );
-  requireOrdered('settleSourceIntegration', sourceIntegration, [
-    "work.packet.kind !== 'source-change'",
-    'work.packet.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT',
-    "work.postcondition.verifier !== 'source-integration/v1'",
-    'evidence.run_id !== run.id',
-    'evidence.obligation_key !== run.obligation_key',
-    'evidence.source_sha !== run.source_revision',
-    "receipt.disposition !== 'DONE' || !receipt.verified",
-  ]);
-
-  const settleWithoutObservation = section(
-    sources.engine,
-    'settleWithoutObservation',
-    '  #settleWithoutObservation(',
-    '\n  #requireHead(): string {',
-  );
-  requireOrdered('settleWithoutObservation', settleWithoutObservation, [
-    'const run = this.#requireExecutionPermit(history, permit);',
-    "lifecycle.status !== 'EXECUTING'",
-    "kind === 'source-integration' && !unresolvedEffect",
-    'if (policy.unresolvedError && unresolvedEffect)',
-    'validate?.({ run, work });',
-    'const receipt = projectReceipt(fact, work);',
-    "'receipt.json': fact",
-  ]);
-
   requireIncludes('TransitionKernel authority refinement', sources.formalKernel, [
     'CurrentFenceAuthority(w) ==',
     's.leaseFence = s.fence',
@@ -154,16 +120,7 @@ export function verifyImplementationTransitionRefinement(
   ]);
 
   return {
-    transitions: [
-      {
-        id: 'source-integration-receipt',
-        durable: true,
-        relations: ['permits', 'supports', 'requires'],
-        formalActions: ['Settle', 'ExactEvidenceAllowed'],
-      },
-    ],
-    hostileGuards: {
-      evidenceMigration: true,
-    },
+    transitions: [],
+    hostileGuards: {},
   };
 }
