@@ -229,3 +229,5 @@ Select one real BPF or networking patch-series history with a superseding revisi
 ## Integration repair for PR #557
 
 Reconciled with the repaired SQLite predecessor and main through #555. External prerequisite proposition identities are derived directly from validated prerequisite records, avoiding unchecked dictionary reads under strict TypeScript. Fixture lookups are explicitly asserted before use. Typecheck and all 18 Linux-boundary/SQLite tests pass; formatting passes. Maintainer acceptance, exact coordinates, missing prerequisite rejection, and public-history disagreement semantics are unchanged. Fresh hosted certification is required before landing.
+
+External prerequisite satisfaction rejects non-boolean runtime values; strings such as `"false"` cannot manufacture support. The hostile regression fails before the validation fix and passes afterward.
