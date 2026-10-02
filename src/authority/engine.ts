@@ -507,8 +507,8 @@ export class KernelCore {
       permit,
       'source-integration',
       { source_integration: evidence },
-      ({ run, work }) => {
-        const error = sourceIntegrationSettlementError(run, work, evidence);
+      ({ run, work, unresolvedEffect }) => {
+        const error = sourceIntegrationSettlementError(run, work, evidence, unresolvedEffect);
         if (error) throw new Error(error);
       },
     );
@@ -740,7 +740,11 @@ export class KernelCore {
       'judgment-required' | 'execution-terminated' | 'source-integration' | 'source-retry'
     >,
     diagnostic: Data,
-    validate?: (context: { run: HistoricalRun; work: HistoricalRun['obligation'] }) => void,
+    validate?: (context: {
+      run: HistoricalRun;
+      work: HistoricalRun['obligation'];
+      unresolvedEffect: boolean;
+    }) => void,
   ): Receipt {
     const runId = permit.id;
     const policy =
@@ -789,13 +793,10 @@ export class KernelCore {
         throw new Error(policy.lifecycleError);
       }
       const unresolvedEffect = history.unresolvedReservationsByRun.has(runId);
-      if (kind === 'source-integration' && !unresolvedEffect) {
-        throw new Error('SOURCE_SETTLEMENT_WITHOUT_RESERVED_EFFECT');
-      }
       if (policy.unresolvedError && unresolvedEffect) {
         throw new Error(policy.unresolvedError);
       }
-      validate?.({ run, work });
+      validate?.({ run, work, unresolvedEffect });
 
       const fact = this.#receiptFact(run, work.id, kind, null, diagnostic);
       const receipt = projectReceipt(fact, work);
