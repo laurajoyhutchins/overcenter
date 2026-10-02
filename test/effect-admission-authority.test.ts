@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { executionPermits } from '../src/authority/transaction-admission.ts';
 import {
   effectAdmissionDecision,
-  executionPermits,
-} from '../src/authority/transaction-admission.ts';
-import {
   effectAdmissionExplanation,
   explainRelationalEvent,
 } from '../src/authority/relational-explanation.ts';
