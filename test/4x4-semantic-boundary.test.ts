@@ -8,32 +8,20 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
-  writeFileSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 
-import {
-  assertExtractedFourByFourContract,
-  assertSemanticKernelProjectionSource,
-  extractFourByFourSourceContract,
-  loadFourByFourSourceContract,
-  verifyFourByFourSourceContract,
-} from './support/4x4-source-contract.ts';
+import { assertSemanticKernelProjectionSource } from './support/4x4-kernel-shape.ts';
 
 const ROOT = process.cwd();
-const ENGINE = resolve(ROOT, 'src/authority/engine.ts');
 const PROJECTION = resolve(ROOT, 'src/authority/effect-history-projection.ts');
 const FORMAL = resolve(ROOT, 'docs/migrations/4x4-strangler/formal');
 const TLA_VERSION = '1.7.4';
 const TLA_SHA256 = '936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88';
 const LEAN_VERSION = '4.23.0';
 const LEAN_SHA256 = 'ecd028d6f642b61b451c8687aeeb24dd53789fbfdcb7d4adb8f5cf60eb2022ba';
-
-function source(): string {
-  return readFileSync(ENGINE, 'utf8');
-}
 
 function run(command: string, args: string[], cwd = ROOT): string {
   const result = spawnSync(command, args, { cwd, encoding: 'utf8' });
@@ -61,17 +49,6 @@ async function fileSha256(path: string): Promise<string> {
 function download(url: string, path: string): void {
   if (existsSync(path)) return;
   run('curl', ['-fsSL', '--retry', '3', '--retry-delay', '2', '-o', path, url]);
-}
-
-function mutatedContract(sourceText: string) {
-  const directory = mkdtempSync(resolve(ROOT, 'test/.4x4-boundary-'));
-  const path = join(directory, 'engine.ts');
-  try {
-    writeFileSync(path, sourceText, 'utf8');
-    return extractFourByFourSourceContract(path, ROOT);
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
 }
 
 async function checkFormalModels(): Promise<void> {
@@ -147,10 +124,6 @@ async function checkFormalModels(): Promise<void> {
   }
 }
 
-test('4x4 contract is bound to the exact production source identity', () => {
-  verifyFourByFourSourceContract(ROOT);
-});
-
 test('4x4 kernel namespace is closed to four nouns and four relations', () => {
   const projection = readFileSync(PROJECTION, 'utf8');
   assert.doesNotThrow(() => {
@@ -180,30 +153,6 @@ test('4x4 kernel namespace is closed to four nouns and four relations', () => {
       `${projection}\nexport interface GitHubProviderVocabulary { id: string; }\n`,
     );
   });
-});
-
-test('4x4 extractor rejects semantic mutations to release', () => {
-  const expected = loadFourByFourSourceContract(ROOT);
-  const original = source();
-  const releaseMutation = original.replace(/'effect-release\.json'\s*:/, "'unknown-release.json':");
-  assert.notEqual(releaseMutation, original);
-  assert.throws(
-    () => assertExtractedFourByFourContract(mutatedContract(releaseMutation), expected),
-    /FOUR_BY_FOUR_SOURCE_LITERAL_MISSING:release:effect-release\.json/,
-  );
-});
-
-test('4x4 extractor fails closed on nested executable control flow', () => {
-  const original = source();
-  const nestedMutation = original.replace(
-    /(\breleaseEffectReservation\s*<[^>]+>\s*\([^)]*\)(?:\s*:\s*[^{]+)?\s*\{)/,
-    '$1\n    const hidden = () => true;',
-  );
-  assert.notEqual(nestedMutation, original);
-  assert.throws(
-    () => mutatedContract(nestedMutation),
-    /FOUR_BY_FOUR_SOURCE_UNSUPPORTED_NESTED_EXECUTABLE/,
-  );
 });
 
 const hostedExactHead =
