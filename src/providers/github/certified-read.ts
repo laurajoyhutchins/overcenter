@@ -84,8 +84,9 @@ export function observeCertifiedGitHubRead(
     observerId,
   });
   const value = projectResponseSlice(certified.outcome.value, semantic.response_slice);
-  const collection = operation.pagination
-    ? {
+  const collection =
+    operation.pagination && semantic.response_slice.some((field) => field.path.includes('[]'))
+      ? {
         kind: 'single-page' as const,
         page: Number(
           request.parameters[operation.pagination.page_parameter] ??
