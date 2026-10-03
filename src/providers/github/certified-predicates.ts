@@ -34,11 +34,10 @@ export interface GitHubPullRequestExpectedIdentity {
   base_sha: string;
 }
 
-export function evaluateCertifiedGitHubPullRequestIdentity(
-  value: unknown,
+export function validateGitHubPullRequestExpectedIdentity(
   pullNumber: number,
   expected: GitHubPullRequestExpectedIdentity,
-) {
+): void {
   if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0)
     throw new Error('GITHUB_PR_NUMBER_INVALID');
   if (!expected.node_id) throw new Error('GITHUB_PR_NODE_ID_REQUIRED');
@@ -46,6 +45,14 @@ export function evaluateCertifiedGitHubPullRequestIdentity(
   if (!isGitHubObjectId(expected.head_sha)) throw new Error('GITHUB_PR_HEAD_SHA_INVALID');
   if (!expected.base_ref) throw new Error('GITHUB_PR_BASE_REF_REQUIRED');
   if (!isGitHubObjectId(expected.base_sha)) throw new Error('GITHUB_PR_BASE_SHA_INVALID');
+}
+
+export function evaluateCertifiedGitHubPullRequestIdentity(
+  value: unknown,
+  pullNumber: number,
+  expected: GitHubPullRequestExpectedIdentity,
+) {
+  validateGitHubPullRequestExpectedIdentity(pullNumber, expected);
 
   const observed = value as {
     id: number;
