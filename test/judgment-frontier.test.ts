@@ -46,7 +46,7 @@ function sourceWork(id = 'tcb:hostile-evidence-stale:fixture'): Work {
   };
 }
 
-function readyExplanation(id: string, stale = false): ProjectExplanation {
+function readyExplanation(id: string): ProjectExplanation {
   return {
     obligation_id: id,
     status: 'READY',
@@ -54,15 +54,6 @@ function readyExplanation(id: string, stale = false): ProjectExplanation {
       kind: 'claimable',
       semantic_key: 'semantic-key',
       dependencies: [],
-      ...(stale
-        ? {
-            rejected_realization: {
-              run_id: 'prior-run',
-              disposition: 'DONE',
-              reason: 'not-currently-admissible',
-            },
-          }
-        : {}),
     },
   };
 }
@@ -139,7 +130,7 @@ test('unresolved mutation reservation dominates an apparently READY work item', 
   );
 });
 
-test('stale exact-revision system evidence routes to deterministic refresh', () => {
+test('system evidence stays in deterministic software after durable refresh', () => {
   const work: Work = {
     id: 'system-evidence:fixture',
     dependencies: [],
@@ -157,10 +148,9 @@ test('stale exact-revision system evidence routes to deterministic refresh', () 
     revision: 'authority-head',
   };
 
-  const result = classify(work, readyExplanation(work.id, true));
+  const result = classify(work, readyExplanation(work.id));
   assert.equal(result.route, 'deterministic-software-action');
-  assert.equal(result.reason_code, 'STALE_EXACT_REVISION_EVIDENCE');
-  assert.ok(result.evidence_predicates.includes('prior_realization=currently-rejected'));
+  assert.equal(result.reason_code, 'DERIVABLE_SYSTEM_EVIDENCE');
 });
 
 test('already-satisfied postcondition needs no reasoning authority', () => {
@@ -174,7 +164,7 @@ test('already-satisfied postcondition needs no reasoning authority', () => {
       kind: 'admissible-realization',
       run_id: 'done-run',
       semantic_key: 'semantic-key',
-      admissibility_basis: 'current-semantic-judgment',
+      admissibility_basis: 'historical-settlement',
     },
   };
 
