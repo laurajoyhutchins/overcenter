@@ -1,5 +1,6 @@
 import {
   evaluateCertifiedGitHubPullRequestIdentity,
+  validateGitHubPullRequestExpectedIdentity,
   type GitHubPullRequestExpectedIdentity,
 } from './certified-predicates.ts';
 import {
@@ -65,6 +66,7 @@ export function observeCertifiedGitHubPullRequestIdentity(
     clock?: () => string;
   },
 ): CertifiedGitHubPullRequestIdentityResult {
+  validateGitHubPullRequestExpectedIdentity(pullNumber, expected);
   const read = observeCertifiedGitHubSemanticRead(token, {
     repositoryId,
     repositoryFullName,
@@ -123,7 +125,7 @@ export function observeCertifiedGitHubPullRequestIdentity(
         evaluated.differences.length === 0
           ? 'AUTHORITATIVE_PR_IDENTITY_MATCHES'
           : 'AUTHORITATIVE_PR_IDENTITY_DIFFERS',
-      repository_full_name: read.evidence.repository.fact.object.full_name,
+      repository_full_name: read.evidence.repository.canonical_full_name,
       pull_number: pullNumber,
       expected,
       actual: evaluated.actual,
