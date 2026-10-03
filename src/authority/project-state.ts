@@ -8,7 +8,6 @@ import {
   type StaticEffectIndex,
 } from './admission.ts';
 import { obligationKey } from '../graph/identity.ts';
-import type { CurrentRealizationJudgment } from './realization-reuse.ts';
 
 export type RealizationStatus =
   | 'UNREALIZED'
@@ -38,12 +37,6 @@ export type ProjectExplanation =
           disposition: 'READY';
           settlement_commit?: string;
         };
-        rejected_realization?: {
-          run_id: string;
-          disposition: 'DONE';
-          reason: 'not-currently-admissible';
-          settlement_commit?: string;
-        };
       };
     }
   | {
@@ -65,12 +58,6 @@ export type ProjectExplanation =
             kind: 'static-effect-conflict';
             code: string;
             conflicting_obligations: string[];
-          }
-        | {
-            kind: 'current-realization-indeterminate';
-            run_id: string;
-            reason: string;
-            settlement_commit?: string;
           }
         | {
             kind: 'judgment-required';
@@ -115,7 +102,7 @@ export type ProjectExplanation =
         run_id: string;
         semantic_key: string;
         settlement_commit?: string;
-        admissibility_basis: 'historical-settlement' | 'current-semantic-judgment';
+        admissibility_basis: 'historical-settlement';
       };
     };
 
@@ -135,29 +122,20 @@ export interface ProjectProjectionInput {
   revision: string;
   currentBindingOrdinals?: ReadonlyMap<string, number> | null;
   claimOrdinalsByRun?: ReadonlyMap<string, number> | null;
-  currentRealizationJudgments?: ReadonlyMap<string, CurrentRealizationJudgment> | null;
 }
 
 const IN_FLIGHT = new Set<RealizationStatus>(['EXECUTING', 'WAITING', 'RECOVERY_REQUIRED']);
-
-interface RealizationJudgmentRelation {
-  run: HistoricalRun;
-  judgment: CurrentRealizationJudgment;
-}
 
 interface RealizationRelations {
   lifecycles: Map<string, Lifecycle>;
   semanticKeys: Map<string, string | null>;
   latestMatchingRuns: Map<string, HistoricalRun>;
-  rejectedRealizations: Map<string, RealizationJudgmentRelation>;
-  indeterminateRealizations: Map<string, RealizationJudgmentRelation>;
 }
 
 interface Claimability {
   error: string | null;
   unsatisfiedDependencies: string[];
   staticConflict: StaticEffectConflict | null;
-  indeterminateRealization: RealizationJudgmentRelation | null;
 }
 
 export type ClaimPrerequisiteError =
@@ -206,13 +184,10 @@ function deriveRealizationRelations(
   state: State,
   runs: Map<string, HistoricalRun>,
   receiptsByRun: Map<string, Receipt>,
-  currentRealizationJudgments: ReadonlyMap<string, CurrentRealizationJudgment> | null,
 ): RealizationRelations {
   const lifecycles = new Map<string, Lifecycle>();
   const semanticKeys = new Map<string, string | null>();
   const latestMatchingRuns = new Map<string, HistoricalRun>();
-  const rejectedRealizations = new Map<string, RealizationJudgmentRelation>();
-  const indeterminateRealizations = new Map<string, RealizationJudgmentRelation>();
   const visiting = new Set<string>();
   const allRuns = [...runs.values()];
 
@@ -240,30 +215,9 @@ function deriveRealizationRelations(
       const latest = candidates.at(-1);
       if (latest) latestMatchingRuns.set(id, latest);
 
-      const doneCandidates = [...candidates]
+      const done = [...candidates]
         .reverse()
-        .filter((run) => receiptsByRun.get(run.id)?.disposition === 'DONE');
-      let done: HistoricalRun | undefined;
-      if (currentRealizationJudgments === null) {
-        done = doneCandidates[0];
-      } else {
-        for (const run of doneCandidates) {
-          const judgment = currentRealizationJudgments.get(run.id) ?? {
-            state: 'indeterminate' as const,
-            reason: 'CURRENT_REALIZATION_JUDGMENT_MISSING',
-          };
-          if (judgment.state === 'admissible') {
-            done = run;
-            break;
-          }
-          if (judgment.state === 'indeterminate' && !indeterminateRealizations.has(id)) {
-            indeterminateRealizations.set(id, { run, judgment });
-          }
-          if (judgment.state === 'rejected' && !rejectedRealizations.has(id)) {
-            rejectedRealizations.set(id, { run, judgment });
-          }
-        }
-      }
+        .find((run) => receiptsByRun.get(run.id)?.disposition === 'DONE');
 
       if (done) {
         lifecycle = { status: 'DONE', run: done };
@@ -296,8 +250,6 @@ function deriveRealizationRelations(
     lifecycles,
     semanticKeys,
     latestMatchingRuns,
-    rejectedRealizations,
-    indeterminateRealizations,
   };
 }
 
@@ -306,7 +258,6 @@ function deriveClaimability(
   work: Obligation,
   lifecycles: Map<string, Lifecycle>,
   semanticKey: string | null,
-  indeterminateRealization: RealizationJudgmentRelation | null,
   staticEffectIndex: StaticEffectIndex,
 ): Claimability {
   if (work.postcondition.verifier === 'operator-judgment/v1') {
@@ -314,7 +265,6 @@ function deriveClaimability(
       error: 'JUDGMENT_REQUIRED',
       unsatisfiedDependencies: [],
       staticConflict: null,
-      indeterminateRealization: null,
     };
   }
 
@@ -324,16 +274,6 @@ function deriveClaimability(
       error: prerequisites.error,
       unsatisfiedDependencies: [],
       staticConflict: null,
-      indeterminateRealization: null,
-    };
-  }
-
-  if (indeterminateRealization) {
-    return {
-      error: 'CURRENT_REALIZATION_ADMISSIBILITY_INDETERMINATE',
-      unsatisfiedDependencies: [],
-      staticConflict: null,
-      indeterminateRealization,
     };
   }
 
@@ -342,7 +282,6 @@ function deriveClaimability(
       error: prerequisites.error,
       unsatisfiedDependencies: prerequisites.unsatisfiedDependencies,
       staticConflict: null,
-      indeterminateRealization: null,
     };
   }
 
@@ -354,7 +293,6 @@ function deriveClaimability(
     error: conflict?.code ?? null,
     unsatisfiedDependencies: [],
     staticConflict: conflict,
-    indeterminateRealization: null,
   };
 }
 
@@ -401,8 +339,6 @@ function deriveExplanation(
   latestMatchingRuns: Map<string, HistoricalRun>,
   receiptsByRun: Map<string, Receipt>,
   statusById: Map<string, WorkStatus>,
-  currentRealizationJudgments: ReadonlyMap<string, CurrentRealizationJudgment> | null,
-  rejectedRealizations: Map<string, RealizationJudgmentRelation>,
 ): ProjectExplanation {
   const lifecycle = lifecycles.get(obligation.id) ?? { status: 'UNREALIZED' as const };
   const semanticKey = semanticKeys.get(obligation.id) ?? null;
@@ -420,10 +356,7 @@ function deriveExplanation(
         run_id: lifecycle.run.id,
         semantic_key: semanticKey,
         ...(receipt?.settlement_commit ? { settlement_commit: receipt.settlement_commit } : {}),
-        admissibility_basis:
-          currentRealizationJudgments === null
-            ? 'historical-settlement'
-            : 'current-semantic-judgment',
+        admissibility_basis: 'historical-settlement',
       },
     };
   }
@@ -481,23 +414,6 @@ function deriveExplanation(
         reason: {
           kind: 'judgment-required',
           subject: structuredClone(obligation.postcondition.subject),
-        },
-      };
-    }
-    if (
-      claimability.error === 'CURRENT_REALIZATION_ADMISSIBILITY_INDETERMINATE' &&
-      claimability.indeterminateRealization
-    ) {
-      const { run, judgment } = claimability.indeterminateRealization;
-      const receipt = receiptsByRun.get(run.id);
-      return {
-        obligation_id: obligation.id,
-        status: 'BLOCKED',
-        reason: {
-          kind: 'current-realization-indeterminate',
-          run_id: run.id,
-          reason: judgment.reason,
-          ...(receipt?.settlement_commit ? { settlement_commit: receipt.settlement_commit } : {}),
         },
       };
     }
@@ -573,21 +489,6 @@ function deriveExplanation(
             },
           }
         : {}),
-      ...(() => {
-        const rejected = rejectedRealizations.get(obligation.id);
-        if (!rejected) return {};
-        const rejectedReceipt = receiptsByRun.get(rejected.run.id);
-        return {
-          rejected_realization: {
-            run_id: rejected.run.id,
-            disposition: 'DONE' as const,
-            reason: 'not-currently-admissible' as const,
-            ...(rejectedReceipt?.settlement_commit
-              ? { settlement_commit: rejectedReceipt.settlement_commit }
-              : {}),
-          },
-        };
-      })(),
     },
   };
 }
@@ -599,15 +500,12 @@ export function deriveProjectProjection({
   revision,
   currentBindingOrdinals = null,
   claimOrdinalsByRun = null,
-  currentRealizationJudgments = null,
 }: ProjectProjectionInput): ProjectProjection {
-  const {
-    lifecycles,
-    semanticKeys,
-    latestMatchingRuns,
-    rejectedRealizations,
-    indeterminateRealizations,
-  } = deriveRealizationRelations(state, runs, receiptsByRun, currentRealizationJudgments);
+  const { lifecycles, semanticKeys, latestMatchingRuns } = deriveRealizationRelations(
+    state,
+    runs,
+    receiptsByRun,
+  );
   const staticEffectIndex = buildStaticEffectIndex(state);
   const claimabilityErrors = new Map<string, string | null>();
   const claimabilityById = new Map<string, Claimability>();
@@ -618,7 +516,6 @@ export function deriveProjectProjection({
       obligation,
       lifecycles,
       semanticKeys.get(obligation.id) ?? null,
-      indeterminateRealizations.get(obligation.id) ?? null,
       staticEffectIndex,
     );
     claimabilityById.set(obligation.id, claimability);
@@ -646,8 +543,6 @@ export function deriveProjectProjection({
         latestMatchingRuns,
         receiptsByRun,
         statusById,
-        currentRealizationJudgments,
-        rejectedRealizations,
       ),
     );
   }
