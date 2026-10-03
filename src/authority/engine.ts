@@ -107,19 +107,21 @@ export interface ClaimOptions {
   sourceRevision?: string;
 }
 
+interface EffectAdmissionCache {
+  head: string;
+  byRun: ReadonlyMap<
+    string,
+    { run: HistoricalRun; executing: boolean; unresolvedEffect: boolean }
+  >;
+}
+
 export class KernelCore {
   readonly githubToken: string | null;
   readonly observationContext: ObservationContext;
   readonly #store: DurableFactStore;
   // Reconstructible acceleration only: history(head) is still fully validated first.
   #projectionCache: { head: string; commitCount: number; projection: Projection } | null = null;
-  #effectAdmissionSnapshotCache: {
-    head: string;
-    byRun: ReadonlyMap<
-      string,
-      { run: HistoricalRun; executing: boolean; unresolvedEffect: boolean }
-    >;
-  } | null = null;
+  #effectAdmissionSnapshotCache: EffectAdmissionCache | null = null;
 
   constructor(
     store: DurableFactStore,
@@ -855,7 +857,7 @@ export class KernelCore {
     return projection;
   }
 
-  #effectAdmissionSnapshot(head: string): NonNullable<KernelCore['#effectAdmissionSnapshotCache']> {
+  #effectAdmissionSnapshot(head: string): EffectAdmissionCache {
     const cached = this.#effectAdmissionSnapshotCache;
     if (cached?.head === head) return cached;
 
