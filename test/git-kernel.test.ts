@@ -107,15 +107,10 @@ test('fresh realization rejection cannot authorize an unreplayable claim', () =>
     assert.equal(done.disposition, 'DONE');
 
     rmSync(path);
-    const ephemeralReady = f.kernel.deriveReadyWork();
-    assert.equal(ephemeralReady?.id, 'x');
-    assert.equal(ephemeralReady?.status, 'READY');
+    assert.equal(f.kernel.deriveReadyWork(), null);
     const before = f.kernel.head();
 
-    assert.throws(
-      () => f.kernel.claim('x', ephemeralReady!.revision),
-      /CLAIM_REQUIRES_REALIZATION_REFRESH/,
-    );
+    assert.throws(() => f.kernel.claim('x', before!), /NOT_READY/);
     assert.equal(f.kernel.head(), before);
 
     const refreshed = f.kernel.refreshCurrentRealization('x', before!);
@@ -142,8 +137,7 @@ test('contradictory current realization becomes durable recovery instead of new 
     assert.equal(f.kernel.resolve(first).disposition, 'DONE');
 
     writeFileSync(path, 'different');
-    const ready = f.kernel.deriveReadyWork();
-    assert.equal(ready?.status, 'READY');
+    assert.equal(f.kernel.deriveReadyWork(), null);
 
     const refreshed = f.kernel.refreshCurrentRealization('x', f.kernel.head()!);
     assert.equal(refreshed.disposition, 'RECOVERY_REQUIRED');
