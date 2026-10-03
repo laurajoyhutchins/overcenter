@@ -29,10 +29,7 @@ function projection({ executing = true, unresolved = false } = {}): Projection {
     definitions: {},
     project: {
       lifecycles: new Map([
-        [
-          run.obligation_id,
-          executing ? { status: 'EXECUTING', run } : { status: 'WAITING', run },
-        ],
+        [run.obligation_id, executing ? { status: 'EXECUTING', run } : { status: 'WAITING', run }],
       ]),
       semanticKeys: new Map(),
       explanations: new Map(),
@@ -73,7 +70,10 @@ test('exact-head admission snapshot materializes only production input data', ()
 });
 
 test('snapshot materializes lifecycle and unresolved-reservation predicates independently', () => {
-  const blocked = new EffectAdmissionSnapshot('head', projection({ executing: false, unresolved: true }));
+  const blocked = new EffectAdmissionSnapshot(
+    'head',
+    projection({ executing: false, unresolved: true }),
+  );
   assert.equal(blocked.run(run.id), run);
   assert.equal(blocked.executing(run.id), false);
   assert.equal(blocked.unresolvedReservationsByRun.has(run.id), true);
