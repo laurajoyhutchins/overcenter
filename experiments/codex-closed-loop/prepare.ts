@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -16,7 +17,7 @@ function required(name: string): string {
 
 const [database, assignmentPath] = process.argv.slice(2);
 if (!database || !assignmentPath) {
-  throw new Error('usage: prepare.ts <authority.sqlite> <assignment.json>');
+  throw new Error('usage: prepare.ts <authority.git> <assignment.json>');
 }
 
 const runId = required('GITHUB_RUN_ID');
@@ -30,8 +31,9 @@ const observedPath = `/tmp/${obligationId}/witness.txt`;
 mkdirSync(dirname(database), { recursive: true });
 mkdirSync(dirname(assignmentPath), { recursive: true });
 
+execFileSync('git', ['init', '--bare', database], { stdio: 'ignore' });
 const kernel = new OvercenterKernel(database);
-try {
+{
   kernel.initialize();
   kernel.define({
     id: obligationId,
@@ -80,6 +82,4 @@ try {
       { flag: 'a' },
     );
   }
-} finally {
-  kernel.close();
 }

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { canonicalDigest } from '../digest.ts';
-import { GitOvercenterKernel } from '../storage/git-kernel.ts';
+import { OvercenterKernel } from '../authority/kernel.ts';
 import {
   inspectSourceCandidate,
   type SourceCandidatePublicationResult,
@@ -197,7 +197,7 @@ export function brokerAssignedSourceProposal(
   } = {},
 ): BrokeredAssignedSourceProposal {
   const assignment = validateSourceAssignment(assignmentValue);
-  const kernel = new GitOvercenterKernel(repo, {
+  const kernel = new OvercenterKernel(repo, {
     ref: authorityRef,
     remote,
     githubToken,

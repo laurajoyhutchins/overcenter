@@ -4,8 +4,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
-import { GitFactStore } from '../src/storage/git-store.ts';
+import { OvercenterKernel } from '../src/authority/kernel.ts';
+import { GitFactStore } from './fixtures/git-fact-store.ts';
 import { recoverInvalidDoneClaimTail } from '../src/storage/git-authority-recovery.ts';
 import { runCoreLoop } from '../src/authority/engine.ts';
 import { RECEIPT_SCHEMA } from '../src/authority/facts.ts';
@@ -14,7 +14,7 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'git-kernel-v2-'));
   const repo = join(root, 'state.git');
   execFileSync('git', ['init', '--bare', repo], { stdio: 'ignore' });
-  const kernel = new GitOvercenterKernel(repo);
+  const kernel = new OvercenterKernel(repo);
   kernel.initialize();
   return { root, repo, kernel, path: (name: string) => join(root, name) };
 }
@@ -51,7 +51,7 @@ test('invalid source-bound claim tail after DONE is recovered by exact-head CAS 
 
     const validHead = f.kernel.head()!;
     const store = new GitFactStore(f.repo, { ref: 'refs/overcenter/state' });
-    const originalClaim = store.readJson(run.claim_commit, 'claim.json') as Record<string, unknown>;
+    const originalClaim = store.history(run.claim_commit).at(-1)!.claim as Record<string, unknown>;
     const invalidClaim = {
       ...originalClaim,
       run_id: '00000000-0000-4000-8000-000000000001',

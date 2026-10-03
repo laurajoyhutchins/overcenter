@@ -1,6 +1,6 @@
 import { githubProofStateRef } from '../proof-environment.ts';
 import { appendFileSync } from 'node:fs';
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -33,7 +33,7 @@ if (!Number.isSafeInteger(repositoryInfo.id)) throw new Error('REPOSITORY_ID_UNA
 const proofId = `actions-trust-proof-${workflowRunId}-${workflowRunAttempt}`;
 const context = `overcenter/trust-proof/${workflowRunId}/${workflowRunAttempt}`;
 
-const kernel = new GitOvercenterKernel(process.cwd(), { remote: 'origin', ref: stateRef });
+const kernel = new OvercenterKernel(process.cwd(), { remote: 'origin', ref: stateRef });
 kernel.initialize();
 
 kernel.define({

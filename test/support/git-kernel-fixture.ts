@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 import type { Dependency, ExecutionPermit, Work } from '../../src/model.ts';
 
 const STATE_REF = 'refs/overcenter/state';
@@ -29,14 +29,14 @@ export const controlDependency = (upstream: string): Dependency => ({
 export class GitKernelFixture {
   readonly root: string;
   readonly authority: string;
-  readonly kernel: GitOvercenterKernel;
+  readonly kernel: OvercenterKernel;
   #replica = 0;
 
   constructor(prefix = 'overcenter-test-') {
     this.root = mkdtempSync(join(tmpdir(), prefix));
     this.authority = join(this.root, 'authority.git');
     execFileSync('git', ['init', '--bare', this.authority], { stdio: 'ignore' });
-    this.kernel = new GitOvercenterKernel(this.authority);
+    this.kernel = new OvercenterKernel(this.authority);
     this.kernel.initialize();
   }
 
@@ -89,13 +89,13 @@ export class GitKernelFixture {
     return permit;
   }
 
-  freshKernel(): { repo: string; kernel: GitOvercenterKernel } {
+  freshKernel(): { repo: string; kernel: OvercenterKernel } {
     this.#replica += 1;
     const repo = join(this.root, `replica-${this.#replica}.git`);
     execFileSync('git', ['init', '--bare', repo], { stdio: 'ignore' });
     this.git(['remote', 'add', 'origin', this.authority], repo);
     this.git(['fetch', '--no-tags', 'origin', `+${STATE_REF}:${STATE_REF}`], repo);
-    return { repo, kernel: new GitOvercenterKernel(repo, { remote: 'origin' }) };
+    return { repo, kernel: new OvercenterKernel(repo, { remote: 'origin' }) };
   }
 
   close(): void {

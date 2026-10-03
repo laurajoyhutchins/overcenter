@@ -1,6 +1,6 @@
 # ADR-0001: Use one storage-neutral kernel execution loop
 
-- **Status:** Accepted
+- **Status:** Accepted for the shared execution loop. Storage selection is superseded by [ADR-0004](0004-durable-authority.md).
 - **Date:** 2026-09-19
 
 ## Context

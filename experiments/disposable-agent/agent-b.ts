@@ -1,7 +1,7 @@
 import { githubProofStateRef } from '../proof-environment.ts';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -20,7 +20,7 @@ if (brokerOutcome !== 'failure') {
   throw new Error(`EFFECT_BROKER_DID_NOT_TERMINATE_AS_EXPECTED: ${brokerOutcome}`);
 }
 
-const kernel = new GitOvercenterKernel(process.cwd(), {
+const kernel = new OvercenterKernel(process.cwd(), {
   remote: 'origin',
   ref: stateRef,
   githubToken: token,

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 import {
   GITHUB_COMMIT_STATUS_EFFECT,
   performGitHubCommitStatusEffect,
@@ -25,8 +25,8 @@ function git(repo: string, args: string[], allowFailure = false): string {
   return result.status === 0 ? String(result.stdout).trim() : '';
 }
 
-function remoteKernel(ref: string, token: string | null = null): GitOvercenterKernel {
-  return new GitOvercenterKernel(process.cwd(), {
+function remoteKernel(ref: string, token: string | null = null): OvercenterKernel {
+  return new OvercenterKernel(process.cwd(), {
     ref,
     remote: 'origin',
     githubToken: token,
@@ -253,7 +253,7 @@ function localContract(): void {
     const controllerD = initLocalController(root, 'controller-d', remote);
     const controllerE = initLocalController(root, 'controller-e', remote);
 
-    const a = new GitOvercenterKernel(controllerA, { ref, remote });
+    const a = new OvercenterKernel(controllerA, { ref, remote });
     a.initialize();
     const initialRevision = a.define({
       id: 'local-handoff',
@@ -264,21 +264,21 @@ function localContract(): void {
       },
     });
 
-    const b = new GitOvercenterKernel(controllerB, { ref, remote });
+    const b = new OvercenterKernel(controllerB, { ref, remote });
     assert.equal(a.deriveReadyWork()?.revision, initialRevision);
     assert.equal(b.deriveReadyWork()?.revision, initialRevision);
 
     const winner = a.claim('local-handoff', initialRevision);
     assert.throws(() => b.claim('local-handoff', initialRevision), /STALE_REVISION|CLAIM_LOST/);
 
-    const c = new GitOvercenterKernel(controllerC, { ref, remote });
+    const c = new OvercenterKernel(controllerC, { ref, remote });
     assert.equal(c.inspect()[0]?.run_id, winner.id);
     const broker = c.acquireExecution(winner.id);
     c.beginEffect(broker);
     writeFileSync(shared, 'present');
     assert.equal(c.hasUnresolvedEffect(winner.id), true);
 
-    const d = new GitOvercenterKernel(controllerD, { ref, remote });
+    const d = new OvercenterKernel(controllerD, { ref, remote });
     const recovery = d.acquireExecution(winner.id);
     assert.throws(() => d.beginEffect(recovery), /UNRESOLVED_EFFECT/);
     d.recoverInterrupted(recovery, { source: 'local-contract' });
@@ -287,11 +287,11 @@ function localContract(): void {
     assert.equal(d.inspect()[0]?.status, 'DONE');
 
     assert.throws(() => {
-      const stale = new GitOvercenterKernel(controllerE, { ref, remote });
+      const stale = new OvercenterKernel(controllerE, { ref, remote });
       stale.claim('local-handoff', initialRevision);
     }, /STALE_REVISION/);
 
-    const localCopy = new GitOvercenterKernel(controllerE, { ref, remote: 'origin' });
+    const localCopy = new OvercenterKernel(controllerE, { ref, remote: 'origin' });
     const copiedHead = localCopy.head();
     assert.ok(copiedHead);
     execFileSync('git', [

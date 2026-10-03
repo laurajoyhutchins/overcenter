@@ -34,7 +34,7 @@ import {
   validateSourceIntegrationEvidence,
   type SourceVerification,
 } from '../source/source-integration.ts';
-import { GitOvercenterKernel } from '../storage/git-kernel.ts';
+import { OvercenterKernel } from '../authority/kernel.ts';
 import { compileProjectGraph } from './project-graph.ts';
 import { planGraphReconciliation } from '../graph/reconciliation.ts';
 import { repositorySnapshot } from '../evidence/repository-snapshot.ts';
@@ -363,7 +363,7 @@ export function advanceProjectForAgent(
   }: AdvanceOptions,
 ): ProjectAdvanceReceipt {
   validateCommandContext(context);
-  const kernel = new GitOvercenterKernel(repo, {
+  const kernel = new OvercenterKernel(repo, {
     ref: authorityRef,
     remote,
     githubToken,
@@ -644,11 +644,11 @@ function assertNonEmptyCandidateRun(value: string): void {
 function sourceSubmitReceipt(
   context: ProjectSubmitContext,
   authorityRef: string,
-  kernel: GitOvercenterKernel,
+  kernel: OvercenterKernel,
   obligationId: string,
   claimedRevision: string,
   candidateSha: string,
-  settled: ReturnType<GitOvercenterKernel['recoverInterrupted']>,
+  settled: ReturnType<OvercenterKernel['recoverInterrupted']>,
   alreadySettled: boolean,
   integrationCommit?: string,
 ): ProjectSubmitReceipt {
@@ -700,7 +700,7 @@ export function submitProjectCandidate(
     throw new Error('PROJECT_SUBMIT_CANDIDATE_SHA_INVALID');
   }
 
-  const kernel = new GitOvercenterKernel(repo, {
+  const kernel = new OvercenterKernel(repo, {
     ref: authorityRef,
     remote,
     githubToken,
@@ -1008,7 +1008,7 @@ export function submitProjectCandidate(
   }
   writeFileSync(postcondition.path, output, { flag: 'wx' });
 
-  const settlementKernel = new GitOvercenterKernel(repo, {
+  const settlementKernel = new OvercenterKernel(repo, {
     ref: authorityRef,
     remote,
     githubToken,

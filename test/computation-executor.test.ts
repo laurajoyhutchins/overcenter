@@ -21,7 +21,7 @@ import {
   resumeTestComputation,
   runReadyTestComputation,
 } from '../src/execution/runner.ts';
-import { GitOvercenterKernel } from '../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../src/authority/kernel.ts';
 import { runCoreLoop } from '../src/authority/engine.ts';
 import { GoExecutorClient } from '../src/execution/go-client.ts';
 import type { ExecutionPermit } from '../src/model.ts';
@@ -150,13 +150,13 @@ async function startExecutor(
 function kernelFixture(): {
   root: string;
   repo: string;
-  kernel: GitOvercenterKernel;
+  kernel: OvercenterKernel;
 } {
   const root = join(scratch, `kernel-${kernelSequence++}`);
   const repo = join(root, 'state.git');
   mkdirSync(root, { recursive: true });
   execFileSync('git', ['init', '--bare', repo], { stdio: 'ignore' });
-  const kernel = new GitOvercenterKernel(repo);
+  const kernel = new OvercenterKernel(repo);
   kernel.initialize();
   return { root, repo, kernel };
 }
@@ -698,7 +698,7 @@ test('executor death reconstructs test work with a fresh generation and workspac
   assert.equal(existsSync(output), false);
   assertNoEffectReservations(state.repo);
 
-  const recoveredKernel = new GitOvercenterKernel(state.repo);
+  const recoveredKernel = new OvercenterKernel(state.repo);
   const recoveredProjection = recoveredKernel.inspect()[0]!;
   assert.equal(recoveredProjection.status, 'RECOVERY_REQUIRED');
   assert.equal(recoveredProjection.execution_generation, 1);

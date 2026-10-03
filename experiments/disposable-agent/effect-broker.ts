@@ -1,7 +1,7 @@
 import { githubProofStateRef } from '../proof-environment.ts';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 import {
   GITHUB_COMMIT_STATUS_EFFECT,
   performGithubCommitStatusEffect,
@@ -18,7 +18,7 @@ const workflowRunAttempt = required('GITHUB_RUN_ATTEMPT');
 const sourceSha = required('SOURCE_SHA');
 const stateRef = githubProofStateRef('disposable-agent');
 
-const kernel = new GitOvercenterKernel(process.cwd(), { remote: 'origin', ref: stateRef });
+const kernel = new OvercenterKernel(process.cwd(), { remote: 'origin', ref: stateRef });
 const candidates = kernel.inspect().filter((work) => {
   if (work.status !== 'EXECUTING') return false;
   const executor = work.packet.executor as Record<string, unknown> | undefined;

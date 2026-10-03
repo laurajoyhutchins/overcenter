@@ -1,24 +1,41 @@
-import { KernelCore, type KernelOptions } from './engine.ts';
-import { runCoreLoop } from '../execution/core-loop.ts';
 import { SqliteFactStore } from '../storage/sqlite.ts';
+import { KernelCore, type KernelOptions } from './engine.ts';
 
 export type { Receipt } from './engine.ts';
-export type { GraphPatchInput, KernelOptions } from './engine.ts';
 
-export class OvercenterKernel extends KernelCore {
-  readonly path: string;
-  readonly #store: SqliteFactStore;
+const STATE_REF = 'refs/overcenter/state';
 
-  constructor(path: string, options: KernelOptions = {}) {
-    const store = new SqliteFactStore(path);
-    super(store, options);
-    this.path = path;
-    this.#store = store;
-  }
-
-  close(): void {
-    this.#store.close();
-  }
+export interface KernelStorageOptions extends KernelOptions {
+  cachePath?: string;
+  ref?: string;
+  remote?: string | null;
 }
 
-export { runCoreLoop };
+export class OvercenterKernel extends KernelCore {
+  readonly #facts: SqliteFactStore;
+  close(): void {
+    this.#facts.close();
+  }
+  readonly repo: string;
+  readonly ref: string;
+  readonly remote: string | null;
+
+  constructor(
+    repo: string,
+    {
+      ref = STATE_REF,
+      remote = null,
+      cachePath,
+      githubToken = null,
+      observationContext = {},
+    }: KernelStorageOptions = {},
+  ) {
+    const store = new SqliteFactStore(repo, { ref, remote, ...(cachePath ? { cachePath } : {}) });
+
+    super(store, { githubToken, observationContext });
+    this.#facts = store;
+    this.repo = repo;
+    this.ref = ref;
+    this.remote = remote;
+  }
+}

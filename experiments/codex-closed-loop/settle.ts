@@ -12,7 +12,7 @@ const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex
 const [database, assignmentPath, candidatePath, patchPath, workspace] = process.argv.slice(2);
 if (!database || !assignmentPath || !candidatePath || !patchPath || !workspace) {
   throw new Error(
-    'usage: settle.ts <authority.sqlite> <assignment.json> <candidate.json> <candidate.patch> <workspace>',
+    'usage: settle.ts <authority.git> <assignment.json> <candidate.json> <candidate.patch> <workspace>',
   );
 }
 
@@ -58,7 +58,7 @@ mkdirSync(root, { recursive: true });
 writeFileSync(postcondition.path, target, { flag: 'wx' });
 
 const kernel = new OvercenterKernel(database, { observationContext: { localFileRoot: root } });
-try {
+{
   const before = kernel.inspect().find((work) => work.id === assignment.work.id);
   if (!before || before.status !== 'EXECUTING')
     throw new Error('CODEX_CLOSED_LOOP_RUN_NOT_EXECUTING');
@@ -91,6 +91,4 @@ try {
       verified: receipt.verified,
     }),
   );
-} finally {
-  kernel.close();
 }

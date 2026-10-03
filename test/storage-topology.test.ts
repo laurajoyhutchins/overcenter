@@ -1,0 +1,330 @@
+import assert from 'node:assert/strict';
+import { execFileSync, spawn } from 'node:child_process';
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import test from 'node:test';
+import { SqliteFactStore as ProductionStore } from '../src/storage/sqlite.ts';
+import { OvercenterKernel } from '../src/authority/kernel.ts';
+import { recoverInvalidDoneClaimTail } from '../src/storage/git-authority-recovery.ts';
+import { GitFactStore } from './fixtures/git-fact-store.ts';
+import { SqliteFactStore } from './fixtures/sqlite-store.ts';
+
+const ref = 'refs/overcenter/state';
+const fixture = fileURLToPath(new URL('./fixtures/fact-contender.ts', import.meta.url));
+function contender(args: string[]) {
+  return new Promise<string | null>((resolve, reject) => {
+    const child = spawn(process.execPath, ['--experimental-strip-types', fixture, ...args], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '';
+    let error = '';
+    child.stdout.on('data', (chunk) => {
+      output += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      error += String(chunk);
+    });
+    child.once('error', reject);
+    child.once('close', (code) => {
+      if (code !== 0) reject(new Error(error));
+      else resolve((JSON.parse(output) as { commit: string | null }).commit);
+    });
+  });
+}
+
+test('matching authority topologies: shared SQLite and shared Git remote have one CAS winner', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'storage-topology-'));
+  const remote = join(root, 'remote.git');
+  const sqlitePath = join(root, 'shared.sqlite');
+  execFileSync('git', ['init', '--bare', remote], { stdio: 'ignore' });
+  const git = new GitFactStore(remote, { ref });
+  const sqlite = new SqliteFactStore(sqlitePath);
+  try {
+    const gh = git.append(null, 'initialize');
+    const sh = sqlite.append(null, 'initialize');
+    assert.ok(gh);
+    assert.ok(sh);
+    sqlite.close();
+    const clones = [join(root, 'a'), join(root, 'b')];
+    for (const clone of clones) execFileSync('git', ['clone', remote, clone], { stdio: 'ignore' });
+    const gitResults = await Promise.all(
+      clones.map((clone, index) => contender(['git', clone, gh, String(index), 'origin'])),
+    );
+    const sqliteResults = await Promise.all(
+      [0, 1].map((index) => contender(['sqlite', sqlitePath, sh, String(index)])),
+    );
+    assert.equal(gitResults.filter(Boolean).length, 1);
+    assert.equal(sqliteResults.filter(Boolean).length, 1);
+    const reopened = new SqliteFactStore(sqlitePath);
+    try {
+      assert.ok(gitResults.includes(git.head()));
+      assert.ok(sqliteResults.includes(reopened.head()));
+      assert.equal(git.history(git.head()!).length, 2);
+      assert.equal(reopened.history(reopened.head()!).length, 2);
+    } finally {
+      reopened.close();
+    }
+    for (const clone of clones) {
+      const store = new GitFactStore(clone, { ref, remote: 'origin' });
+      assert.equal(store.head(), git.head());
+      assert.equal(store.append(gh, 'repeat stale'), null);
+    }
+    copyFileSync(sqlitePath, join(root, 'replica.sqlite'));
+    const first = new SqliteFactStore(sqlitePath);
+    const second = new SqliteFactStore(join(root, 'replica.sqlite'));
+    try {
+      const head = first.head();
+      assert.equal(second.head(), head);
+      assert.ok(first.append(head, 'host-a'));
+      assert.ok(second.append(head, 'host-b'));
+      assert.notEqual(
+        first.head(),
+        second.head(),
+        'separate databases are two authorities, not distributed CAS',
+      );
+    } finally {
+      first.close();
+      second.close();
+    }
+  } finally {
+    try {
+      sqlite.close();
+    } catch {}
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+for (const mode of ['accepted', 'unavailable', 'before'] as const) {
+  test(`remote push failure ${mode} never masquerades as a stale writer`, () => {
+    const root = mkdtempSync(join(tmpdir(), 'git-ambiguity-'));
+    const remote = join(root, 'remote.git');
+    const clone = join(root, 'clone');
+    execFileSync('git', ['init', '--bare', remote], { stdio: 'ignore' });
+    execFileSync('git', ['clone', remote, clone], { stdio: 'ignore' });
+    const actualGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    const bin = join(root, 'bin');
+    mkdirSync(bin);
+    const wrapper = join(bin, 'git');
+    writeFileSync(
+      wrapper,
+      `#!/bin/sh\nif [ "$3" = push ]; then\n  if [ "$FAIL_MODE" = before ]; then exit 1; fi\n  "${actualGit}" "$@" || exit $?\n  touch "${root}/accepted"\n  exit 1\nfi\nif [ "$3" = ls-remote ] && [ "$FAIL_MODE" = unavailable ] && [ -f "${root}/accepted" ]; then exit 1; fi\nexec "${actualGit}" "$@"\n`,
+    );
+    chmodSync(wrapper, 0o755);
+    const originalPath = process.env.PATH;
+    const originalMode = process.env.FAIL_MODE;
+    process.env.PATH = `${bin}:${originalPath}`;
+    process.env.FAIL_MODE = mode;
+    try {
+      const store = new GitFactStore(clone, { ref, remote: 'origin' });
+      if (mode === 'accepted') {
+        const commit = store.append(null, 'accepted');
+        assert.ok(commit);
+        assert.equal(store.head(), commit);
+      } else assert.throws(() => store.append(null, 'uncertain'), /AUTHORITY_COMMIT_UNCERTAIN/);
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+      if (originalMode === undefined) delete process.env.FAIL_MODE;
+      else process.env.FAIL_MODE = originalMode;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const backend of ['git', 'sqlite', 'composed'] as const) {
+  for (const phase of ['before', 'after'] as const) {
+    test(`${backend} process death ${phase} authority advance reconstructs exactly the durable prefix`, async () => {
+      const root = mkdtempSync(join(tmpdir(), 'fact-crash-'));
+      const path = join(root, backend !== 'sqlite' ? 'facts.git' : 'facts.sqlite');
+      if (backend !== 'sqlite') execFileSync('git', ['init', '--bare', path], { stdio: 'ignore' });
+      const open = () =>
+        backend === 'composed'
+          ? new ProductionStore(path, { ref })
+          : backend === 'git'
+            ? new GitFactStore(path, { ref })
+            : new SqliteFactStore(path);
+      const original = open();
+      const expected = original.append(null, 'initialize');
+      assert.ok(expected);
+      if (original instanceof SqliteFactStore || original instanceof ProductionStore)
+        original.close();
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const child = spawn(
+            process.execPath,
+            [
+              '--experimental-strip-types',
+              fileURLToPath(new URL('./fixtures/interrupted-fact-writer.ts', import.meta.url)),
+              backend,
+              path,
+              expected,
+              phase,
+            ],
+            { stdio: ['ignore', 'pipe', 'pipe'] },
+          );
+          let stderr = '';
+          let ready = false;
+          child.stderr.on('data', (chunk) => {
+            stderr += String(chunk);
+          });
+          child.stdout.once('data', () => {
+            ready = true;
+            child.kill('SIGKILL');
+          });
+          child.once('error', reject);
+          child.once('close', (_code, signal) => {
+            if (ready && signal === 'SIGKILL') resolve();
+            else reject(new Error(stderr));
+          });
+        });
+        const reopened = open();
+        try {
+          const head = reopened.head();
+          assert.ok(head);
+          assert.equal(reopened.history(head).length, phase === 'after' ? 2 : 1);
+          if (phase === 'before') assert.equal(head, expected);
+          else assert.equal(reopened.append(expected, 'stale recovery'), null);
+        } finally {
+          if (reopened instanceof SqliteFactStore || reopened instanceof ProductionStore)
+            reopened.close();
+        }
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+  }
+}
+
+test('identical remote append attempts still have exactly one same-head winner', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'identical-cas-'));
+  const remote = join(root, 'remote.git');
+  const clone = join(root, 'clone');
+  execFileSync('git', ['init', '--bare', remote], { stdio: 'ignore' });
+  execFileSync('git', ['clone', remote, clone], { stdio: 'ignore' });
+  const authorDate = process.env.GIT_AUTHOR_DATE;
+  const committerDate = process.env.GIT_COMMITTER_DATE;
+  process.env.GIT_AUTHOR_DATE = '2026-09-30T00:00:00Z';
+  process.env.GIT_COMMITTER_DATE = '2026-09-30T00:00:00Z';
+  try {
+    const store = new GitFactStore(clone, { ref, remote: 'origin' });
+    const head = store.append(null, 'initialize');
+    assert.ok(head);
+    const first = store.append(head, 'same operation');
+    assert.ok(first);
+    assert.equal(store.append(head, 'same operation'), null);
+    const other = join(root, 'other');
+    execFileSync('git', ['clone', remote, other], { stdio: 'ignore' });
+    const results = await Promise.all(
+      [clone, other].map((path) => contender(['git', path, first, 'identical', 'origin'])),
+    );
+    assert.equal(results.filter(Boolean).length, 1);
+  } finally {
+    if (authorDate === undefined) delete process.env.GIT_AUTHOR_DATE;
+    else process.env.GIT_AUTHOR_DATE = authorDate;
+    if (committerDate === undefined) delete process.env.GIT_COMMITTER_DATE;
+    else process.env.GIT_COMMITTER_DATE = committerDate;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+for (const mode of ['before', 'accepted'] as const) {
+  test(`rollback recovery push acknowledgement ${mode} cannot confuse an ancestor with a committed transition`, () => {
+    const root = mkdtempSync(join(tmpdir(), 'rollback-ambiguity-'));
+    const remote = join(root, 'remote.git');
+    const clone = join(root, 'clone');
+    execFileSync('git', ['init', '--bare', remote], { stdio: 'ignore' });
+    execFileSync('git', ['clone', remote, clone], { stdio: 'ignore' });
+    const actualGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    const kernel = new OvercenterKernel(clone, { ref, remote: 'origin' });
+    kernel.initialize();
+    const path = join(root, 'result');
+    kernel.define({
+      id: 'x',
+      postcondition: { verifier: 'file-content-equals/v1', path, content: 'yes' },
+    });
+    const run = kernel.claim('x', kernel.deriveReadyWork()!.revision);
+    writeFileSync(path, 'yes');
+    assert.equal(kernel.resolve(run).disposition, 'DONE');
+    const store = new GitFactStore(clone, { ref, remote: 'origin' });
+    const validHead = store.head()!;
+    const claim = store.history(run.claim_commit).at(-1)!.claim as Record<string, unknown>;
+    const invalidHead = store.createCommit(validHead, 'invalid claim after DONE', {
+      'claim.json': {
+        ...claim,
+        run_id: '00000000-0000-4000-8000-000000000001',
+        claimed_revision: validHead,
+      },
+    });
+    assert.equal(store.cas(invalidHead, validHead), true);
+    const bin = join(root, 'bin');
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, 'git'),
+      `#!/bin/sh\nif [ "$3" = push ]; then\n  ${mode === 'before' ? 'exit 1' : `"${actualGit}" "$@" || exit $?`}\n  exit 1\nfi\nexec "${actualGit}" "$@"\n`,
+    );
+    chmodSync(join(bin, 'git'), 0o755);
+    const originalPath = process.env.PATH;
+    process.env.PATH = `${bin}:${originalPath}`;
+    try {
+      const recover = () => recoverInvalidDoneClaimTail(clone, { ref, remote: 'origin' });
+      if (mode === 'before') assert.throws(recover, /AUTHORITY_COMMIT_UNCERTAIN/);
+      else assert.equal(recover().state, 'RECOVERED');
+      assert.equal(
+        new GitFactStore(remote, { ref }).head(),
+        mode === 'before' ? invalidHead : validHead,
+      );
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+test('independent SQLite sandboxes coordinate only through remote CAS and recover stale materialization', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'sqlite-independent-'));
+  const remote = join(root, 'remote.git');
+  execFileSync('git', ['init', '--bare', remote], { stdio: 'ignore' });
+  const clones = [join(root, 'a'), join(root, 'b')];
+  for (const clone of clones) execFileSync('git', ['clone', remote, clone], { stdio: 'ignore' });
+  const open = (clone: string) => new ProductionStore(clone, { ref, remote: 'origin' });
+  const initial = open(clones[0]!);
+  const head = initial.append(null, 'initialize')!;
+  const old = initial.history(head);
+  const cache = initial.cachePath;
+  initial.close();
+  const backup = join(root, 'old.sqlite');
+  copyFileSync(cache, backup);
+  try {
+    const results = await Promise.all(
+      clones.map((clone, i) => contender(['composed', clone, head, String(i), 'origin'])),
+    );
+    assert.equal(results.filter(Boolean).length, 1);
+    const winner = results.find(Boolean)!;
+    copyFileSync(backup, cache);
+    for (const clone of clones) {
+      const store = open(clone);
+      try {
+        assert.equal(store.head(), winner);
+        assert.equal(store.append(head, 'stale'), null);
+        assert.equal(store.append(head, 'repeated stale'), null);
+        assert.deepEqual(store.history(head), old);
+        assert.equal(store.history(winner).length, 2);
+        const unavailable = join(root, 'unavailable.git');
+        execFileSync('git', ['-C', clone, 'remote', 'set-url', 'origin', unavailable]);
+        assert.throws(() => store.head(), /AUTHORITY_UNREACHABLE/);
+        assert.deepEqual(
+          store.history(head),
+          old,
+          'verified facts remain readable but cannot elect authority',
+        );
+      } finally {
+        store.close();
+      }
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

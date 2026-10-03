@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { GitFactStore } from './fixtures/git-fact-store.ts';
 import test from 'node:test';
 
-import { OvercenterKernel, runCoreLoop } from '../src/authority/kernel.ts';
+import { LocalGitKernel, runCoreLoop } from './fixtures/local-git-kernel.ts';
 import { githubCommitStatus } from '../src/providers/github/status-resource.ts';
 import type { GitHubJsonGet } from '../src/providers/github/rest.ts';
 
@@ -54,7 +54,7 @@ function githubRead(providerState: () => 'missing' | 'success'): GitHubJsonGet {
   };
 }
 
-function defineStatus(kernel: OvercenterKernel): void {
+function defineStatus(kernel: LocalGitKernel): void {
   kernel.initialize();
   kernel.define(
     githubCommitStatus.ensure({
@@ -70,26 +70,18 @@ function defineStatus(kernel: OvercenterKernel): void {
   );
 }
 
-function reservationCount(database: string): number {
-  const db = new DatabaseSync(database);
-  try {
-    const rows = db.prepare('SELECT files_json FROM fact_commits').all() as Array<{
-      files_json: string;
-    }>;
-    return rows.filter((row) =>
-      Object.hasOwn(JSON.parse(row.files_json), 'effect-reservation.json'),
-    ).length;
-  } finally {
-    db.close();
-  }
+function reservationCount(repo: string): number {
+  const store = new GitFactStore(repo, { ref: 'refs/overcenter/state' });
+  const head = store.head();
+  return head ? store.history(head).filter((fact) => fact.effect_reservation !== null).length : 0;
 }
 
 test('core loop dispatches an admitted effect with exactly one reservation owner', async () => {
   const root = mkdtempSync(join(tmpdir(), 'trusted-effect-loop-'));
-  const database = join(root, 'overcenter.sqlite');
+  const database = join(root, 'overcenter.git');
   let providerState: 'missing' | 'success' = 'missing';
   const read = githubRead(() => providerState);
-  const kernel = new OvercenterKernel(database, {
+  const kernel = new LocalGitKernel(database, {
     githubToken: 'token',
     observationContext: { githubGet: read },
   });
@@ -128,10 +120,10 @@ test('core loop dispatches an admitted effect with exactly one reservation owner
 
 test('admitted effect uncertainty remains recovery-required through the core loop', async () => {
   const root = mkdtempSync(join(tmpdir(), 'trusted-effect-loop-uncertain-'));
-  const database = join(root, 'overcenter.sqlite');
+  const database = join(root, 'overcenter.git');
   let providerState: 'missing' | 'success' = 'missing';
   const read = githubRead(() => providerState);
-  const kernel = new OvercenterKernel(database, {
+  const kernel = new LocalGitKernel(database, {
     githubToken: 'token',
     observationContext: { githubGet: read },
   });
@@ -173,9 +165,9 @@ test('admitted effect uncertainty remains recovery-required through the core loo
 
 test('pre-reservation trusted dispatch failure is surfaced instead of silently retried', async () => {
   const root = mkdtempSync(join(tmpdir(), 'trusted-effect-loop-pre-reservation-error-'));
-  const database = join(root, 'overcenter.sqlite');
+  const database = join(root, 'overcenter.git');
   const authoritativeRead = githubRead(() => 'missing');
-  const kernel = new OvercenterKernel(database, {
+  const kernel = new LocalGitKernel(database, {
     githubToken: 'token',
     observationContext: { githubGet: authoritativeRead },
   });
@@ -224,7 +216,7 @@ test('pre-reservation trusted dispatch failure is surfaced instead of silently r
 
 test('undefined trusted effect mode is rejected before claim', async () => {
   const root = mkdtempSync(join(tmpdir(), 'trusted-effect-loop-invalid-mode-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'));
 
   try {
     kernel.initialize();
@@ -256,7 +248,7 @@ test('undefined trusted effect mode is rejected before claim', async () => {
 
 test('admitted effects preserve bounded concurrency and one reservation per run', async () => {
   const root = mkdtempSync(join(tmpdir(), 'trusted-effect-loop-concurrency-'));
-  const database = join(root, 'overcenter.sqlite');
+  const database = join(root, 'overcenter.git');
   const commits = ['b'.repeat(40), 'c'.repeat(40)] as const;
   const contexts = new Map([
     [commits[0], 'overcenter/a'],
@@ -282,7 +274,7 @@ test('admitted effects preserve bounded concurrency and one reservation per run'
     }
     throw new Error(`UNEXPECTED_GITHUB_PATH:${path}`);
   };
-  const kernel = new OvercenterKernel(database, {
+  const kernel = new LocalGitKernel(database, {
     githubToken: 'token',
     observationContext: { githubGet: read },
   });
@@ -353,7 +345,7 @@ test('admitted effects preserve bounded concurrency and one reservation per run'
 
 test('observation failure cannot mask a pre-reservation broker failure', async () => {
   const root = mkdtempSync(join(tmpdir(), 'trusted-effect-loop-observation-mask-'));
-  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'), {
+  const kernel = new LocalGitKernel(join(root, 'overcenter.git'), {
     githubToken: 'token',
     observationContext: {
       githubGet: () => {
@@ -383,7 +375,7 @@ test('observation failure cannot mask a pre-reservation broker failure', async (
       /GITHUB_REPOSITORY_IDENTITY_MISMATCH/,
     );
 
-    assert.equal(reservationCount(join(root, 'overcenter.sqlite')), 0);
+    assert.equal(reservationCount(join(root, 'overcenter.git')), 0);
   } finally {
     kernel.close();
     rmSync(root, { recursive: true, force: true });

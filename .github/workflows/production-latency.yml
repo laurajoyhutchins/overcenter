@@ -14,6 +14,8 @@ on:
       - src/providers/github/certified-repository.ts
       - src/observation/observe.ts
       - src/authority/engine.ts
+      - src/storage/git-store.ts
+      - src/storage/git-facts.ts
       - src/storage/sqlite.ts
       - src/authority/kernel.ts
       - src/authority/project-state.ts
@@ -34,6 +36,8 @@ on:
       - src/providers/github/certified-repository.ts
       - src/observation/observe.ts
       - src/authority/engine.ts
+      - src/storage/git-store.ts
+      - src/storage/git-facts.ts
       - src/storage/sqlite.ts
       - src/authority/kernel.ts
       - src/authority/project-state.ts
@@ -51,7 +55,7 @@ env:
 
 jobs:
   github-status-latency:
-    name: SQLite to GitHub status latency
+    name: Git authority to GitHub status latency
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

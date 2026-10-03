@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -32,7 +32,7 @@ const sourceSha = required('SOURCE_SHA');
 const stateRef = githubProofStateRef('disposable-agent');
 const stateRefApi = stateRef.replace(/^refs\//, '');
 
-const kernel = new GitOvercenterKernel(process.cwd(), { remote: 'origin', ref: stateRef });
+const kernel = new OvercenterKernel(process.cwd(), { remote: 'origin', ref: stateRef });
 const candidates = kernel.inspect().filter((work) => {
   if (work.status !== 'EXECUTING') return false;
   const executor = work.packet.executor as Record<string, unknown> | undefined;
@@ -63,7 +63,7 @@ execFileSync('git', ['init', '--bare', attacker], { stdio: 'ignore' });
 execFileSync('git', ['remote', 'set-url', 'origin', attacker], { stdio: 'ignore' });
 execFileSync('git', ['update-ref', stateRef, sourceSha], { stdio: 'ignore' });
 writeFileSync(
-  'src/storage/git-kernel.ts',
+  'src/authority/kernel.ts',
   '// Agent A locally replaced the kernel. This must not affect authority.\n',
 );
 writeFileSync('agent-cache.sqlite', 'arbitrary disposable local database');

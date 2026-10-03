@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
-
-import { factCommitFromFiles, type DurableFactStore } from '../authority/store.ts';
-import type { FactCommit } from '../authority/facts.ts';
+import { randomUUID } from 'node:crypto';
+import { readFactHistory, verifyObject } from './git-facts.ts';
+import { resolve } from 'node:path';
 
 interface GitResult {
   ok: boolean;
@@ -11,16 +11,17 @@ interface GitResult {
 
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
-export class GitFactStore implements DurableFactStore {
+export class GitAuthorityJournal {
   readonly repo: string;
   readonly ref: string;
   readonly remote: string | null;
+  readonly directory: string;
 
   constructor(repo: string, { ref, remote = null }: { ref: string; remote?: string | null }) {
     this.repo = repo;
     this.ref = ref;
     this.remote = remote;
-    this.#git(['rev-parse', '--git-dir']);
+    this.directory = resolve(repo, this.#git(['rev-parse', '--git-dir']).stdout.trim());
   }
 
   head(): string | null {
@@ -41,49 +42,35 @@ export class GitFactStore implements DurableFactStore {
       allowFailure: true,
     });
     if (!fetched.ok) throw new Error('AUTHORITY_UNREACHABLE');
-    return sha;
+    return this.#git(['rev-parse', '--verify', this.ref]).stdout.trim();
   }
 
-  append(
+  publish(
     expectedHead: string | null,
     message: string,
     files: Record<string, unknown> = {},
-  ): string | null {
-    const commit = this.createCommit(expectedHead, message, files);
-    const expected = expectedHead ?? this.zeroObjectId();
-    return this.cas(commit, expected) ? commit : null;
-  }
-
-  history(head: string): FactCommit[] {
-    return this.revisions(head).map((commit) => {
-      const files: Record<string, unknown> = {};
-      for (const path of [
-        'graph-patch.json',
-        'claim.json',
-        'source-revision.json',
-        'execution-authority.json',
-        'effect-reservation.json',
-        'receipt.json',
-      ]) {
-        const value = this.readJson(commit, path);
-        if (value != null) files[path] = value;
-      }
-      return factCommitFromFiles(commit, this.parent(commit), files);
-    });
-  }
-
-  revisions(head: string): string[] {
-    return this.#git(['rev-list', '--reverse', head]).stdout.trim().split(/\n+/).filter(Boolean);
+  ): string {
+    return this.createCommit(expectedHead, `${message}\n\nappend-attempt: ${randomUUID()}`, files);
   }
 
   parent(commit: string): string | null {
-    const result = this.#git(['rev-parse', `${commit}^`], { allowFailure: true });
-    return result.ok ? result.stdout.trim() : null;
+    const body = this.readObject(commit, 'commit').toString('utf8');
+    const parents = body
+      .split('\n\n', 1)[0]!
+      .split('\n')
+      .filter((line) => line.startsWith('parent '));
+    if (parents.length > 1) throw new Error('FACT_HISTORY_MULTIPLE_PARENTS');
+    const tree = body.split('\n', 1)[0]!.replace(/^tree /, '');
+    this.readObject(tree, 'tree');
+    return parents[0]?.slice(7) ?? null;
   }
 
-  readJson(commit: string, path: string): unknown | null {
-    const result = this.#git(['show', `${commit}:${path}`], { allowFailure: true });
-    return result.ok ? JSON.parse(result.stdout) : null;
+  readObject(id: string, type: 'commit' | 'tree' | 'blob'): Buffer {
+    const bytes = execFileSync('git', ['-C', this.repo, 'cat-file', type, id], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    verifyObject(id, type, bytes);
+    return bytes;
   }
 
   createCommit(
@@ -120,7 +107,24 @@ export class GitFactStore implements DurableFactStore {
     const pushed = this.#git(['push', '--porcelain', lease, this.remote, `${next}:${this.ref}`], {
       allowFailure: true,
     });
-    if (!pushed.ok) return false;
+    if (/^=\t/m.test(pushed.stdout)) return false;
+    if (!pushed.ok) {
+      if (/^!\t[^\n]*\[(?:remote )?rejected\]/m.test(pushed.stdout)) return false;
+      // A lost push acknowledgement is not evidence that the ref stayed unchanged.
+      try {
+        const observed = this.head();
+        if (
+          observed === next ||
+          (observed &&
+            (this.parent(next) === expected || (expected === zero && this.parent(next) === null)) &&
+            readFactHistory(observed, (id, type) => this.readObject(id, type)).some(
+              (fact) => fact.commit === next,
+            ))
+        )
+          return true;
+      } catch {}
+      throw new Error('AUTHORITY_COMMIT_UNCERTAIN');
+    }
     this.#git(['update-ref', this.ref, next]);
     return true;
   }

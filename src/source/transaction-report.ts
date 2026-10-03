@@ -7,7 +7,7 @@ import {
 } from '../providers/github/evidence-primitives.ts';
 import { githubGet, type GitHubJsonGet } from '../providers/github/rest.ts';
 import { isData, isPositiveSafeInteger } from '../validation.ts';
-import { GitOvercenterKernel } from '../storage/git-kernel.ts';
+import { OvercenterKernel } from '../authority/kernel.ts';
 import { validateSourceIntegrationEvidence } from './source-integration.ts';
 import {
   sourceTransactionContextFromEnvironment,
@@ -50,10 +50,10 @@ export function reportSourceTransaction(
       stdio: 'pipe',
     }).trim();
 
-  const authorityHead = new GitOvercenterKernel(repo, { remote, ref: authorityRef }).head();
+  const authorityHead = new OvercenterKernel(repo, { remote, ref: authorityRef }).head();
   if (!authorityHead) throw new Error('SOURCE_TRANSACTION_REPORT_AUTHORITY_MISSING');
 
-  const kernel = new GitOvercenterKernel(repo, { ref: authorityHead });
+  const kernel = new OvercenterKernel(repo, { ref: authorityHead });
   const assigned = kernel.claimedWork(runId);
   const claim = kernel.sourceClaimBinding(runId);
   const receipt = kernel.receipts(runId).at(-1);

@@ -18,7 +18,7 @@ import {
 } from '../src/effect-adapter.ts';
 import { RECEIPT_SCHEMA, type ReceiptFact } from '../src/authority/facts.ts';
 import { projectReceipt } from '../src/authority/replay.ts';
-import { OvercenterKernel } from '../src/authority/kernel.ts';
+import { LocalGitKernel } from './fixtures/local-git-kernel.ts';
 import { localFileEnoentEvidence } from '../src/observation/evidence.ts';
 import type { Obligation } from '../src/model.ts';
 
@@ -133,12 +133,12 @@ test('authoritative absence alone cannot reopen a run with an unresolved effect'
 
 test('reserved-effect absence remains recovery-required across durable replay', () => {
   const root = mkdtempSync(join(tmpdir(), 'effect-replay-capability-'));
-  const database = join(root, 'overcenter.sqlite');
+  const database = join(root, 'overcenter.git');
   const target = join(root, 'missing.txt');
   const options = {
     observationContext: { localFileRoot: root },
   };
-  const kernel = new OvercenterKernel(database, options);
+  const kernel = new LocalGitKernel(database, options);
   try {
     kernel.initialize();
     kernel.define({
@@ -161,7 +161,7 @@ test('reserved-effect absence remains recovery-required across durable replay', 
     assert.equal(kernel.hasUnresolvedEffect(run.id), true);
     kernel.close();
 
-    const reopened = new OvercenterKernel(database, options);
+    const reopened = new LocalGitKernel(database, options);
     try {
       assert.equal(reopened.inspect()[0]?.status, 'RECOVERY_REQUIRED');
       assert.equal(reopened.hasUnresolvedEffect(run.id), true);

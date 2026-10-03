@@ -63,7 +63,7 @@ The supported runtime boundary is smaller than the research surface:
 The production computation profile is fail-closed:
 
 ```text
-SQLite authority
+Git authority
       |
  exact READY claim + generation
       |
@@ -111,7 +111,7 @@ deterministic kernel
 authoritative project truth
 ```
 
-The production authority store is SQLite: immutable fact-commit rows plus one compare-and-swap authority head, committed atomically in a local transaction. Git implements the same durable-fact contract as a reference and independent replay backend; project semantics do not depend on Git. Direct migration of an existing history between backends is a separate problem because some durable facts bind backend-local authority identities.
+The production fact path is SQLite: each trusted command runner materializes verified immutable facts locally. Existing Git objects transport facts between sandboxes, and one remote compare-and-swap ref selects authority. No central Overcenter service or shared SQLite file is required. Task workers receive bounded commands and evidence contracts. The SQL architectural model is separate from durable storage. See the [storage decision](docs/adr/0004-durable-authority.md).
 
 Project state such as `READY`, `EXECUTING`, `BLOCKED`, `RECOVERY_REQUIRED`, and `DONE` is reconstructed from durable facts and current authority. It is not stored as a privileged lifecycle document.
 
@@ -147,7 +147,7 @@ The repository does **not** establish that:
 
 - Overcenter is a complete production orchestration system;
 - SQLite is a final distributed/HA authority substrate or suitable for every future deployment scale;
-- arbitrary existing histories can be moved byte-for-byte between Git and SQLite without remapping backend-local authority identities;
+- independent local SQLite heads can coordinate authority without a shared CAS boundary;
 - every project eventually makes progress or completes;
 - external providers are correct, available, strongly consistent, or recoverable;
 - one generic adapter can safely describe arbitrary external mutations;
@@ -182,11 +182,10 @@ Important entry points:
 - [`src/cli/`](./src/cli/) - the two supported semantic operator entrypoints: `project.advance` and `project.submit`.
 - [`docs/source-change-protocol.md`](./docs/source-change-protocol.md) - bounded source proposal, verification, and exact-base integration.
 - [`docs/provider-capabilities.md`](./docs/provider-capabilities.md) - current provider observation, mutation, and negative-evidence boundaries.
-- [`src/authority/kernel.ts`](./src/authority/kernel.ts) - production SQLite-backed kernel entry point.
+- [`src/authority/kernel.ts`](./src/authority/kernel.ts) - production authority kernel entry point.
 - [`src/authority/engine.ts`](./src/authority/engine.ts) - storage-neutral transaction, recovery, and settlement policy.
 - [`src/authority/store.ts`](./src/authority/store.ts) - minimal durable-fact authority contract.
-- [`src/storage/sqlite.ts`](./src/storage/sqlite.ts) - production append-only SQLite authority store.
-- [`src/storage/git-kernel.ts`](./src/storage/git-kernel.ts) and [`src/storage/git-store.ts`](./src/storage/git-store.ts) - Git reference implementation of the same durable-fact contract.
+- [`src/storage/git-store.ts`](./src/storage/git-store.ts) - production durable facts and remote authority CAS.
 - [`src/authority/facts.ts`](./src/authority/facts.ts) - durable fact schemas plus obligation/fact validation.
 - [`src/digest.ts`](./src/digest.ts) - canonical structured hashing and raw SHA-256.
 - [`src/observation/evidence.ts`](./src/observation/evidence.ts) - provider-general absence-certificate envelope plus current local-file certificate validation.

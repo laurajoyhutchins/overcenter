@@ -57,7 +57,7 @@ jobs:
           set -euo pipefail
           mkdir -p authority transport
           node --experimental-strip-types experiments/assignment-capsule/prepare.ts \
-            authority/overcenter.sqlite capsule
+            authority/overcenter.git capsule
           src/execution/worker-client/build.sh capsule/overcenter
           tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
             -cf transport/assignment-capsule.tar -C capsule .
@@ -75,7 +75,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: overcenter-assignment-authority
-          path: authority/overcenter.sqlite
+          path: authority/
           if-no-files-found: error
           retention-days: 1
 
@@ -179,7 +179,7 @@ jobs:
           mkdir capsule
           tar -xf transport/assignment-capsule.tar -C capsule
           report="$(node --experimental-strip-types experiments/assignment-capsule/settle.ts \
-            authority/overcenter.sqlite capsule/assignment.json candidate/candidate.json)"
+            authority/overcenter.git capsule/assignment.json candidate/candidate.json)"
           echo "${report}"
           {
             echo '### Overcenter assignment capsule proof'

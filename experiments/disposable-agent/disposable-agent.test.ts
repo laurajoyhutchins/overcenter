@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 
 function git(cwd: string, args: string[]) {
   return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
@@ -27,7 +27,7 @@ function fixture() {
   const supervisor = join(root, 'supervisor.json');
 
   execFileSync('git', ['init', '--bare', authority], { stdio: 'ignore' });
-  const owner = new GitOvercenterKernel(authority);
+  const owner = new OvercenterKernel(authority);
   owner.initialize();
   owner.define({
     id: 'effect',
@@ -43,7 +43,7 @@ test('entire Agent A sandbox can disappear and fresh Agent B reconstructs and se
   try {
     const a = join(f.root, 'agent-a.git');
     cloneAgent(f.authority, a);
-    const agentA = new GitOvercenterKernel(a, { remote: 'origin' });
+    const agentA = new OvercenterKernel(a, { remote: 'origin' });
     const ready = agentA.deriveReadyWork()!;
     assert.equal(ready.id, 'effect');
     const run = agentA.claim(ready.id, ready.revision);
@@ -61,7 +61,7 @@ test('entire Agent A sandbox can disappear and fresh Agent B reconstructs and se
     const b = join(f.root, 'agent-b.git');
     cloneAgent(f.authority, b);
     assert.equal(existsSync(join(b, 'agent-cache.sqlite')), false);
-    const agentB = new GitOvercenterKernel(b, { remote: 'origin' });
+    const agentB = new OvercenterKernel(b, { remote: 'origin' });
 
     const unresolved = agentB.inspect().find((x) => x.id === 'effect');
     assert.equal(unresolved?.status, 'EXECUTING');
@@ -93,7 +93,7 @@ test('entire Agent A sandbox can disappear and fresh Agent B reconstructs and se
       done.settlement_commit!,
     ]);
 
-    const authorityKernel = new GitOvercenterKernel(f.authority);
+    const authorityKernel = new OvercenterKernel(f.authority);
     assert.equal(authorityKernel.inspect()[0].status, 'DONE');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
@@ -105,7 +105,7 @@ test('kernel-owned verifier cannot be replaced by the agent', () => {
   try {
     const a = join(f.root, 'a.git');
     cloneAgent(f.authority, a);
-    const k = new GitOvercenterKernel(a, { remote: 'origin' });
+    const k = new OvercenterKernel(a, { remote: 'origin' });
     const work = k.deriveReadyWork()!;
     const run = k.claim(work.id, work.revision);
     k.beginEffect(run);
@@ -125,7 +125,7 @@ test('READY reconciliation is idempotent after lost acknowledgement', () => {
   try {
     const a = join(f.root, 'a.git');
     cloneAgent(f.authority, a);
-    const k = new GitOvercenterKernel(a, { remote: 'origin' });
+    const k = new OvercenterKernel(a, { remote: 'origin' });
     const work = k.deriveReadyWork()!;
     const run = k.claim(work.id, work.revision);
 
@@ -146,7 +146,7 @@ test('missing remote authority never looks empty or idle', () => {
   try {
     const b = join(f.root, 'b.git');
     cloneAgent(f.authority, b);
-    const k = new GitOvercenterKernel(b, { remote: 'origin' });
+    const k = new OvercenterKernel(b, { remote: 'origin' });
     git(f.authority, ['update-ref', '-d', 'refs/overcenter/state']);
 
     assert.throws(() => k.inspect(), /NOT_INITIALIZED/);
@@ -166,8 +166,8 @@ test('two disposable clones CAS against central authority and exactly one claim 
     cloneAgent(f.authority, a);
     cloneAgent(f.authority, b);
 
-    const ka = new GitOvercenterKernel(a, { remote: 'origin' });
-    const kb = new GitOvercenterKernel(b, { remote: 'origin' });
+    const ka = new OvercenterKernel(a, { remote: 'origin' });
+    const kb = new OvercenterKernel(b, { remote: 'origin' });
     const wa = ka.deriveReadyWork()!;
     const wb = kb.deriveReadyWork()!;
     assert.equal(wa.revision, wb.revision);

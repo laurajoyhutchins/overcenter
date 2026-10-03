@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { appendFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -110,7 +111,7 @@ async function runSample(
   } | null,
 ): Promise<Sample> {
   const root = mkdtempSync(join(tmpdir(), 'overcenter-production-latency-'));
-  const database = join(root, 'authority.sqlite');
+  const database = join(root, 'authority.git');
   const repositoryId = live?.repositoryId ?? 42;
   const repositoryFullName = live?.repositoryFullName ?? 'acme/widget';
   const commitSha = live?.commitSha ?? 'a'.repeat(40);
@@ -184,6 +185,7 @@ async function runSample(
         }
       : undefined;
 
+  execFileSync('git', ['init', '--bare', database], { stdio: 'ignore' });
   const kernel = new TimedKernel(database, {
     githubToken: token,
     observationContext: {
@@ -265,7 +267,6 @@ async function runSample(
       total_ms: round(totalMs),
     };
   } finally {
-    kernel.close();
     rmSync(root, { recursive: true, force: true });
   }
 }
@@ -334,7 +335,7 @@ if (stepSummary) {
         return `| ${label} | ${s.min} | ${s.median} | ${s.max} |`;
       }),
       '',
-      'Each sample uses a fresh initialized SQLite authority with one GitHub-status obligation.',
+      'Each sample uses a fresh initialized Git authority with one GitHub-status obligation.',
       'The benchmark measures successful steady-state execution, not recovery or large-history projection scaling.',
       '',
     ].join('\n'),

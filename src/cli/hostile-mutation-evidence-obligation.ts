@@ -6,7 +6,7 @@ import {
   settleSystemEvidence,
 } from '../evidence/system-evidence-lifecycle.ts';
 import { observeGitHubHostileMutationEvidence } from '../providers/github/hostile-mutation-evidence.ts';
-import { GitOvercenterKernel } from '../storage/git-kernel.ts';
+import { OvercenterKernel } from '../authority/kernel.ts';
 import { requiredEnv } from './project-command-runtime.ts';
 
 const mode = process.argv[2];
@@ -43,7 +43,7 @@ const definition = {
     }),
 };
 
-const kernel = new GitOvercenterKernel(repo, {
+const kernel = new OvercenterKernel(repo, {
   ref: authorityRef,
   remote,
   githubToken: token,

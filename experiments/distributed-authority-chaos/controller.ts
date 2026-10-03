@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
+import { OvercenterKernel } from '../../src/authority/kernel.ts';
 import type { ExecutionPermit, Work } from '../../src/model.ts';
 
 const CONTROLLERS = 8;
@@ -50,8 +50,8 @@ function readJson(repo: string, commit: string, path: string): Record<string, un
   }
 }
 
-function kernel(repo: string, ref: string, remote: Remote): GitOvercenterKernel {
-  return new GitOvercenterKernel(repo, { ref, remote });
+function kernel(repo: string, ref: string, remote: Remote): OvercenterKernel {
+  return new OvercenterKernel(repo, { ref, remote });
 }
 
 function ensureFixture(): void {
@@ -91,7 +91,7 @@ function setup(repo: string, ref: string, remote: Remote, tasks: number): void {
   console.log(JSON.stringify({ kind: 'chaos-setup', tasks, revision }));
 }
 
-function reserve(authority: GitOvercenterKernel, permit: ExecutionPermit): void {
+function reserve(authority: OvercenterKernel, permit: ExecutionPermit): void {
   for (let attempt = 0; attempt < 12; attempt += 1) {
     try {
       authority.beginEffect(permit);
@@ -107,7 +107,7 @@ function reserve(authority: GitOvercenterKernel, permit: ExecutionPermit): void 
 }
 
 function resolveDone(
-  authority: GitOvercenterKernel,
+  authority: OvercenterKernel,
   permit: ExecutionPermit,
   diagnostic: Record<string, unknown>,
 ): void {
@@ -117,7 +117,7 @@ function resolveDone(
 }
 
 function recoverActive(
-  authority: GitOvercenterKernel,
+  authority: OvercenterKernel,
   work: Work,
   injectCrashes: boolean,
 ): { crashed: CrashStage; generation?: number } {
@@ -157,7 +157,7 @@ function recoverActive(
 }
 
 function claimReady(
-  authority: GitOvercenterKernel,
+  authority: OvercenterKernel,
   work: Work,
   injectCrashes: boolean,
 ): { crashed: CrashStage; generation?: number } {
@@ -301,7 +301,7 @@ function sweep(
   throw new Error(`CHAOS_SWEEP_BOUND_EXCEEDED:${maxTransitions}`);
 }
 
-function finalReceipt(authority: GitOvercenterKernel, id: string) {
+function finalReceipt(authority: OvercenterKernel, id: string) {
   const receipt = authority
     .receipts()
     .filter((candidate) => candidate.obligation_id === id)

@@ -1,11 +1,9 @@
 import { validateClaimFact, validateSourceRevisionBindingFact } from '../authority/facts.ts';
 import { replayProjection } from '../authority/replay.ts';
-import { GitFactStore } from './git-store.ts';
+import { SqliteFactStore } from './sqlite.ts';
 
 const FACT_PATHS = [
   'graph-patch.json',
-  'claim.json',
-  'source-revision.json',
   'execution-authority.json',
   'effect-reservation.json',
   'effect-release.json',
@@ -29,63 +27,65 @@ export function recoverInvalidDoneClaimTail(
     remote?: string | null;
   },
 ): AuthorityTailRecoveryResult {
-  const store = new GitFactStore(repo, { ref, remote });
-  const head = store.head();
-  if (!head) throw new Error('AUTHORITY_RECOVERY_MISSING');
-
+  const store = new SqliteFactStore(repo, { ref, remote });
   try {
-    replayProjection(store.history(head));
-    return { state: 'UNCHANGED', authority_head: head };
-  } catch (error: unknown) {
-    if (!(error instanceof Error) || error.message !== 'CLAIM_WHILE_NOT_READY') throw error;
-  }
+    const head = store.head();
+    if (!head) throw new Error('AUTHORITY_RECOVERY_MISSING');
 
-  const parent = store.parent(head);
-  if (!parent) throw new Error('AUTHORITY_RECOVERY_PARENT_MISSING');
-
-  const parentProjection = replayProjection(store.history(parent));
-  const claimValue = store.readJson(head, 'claim.json');
-  if (claimValue === null) throw new Error('AUTHORITY_RECOVERY_TAIL_NOT_CLAIM');
-
-  for (const path of FACT_PATHS) {
-    if (
-      path !== 'claim.json' &&
-      path !== 'source-revision.json' &&
-      store.readJson(head, path) !== null
-    ) {
-      throw new Error(`AUTHORITY_RECOVERY_TAIL_HAS_EFFECT:${path}`);
+    const history = store.history(head);
+    try {
+      replayProjection(history);
+      return { state: 'UNCHANGED', authority_head: head };
+    } catch (error: unknown) {
+      if (!(error instanceof Error) || error.message !== 'CLAIM_WHILE_NOT_READY') throw error;
     }
-  }
 
-  const claim = validateClaimFact(claimValue);
-  const sourceRevisionValue = store.readJson(head, 'source-revision.json');
-  if (sourceRevisionValue !== null) {
-    const sourceRevision = validateSourceRevisionBindingFact(sourceRevisionValue);
-    if (
-      sourceRevision.run_id !== claim.run_id ||
-      sourceRevision.obligation_id !== claim.obligation_id
-    ) {
-      throw new Error('AUTHORITY_RECOVERY_SOURCE_REVISION_MISMATCH');
+    const tail = history.at(-1);
+    if (!tail || tail.commit !== head) throw new Error('AUTHORITY_RECOVERY_TAIL_MISSING');
+    const parent = tail.parent;
+    if (!parent) throw new Error('AUTHORITY_RECOVERY_PARENT_MISSING');
+
+    const parentProjection = replayProjection(history.slice(0, -1));
+    const claimValue = tail.claim;
+    if (claimValue == null) throw new Error('AUTHORITY_RECOVERY_TAIL_NOT_CLAIM');
+
+    for (const path of FACT_PATHS) {
+      const key = path.replace('.json', '').replaceAll('-', '_') as keyof typeof tail;
+      if (tail[key] != null) throw new Error(`AUTHORITY_RECOVERY_TAIL_HAS_EFFECT:${path}`);
     }
-  }
-  if (claim.claimed_revision !== parent) {
-    throw new Error('AUTHORITY_RECOVERY_CLAIM_PARENT_MISMATCH');
-  }
 
-  const work = parentProjection.project.work.find(
-    (candidate) => candidate.id === claim.obligation_id,
-  );
-  if (!work) throw new Error('AUTHORITY_RECOVERY_OBLIGATION_MISSING');
-  if (work.status !== 'DONE') {
-    throw new Error(`AUTHORITY_RECOVERY_OBLIGATION_NOT_DONE:${work.status}`);
+    const claim = validateClaimFact(claimValue);
+    const sourceRevisionValue = tail.source_revision;
+    if (sourceRevisionValue != null) {
+      const sourceRevision = validateSourceRevisionBindingFact(sourceRevisionValue);
+      if (
+        sourceRevision.run_id !== claim.run_id ||
+        sourceRevision.obligation_id !== claim.obligation_id
+      ) {
+        throw new Error('AUTHORITY_RECOVERY_SOURCE_REVISION_MISMATCH');
+      }
+    }
+    if (claim.claimed_revision !== parent) {
+      throw new Error('AUTHORITY_RECOVERY_CLAIM_PARENT_MISMATCH');
+    }
+
+    const work = parentProjection.project.work.find(
+      (candidate) => candidate.id === claim.obligation_id,
+    );
+    if (!work) throw new Error('AUTHORITY_RECOVERY_OBLIGATION_MISSING');
+    if (work.status !== 'DONE') {
+      throw new Error(`AUTHORITY_RECOVERY_OBLIGATION_NOT_DONE:${work.status}`);
+    }
+
+    if (!store.journal.cas(parent, head)) throw new Error('AUTHORITY_RECOVERY_CAS_CONFLICT');
+
+    return {
+      state: 'RECOVERED',
+      authority_head: parent,
+      rejected_head: head,
+      obligation_id: claim.obligation_id,
+    };
+  } finally {
+    store.close();
   }
-
-  if (!store.cas(parent, head)) throw new Error('AUTHORITY_RECOVERY_CAS_CONFLICT');
-
-  return {
-    state: 'RECOVERED',
-    authority_head: parent,
-    rejected_head: head,
-    obligation_id: claim.obligation_id,
-  };
 }

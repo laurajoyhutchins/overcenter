@@ -4,7 +4,7 @@
 
 For one successful external effect, how much wall-clock latency belongs to Overcenter itself versus the provider?
 
-This experiment exercises the production SQLite authority path and the production GitHub commit-status effect. It measures one obligation per fresh initialized authority so historical mutable-realization readback does not contaminate the single-operation number.
+This experiment exercises the production Git authority path and the production GitHub commit-status effect. It measures one obligation per fresh initialized authority so historical mutable-realization readback does not contaminate the single-operation number.
 
 ```text
 SQLite define / READY / claim
@@ -49,7 +49,7 @@ Deterministic local measurement:
 npm run bench:production-latency
 ```
 
-This uses the production SQLite kernel and effect adapter with an in-memory fake GitHub transport. It is useful for detecting local Overcenter overhead and regressions, not for estimating network latency.
+This uses the production Git kernel and effect adapter with an in-memory fake GitHub transport. It is useful for detecting local Overcenter overhead and regressions, not for estimating network latency.
 
 The hosted workflow `.github/workflows/production-latency.yml` runs:
 
@@ -63,7 +63,7 @@ against the real GitHub API at the exact workflow source revision.
 
 The benchmark is valid when every sample:
 
-1. derives and claims one exact obligation through SQLite authority;
+1. derives and claims one exact obligation through Git authority;
 2. certifies repository identity;
 3. durably reserves before mutation;
 4. performs the declared status effect;

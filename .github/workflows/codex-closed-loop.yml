@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p authority transport
-          node --experimental-strip-types experiments/codex-closed-loop/prepare.ts             authority/overcenter.sqlite transport/assignment.json
+          node --experimental-strip-types experiments/codex-closed-loop/prepare.ts             authority/overcenter.git transport/assignment.json
       - name: Bind assignment bytes
         id: prepare
         run: |
@@ -66,7 +66,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: codex-closed-loop-authority
-          path: authority/overcenter.sqlite
+          path: authority/
           if-no-files-found: error
           retention-days: 1
 
@@ -234,7 +234,7 @@ jobs:
           test ! -L "$TARGET_PATH"
           test -z "$(git diff --summary HEAD -- "$TARGET_PATH")"
 
-          report="$(node --experimental-strip-types experiments/codex-closed-loop/settle.ts             "$RUNNER_TEMP/codex-authority/overcenter.sqlite"             "$assignment" "$candidate" "$patch" "$GITHUB_WORKSPACE")"
+          report="$(node --experimental-strip-types experiments/codex-closed-loop/settle.ts             "$RUNNER_TEMP/codex-authority/overcenter.git"             "$assignment" "$candidate" "$patch" "$GITHUB_WORKSPACE")"
           echo "$report"
           echo "patch_sha256=$patch_sha256" >> "$GITHUB_OUTPUT"
           {

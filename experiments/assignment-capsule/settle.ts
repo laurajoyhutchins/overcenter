@@ -6,7 +6,7 @@ import { validateAssignment, validateCandidate } from '../../src/execution/assig
 
 const [database, assignmentPath, candidatePath] = process.argv.slice(2);
 if (!database || !assignmentPath || !candidatePath) {
-  throw new Error('usage: settle.ts <authority.sqlite> <assignment.json> <candidate.json>');
+  throw new Error('usage: settle.ts <authority.git> <assignment.json> <candidate.json>');
 }
 
 const assignmentBytes = readFileSync(assignmentPath);
@@ -33,7 +33,7 @@ mkdirSync(root, { recursive: true });
 writeFileSync(postcondition.path, output, { flag: 'wx' });
 
 const kernel = new OvercenterKernel(database, { observationContext: { localFileRoot: root } });
-try {
+{
   const before = kernel.inspect().find((work) => work.id === assignment.work.id);
   if (!before || before.status !== 'EXECUTING') throw new Error('ASSIGNMENT_RUN_NOT_EXECUTING');
   if (before.run_id !== candidate.run_id) throw new Error('ASSIGNMENT_AUTHORITY_RUN_MISMATCH');
@@ -66,6 +66,4 @@ try {
       verified: receipt.verified,
     }),
   );
-} finally {
-  kernel.close();
 }
