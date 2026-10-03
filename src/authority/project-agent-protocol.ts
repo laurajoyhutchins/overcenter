@@ -485,9 +485,27 @@ export function advanceProjectForAgent(
       });
     }
 
+    const readyExplanation = kernel.explain(ready.id);
+    if (
+      readyExplanation.status === 'READY' &&
+      readyExplanation.reason.kind === 'claimable' &&
+      readyExplanation.reason.rejected_realization
+    ) {
+      try {
+        kernel.refreshCurrentRealization(ready.id, ready.revision);
+        continue;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message === 'STALE_REVISION' || message === 'CURRENT_REALIZATION_REFRESH_LOST') {
+          continue;
+        }
+        throw error;
+      }
+    }
+
     const dispatch = classifyJudgmentFrontier({
       work: ready,
-      explanation: kernel.explain(ready.id),
+      explanation: readyExplanation,
       unresolved_effect: ready.run_id ? kernel.hasUnresolvedEffect(ready.run_id) : false,
     });
     if (dispatch.route === 'recovery-required') {
