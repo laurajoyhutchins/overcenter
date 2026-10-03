@@ -81,3 +81,21 @@ test('snapshot materializes lifecycle and unresolved-reservation predicates inde
   assert.equal(blocked.executing('unknown'), false);
   assert.equal(blocked.unresolvedReservationsByRun.has('unknown'), false);
 });
+
+
+test('snapshot exactly preserves all lifecycle and unresolved input combinations', () => {
+  for (const executing of [false, true]) {
+    for (const unresolved of [false, true]) {
+      const source = projection({ executing, unresolved });
+      const snapshot = new EffectAdmissionSnapshot('head', source);
+      const lifecycle = source.project.lifecycles.get(run.obligation_id);
+      const canonicalExecuting =
+        lifecycle?.run?.id === run.id && lifecycle.status === 'EXECUTING';
+      const canonicalUnresolved = source.history.unresolvedReservationsByRun.has(run.id);
+
+      assert.equal(snapshot.run(run.id), source.history.runs.get(run.id));
+      assert.equal(snapshot.executing(run.id), canonicalExecuting);
+      assert.equal(snapshot.unresolvedReservationsByRun.has(run.id), canonicalUnresolved);
+    }
+  }
+});
