@@ -197,6 +197,43 @@ class KernelCore {
   }
 }`;
 
+const soundSnapshotEngine = `
+class KernelCore {
+  #effectAdmissionSnapshotCache:any;
+  #effectAdmissionSnapshot(head:any) {
+    const cached=this.#effectAdmissionSnapshotCache;
+    if (cached?.head === head) return cached;
+    const snapshot=buildEffectAdmissionSnapshot(head, projection);
+    this.#effectAdmissionSnapshotCache=snapshot;
+    return snapshot;
+  }
+  beginEffect(permit:any) {
+    const head=currentHead();
+    const admission=this.#effectAdmissionSnapshot(head).decide(permit,digest);
+    if (!admission.admitted) throw new Error(admission.error);
+  }
+  async performEffect(permit:any,effect:any) {
+    this.beginEffect(permit);
+    return await effect();
+  }
+}`;
+
+const soundAdmissionSnapshot = `
+function decide(permit:any, capability:any) {
+  const indexed=byRun.get(permit.id);
+  if (!indexed) return {admitted:false,error:'UNKNOWN_RUN'};
+  if (!executionPermits(indexed.run,permit,capability)) {
+    return {admitted:false,error:'STALE_EXECUTION_GENERATION'};
+  }
+  const lifecycle=project.lifecycles.get(indexed.run.obligation_id);
+  if (lifecycle.status === 'EXECUTING') markExecuting();
+  if (!executing(indexed)) return {admitted:false,error:'RUN_NOT_EXECUTING'};
+  if (history.unresolvedReservationsByRun.has(indexed.run.id)) {
+    return {admitted:false,error:'UNRESOLVED_EFFECT'};
+  }
+  return {admitted:true};
+}`;
+
 const safeStatus = `
 async function status(kernel:any,permit:any,post:any) {
   return kernel.performEffect(permit,async()=>await post(token,path,body));
@@ -277,6 +314,39 @@ class KernelCore {
     },
     expected: 'PRODUCTION_EFFECT_WRAPPER_INVALID' as IssueCode,
   },
+  {
+    name: 'snapshot fence cannot omit exact permit authority',
+    input: {
+      engine: soundSnapshotEngine,
+      admissionSnapshot: soundAdmissionSnapshot.replace('executionPermits', 'acceptsPermit'),
+      githubStatus: safeStatus,
+      githubPullRequest: safePullRequest,
+    },
+    expected: 'PRODUCTION_EFFECT_WRAPPER_INVALID' as IssueCode,
+  },
+  {
+    name: 'snapshot fence cannot omit unresolved effect exclusion',
+    input: {
+      engine: soundSnapshotEngine,
+      admissionSnapshot: soundAdmissionSnapshot.replace(
+        'history.unresolvedReservationsByRun.has',
+        'history.reservationsByRun.has',
+      ),
+      githubStatus: safeStatus,
+      githubPullRequest: safePullRequest,
+    },
+    expected: 'PRODUCTION_EFFECT_WRAPPER_INVALID' as IssueCode,
+  },
+  {
+    name: 'snapshot cache must be fenced by exact authority head',
+    input: {
+      engine: soundSnapshotEngine.replace('cached?.head === head', 'cached'),
+      admissionSnapshot: soundAdmissionSnapshot,
+      githubStatus: safeStatus,
+      githubPullRequest: safePullRequest,
+    },
+    expected: 'PRODUCTION_EFFECT_WRAPPER_INVALID' as IssueCode,
+  },
 ];
 
 const started = performance.now();
@@ -306,6 +376,7 @@ for (const mutant of productionMutants) {
 
 const productionIssues = analyzeProductionBoundary({
   engine: readFileSync('src/authority/engine.ts', 'utf8'),
+  admissionSnapshot: readFileSync('src/authority/effect-admission-snapshot.ts', 'utf8'),
   githubStatus: readFileSync('src/providers/github/status-effect.ts', 'utf8'),
   githubPullRequest: readFileSync('src/providers/github/pr-update-branch-effect.ts', 'utf8'),
 });
