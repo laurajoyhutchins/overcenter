@@ -445,27 +445,7 @@ function isDirectCallStatement(statement: Statement, name: string): boolean {
   );
 }
 
-function snapshotFenceIsSound(engine: string, admissionSnapshot: string): boolean {
-  const engineFence = [
-    '#effectAdmissionSnapshot(head).decide',
-    'admission.error',
-    'cached?.head === head',
-    'buildEffectAdmissionSnapshot(head',
-  ].every((token) => engine.includes(token));
-  if (!engineFence) return false;
-
-  return [
-    'executionPermits',
-    "lifecycle.status === 'EXECUTING'",
-    'unresolvedReservationsByRun.has',
-    "'UNKNOWN_RUN'",
-    "'STALE_EXECUTION_GENERATION'",
-    "'RUN_NOT_EXECUTING'",
-    "'UNRESOLVED_EFFECT'",
-  ].every((token) => admissionSnapshot.includes(token));
-}
-
-function wrapperIsSound(engine: string, admissionSnapshot?: string): boolean {
+function wrapperIsSound(engine: string): boolean {
   return withSource('engine.ts', engine, (source) => {
     const perform = methodNamed(source, 'performEffect');
     const begin = methodNamed(source, 'beginEffect');
@@ -479,14 +459,13 @@ function wrapperIsSound(engine: string, admissionSnapshot?: string): boolean {
     if (beginIndex < 0 || effectIndex < 0 || beginIndex >= effectIndex) return false;
 
     const text = begin.body.getText(source);
-    const legacyFence = [
+    return [
       'projectExecutionAuthority',
       'current_authority',
       'exact_revision',
       'mutationAdmitted',
       'unresolvedReservationsByRun',
     ].every((token) => text.includes(token));
-    return legacyFence || (!!admissionSnapshot && snapshotFenceIsSound(engine, admissionSnapshot));
   });
 }
 
@@ -540,10 +519,9 @@ export function analyzeProductionBoundary(input: {
   engine: string;
   githubStatus: string;
   githubPullRequest: string;
-  admissionSnapshot?: string;
 }): FlowIssue[] {
   const issues: FlowIssue[] = [];
-  if (!wrapperIsSound(input.engine, input.admissionSnapshot)) {
+  if (!wrapperIsSound(input.engine)) {
     issues.push({
       code: 'PRODUCTION_EFFECT_WRAPPER_INVALID',
       line: 1,

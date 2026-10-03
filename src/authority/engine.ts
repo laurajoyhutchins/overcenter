@@ -52,7 +52,11 @@ import {
 import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
 import { advanceProjection, projectReceipt, replayProjection } from './replay.ts';
 import type { Projection } from './replay.ts';
-import { executionPermits } from './transaction-admission.ts';
+import {
+  executionPermits,
+  mutationAdmitted,
+  projectExecutionAuthority,
+} from './transaction-admission.ts';
 import {
   buildEffectAdmissionSnapshot,
   type EffectAdmissionSnapshot,
@@ -354,12 +358,26 @@ export class KernelCore {
   beginEffect(permit: ExecutionPermit): string {
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();
-      const admission = this.#effectAdmissionSnapshot(head).decide(
+      const snapshot = this.#effectAdmissionSnapshot(head);
+      const run = snapshot.run(permit.id);
+      if (!run) throw new Error('UNKNOWN_RUN');
+      const authority = projectExecutionAuthority(
+        run,
         permit,
         this.#capabilityDigest(permit.execution_capability),
       );
-      if (!admission.admitted) throw new Error(admission.error);
-      const run = admission.run;
+      if (!authority.current_authority || !authority.exact_revision) {
+        throw new Error('STALE_EXECUTION_GENERATION');
+      }
+      if (!snapshot.executing(run.id)) throw new Error('RUN_NOT_EXECUTING');
+      if (
+        !mutationAdmitted({
+          ...authority,
+          unresolved_effect: snapshot.unresolvedReservationsByRun.has(run.id),
+        })
+      ) {
+        throw new Error('UNRESOLVED_EFFECT');
+      }
 
       const fact: EffectReservationFact = {
         schema: EFFECT_RESERVATION_SCHEMA,

@@ -4,7 +4,6 @@ import test from 'node:test';
 import { EffectAdmissionSnapshot } from '../src/authority/effect-admission-snapshot.ts';
 import type { HistoricalRun } from '../src/authority/facts.ts';
 import type { Projection } from '../src/authority/replay.ts';
-import type { ExecutionPermit } from '../src/model.ts';
 
 const run: HistoricalRun = {
   id: 'run',
@@ -23,8 +22,6 @@ const run: HistoricalRun = {
     postcondition: { verifier: 'source-integration/v1' },
   },
 };
-
-const permit: ExecutionPermit = { ...run, execution_capability: 'secret' };
 
 function projection({ executing = true, unresolved = false } = {}): Projection {
   return {
@@ -66,40 +63,21 @@ function projection({ executing = true, unresolved = false } = {}): Projection {
   };
 }
 
-test('exact-head admission snapshot partially evaluates the production rule', () => {
+test('exact-head admission snapshot materializes only production input data', () => {
   const snapshot = new EffectAdmissionSnapshot('head', projection());
   assert.equal(snapshot.head, 'head');
   assert.equal(snapshot.runCount, 1);
-  assert.deepEqual(snapshot.decide(permit, 'capability'), { admitted: true, run });
+  assert.equal(snapshot.run(run.id), run);
+  assert.equal(snapshot.executing(run.id), true);
+  assert.equal(snapshot.unresolvedReservationsByRun.has(run.id), false);
 });
 
-test('snapshot preserves fail-closed denial precedence', () => {
-  assert.deepEqual(
-    new EffectAdmissionSnapshot('head', projection()).decide(
-      { ...permit, claim_commit: 'stale' },
-      'capability',
-    ),
-    { admitted: false, error: 'STALE_EXECUTION_GENERATION' },
-  );
-  assert.deepEqual(
-    new EffectAdmissionSnapshot('head', projection({ executing: false })).decide(
-      permit,
-      'capability',
-    ),
-    { admitted: false, error: 'RUN_NOT_EXECUTING' },
-  );
-  assert.deepEqual(
-    new EffectAdmissionSnapshot('head', projection({ unresolved: true })).decide(
-      permit,
-      'capability',
-    ),
-    { admitted: false, error: 'UNRESOLVED_EFFECT' },
-  );
-  assert.deepEqual(
-    new EffectAdmissionSnapshot('head', projection()).decide(
-      { ...permit, id: 'unknown' },
-      'capability',
-    ),
-    { admitted: false, error: 'UNKNOWN_RUN' },
-  );
+test('snapshot materializes lifecycle and unresolved-reservation predicates independently', () => {
+  const blocked = new EffectAdmissionSnapshot('head', projection({ executing: false, unresolved: true }));
+  assert.equal(blocked.run(run.id), run);
+  assert.equal(blocked.executing(run.id), false);
+  assert.equal(blocked.unresolvedReservationsByRun.has(run.id), true);
+  assert.equal(blocked.run('unknown'), undefined);
+  assert.equal(blocked.executing('unknown'), false);
+  assert.equal(blocked.unresolvedReservationsByRun.has('unknown'), false);
 });

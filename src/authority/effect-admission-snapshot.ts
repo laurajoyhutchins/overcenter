@@ -1,17 +1,5 @@
-import type { ExecutionPermit } from '../model.ts';
 import type { HistoricalRun } from './facts.ts';
 import type { Projection } from './replay.ts';
-import { executionPermits } from './transaction-admission.ts';
-
-export type EffectAdmissionSnapshotError =
-  | 'UNKNOWN_RUN'
-  | 'STALE_EXECUTION_GENERATION'
-  | 'RUN_NOT_EXECUTING'
-  | 'UNRESOLVED_EFFECT';
-
-export type EffectAdmissionSnapshotDecision =
-  | { readonly admitted: true; readonly run: HistoricalRun }
-  | { readonly admitted: false; readonly error: EffectAdmissionSnapshotError };
 
 interface IndexedRun {
   readonly index: number;
@@ -33,16 +21,16 @@ function hasBit(bits: Uint32Array, index: number): boolean {
 }
 
 /**
- * Reconstructible exact-head acceleration for effect admission.
+ * Reconstructible exact-head data acceleration for effect admission.
  *
- * The durable fact history remains authoritative. This snapshot is valid only
- * for `head`; callers must rebuild it whenever the authority head changes.
- * Dense bitsets hold the two mutable predicates in the admission rule while
- * exact permit/authority identity stays in the canonical HistoricalRun tuple.
+ * The durable fact history and transaction-admission functions remain
+ * authoritative. This snapshot only materializes the run lookup and the two
+ * mutable predicates needed by the existing admission rule.
  */
 export class EffectAdmissionSnapshot {
   readonly head: string;
   readonly runCount: number;
+  readonly unresolvedReservationsByRun: { has(runId: string): boolean };
   readonly #byRun: ReadonlyMap<string, IndexedRun>;
   readonly #executing: Uint32Array;
   readonly #unresolved: Uint32Array;
@@ -71,21 +59,22 @@ export class EffectAdmissionSnapshot {
     }
 
     this.#byRun = byRun;
+    this.unresolvedReservationsByRun = Object.freeze({
+      has: (runId: string) => this.#test(runId, this.#unresolved),
+    });
   }
 
-  decide(permit: ExecutionPermit, capabilitySha256: string): EffectAdmissionSnapshotDecision {
-    const indexed = this.#byRun.get(permit.id);
-    if (!indexed) return { admitted: false, error: 'UNKNOWN_RUN' };
-    if (!executionPermits(indexed.run, permit, capabilitySha256)) {
-      return { admitted: false, error: 'STALE_EXECUTION_GENERATION' };
-    }
-    if (!hasBit(this.#executing, indexed.index)) {
-      return { admitted: false, error: 'RUN_NOT_EXECUTING' };
-    }
-    if (hasBit(this.#unresolved, indexed.index)) {
-      return { admitted: false, error: 'UNRESOLVED_EFFECT' };
-    }
-    return { admitted: true, run: indexed.run };
+  run(runId: string): HistoricalRun | undefined {
+    return this.#byRun.get(runId)?.run;
+  }
+
+  executing(runId: string): boolean {
+    return this.#test(runId, this.#executing);
+  }
+
+  #test(runId: string, bits: Uint32Array): boolean {
+    const indexed = this.#byRun.get(runId);
+    return indexed ? hasBit(bits, indexed.index) : false;
   }
 }
 
