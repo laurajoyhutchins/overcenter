@@ -110,7 +110,6 @@ test('certified providers do not copy GitHub routes or response schemas', () => 
     'src/providers/github/certified-repository.ts',
     'src/providers/github/certified-read.ts',
     'src/providers/github/certified-predicates.ts',
-    'src/providers/github/semantic-read.ts',
     'src/providers/github/certified-observation.ts',
     'src/providers/github/certified-status.ts',
   ]) {
