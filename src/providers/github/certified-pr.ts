@@ -6,7 +6,7 @@ import {
 import {
   observeCertifiedGitHubSemanticRead,
   type CertifiedGitHubSemanticReadEvidence,
-} from './semantic-read.ts';
+} from './certified-read.ts';
 import type { GitHubJsonGet } from './rest.ts';
 
 export type { GitHubPullRequestExpectedIdentity } from './certified-predicates.ts';
