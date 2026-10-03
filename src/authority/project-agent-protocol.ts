@@ -457,8 +457,7 @@ export function advanceProjectForAgent(
     }
 
     const doneToRefresh = projected.find(
-      (candidate) =>
-        candidate.status === 'DONE' && !refreshedRealizations.has(candidate.id),
+      (candidate) => candidate.status === 'DONE' && !refreshedRealizations.has(candidate.id),
     );
     if (doneToRefresh) {
       refreshedRealizations.add(doneToRefresh.id);
