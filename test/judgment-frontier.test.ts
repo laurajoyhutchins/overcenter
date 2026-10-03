@@ -91,7 +91,7 @@ test('derivable hostile-evidence debt stays in deterministic software', () => {
     'work.status=READY',
     'packet.kind=source-change',
     'packet.context.finding_kind=hostile-evidence-stale',
-    'packet.writable_paths includes experiments/production-criticality-ranking/mutation-evidence.json',
+    'packet.write_scope allows experiments/production-criticality-ranking/mutation-evidence.json',
     'packet.context.evidence.stale_sources=exact-nonempty-current-false',
     `packet.effect_contract=${GITHUB_SOURCE_INTEGRATION_EFFECT}`,
     `packet.acceptance.finding_id=${work.id}`,

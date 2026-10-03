@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  authorizedSourceWriteScope,
   bindSourceClaim,
   SOURCE_CANDIDATE_SCHEMA,
   SOURCE_PROPOSAL_SCHEMA,
   SOURCE_TASK_SCHEMA,
+  sourceWriteScopeAllowsPath,
   validateSourceCandidate,
   validateSourceProposal,
   validateSourceTaskPacket,
@@ -32,6 +34,56 @@ test('source task canonicalizes writable path ordering without defining a shadow
   };
 
   assert.deepEqual(validateSourceTaskPacket(packet), validateSourceTaskPacket(reordered));
+});
+
+test('bounded source scope canonicalizes roots, denies, and budgets', () => {
+  const bounded = validateSourceTaskPacket({
+    schema: SOURCE_TASK_SCHEMA,
+    kind: 'source-change',
+    objective: 'Change an unknown bounded subset.',
+    write_scope: {
+      allowed_roots: ['test', 'src'],
+      allowed_paths: ['README.md'],
+      denied_roots: ['src/generated'],
+      denied_paths: ['test/locked.ts'],
+      max_changed_files: 4,
+      max_changed_bytes: 1024,
+    },
+  });
+  const scope = authorizedSourceWriteScope(bounded);
+  assert.deepEqual(scope.allowed_roots, ['src', 'test']);
+  assert.equal(sourceWriteScopeAllowsPath(scope, 'src/new.ts'), true);
+  assert.equal(sourceWriteScopeAllowsPath(scope, 'src/generated/new.ts'), false);
+  assert.equal(sourceWriteScopeAllowsPath(scope, 'test/locked.ts'), false);
+  assert.equal(sourceWriteScopeAllowsPath(scope, '.github/workflows/evil.yml'), false);
+  assert.equal(sourceWriteScopeAllowsPath(scope, 'src/new.ts', ['src']), false);
+});
+
+test('source task requires exactly one exact or bounded write scope', () => {
+  assert.throws(
+    () =>
+      validateSourceTaskPacket({
+        ...packet,
+        write_scope: {
+          allowed_roots: ['src'],
+          allowed_paths: [],
+          denied_roots: [],
+          denied_paths: [],
+          max_changed_files: 1,
+          max_changed_bytes: 1,
+        },
+      }),
+    /SOURCE_TASK_SCOPE_INVALID/,
+  );
+  assert.throws(
+    () =>
+      validateSourceTaskPacket({
+        schema: SOURCE_TASK_SCHEMA,
+        kind: 'source-change',
+        objective: 'No scope',
+      }),
+    /SOURCE_TASK_SCOPE_INVALID/,
+  );
 });
 
 test('source task rejects duplicate and unsafe repository paths', () => {

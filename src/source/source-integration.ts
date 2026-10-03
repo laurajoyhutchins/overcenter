@@ -4,15 +4,22 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
-import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
+import {
+  assertSupportedSourceDelta,
+  observeRepositoryDelta,
+  repositoryDeltaChangedBytes,
+} from './repository-delta.ts';
 import {
   SOURCE_CANDIDATE_SCHEMA,
+  authorizedSourceWriteScope,
+  sourceWriteScopeAllowsPath,
   validateSourceCandidate,
   validateSourceTaskPacket,
   type SourceCandidate,
   type SourceClaimBinding,
   type SourceTaskPacket,
 } from './source-obligation.ts';
+import { readSourceVerificationProfile } from './source-verification-profile.ts';
 
 export const SOURCE_VERIFICATION_SCHEMA = 'overcenter-source-verification/v1' as const;
 export const SOURCE_INTEGRATION_EVIDENCE_SCHEMA =
@@ -251,8 +258,23 @@ export function inspectSourceCandidate(
   if (changedPaths.some(sourceControlPath)) {
     throw new Error('SOURCE_CONTROL_PLANE_MUTATION_FORBIDDEN');
   }
-  if (changedPaths.some((path) => !task.writable_paths.includes(path))) {
+  const scope = authorizedSourceWriteScope(task);
+  const profile = readSourceVerificationProfile(repo, claim.source_sha);
+  if (
+    changedPaths.some(
+      (path) => !sourceWriteScopeAllowsPath(scope, path, profile.profile.protected_paths),
+    )
+  ) {
     throw new Error('SOURCE_SCOPE_VIOLATION');
+  }
+  if (changedPaths.length > scope.max_changed_files) {
+    throw new Error('SOURCE_CHANGE_BUDGET_FILES_EXCEEDED');
+  }
+  if (
+    scope.max_changed_bytes !== null &&
+    repositoryDeltaChangedBytes(repo, delta) > scope.max_changed_bytes
+  ) {
+    throw new Error('SOURCE_CHANGE_BUDGET_BYTES_EXCEEDED');
   }
 
   return { task, candidate, changed_paths: changedPaths };

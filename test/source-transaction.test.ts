@@ -29,7 +29,7 @@ const profile = {
 function plan(): SourceTransactionPlan {
   return {
     schema: 'overcenter-source-transaction',
-    schema_version: 2,
+    schema_version: 3,
     repository_id: 42,
     repository_full_name: 'acme/widget',
     runtime_sha: 'a'.repeat(40),
@@ -42,7 +42,14 @@ function plan(): SourceTransactionPlan {
     candidate_sha: 'c'.repeat(40),
     candidate_tree: 'd'.repeat(40),
     verification_profile: { profile, sha256: sourceVerificationProfileBinding(profile).sha256 },
-    authorized_write_set: ['value.ts', 'extra.ts'],
+    authorized_write_scope: {
+      allowed_roots: [],
+      allowed_paths: ['value.ts', 'extra.ts'],
+      denied_roots: [],
+      denied_paths: [],
+      max_changed_files: 2,
+      max_changed_bytes: null,
+    },
     expected_write_set: ['value.ts'],
     observed_write_set: ['value.ts'],
     assurance: {
@@ -176,17 +183,15 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
   assert.equal(first.verification_profile.profile.id, 'fixture');
   assert.match(first.verification_profile.sha256, /^[0-9a-f]{64}$/);
   validateSourceTransactionTask(first, task);
-  assert.throws(
-    () =>
-      buildSourceTransactionPlan({
-        repo,
-        taskValue: { ...task, writable_paths: ['value.ts', 'extra.ts'] },
-        claim,
-        candidateSha: candidate,
-        context,
-      }),
-    /SOURCE_TRANSACTION_DIVERGED/,
-  );
+  const wider = buildSourceTransactionPlan({
+    repo,
+    taskValue: { ...task, writable_paths: ['value.ts', 'extra.ts'] },
+    claim,
+    candidateSha: candidate,
+    context,
+  });
+  assert.deepEqual(wider.expected_write_set, ['value.ts']);
+  assert.deepEqual(wider.authorized_write_scope.allowed_paths, ['extra.ts', 'value.ts']);
   const alternateRuntime = buildSourceTransactionPlan({
     repo,
     taskValue: task,

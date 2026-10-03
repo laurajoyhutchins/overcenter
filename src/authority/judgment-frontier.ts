@@ -6,7 +6,11 @@ import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import { HOSTILE_MUTATION_EVIDENCE_PATH } from '../evidence/hostile-mutation-obligation.ts';
 import { isSystemEvidenceWork } from '../evidence/system-evidence.ts';
 import type { Work } from '../model.ts';
-import { validateSourceTaskPacket } from '../source/source-obligation.ts';
+import {
+  authorizedSourceWriteScope,
+  sourceWriteScopeAllowsPath,
+  validateSourceTaskPacket,
+} from '../source/source-obligation.ts';
 import { isData } from '../validation.ts';
 import type { ProjectExplanation } from './project-state.ts';
 
@@ -93,7 +97,7 @@ function isDerivableHostileEvidenceDebt(work: Work): boolean {
     task.context.finding_kind === 'hostile-evidence-stale' &&
     task.acceptance?.verifier === 'tcb-finding-absent/v1' &&
     task.acceptance.finding_id === work.id &&
-    task.writable_paths.includes(HOSTILE_MUTATION_EVIDENCE_PATH) &&
+    sourceWriteScopeAllowsPath(authorizedSourceWriteScope(task), HOSTILE_MUTATION_EVIDENCE_PATH) &&
     exactStaleSources
   );
 }
@@ -208,7 +212,7 @@ export function classifyJudgmentFrontier({
         'work.status=READY',
         'packet.kind=source-change',
         'packet.context.finding_kind=hostile-evidence-stale',
-        `packet.writable_paths includes ${HOSTILE_MUTATION_EVIDENCE_PATH}`,
+        `packet.write_scope allows ${HOSTILE_MUTATION_EVIDENCE_PATH}`,
         'packet.context.evidence.stale_sources=exact-nonempty-current-false',
         `packet.effect_contract=${task.effect_contract}`,
         `packet.acceptance.finding_id=${task.acceptance?.finding_id ?? 'missing'}`,
