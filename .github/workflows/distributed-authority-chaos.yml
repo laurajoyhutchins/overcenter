@@ -1,18 +1,28 @@
 name: Distributed authority chaos
 
 on:
-  pull_request:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact source revision to verify
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact source revision to verify; defaults to the dispatched revision
+        required: false
+        type: string
 
 concurrency:
-  group: distributed-authority-chaos-${{ github.event.pull_request.number || github.run_id }}
+  group: distributed-authority-chaos-${{ inputs.source_sha || github.sha }}
   cancel-in-progress: true
 
 permissions:
   contents: write
 
 env:
-  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
   AUTHORITY_REF: refs/heads/overcenter-chaos-${{ github.run_id }}-${{ github.run_attempt }}
   CHAOS_TASKS: '48'
 
@@ -20,8 +30,6 @@ jobs:
   setup:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
-    outputs:
-      required: ${{ contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-chaos-proof') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -33,24 +41,14 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: '.node-version'
-      - id: impact
-        name: Plan assurance evidence
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
-          HEAD_SHA: ${{ env.SOURCE_SHA }}
-        run: node --experimental-strip-types scripts/plan-assurance-evidence.ts "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
-      - if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-chaos-proof')
-        run: npm install --ignore-scripts --package-lock=false
+      - run: npm install --ignore-scripts --package-lock=false
       - name: Run deterministic contract
-        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-chaos-proof')
         run: npm run test:distributed-authority-chaos
       - name: Initialize hosted chaos authority
-        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-chaos-proof')
         run: node --experimental-strip-types experiments/distributed-authority-chaos/controller.ts setup "$AUTHORITY_REF" "$CHAOS_TASKS"
 
   wave-one:
     needs: setup
-    if: needs.setup.outputs.required == 'true'
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -145,7 +143,7 @@ jobs:
         run: node --experimental-strip-types experiments/distributed-authority-chaos/controller.ts verify "$AUTHORITY_REF" "$CHAOS_TASKS"
 
   cleanup:
-    if: ${{ always() && needs.setup.outputs.required == 'true' }}
+    if: ${{ always() }}
     needs: [setup, wave-one, wave-two, wave-three, sweep, verify]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
