@@ -1,3 +1,4 @@
+// Hosted-only proof harness. Production source remains unchanged.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
