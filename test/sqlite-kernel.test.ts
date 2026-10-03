@@ -533,6 +533,32 @@ test('SQLite kernel rejects every inexact execution permit identity', () => {
   }
 });
 
+test('SQLite admission snapshot follows external authority heads', () => {
+  const root = mkdtempSync(join(tmpdir(), 'sqlite-admission-snapshot-external-head-'));
+  const database = join(root, 'overcenter.sqlite');
+  const first = new OvercenterKernel(database);
+  const second = new OvercenterKernel(database);
+
+  try {
+    first.initialize();
+    first.define({ id: 'a', postcondition: pc(join(root, 'a'), 'A') });
+    const run = first.claim('a', first.deriveReadyWork()!.revision);
+
+    assert.throws(
+      () => first.beginEffect({ ...run, execution_capability: 'wrong' }),
+      /STALE_EXECUTION_GENERATION/,
+    );
+
+    const advanced = second.acquireExecution(run.id);
+    assert.throws(() => first.beginEffect(run), /STALE_EXECUTION_GENERATION/);
+    assert.doesNotThrow(() => first.beginEffect(advanced));
+  } finally {
+    first.close();
+    second.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('SQLite kernel rejects a claim fenced to a stale authority revision', () => {
   const root = mkdtempSync(join(tmpdir(), 'sqlite-stale-revision-'));
   const database = join(root, 'overcenter.sqlite');
