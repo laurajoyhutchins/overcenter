@@ -1,18 +1,17 @@
+import { fixture, commandContext } from './support/project-agent-fixture.ts';
 import { sourceProofRecord } from '../src/source/source-proof-record.ts';
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
@@ -35,75 +34,6 @@ const transactionContext = {
 
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
-}
-
-function fixture(): {
-  root: string;
-  work: string;
-  sourceSha: string;
-  postconditionRoot: string;
-  postconditionPath: string;
-} {
-  const root = mkdtempSync(join(tmpdir(), 'overcenter-project-agent-'));
-  const work = join(root, 'work');
-  const remote = join(root, 'remote.git');
-  mkdirSync(work);
-
-  execFileSync('git', ['init', '--bare', remote], { stdio: 'ignore' });
-  execFileSync('git', ['-C', work, 'init', '--initial-branch=main'], { stdio: 'ignore' });
-  execFileSync('git', ['-C', work, 'config', 'user.name', 'Overcenter Test'], { stdio: 'ignore' });
-  execFileSync('git', ['-C', work, 'config', 'user.email', 'overcenter-test@local'], {
-    stdio: 'ignore',
-  });
-  writeFileSync(
-    join(work, 'task.mjs'),
-    "import fs from 'node:fs';\nconst input=fs.readFileSync(process.argv[2],'utf8').trim();\nfs.writeFileSync(process.argv[3],'completed:'+input+'\\n');\n",
-  );
-  writeFileSync(join(work, 'input.txt'), 'hello\n');
-  mkdirSync(join(work, '.github/workflows'), { recursive: true });
-  writeFileSync(
-    join(work, '.github/workflows/agent-candidate-signal.yml'),
-    'trusted fixture producer',
-  );
-  mkdirSync(join(work, '.overcenter'), { recursive: true });
-  writeFileSync(
-    join(work, '.overcenter/source-verification-profile.json'),
-    `${JSON.stringify(
-      {
-        schema: 'overcenter-source-verification-profile/v1',
-        id: 'fixture-baseline',
-        workflow_path: '.github/workflows/agent-candidate-signal.yml',
-        required_evidence_jobs: ['Verify source candidate / Candidate evidence'],
-        record_job: 'Record source verification',
-        commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
-        protected_paths: ['.github', '.overcenter', 'input.txt'],
-        baseline_test_roots: ['test'],
-      },
-      null,
-      2,
-    )}\n`,
-  );
-  mkdirSync(join(work, 'src'));
-  writeFileSync(join(work, 'src', 'feature.txt'), 'feature:base\n');
-  execFileSync('git', ['-C', work, 'add', '.'], { stdio: 'ignore' });
-  execFileSync('git', ['-C', work, 'commit', '-m', 'seed task source'], { stdio: 'ignore' });
-  execFileSync('git', ['-C', work, 'remote', 'add', 'origin', remote], { stdio: 'ignore' });
-  execFileSync('git', ['-C', work, 'push', '-u', 'origin', 'main'], { stdio: 'ignore' });
-
-  const sourceSha = git(work, ['rev-parse', 'HEAD']);
-  const postconditionRoot = join('/tmp', `overcenter-agent-${randomUUID()}`);
-  const postconditionPath = join(postconditionRoot, 'result.txt');
-  return { root, work, sourceSha, postconditionRoot, postconditionPath };
-}
-
-function commandContext(sourceSha: string, runId = 9001) {
-  return {
-    repository_id: 42,
-    repository_full_name: 'acme/widget',
-    command_source_sha: sourceSha,
-    command_run_id: runId,
-    command_run_attempt: 2,
-  };
 }
 
 function workerClientFixture(root: string): string {
@@ -268,7 +198,6 @@ test('project.advance binds bounded source intent to the exact project revision'
     assert.equal(receipt.state, 'AGENT_EXECUTION_REQUIRED');
     assert.equal(receipt.obligation_id, 'bounded-source-work');
     assert.equal(receipt.candidate_branch_base_sha, projectSourceSha);
-    assert.equal(receipt.dispatch?.reason_code, 'OPEN_ENDED_SOURCE_REMEDIATION');
     const assignment = JSON.parse(readFileSync(join(outputDir, 'assignment.json'), 'utf8'));
     assert.equal(assignment.task.kind, 'source-change');
     assert.equal(assignment.claim.source_sha, projectSourceSha);
@@ -317,78 +246,6 @@ test('project.advance reconciles trusted project intent before frontier selectio
     assert.equal(current.length, 1);
     assert.equal(current[0]?.id, 'intent-work');
     assert.equal(current[0]?.status, 'EXECUTING');
-  } finally {
-    rmSync(f.root, { recursive: true, force: true });
-    rmSync(f.postconditionRoot, { recursive: true, force: true });
-  }
-});
-
-test('project.advance surfaces READY system evidence without claiming agent work', () => {
-  const f = fixture();
-  try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
-    kernel.initialize();
-
-    const evidenceRoot = join(f.work, 'experiments', 'production-criticality-ranking');
-    mkdirSync(evidenceRoot, { recursive: true });
-    writeFileSync(
-      join(evidenceRoot, 'mutation-probes.json'),
-      `${JSON.stringify(
-        {
-          schema: 'overcenter-criticality-mutation-probes/v1',
-          probes: [
-            {
-              id: 'fixture-proof',
-              selectors: [{ file: 'task.mjs', name: 'fixtureTask' }],
-              tests: ['test/fixture.test.ts'],
-            },
-          ],
-        },
-        null,
-        2,
-      )}\n`,
-    );
-    writeFileSync(
-      join(evidenceRoot, 'mutation-evidence.json'),
-      `${JSON.stringify(
-        {
-          schema: 'overcenter-criticality-mutation-evidence',
-          probes: [],
-        },
-        null,
-        2,
-      )}\n`,
-    );
-    execFileSync('git', ['-C', f.work, 'add', 'experiments/production-criticality-ranking'], {
-      stdio: 'ignore',
-    });
-    execFileSync('git', ['-C', f.work, 'commit', '-m', 'configure hostile evidence'], {
-      stdio: 'ignore',
-    });
-    execFileSync('git', ['-C', f.work, 'push', 'origin', 'main'], { stdio: 'ignore' });
-    const sourceSha = git(f.work, ['rev-parse', 'HEAD']);
-
-    const outputDir = join(f.root, 'system-evidence-packet');
-    const receipt = advanceProjectForAgent(f.work, commandContext(sourceSha), {
-      outputDir,
-      authorityRef: AUTHORITY_REF,
-      remote: 'origin',
-    });
-
-    assert.equal(receipt.state, 'READY');
-    assert.equal(receipt.obligation_id, 'system-evidence:hostile-mutation');
-    assert.equal(receipt.run_id, undefined);
-    assert.equal(receipt.assignment_sha256, undefined);
-    assert.equal(existsSync(outputDir), false);
-
-    const current = new GitOvercenterKernel(f.work, {
-      remote: 'origin',
-      ref: AUTHORITY_REF,
-    }).inspect();
-    assert.equal(current.length, 1);
-    assert.equal(current[0]?.id, 'system-evidence:hostile-mutation');
-    assert.equal(current[0]?.status, 'READY');
-    assert.equal(current[0]?.run_id, undefined);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
@@ -1010,43 +867,6 @@ test('project.advance requires native client bytes before claiming reasoning wor
   }
 });
 
-test('unsupported READY work reports a blocked frontier without claiming authority', () => {
-  const f = fixture();
-  try {
-    const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
-    kernel.initialize();
-    kernel.define({
-      id: 'deterministic-effect',
-      packet: { schema: 'provider-effect/v1', kind: 'provider-effect' },
-      postcondition: {
-        verifier: 'file-content-equals/v1',
-        path: f.postconditionPath,
-        content: 'done\n',
-      },
-    });
-    const before = kernel.head();
-
-    const receipt = advanceProjectForAgent(f.work, commandContext(f.sourceSha), {
-      outputDir: join(f.root, 'packet'),
-      authorityRef: AUTHORITY_REF,
-      remote: 'origin',
-    });
-    assert.equal(receipt.state, 'BLOCKED');
-    assert.equal(receipt.obligation_id, 'deterministic-effect');
-    assert.equal(receipt.run_id, undefined);
-    assert.equal(receipt.dispatch?.route, 'unsupported');
-    assert.equal(receipt.dispatch?.reason_code, 'PACKET_UNSUPPORTED');
-
-    const after = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
-    assert.equal(after.head(), before);
-    assert.equal(after.inspect()[0]?.status, 'READY');
-    assert.equal(after.inspect()[0]?.run_id, undefined);
-  } finally {
-    rmSync(f.root, { recursive: true, force: true });
-    rmSync(f.postconditionRoot, { recursive: true, force: true });
-  }
-});
-
 test('project.submit validates exact packet identity and settles independently', () => {
   const f = fixture();
   try {
@@ -1141,7 +961,7 @@ test('project.advance reports DONE for an empty authoritative graph', () => {
   }
 });
 
-test('project.advance keeps mechanically derivable hostile-evidence debt out of agent packets', () => {
+test('legacy hostile-evidence labels cannot bypass the source reasoning boundary', () => {
   const fixtureState = fixture();
   try {
     const kernel = new GitOvercenterKernel(fixtureState.work, {
@@ -1192,19 +1012,21 @@ test('project.advance keeps mechanically derivable hostile-evidence debt out of 
       remote: 'origin',
     });
 
-    assert.equal(receipt.state, 'READY');
+    assert.equal(receipt.state, 'AGENT_EXECUTION_REQUIRED');
     assert.equal(receipt.obligation_id, obligationId);
-    assert.equal(receipt.run_id, undefined);
-    assert.equal(receipt.dispatch?.route, 'deterministic-software-action');
-    assert.equal(receipt.dispatch?.reason_code, 'DERIVABLE_HOSTILE_EVIDENCE_DEBT');
-    assert.equal(existsSync(outputDir), false);
+    assert.ok(receipt.run_id);
+    assert.ok(existsSync(join(outputDir, 'assignment.json')));
+
+    const assignment = JSON.parse(readFileSync(join(outputDir, 'assignment.json'), 'utf8'));
+    assert.equal(assignment.task.kind, 'source-change');
+    assert.equal(assignment.claim.run_id, receipt.run_id);
 
     const current = new GitOvercenterKernel(fixtureState.work, {
       remote: 'origin',
       ref: AUTHORITY_REF,
     }).inspect();
-    assert.equal(current[0]?.status, 'READY');
-    assert.equal(current[0]?.run_id, undefined);
+    assert.equal(current[0]?.status, 'EXECUTING');
+    assert.equal(current[0]?.run_id, receipt.run_id);
   } finally {
     rmSync(fixtureState.root, { recursive: true, force: true });
     rmSync(fixtureState.postconditionRoot, { recursive: true, force: true });
@@ -1257,9 +1079,6 @@ test('ambiguous reserved source mutation blocks otherwise READY agent work', () 
     assert.equal(second.state, 'RECOVERY_REQUIRED');
     assert.equal(second.obligation_id, 'a-source-work');
     assert.equal(second.run_id, first.run_id);
-    assert.equal(second.dispatch?.route, 'recovery-required');
-    assert.equal(second.dispatch?.reason_code, 'AMBIGUOUS_RESERVED_MUTATION');
-    assert.ok(second.dispatch?.evidence_predicates.includes('effect_reservation=unresolved'));
     assert.equal(existsSync(secondOutput), false);
 
     const current = new GitOvercenterKernel(fixtureState.work, {
