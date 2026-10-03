@@ -96,6 +96,26 @@ jobs:
           fi
           node --experimental-strip-types scripts/plan-assurance-evidence.ts "${args[@]}" >> "$GITHUB_OUTPUT"
 
+      - name: Verify candidate orchestration contract
+        working-directory: trusted-planner
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.coordinates.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/overcenter-assurance-candidate"
+          git worktree add --detach "$candidate" "$SOURCE_SHA"
+          trap 'git worktree remove --force "$candidate" >/dev/null 2>&1 || true' EXIT
+          (
+            cd "$candidate"
+            node --experimental-strip-types --test test/github-actions-boundary.test.ts
+            node --experimental-strip-types --input-type=module -e '
+              const { loadArchitectureDatabase } = await import("./src/architecture/sql-model.ts");
+              const db = loadArchitectureDatabase();
+              db.close();
+            '
+          )
+
       - name: Publish assurance plan
         shell: bash
         env:
