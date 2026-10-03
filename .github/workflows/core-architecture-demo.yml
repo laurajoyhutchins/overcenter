@@ -1,0 +1,48 @@
+name: Experiment · hosted core architecture proof
+
+on:
+  push:
+    branches:
+      - experiment/core-architecture-real-demo
+
+permissions: {}
+
+concurrency:
+  group: core-architecture-demo-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  demo:
+    name: Hosted source transaction
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - name: Check out exact demo runtime
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Use pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: '.node-version'
+          package-manager-cache: false
+
+      - name: Run hosted core architecture proof
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --experimental-strip-types experiments/core-architecture-demo.ts
+
+      - name: Publish exact proof report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: overcenter-core-architecture-demo-${{ github.run_id }}-${{ github.run_attempt }}
+          path: core-architecture-demo.json
+          if-no-files-found: warn
+          retention-days: 30
