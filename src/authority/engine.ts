@@ -49,7 +49,6 @@ import {
   hasInFlight,
   type ProjectExplanation,
 } from './project-state.ts';
-import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
 import {
   advanceProjection,
   currentRealizationRefreshDiagnostic,
@@ -170,7 +169,7 @@ export class KernelCore {
 
   inspect(): Work[] {
     const head = this.#requireHead();
-    return this.#currentProjection(head).project.work;
+    return this.#historicalProjection(head).project.work;
   }
 
   claimedWork(identity: string | ExecutionPermit): Work {
@@ -231,12 +230,12 @@ export class KernelCore {
 
   deriveReadyWork(): Work | null {
     const head = this.#requireHead();
-    return this.#currentProjection(head).project.readyWork;
+    return this.#historicalProjection(head).project.readyWork;
   }
 
   explain(id: string): ProjectExplanation {
     const head = this.#requireHead();
-    return explainProjectWork(this.#currentProjection(head).project, id);
+    return explainProjectWork(this.#historicalProjection(head).project, id);
   }
 
   refreshCurrentRealization(id: string, expectedRevision: string): Receipt {
@@ -253,14 +252,10 @@ export class KernelCore {
     const run = history.runs.get(lifecycle.run.id);
     if (!run) throw new Error('CURRENT_REALIZATION_REFRESH_RUN_MISSING');
     const prior = history.receiptsByRun.get(run.id);
-    if (
-      !prior ||
-      prior.disposition !== 'DONE' ||
-      prior.kind === 'source-integration' ||
-      !prior.settlement_commit
-    ) {
+    if (!prior || prior.disposition !== 'DONE' || !prior.settlement_commit) {
       throw new Error('CURRENT_REALIZATION_REFRESH_NOT_OBSERVABLE');
     }
+    if (prior.kind === 'source-integration') return prior;
     if (history.unresolvedReservationsByRun.has(run.id)) {
       throw new Error('CURRENT_REALIZATION_REFRESH_UNRESOLVED_EFFECT');
     }
@@ -293,21 +288,12 @@ export class KernelCore {
   ): ExecutionPermit {
     const head = this.#requireHead();
     if (head !== expectedRevision) throw new Error('STALE_REVISION');
-    const historical = this.#historicalProjection(head);
-    const current = this.#currentProjection(head);
-    const work = historical.state.obligations[id];
+    const { state, project } = this.#historicalProjection(head);
+    const work = state.obligations[id];
     if (!work) throw new Error(`unknown obligation: ${id}`);
-
-    const currentError = current.project.claimabilityErrors.get(id);
-    if (currentError) throw new Error(currentError);
-    const durableError = historical.project.claimabilityErrors.get(id);
-    if (durableError) {
-      if (durableError === 'NOT_READY') {
-        throw new Error('CLAIM_REQUIRES_REALIZATION_REFRESH');
-      }
-      throw new Error(durableError);
-    }
-    const key = historical.project.semanticKeys.get(id);
+    const claimError = project.claimabilityErrors.get(id);
+    if (claimError) throw new Error(claimError);
+    const key = project.semanticKeys.get(id);
     if (!key) throw new Error('SEMANTIC_DEPENDENCY_UNRESOLVED');
 
     const runId = randomUUID();
@@ -910,38 +896,6 @@ export class KernelCore {
 
     this.#projectionCache = { head, commitCount: commits.length, projection };
     return projection;
-  }
-
-  #currentProjection(head: string): Projection {
-    const historical = this.#historicalProjection(head);
-    const currentRealizationJudgments = deriveCurrentRealizationJudgments({
-      state: historical.state,
-      runs: historical.history.runs,
-      receiptsByRun: historical.history.receiptsByRun,
-      semanticKeys: historical.project.semanticKeys,
-      observe: (postcondition) => this.#observe(postcondition),
-    });
-    const project = deriveProjectProjection({
-      state: historical.state,
-      runs: historical.history.runs,
-      receiptsByRun: historical.history.receiptsByRun,
-      revision: head,
-      currentBindingOrdinals: historical.history.currentBindingOrdinals,
-      claimOrdinalsByRun: historical.history.claimOrdinalsByRun,
-      currentRealizationJudgments,
-    });
-    return {
-      ...historical,
-      project,
-    };
-  }
-
-  #observe(postcondition: Postcondition): Observation {
-    return observePostcondition(postcondition, this.observationContext);
-  }
-
-  async #observeAsync(postcondition: Postcondition): Promise<Observation> {
-    return await observePostconditionAsync(postcondition, this.observationContext);
   }
 
   #capabilityDigest(capability: string): string {
