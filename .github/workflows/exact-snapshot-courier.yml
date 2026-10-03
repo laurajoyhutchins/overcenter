@@ -15,29 +15,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 27250c746bbbdab22573ac732c7439ea71194b93
+          ref: 67086665121cb9ffd8eed94b0712fa6d1342e43c
           fetch-depth: 1
 
       - name: Verify exact source revision
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "27250c746bbbdab22573ac732c7439ea71194b93"
+          test "$(git rev-parse HEAD)" = "67086665121cb9ffd8eed94b0712fa6d1342e43c"
           git status --short
 
       - name: Package exact repository snapshot
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude=.git -czf /tmp/overcenter-27250c74.tar.gz .
-          sha256sum /tmp/overcenter-27250c74.tar.gz | sed 's#/tmp/##' > /tmp/overcenter-27250c74.tar.gz.sha256
+          tar --exclude=.git -czf /tmp/overcenter-67086665.tar.gz .
+          sha256sum /tmp/overcenter-67086665.tar.gz | sed 's#/tmp/##' > /tmp/overcenter-67086665.tar.gz.sha256
 
       - name: Upload exact repository snapshot
         uses: actions/upload-artifact@v4
         with:
-          name: overcenter-27250c74
+          name: overcenter-67086665
           path: |
-            /tmp/overcenter-27250c74.tar.gz
-            /tmp/overcenter-27250c74.tar.gz.sha256
+            /tmp/overcenter-67086665.tar.gz
+            /tmp/overcenter-67086665.tar.gz.sha256
           if-no-files-found: error
           retention-days: 1
