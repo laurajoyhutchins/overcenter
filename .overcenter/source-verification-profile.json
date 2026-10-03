@@ -16,7 +16,6 @@
     ".overcenter",
     "scripts",
     "formal",
-    "experiments",
     "rust-toolchain.toml",
     "architecture",
     "tcb-policy.json",
