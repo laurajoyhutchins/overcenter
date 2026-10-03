@@ -109,10 +109,8 @@ export interface ClaimOptions {
 
 interface EffectAdmissionCache {
   head: string;
-  byRun: ReadonlyMap<
-    string,
-    { run: HistoricalRun; executing: boolean; unresolvedEffect: boolean }
-  >;
+  byRun: ReadonlyMap<string, { run: HistoricalRun; executing: boolean }>;
+  unresolvedReservationsByRun: Projection['history']['unresolvedReservationsByRun'];
 }
 
 export class KernelCore {
@@ -360,7 +358,8 @@ export class KernelCore {
   beginEffect(permit: ExecutionPermit): string {
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();
-      const admission = this.#effectAdmissionSnapshot(head).byRun.get(permit.id);
+      const snapshot = this.#effectAdmissionSnapshot(head);
+      const admission = snapshot.byRun.get(permit.id);
       if (!admission) throw new Error('UNKNOWN_RUN');
       const run = admission.run;
       const authority = projectExecutionAuthority(
@@ -375,7 +374,7 @@ export class KernelCore {
       if (
         !mutationAdmitted({
           ...authority,
-          unresolved_effect: admission.unresolvedEffect,
+          unresolved_effect: snapshot.unresolvedReservationsByRun.has(run.id),
         })
       )
         throw new Error('UNRESOLVED_EFFECT');
@@ -862,20 +861,20 @@ export class KernelCore {
     if (cached?.head === head) return cached;
 
     const { history, project } = this.#historicalProjection(head);
-    const byRun = new Map<
-      string,
-      { run: HistoricalRun; executing: boolean; unresolvedEffect: boolean }
-    >();
+    const byRun = new Map<string, { run: HistoricalRun; executing: boolean }>();
     for (const run of history.runs.values()) {
       const lifecycle = project.lifecycles.get(run.obligation_id);
       byRun.set(run.id, {
         run,
         executing: lifecycle?.run?.id === run.id && lifecycle.status === 'EXECUTING',
-        unresolvedEffect: history.unresolvedReservationsByRun.has(run.id),
       });
     }
 
-    const snapshot = { head, byRun };
+    const snapshot = {
+      head,
+      byRun,
+      unresolvedReservationsByRun: history.unresolvedReservationsByRun,
+    };
     this.#effectAdmissionSnapshotCache = snapshot;
     return snapshot;
   }
