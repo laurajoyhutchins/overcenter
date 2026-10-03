@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { observeCertifiedGitHubRead } from '../src/providers/github/certified-read.ts';
-import { observeCertifiedGitHubSemanticRead } from '../src/providers/github/semantic-read.ts';
+import {
+  observeCertifiedGitHubRead,
+  observeCertifiedGitHubSemanticRead,
+} from '../src/providers/github/certified-read.ts';
 import { observeCertifiedGitHubRepository } from '../src/providers/github/certified-repository.ts';
 import {
   evaluateCertifiedGitHubCommitAncestry,
