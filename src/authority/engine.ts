@@ -250,7 +250,8 @@ export class KernelCore {
     if (lifecycle?.status !== 'DONE' || !lifecycle.run) {
       throw new Error('CURRENT_REALIZATION_REFRESH_NOT_DONE');
     }
-    const run = lifecycle.run;
+    const run = history.runs.get(lifecycle.run.id);
+    if (!run) throw new Error('CURRENT_REALIZATION_REFRESH_RUN_MISSING');
     const prior = history.receiptsByRun.get(run.id);
     if (
       !prior ||
