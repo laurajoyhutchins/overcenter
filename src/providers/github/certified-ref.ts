@@ -112,7 +112,7 @@ export function observeCertifiedGitHubRefFence(
     return {
       state: evaluated.current ? 'CURRENT' : 'STALE',
       reason: evaluated.current ? 'AUTHORITATIVE_BINDING_MATCHES' : 'AUTHORITATIVE_BINDING_DIFFERS',
-      repository_full_name: read.evidence.repository.fact.object.full_name,
+      repository_full_name: read.evidence.repository.canonical_full_name,
       ref: canonicalRef,
       expected_sha: expectedSha,
       actual_sha: evaluated.actual_sha,
