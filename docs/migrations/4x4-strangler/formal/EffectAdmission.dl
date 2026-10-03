@@ -1,0 +1,42 @@
+// Exact relational specification for the realtime effect-admission snapshot.
+// Runtime code partially evaluates authority/executing/unresolved at one
+// authority head; each request contributes one permit tuple.
+
+.decl authority(
+  run:symbol,
+  obligation:symbol,
+  revision:symbol,
+  claim:symbol,
+  obligation_key:symbol,
+  generation:number,
+  authority_commit:symbol,
+  capability:symbol
+)
+.input authority
+
+.decl permit(
+  run:symbol,
+  obligation:symbol,
+  revision:symbol,
+  claim:symbol,
+  obligation_key:symbol,
+  generation:number,
+  authority_commit:symbol,
+  capability:symbol
+)
+.input permit
+
+.decl executing(run:symbol)
+.input executing
+
+.decl unresolved(run:symbol)
+.input unresolved
+
+.decl admitted(run:symbol)
+admitted(run) :-
+  authority(run, obligation, revision, claim, obligation_key, generation, authority_commit, capability),
+  permit(run, obligation, revision, claim, obligation_key, generation, authority_commit, capability),
+  executing(run),
+  !unresolved(run).
+
+.output admitted

@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -22,6 +23,10 @@ const TLA_VERSION = '1.7.4';
 const TLA_SHA256 = '936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88';
 const LEAN_VERSION = '4.23.0';
 const LEAN_SHA256 = 'ecd028d6f642b61b451c8687aeeb24dd53789fbfdcb7d4adb8f5cf60eb2022ba';
+const SOUFFLE_VERSION = '2.5';
+const SOUFFLE_PACKAGE = 'x86_64-ubuntu-2404-souffle-2.5-Linux.deb';
+const SOUFFLE_SHA512 =
+  '6b86e554f6aa5abf8a8b55d8312ae37c0957c5bd6c9edeea89246db9406f645ec5e600b84fe6636b1c163da556f0da6c3d2dad46c1083413f2fcf4f95b9ac62c';
 
 function run(command: string, args: string[], cwd = ROOT): string {
   const result = spawnSync(command, args, { cwd, encoding: 'utf8' });
@@ -40,8 +45,8 @@ function runStatus(command: string, args: string[], cwd = ROOT) {
   return result;
 }
 
-async function fileSha256(path: string): Promise<string> {
-  const hash = createHash('sha256');
+async function fileHash(path: string, algorithm: 'sha256' | 'sha512'): Promise<string> {
+  const hash = createHash(algorithm);
   for await (const chunk of createReadStream(path)) hash.update(chunk);
   return hash.digest('hex');
 }
@@ -63,7 +68,7 @@ async function checkFormalModels(): Promise<void> {
     `https://github.com/leanprover/lean4/releases/download/v${LEAN_VERSION}/lean-${LEAN_VERSION}-linux.tar.zst`,
     leanArchive,
   );
-  assert.equal(await fileSha256(leanArchive), LEAN_SHA256);
+  assert.equal(await fileHash(leanArchive, 'sha256'), LEAN_SHA256);
   const leanRoot = join(cache, `lean-${LEAN_VERSION}-linux`);
   const lean = join(leanRoot, 'bin', 'lean');
   if (!existsSync(lean)) {
@@ -82,7 +87,7 @@ async function checkFormalModels(): Promise<void> {
     `https://github.com/tlaplus/tlaplus/releases/download/v${TLA_VERSION}/tla2tools.jar`,
     tlaJar,
   );
-  assert.equal(await fileSha256(tlaJar), TLA_SHA256);
+  assert.equal(await fileHash(tlaJar, 'sha256'), TLA_SHA256);
 
   const positive = run(
     'java',
@@ -122,6 +127,59 @@ async function checkFormalModels(): Promise<void> {
     const output = `${result.stdout}${result.stderr}`;
     assert.match(output, new RegExp(`Invariant ${invariant} is violated`));
   }
+
+  const suppliedSouffle =
+    process.env.GITHUB_ACTIONS === 'true' ? undefined : process.env.OVERCENTER_SOUFFLE;
+  let souffle = suppliedSouffle;
+  if (!souffle) {
+    const soufflePackage = join(cache, SOUFFLE_PACKAGE);
+    download(
+      `https://github.com/souffle-lang/souffle/releases/download/${SOUFFLE_VERSION}/${SOUFFLE_PACKAGE}`,
+      soufflePackage,
+    );
+    assert.equal(await fileHash(soufflePackage, 'sha512'), SOUFFLE_SHA512);
+    const souffleRoot = join(cache, `souffle-${SOUFFLE_VERSION}-ubuntu2404`);
+    souffle = join(souffleRoot, 'usr', 'bin', 'souffle');
+    if (!existsSync(souffle)) {
+      mkdirSync(souffleRoot, { recursive: true });
+      run('dpkg-deb', ['-x', soufflePackage, souffleRoot]);
+    }
+  }
+  assert.match(run(souffle, ['--version']), new RegExp(`Version: ${SOUFFLE_VERSION}`));
+
+  const datalog = join(FORMAL, 'EffectAdmission.dl');
+  const runAdmissionCase = (
+    permitAuthority: string,
+    unresolved: boolean,
+    executing = true,
+  ): string => {
+    const directory = mkdtempSync(join(tmpdir(), 'overcenter-4x4-datalog-'));
+    const facts = join(directory, 'facts');
+    const output = join(directory, 'output');
+    mkdirSync(facts);
+    mkdirSync(output);
+    try {
+      writeFileSync(
+        join(facts, 'authority.facts'),
+        'run\tobligation\trevision\tclaim\tkey\t7\tauthority\tcapability\n',
+      );
+      writeFileSync(
+        join(facts, 'permit.facts'),
+        `run\tobligation\trevision\tclaim\tkey\t7\t${permitAuthority}\tcapability\n`,
+      );
+      writeFileSync(join(facts, 'executing.facts'), executing ? 'run\n' : '');
+      writeFileSync(join(facts, 'unresolved.facts'), unresolved ? 'run\n' : '');
+      run(souffle, [datalog, '-F', facts, '-D', output]);
+      return readFileSync(join(output, 'admitted.csv'), 'utf8').trim();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  };
+
+  assert.equal(runAdmissionCase('authority', false), 'run');
+  assert.equal(runAdmissionCase('stale-authority', false), '');
+  assert.equal(runAdmissionCase('authority', true), '');
+  assert.equal(runAdmissionCase('authority', false, false), '');
 }
 
 test('4x4 kernel namespace is closed to four nouns and four relations', () => {
@@ -160,7 +218,7 @@ const hostedExactHead =
 const formalRequested = hostedExactHead || process.env.OVERCENTER_RUN_4X4_FORMAL === '1';
 
 test(
-  '4x4 Lean and TLA+ refinement checks pass on exact-head evidence runs',
+  '4x4 Lean, TLC, and Datalog refinement checks pass on exact-head evidence runs',
   { skip: !formalRequested },
   checkFormalModels,
 );
