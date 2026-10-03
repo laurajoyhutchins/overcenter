@@ -19,7 +19,9 @@ if (trusted !== submitted) {
   const protectedPaths = process.argv.includes('--source-candidate')
     ? trusted.profile.protected_paths
     : [
-        ...trusted.profile.protected_paths.filter((path) => path !== 'src/source'),
+        ...trusted.profile.protected_paths.filter(
+          (path) => path !== 'src/source' && path !== '.github' && path !== 'architecture',
+        ),
         'src/source/source-verification-profile.ts',
       ].sort();
   const comparison = spawnSync(

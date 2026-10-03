@@ -1,7 +1,7 @@
 name: Merge gate
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
   push:
     branches:
@@ -22,7 +22,7 @@ jobs:
       expensive: ${{ github.event_name == 'push' || github.run_attempt > 1 }}
 
   gate:
-    name: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 && 'PR preflight' || 'Merge gate' }}
+    name: ${{ github.event_name == 'pull_request_target' && github.run_attempt == 1 && 'PR preflight' || 'Merge gate' }}
     if: ${{ always() }}
     needs: evidence
     runs-on: ubuntu-slim
@@ -38,7 +38,7 @@ jobs:
           set -euo pipefail
 
           case "$EVENT_NAME" in
-            pull_request)
+            pull_request_target)
               if [ "$RUN_ATTEMPT" -eq 1 ]; then
                 echo "PR preflight only; rerun Certify candidate to spend exact-head merge evidence."
               else
@@ -65,7 +65,7 @@ jobs:
         if: ${{ always() }}
         run: |
           {
-            if [ "$EVENT_NAME" = pull_request ] && [ "$RUN_ATTEMPT" -eq 1 ]; then
+            if [ "$EVENT_NAME" = pull_request_target ] && [ "$RUN_ATTEMPT" -eq 1 ]; then
               echo '## PR preflight'
               echo
               echo '- merge certification: not requested'

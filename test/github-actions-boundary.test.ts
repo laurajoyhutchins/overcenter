@@ -89,13 +89,13 @@ test('active hosted proof contains no legacy commit-status effect intent', () =>
 
 test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
   assert.match(
-    eventBlock(mergeGate, 'pull_request'),
+    eventBlock(mergeGate, 'pull_request_target'),
     /types: \[opened, synchronize, reopened\]/,
     'ordinary PR transitions must stay cheap and non-certifying',
   );
   assert.doesNotMatch(
     mergeGate,
-    /github\.event_name == 'pull_request' && github\.event\.action == 'ready_for_review'/,
+    /github\.event_name == 'pull_request_target' && github\.event\.action == 'ready_for_review'/,
     'Ready for review must not be a merge-certification capability',
   );
   assert.match(
@@ -115,7 +115,7 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
   );
   assert.match(
     mergeGate,
-    /name: \$\{\{ github\.event_name == 'pull_request' && github\.run_attempt == 1 && 'PR preflight' \|\| 'Merge gate' \}\}/,
+    /name: \$\{\{ github\.event_name == 'pull_request_target' && github\.run_attempt == 1 && 'PR preflight' \|\| 'Merge gate' \}\}/,
     'attempt one is preflight and a rerun becomes the exact-head Merge gate',
   );
   assert.match(
@@ -125,7 +125,7 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
   );
   assert.doesNotMatch(
     mergeGate,
-    /pull_request\)[\s\S]{0,220}exit 1/,
+    /pull_request_target\)[\s\S]{0,220}exit 1/,
     'ordinary PR preflight must not leave a stale failed Merge gate on the certified SHA',
   );
   assert.match(
@@ -162,6 +162,34 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
     mergeGate,
     /production-computation:|self-application:/,
     'candidate-local evidence must not acquire dedicated merge-gate runners',
+  );
+});
+
+test('ordinary repository PRs use a trusted base gate for control-plane changes', () => {
+  assert.match(
+    eventBlock(mergeGate, 'pull_request_target'),
+    /types: \[opened, synchronize, reopened\]/,
+    'the required merge check must execute from the trusted base workflow',
+  );
+  assert.doesNotMatch(
+    mergeGate,
+    /\n  pull_request:\n/,
+    'candidate workflow bytes must not define the required merge check',
+  );
+
+  const verifier = readFileSync(
+    new URL('../scripts/verify-source-profile.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(
+    verifier,
+    /path !== 'src\/source' && path !== '\.github' && path !== 'architecture'/,
+    'ordinary repository PRs may change the control plane only under the trusted base gate',
+  );
+  assert.match(
+    verifier,
+    /process\.argv\.includes\('--source-candidate'\)\s*\? trusted\.profile\.protected_paths/,
+    'untrusted source candidates must retain the full protected-path set',
   );
 });
 
