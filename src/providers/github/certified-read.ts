@@ -87,18 +87,18 @@ export function observeCertifiedGitHubRead(
   const collection =
     operation.pagination && semantic.response_slice.some((field) => field.path.includes('[]'))
       ? {
-        kind: 'single-page' as const,
-        page: Number(
-          request.parameters[operation.pagination.page_parameter] ??
-            operation.pagination.first_page,
-        ),
-        page_size: Number(
-          request.parameters[operation.pagination.page_size_parameter] ??
-            operation.pagination.default_page_size,
-        ),
-        completeness: 'page-only' as const,
-      }
-    : null;
+          kind: 'single-page' as const,
+          page: Number(
+            request.parameters[operation.pagination.page_parameter] ??
+              operation.pagination.first_page,
+          ),
+          page_size: Number(
+            request.parameters[operation.pagination.page_size_parameter] ??
+              operation.pagination.default_page_size,
+          ),
+          completeness: 'page-only' as const,
+        }
+      : null;
 
   return {
     state: collection ? 'page-observed' : 'observed',
