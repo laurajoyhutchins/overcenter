@@ -50,7 +50,12 @@ import {
   type ProjectExplanation,
 } from './project-state.ts';
 import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
-import { advanceProjection, projectReceipt, replayProjection } from './replay.ts';
+import {
+  advanceProjection,
+  currentRealizationRefreshDiagnostic,
+  projectReceipt,
+  replayProjection,
+} from './replay.ts';
 import type { Projection } from './replay.ts';
 import {
   executionPermits,
@@ -234,6 +239,52 @@ export class KernelCore {
     return explainProjectWork(this.#currentProjection(head).project, id);
   }
 
+  refreshCurrentRealization(id: string, expectedRevision: string): Receipt {
+    const head = this.#requireHead();
+    if (head !== expectedRevision) throw new Error('STALE_REVISION');
+    const { state, history, project } = this.#historicalProjection(head);
+    const work = state.obligations[id];
+    if (!work) throw new Error(`unknown obligation: ${id}`);
+
+    const lifecycle = project.lifecycles.get(id);
+    if (lifecycle?.status !== 'DONE' || !lifecycle.run) {
+      throw new Error('CURRENT_REALIZATION_REFRESH_NOT_DONE');
+    }
+    const run = lifecycle.run;
+    const prior = history.receiptsByRun.get(run.id);
+    if (
+      !prior ||
+      prior.disposition !== 'DONE' ||
+      prior.kind === 'source-integration' ||
+      !prior.settlement_commit
+    ) {
+      throw new Error('CURRENT_REALIZATION_REFRESH_NOT_OBSERVABLE');
+    }
+    if (history.unresolvedReservationsByRun.has(run.id)) {
+      throw new Error('CURRENT_REALIZATION_REFRESH_UNRESOLVED_EFFECT');
+    }
+
+    const observed = this.#observe(run.obligation.postcondition);
+    const fact = this.#receiptFact(
+      run,
+      run.obligation_id,
+      'observation',
+      observed,
+      currentRealizationRefreshDiagnostic(prior.settlement_commit),
+    );
+    projectReceipt(fact, run.obligation, undefined, false);
+    const commit = this.#store.append(
+      head,
+      `overcenter: refresh realization ${run.obligation_id} ${run.id}`,
+      { 'receipt.json': fact },
+    );
+    if (!commit) throw new Error('CURRENT_REALIZATION_REFRESH_LOST');
+
+    const refreshed = this.#historicalProjection(commit).history.receiptsByRun.get(run.id);
+    if (!refreshed) throw new Error('CURRENT_REALIZATION_REFRESH_PROJECTION_FAILED');
+    return refreshed;
+  }
+
   claim(
     id: string,
     expectedRevision: string,
@@ -241,12 +292,21 @@ export class KernelCore {
   ): ExecutionPermit {
     const head = this.#requireHead();
     if (head !== expectedRevision) throw new Error('STALE_REVISION');
-    const { state, project } = this.#currentProjection(head);
-    const work = state.obligations[id];
+    const historical = this.#historicalProjection(head);
+    const current = this.#currentProjection(head);
+    const work = historical.state.obligations[id];
     if (!work) throw new Error(`unknown obligation: ${id}`);
-    const claimError = project.claimabilityErrors.get(id);
-    if (claimError) throw new Error(claimError);
-    const key = project.semanticKeys.get(id);
+
+    const currentError = current.project.claimabilityErrors.get(id);
+    if (currentError) throw new Error(currentError);
+    const durableError = historical.project.claimabilityErrors.get(id);
+    if (durableError) {
+      if (durableError === 'NOT_READY') {
+        throw new Error('CLAIM_REQUIRES_REALIZATION_REFRESH');
+      }
+      throw new Error(durableError);
+    }
+    const key = historical.project.semanticKeys.get(id);
     if (!key) throw new Error('SEMANTIC_DEPENDENCY_UNRESOLVED');
 
     const runId = randomUUID();
