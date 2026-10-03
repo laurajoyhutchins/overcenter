@@ -197,6 +197,8 @@ class KernelCore {
   }
 }`;
 
+// The realtime snapshot is a delegated production fence. These controls make
+// authority-flow analysis own its exact-head, permit, and unresolved-effect obligations.
 const soundSnapshotEngine = `
 class KernelCore {
   #effectAdmissionSnapshotCache:any;
