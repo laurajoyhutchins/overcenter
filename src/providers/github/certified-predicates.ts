@@ -22,7 +22,8 @@ export function evaluateCertifiedGitHubRef(
   return {
     current: sameGitHubObjectId(observed.object.sha, expectedSha),
     actual_sha: observed.object.sha,
-    object_kind: observed.object.type === 'commit' ? 'github.commit' : 'github.tag',
+    object_kind:
+      observed.object.type === 'commit' ? ('github.commit' as const) : ('github.tag' as const),
   };
 }
 
