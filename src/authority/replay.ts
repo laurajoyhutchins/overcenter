@@ -61,9 +61,7 @@ export interface Projection {
 export const CURRENT_REALIZATION_REFRESH_SCHEMA =
   'overcenter-current-realization-refresh/v1' as const;
 
-export function currentRealizationRefreshDiagnostic(
-  priorSettlementCommit: string,
-): Data {
+export function currentRealizationRefreshDiagnostic(priorSettlementCommit: string): Data {
   return {
     current_realization_refresh: {
       schema: CURRENT_REALIZATION_REFRESH_SCHEMA,
@@ -80,9 +78,7 @@ function currentRealizationRefreshBinding(fact: ReceiptFact): string | null {
     value.schema !== CURRENT_REALIZATION_REFRESH_SCHEMA ||
     typeof value.prior_settlement_commit !== 'string' ||
     !/^[0-9a-f]{40,64}$/.test(value.prior_settlement_commit) ||
-    Object.keys(value).some(
-      (key) => key !== 'schema' && key !== 'prior_settlement_commit',
-    )
+    Object.keys(value).some((key) => key !== 'schema' && key !== 'prior_settlement_commit')
   ) {
     throw new Error('CURRENT_REALIZATION_REFRESH_INVALID');
   }
@@ -418,11 +414,7 @@ export function replayProjection(
     ) {
       throw new Error('OBSERVATION_WHILE_NOT_RESOLVABLE');
     }
-    if (
-      previous &&
-      ['DONE', 'READY'].includes(previous.disposition) &&
-      !realizationRefresh
-    ) {
+    if (previous && ['DONE', 'READY'].includes(previous.disposition) && !realizationRefresh) {
       throw new Error('RECEIPT_AFTER_TERMINAL_SETTLEMENT');
     }
 
