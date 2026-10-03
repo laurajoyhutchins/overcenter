@@ -53,6 +53,10 @@ import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
 import { advanceProjection, projectReceipt, replayProjection } from './replay.ts';
 import type { Projection } from './replay.ts';
 import {
+  buildEffectAdmissionSnapshot,
+  type EffectAdmissionSnapshot,
+} from './effect-admission-snapshot.ts';
+import {
   executionPermits,
   mutationAdmitted,
   projectExecutionAuthority,
@@ -113,6 +117,7 @@ export class KernelCore {
   readonly #store: DurableFactStore;
   // Reconstructible acceleration only: history(head) is still fully validated first.
   #projectionCache: { head: string; commitCount: number; projection: Projection } | null = null;
+  #effectAdmissionSnapshotCache: EffectAdmissionSnapshot | null = null;
 
   constructor(
     store: DurableFactStore,
@@ -351,8 +356,8 @@ export class KernelCore {
   beginEffect(permit: ExecutionPermit): string {
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();
-      const { history, project } = this.#historicalProjection(head);
-      const run = history.runs.get(permit.id);
+      const snapshot = this.#effectAdmissionSnapshot(head);
+      const run = snapshot.run(permit.id);
       if (!run) throw new Error('UNKNOWN_RUN');
       const authority = projectExecutionAuthority(
         run,
@@ -362,14 +367,11 @@ export class KernelCore {
       if (!authority.current_authority || !authority.exact_revision) {
         throw new Error('STALE_EXECUTION_GENERATION');
       }
-      const lifecycle = project.lifecycles.get(run.obligation_id);
-      if (lifecycle?.run?.id !== run.id || lifecycle.status !== 'EXECUTING') {
-        throw new Error('RUN_NOT_EXECUTING');
-      }
+      if (!snapshot.executing(run.id)) throw new Error('RUN_NOT_EXECUTING');
       if (
         !mutationAdmitted({
           ...authority,
-          unresolved_effect: history.unresolvedReservationsByRun.has(run.id),
+          unresolved_effect: snapshot.unresolvedReservationsByRun.has(run.id),
         })
       )
         throw new Error('UNRESOLVED_EFFECT');
@@ -849,6 +851,14 @@ export class KernelCore {
 
     this.#projectionCache = { head, commitCount: commits.length, projection };
     return projection;
+  }
+
+  #effectAdmissionSnapshot(head: string): EffectAdmissionSnapshot {
+    const cached = this.#effectAdmissionSnapshotCache;
+    if (cached?.head === head) return cached;
+    const snapshot = buildEffectAdmissionSnapshot(head, this.#historicalProjection(head));
+    this.#effectAdmissionSnapshotCache = snapshot;
+    return snapshot;
   }
 
   #currentProjection(head: string): Projection {
