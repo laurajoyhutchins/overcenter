@@ -898,6 +898,14 @@ export class KernelCore {
     return projection;
   }
 
+  #observe(postcondition: Postcondition): Observation {
+    return observePostcondition(postcondition, this.observationContext);
+  }
+
+  async #observeAsync(postcondition: Postcondition): Promise<Observation> {
+    return await observePostconditionAsync(postcondition, this.observationContext);
+  }
+
   #capabilityDigest(capability: string): string {
     return sha256(capability);
   }
