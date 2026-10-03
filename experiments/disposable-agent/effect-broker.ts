@@ -4,7 +4,7 @@ import { appendFileSync } from 'node:fs';
 import { GitOvercenterKernel } from '../../src/storage/git-kernel.ts';
 import {
   GITHUB_COMMIT_STATUS_EFFECT,
-  performGithubCommitStatusEffect,
+  performGitHubCommitStatusEffect,
 } from '../../src/providers/github/status-effect.ts';
 
 function required(name: string): string {
@@ -45,7 +45,7 @@ assert.equal(work.postcondition.commit_sha, sourceSha);
 const permit = kernel.acquireExecution(work.run_id);
 assert.equal(permit.execution_generation, 2);
 
-const effect = await performGithubCommitStatusEffect(kernel, permit, {
+const effect = await performGitHubCommitStatusEffect(kernel, permit, {
   token: required('GITHUB_TOKEN'),
 });
 assert.equal(effect.commit_sha, sourceSha);
