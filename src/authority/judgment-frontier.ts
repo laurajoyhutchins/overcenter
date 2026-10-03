@@ -22,9 +22,7 @@ export type JudgmentFrontierReasonCode =
   | 'POSTCONDITION_ALREADY_SATISFIED'
   | 'AMBIGUOUS_RESERVED_MUTATION'
   | 'RECOVERY_RECEIPT_PRESENT'
-  | 'CURRENT_REALIZATION_INDETERMINATE'
   | 'DECLARED_JUDGMENT_REQUIRED'
-  | 'STALE_EXACT_REVISION_EVIDENCE'
   | 'DERIVABLE_SYSTEM_EVIDENCE'
   | 'DERIVABLE_HOSTILE_EVIDENCE_DEBT'
   | 'OPEN_ENDED_SOURCE_REMEDIATION'
@@ -158,15 +156,6 @@ export function classifyJudgmentFrontier({
         'postcondition.verifier=operator-judgment/v1',
       );
     }
-    if (explanation.reason.kind === 'current-realization-indeterminate') {
-      return decision(
-        'recovery-required',
-        'CURRENT_REALIZATION_INDETERMINATE',
-        'work.status=BLOCKED',
-        'explanation.reason.kind=current-realization-indeterminate',
-        `observation.reason=${explanation.reason.reason}`,
-      );
-    }
     return decision(
       'unsupported',
       'WORK_BLOCKED',
@@ -185,17 +174,11 @@ export function classifyJudgmentFrontier({
   }
 
   if (isSystemEvidenceWork(work)) {
-    const stale =
-      explanation.reason.kind === 'claimable' &&
-      explanation.reason.rejected_realization !== undefined;
     return decision(
       'deterministic-software-action',
-      stale ? 'STALE_EXACT_REVISION_EVIDENCE' : 'DERIVABLE_SYSTEM_EVIDENCE',
+      'DERIVABLE_SYSTEM_EVIDENCE',
       'work.status=READY',
       'packet.kind=system-evidence',
-      stale
-        ? 'prior_realization=currently-rejected'
-        : 'prior_realization=no-current-admissible-run',
     );
   }
 
