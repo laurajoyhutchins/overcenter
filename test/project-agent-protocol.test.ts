@@ -527,6 +527,60 @@ test('project.advance selects and claims real READY work, then emits a bounded p
   }
 });
 
+test('project.advance durably refreshes stale DONE realization before replacement claim', () => {
+  const f = fixture();
+  try {
+    const sourceSha = commitProjectIntent(f.work, [
+      agentIntent('refreshable-work', f.postconditionPath),
+    ]);
+    const first = advanceProjectForAgent(f.work, commandContext(sourceSha, 9500), {
+      outputDir: join(f.root, 'first-refresh-packet'),
+      workerClientPath: workerClientFixture(f.root),
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+    assert.equal(first.state, 'AGENT_EXECUTION_REQUIRED');
+    assert.ok(first.run_id);
+
+    mkdirSync(f.postconditionRoot, { recursive: true });
+    writeFileSync(f.postconditionPath, 'completed:hello\n');
+    const settlementKernel = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    const settledPermit = settlementKernel.acquireExecution(first.run_id);
+    const settled = settlementKernel.resolve(settledPermit);
+    assert.equal(settled.disposition, 'DONE');
+    assert.equal(settled.verified, true);
+
+    rmSync(f.postconditionPath);
+    const secondOutput = join(f.root, 'second-refresh-packet');
+    const second = advanceProjectForAgent(f.work, commandContext(sourceSha, 9501), {
+      outputDir: secondOutput,
+      workerClientPath: workerClientFixture(f.root),
+      authorityRef: AUTHORITY_REF,
+      remote: 'origin',
+    });
+
+    assert.equal(second.state, 'AGENT_EXECUTION_REQUIRED');
+    assert.equal(second.obligation_id, 'refreshable-work');
+    assert.ok(second.run_id);
+    assert.notEqual(second.run_id, first.run_id);
+
+    const authoritative = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    assert.equal(authoritative.receipts(first.run_id).at(-1)?.disposition, 'READY');
+    assert.doesNotThrow(() => authoritative.claimedWork(second.run_id!));
+    assert.equal(authoritative.inspect()[0]?.status, 'EXECUTING');
+    assert.ok(existsSync(join(secondOutput, 'assignment.json')));
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+    rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
 test('project.advance materializes an exact tracked repository tree into a concrete packet', () => {
   const f = fixture();
   try {
