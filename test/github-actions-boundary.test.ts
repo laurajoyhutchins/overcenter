@@ -206,7 +206,10 @@ test('relational hosted assurance is selected once from the trusted baseline', (
     'distributed-authority-chaos-proof',
     'substrate-capability-admission-proof',
   ]) {
-    assert.ok(relationalAssuranceWorkflow.includes(evidenceId), `missing selector for ${evidenceId}`);
+    assert.ok(
+      relationalAssuranceWorkflow.includes(evidenceId),
+      `missing selector for ${evidenceId}`,
+    );
   }
 
   assert.match(
