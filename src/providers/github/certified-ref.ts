@@ -2,7 +2,7 @@ import { evaluateCertifiedGitHubRef, canonicalGitHubRef } from './certified-pred
 import {
   observeCertifiedGitHubSemanticRead,
   type CertifiedGitHubSemanticReadEvidence,
-} from './semantic-read.ts';
+} from './certified-read.ts';
 import { isGitHubObjectId, type GitHubJsonGet } from './rest.ts';
 
 export interface CertifiedGitHubRefEvidence {
