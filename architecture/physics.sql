@@ -125,6 +125,7 @@ INSERT INTO artifact_witnesses_evidence(artifact_id, evidence_id) VALUES
 -- Hosted assurance evidence realization.
 -- These rows describe what can invalidate evidence; workflows only decide how to execute it.
 INSERT OR IGNORE INTO artifact(artifact_id) VALUES
+  ('.github/workflows/assurance-evidence.yml'),
   ('.github/workflows/authority-flow-analysis.yml'),
   ('.github/workflows/authority-storage-decomposition.yml'),
   ('.github/workflows/distributed-authority-chaos.yml'),
@@ -193,6 +194,7 @@ INSERT INTO artifact_witnesses_evidence(artifact_id, evidence_id) VALUES
   ('experiments/substrate-capability-admission/hosted-evidence.ts', 'substrate-capability-admission-proof');
 
 INSERT INTO evidence_depends_on_artifact(evidence_id, artifact_id) VALUES
+  ('authority-flow-proof', '.github/workflows/assurance-evidence.yml'),
   ('authority-flow-proof', '.github/workflows/authority-flow-analysis.yml'),
   ('authority-flow-proof', 'architecture/concepts.sql'),
   ('authority-flow-proof', 'architecture/logic.sql'),
@@ -206,6 +208,7 @@ INSERT INTO evidence_depends_on_artifact(evidence_id, artifact_id) VALUES
   ('authority-flow-proof', 'src/providers/github/pr-update-branch-effect.ts'),
   ('authority-flow-proof', 'src/providers/github/status-effect.ts'),
   ('authority-flow-proof', 'src/source/transaction-planner.ts'),
+  ('authority-storage-proof', '.github/workflows/assurance-evidence.yml'),
   ('authority-storage-proof', '.github/workflows/authority-storage-decomposition.yml'),
   ('authority-storage-proof', 'architecture/concepts.sql'),
   ('authority-storage-proof', 'architecture/logic.sql'),
@@ -234,6 +237,7 @@ INSERT INTO evidence_depends_on_artifact(evidence_id, artifact_id) VALUES
   ('authority-storage-proof', 'src/source/transaction-planner.ts'),
   ('authority-storage-proof', 'src/storage/git-kernel.ts'),
   ('authority-storage-proof', 'src/storage/git-store.ts'),
+  ('distributed-authority-chaos-proof', '.github/workflows/assurance-evidence.yml'),
   ('distributed-authority-chaos-proof', '.github/workflows/distributed-authority-chaos.yml'),
   ('distributed-authority-chaos-proof', 'architecture/concepts.sql'),
   ('distributed-authority-chaos-proof', 'architecture/logic.sql'),
@@ -260,6 +264,7 @@ INSERT INTO evidence_depends_on_artifact(evidence_id, artifact_id) VALUES
   ('distributed-authority-chaos-proof', 'src/source/transaction-planner.ts'),
   ('distributed-authority-chaos-proof', 'src/storage/git-kernel.ts'),
   ('distributed-authority-chaos-proof', 'src/storage/git-store.ts'),
+  ('distributed-authority-handoff-proof', '.github/workflows/assurance-evidence.yml'),
   ('distributed-authority-handoff-proof', '.github/workflows/distributed-authority-handoff.yml'),
   ('distributed-authority-handoff-proof', 'architecture/concepts.sql'),
   ('distributed-authority-handoff-proof', 'architecture/logic.sql'),
@@ -288,6 +293,7 @@ INSERT INTO evidence_depends_on_artifact(evidence_id, artifact_id) VALUES
   ('distributed-authority-handoff-proof', 'src/storage/git-kernel.ts'),
   ('distributed-authority-handoff-proof', 'src/storage/git-store.ts'),
   ('substrate-capability-admission-proof', '.github/workflows/substrate-capability-admission-treatment.yml'),
+  ('substrate-capability-admission-proof', '.github/workflows/assurance-evidence.yml'),
   ('substrate-capability-admission-proof', '.github/workflows/substrate-capability-admission.yml'),
   ('substrate-capability-admission-proof', 'architecture/concepts.sql'),
   ('substrate-capability-admission-proof', 'architecture/logic.sql'),
@@ -342,6 +348,8 @@ INSERT OR IGNORE INTO effect(effect_id) VALUES
   ('github-source/integrate-verified-tree/v1');
 
 INSERT INTO principal(principal_id) VALUES
+  ('.github/workflows/assurance-evidence.yml#distributed-authority-chaos'),
+  ('.github/workflows/assurance-evidence.yml#distributed-authority-handoff'),
   ('.github/workflows/codex-closed-loop.yml#publish'),
   ('.github/workflows/disposable-agent-proof.yml#agent-b'),
   ('.github/workflows/disposable-agent-proof.yml#effect-broker'),
@@ -370,6 +378,8 @@ INSERT INTO principal(principal_id) VALUES
   ('.github/workflows/substrate-capability-admission.yml#foreign-status-write-denied');
 
 INSERT INTO principal_defined_in_artifact(principal_id, artifact_id) VALUES
+  ('.github/workflows/assurance-evidence.yml#distributed-authority-chaos', '.github/workflows/assurance-evidence.yml'),
+  ('.github/workflows/assurance-evidence.yml#distributed-authority-handoff', '.github/workflows/assurance-evidence.yml'),
   ('.github/workflows/codex-closed-loop.yml#publish', '.github/workflows/codex-closed-loop.yml'),
   ('.github/workflows/disposable-agent-proof.yml#agent-b', '.github/workflows/disposable-agent-proof.yml'),
   ('.github/workflows/disposable-agent-proof.yml#effect-broker', '.github/workflows/disposable-agent-proof.yml'),
@@ -398,6 +408,9 @@ INSERT INTO principal_defined_in_artifact(principal_id, artifact_id) VALUES
   ('.github/workflows/substrate-capability-admission.yml#foreign-status-write-denied', '.github/workflows/substrate-capability-admission.yml');
 
 INSERT INTO principal_has_capability(principal_id, capability_id) VALUES
+  ('.github/workflows/assurance-evidence.yml#distributed-authority-chaos', 'github-actions/permission/contents/write'),
+  ('.github/workflows/assurance-evidence.yml#distributed-authority-handoff', 'github-actions/permission/contents/write'),
+  ('.github/workflows/assurance-evidence.yml#distributed-authority-handoff', 'github-actions/permission/statuses/write'),
   ('.github/workflows/codex-closed-loop.yml#publish', 'github-actions/permission/contents/write'),
   ('.github/workflows/codex-closed-loop.yml#publish', 'github-actions/permission/pull-requests/write'),
   ('.github/workflows/disposable-agent-proof.yml#agent-b', 'github-actions/permission/contents/write'),

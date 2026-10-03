@@ -1,0 +1,160 @@
+name: Relational assurance evidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact source revision to verify; defaults to the dispatched revision
+        required: false
+        type: string
+      base_sha:
+        description: Accepted baseline revision; empty runs the full hosted evidence set
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: relational-assurance-${{ github.event.pull_request.number || inputs.source_sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Derive minimum hosted evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      source_sha: ${{ steps.coordinates.outputs.source_sha }}
+      base_sha: ${{ steps.coordinates.outputs.base_sha }}
+      bounded: ${{ steps.coordinates.outputs.bounded }}
+      evidence_json: ${{ steps.plan.outputs.evidence_json }}
+      validation_mode: ${{ steps.plan.outputs.validation_mode }}
+    steps:
+      - id: coordinates
+        name: Resolve immutable coordinates
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_SOURCE_SHA: ${{ github.event.pull_request.head.sha || '' }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha || '' }}
+          INPUT_BASE_SHA: ${{ inputs.base_sha || '' }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = pull_request ]; then
+            source_sha="$PR_SOURCE_SHA"
+            base_sha="$PR_BASE_SHA"
+            bounded=true
+          else
+            source_sha="${INPUT_SOURCE_SHA:-$DISPATCH_SHA}"
+            base_sha="${INPUT_BASE_SHA:-$source_sha}"
+            if [ -n "$INPUT_BASE_SHA" ]; then bounded=true; else bounded=false; fi
+          fi
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$base_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "bounded=$bounded" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the trusted baseline planner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.coordinates.outputs.base_sha }}
+          fetch-depth: 0
+          path: trusted-planner
+          persist-credentials: false
+
+      - name: Verify trusted planner revision
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.coordinates.outputs.base_sha }}
+        run: test "$(git -C trusted-planner rev-parse HEAD)" = "$BASE_SHA"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: 'trusted-planner/.node-version'
+
+      - id: plan
+        name: Select the minimum hosted evidence set
+        working-directory: trusted-planner
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.coordinates.outputs.source_sha }}
+          BASE_SHA: ${{ steps.coordinates.outputs.base_sha }}
+          BOUNDED: ${{ steps.coordinates.outputs.bounded }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$SOURCE_SHA"
+          args=()
+          if [ "$BOUNDED" = true ]; then
+            args=("$BASE_SHA" "$SOURCE_SHA")
+          fi
+          node --experimental-strip-types scripts/plan-assurance-evidence.ts "${args[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish assurance plan
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.coordinates.outputs.source_sha }}
+          BASE_SHA: ${{ steps.coordinates.outputs.base_sha }}
+          EVIDENCE_JSON: ${{ steps.plan.outputs.evidence_json }}
+          VALIDATION_MODE: ${{ steps.plan.outputs.validation_mode }}
+        run: |
+          {
+            echo '## Relational assurance plan'
+            echo
+            echo "- source SHA: $SOURCE_SHA"
+            echo "- base SHA: $BASE_SHA"
+            echo "- validation mode: $VALIDATION_MODE"
+            echo "- hosted evidence: \`$EVIDENCE_JSON\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  authority-flow:
+    needs: plan
+    if: contains(fromJSON(needs.plan.outputs.evidence_json), 'authority-flow-proof')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/authority-flow-analysis.yml
+    with:
+      source_sha: ${{ needs.plan.outputs.source_sha }}
+
+  authority-storage:
+    needs: plan
+    if: contains(fromJSON(needs.plan.outputs.evidence_json), 'authority-storage-proof')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/authority-storage-decomposition.yml
+    with:
+      source_sha: ${{ needs.plan.outputs.source_sha }}
+
+  distributed-authority-handoff:
+    needs: plan
+    if: contains(fromJSON(needs.plan.outputs.evidence_json), 'distributed-authority-handoff-proof')
+    permissions:
+      contents: write
+      statuses: write
+    uses: ./.github/workflows/distributed-authority-handoff.yml
+    with:
+      source_sha: ${{ needs.plan.outputs.source_sha }}
+
+  distributed-authority-chaos:
+    needs: plan
+    if: contains(fromJSON(needs.plan.outputs.evidence_json), 'distributed-authority-chaos-proof')
+    permissions:
+      contents: write
+    uses: ./.github/workflows/distributed-authority-chaos.yml
+    with:
+      source_sha: ${{ needs.plan.outputs.source_sha }}
+
+  substrate-capability-admission:
+    needs: plan
+    if: contains(fromJSON(needs.plan.outputs.evidence_json), 'substrate-capability-admission-proof')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/substrate-capability-admission.yml
+    with:
+      source_sha: ${{ needs.plan.outputs.source_sha }}

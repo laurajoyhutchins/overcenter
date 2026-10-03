@@ -14,6 +14,10 @@ const evidenceWorkflow = readFileSync(
   new URL('../.github/workflows/tests.yml', import.meta.url),
   'utf8',
 );
+const relationalAssuranceWorkflow = readFileSync(
+  new URL('../.github/workflows/assurance-evidence.yml', import.meta.url),
+  'utf8',
+);
 const verificationProfile = JSON.parse(
   readFileSync(new URL('../.overcenter/source-verification-profile.json', import.meta.url), 'utf8'),
 ) as { commands: string[] };
@@ -162,6 +166,61 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
     mergeGate,
     /production-computation:|self-application:/,
     'candidate-local evidence must not acquire dedicated merge-gate runners',
+  );
+});
+
+test('relational hosted assurance is selected once from the trusted baseline', () => {
+  assert.match(
+    eventBlock(relationalAssuranceWorkflow, 'pull_request'),
+    /types: \[opened, synchronize, reopened, ready_for_review\]/,
+  );
+  assert.match(relationalAssuranceWorkflow, /path: trusted-planner/);
+  assert.match(
+    relationalAssuranceWorkflow,
+    /node --experimental-strip-types scripts\/plan-assurance-evidence\.ts "\$\{args\[@\]\}"/,
+  );
+  assert.equal(
+    relationalAssuranceWorkflow.match(/plan-assurance-evidence\.ts/g)?.length,
+    1,
+    'one planner invocation must select all hosted assurance evidence',
+  );
+
+  const executors = [
+    '../.github/workflows/authority-flow-analysis.yml',
+    '../.github/workflows/authority-storage-decomposition.yml',
+    '../.github/workflows/distributed-authority-handoff.yml',
+    '../.github/workflows/distributed-authority-chaos.yml',
+    '../.github/workflows/substrate-capability-admission.yml',
+  ];
+  for (const path of executors) {
+    const source = readFileSync(new URL(path, import.meta.url), 'utf8');
+    assert.match(source, /\n  workflow_call:\n/);
+    assert.doesNotMatch(source, /\n  pull_request:\n/);
+    assert.doesNotMatch(source, /plan-assurance-evidence\.ts/);
+  }
+
+  for (const evidenceId of [
+    'authority-flow-proof',
+    'authority-storage-proof',
+    'distributed-authority-handoff-proof',
+    'distributed-authority-chaos-proof',
+    'substrate-capability-admission-proof',
+  ]) {
+    assert.ok(relationalAssuranceWorkflow.includes(evidenceId), `missing selector for ${evidenceId}`);
+  }
+
+  assert.match(
+    relationalAssuranceWorkflow,
+    /distributed-authority-handoff:[\s\S]*?permissions:\n\s+contents: write\n\s+statuses: write\n/,
+  );
+  assert.match(
+    relationalAssuranceWorkflow,
+    /distributed-authority-chaos:[\s\S]*?permissions:\n\s+contents: write\n/,
+  );
+  assert.doesNotMatch(
+    mergeGate,
+    /statuses: write|contents: write/,
+    'hosted provider proof permissions must stay outside the required merge token',
   );
 });
 

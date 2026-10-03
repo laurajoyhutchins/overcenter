@@ -1,44 +1,29 @@
 name: Substrate capability admission
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact source revision to verify
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact source revision to verify; defaults to the dispatched revision
+        required: false
+        type: string
 concurrency:
-  group: substrate-capability-admission-${{ github.event.pull_request.number || github.run_id }}
+  group: substrate-capability-admission-${{ inputs.source_sha || github.sha }}
   cancel-in-progress: true
 
 permissions: {}
 
 env:
-  SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+  SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
 
 jobs:
-  plan:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    permissions:
-      contents: read
-    outputs:
-      required: ${{ contains(fromJSON(steps.impact.outputs.evidence_json), 'substrate-capability-admission-proof') }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ env.SOURCE_SHA }}
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version-file: '.node-version'
-      - id: impact
-        name: Plan assurance evidence
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
-          HEAD_SHA: ${{ env.SOURCE_SHA }}
-        run: node --experimental-strip-types scripts/plan-assurance-evidence.ts "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
-
   deterministic:
-    needs: plan
-    if: needs.plan.outputs.required == 'true'
     name: Deterministic evidence boundary
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -58,8 +43,6 @@ jobs:
         run: npm run test:substrate-capability-admission
 
   controlled:
-    needs: plan
-    if: needs.plan.outputs.required == 'true'
     name: A controlled sandbox
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -79,8 +62,6 @@ jobs:
         run: npm run proof:rust-exec
 
   foreign-status-write-denied:
-    needs: plan
-    if: needs.plan.outputs.required == 'true'
     name: B point observation is non-authorizing
     runs-on: ubuntu-24.04
     timeout-minutes: 5
