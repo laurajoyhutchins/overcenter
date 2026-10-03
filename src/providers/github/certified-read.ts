@@ -123,7 +123,6 @@ export function observeCertifiedGitHubRead(
   };
 }
 
-
 export { observeCertifiedGitHubSemanticRead } from './semantic-read.ts';
 export type {
   CertifiedGitHubSemanticReadEvidence,
