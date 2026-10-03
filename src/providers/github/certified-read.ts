@@ -122,3 +122,10 @@ export function observeCertifiedGitHubRead(
     },
   };
 }
+
+
+export { observeCertifiedGitHubSemanticRead } from './semantic-read.ts';
+export type {
+  CertifiedGitHubSemanticReadEvidence,
+  CertifiedGitHubSemanticReadResult,
+} from './semantic-read.ts';
