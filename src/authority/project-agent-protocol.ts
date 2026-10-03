@@ -374,7 +374,8 @@ export function advanceProjectForAgent(
   const snapshot = repositorySnapshot(repo, projectSourceRevision);
   const desired = compileProjectGraph(snapshot, context);
 
-  for (let attempt = 0; attempt < 16; attempt += 1) {
+  const refreshedRealizations = new Set<string>();
+  for (let attempt = 0; attempt < 16 + desired.length; attempt += 1) {
     if (desired.length > 0) {
       const expectedRevision = kernel.head();
       if (!expectedRevision) throw new Error('PROJECT_ADVANCE_AUTHORITY_MISSING');
@@ -455,6 +456,27 @@ export function advanceProjectForAgent(
       });
     }
 
+    const doneToRefresh = projected.find(
+      (candidate) =>
+        candidate.status === 'DONE' && !refreshedRealizations.has(candidate.id),
+    );
+    if (doneToRefresh) {
+      refreshedRealizations.add(doneToRefresh.id);
+      const expectedRevision = kernel.head();
+      if (!expectedRevision) throw new Error('PROJECT_ADVANCE_AUTHORITY_MISSING');
+      try {
+        kernel.refreshCurrentRealization(doneToRefresh.id, expectedRevision);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message === 'STALE_REVISION' || message === 'CURRENT_REALIZATION_REFRESH_LOST') {
+          refreshedRealizations.delete(doneToRefresh.id);
+          continue;
+        }
+        throw error;
+      }
+      continue;
+    }
+
     const ready = kernel.deriveReadyWork();
     if (!ready) {
       const authorityHead = kernel.head();
@@ -485,27 +507,9 @@ export function advanceProjectForAgent(
       });
     }
 
-    const readyExplanation = kernel.explain(ready.id);
-    if (
-      readyExplanation.status === 'READY' &&
-      readyExplanation.reason.kind === 'claimable' &&
-      readyExplanation.reason.rejected_realization
-    ) {
-      try {
-        kernel.refreshCurrentRealization(ready.id, ready.revision);
-        continue;
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (message === 'STALE_REVISION' || message === 'CURRENT_REALIZATION_REFRESH_LOST') {
-          continue;
-        }
-        throw error;
-      }
-    }
-
     const dispatch = classifyJudgmentFrontier({
       work: ready,
-      explanation: readyExplanation,
+      explanation: kernel.explain(ready.id),
       unresolved_effect: ready.run_id ? kernel.hasUnresolvedEffect(ready.run_id) : false,
     });
     if (dispatch.route === 'recovery-required') {
