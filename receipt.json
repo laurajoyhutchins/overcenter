@@ -1,0 +1,48 @@
+{
+  "schema": "overcenter-git-receipt-v5",
+  "run_id": "34fe7f76-5781-49c6-9f7a-7b5c42c0e7eb",
+  "obligation_id": "live-agent-loop-witness",
+  "claimed_revision": "fffba14f137c9448ef7fe2c49e89d3b1605b6f0f",
+  "claim_commit": "4159a93de5ad74e12718d769ee5050f47199f1c7",
+  "execution_generation": 2,
+  "execution_authority_commit": "c2d418ba83b65502e5a70a64f05c3b819cc9bd19",
+  "kind": "observation",
+  "observed": {
+    "verifier": "file-content-equals/v1",
+    "path": "/tmp/overcenter-live-agent-loop/result.txt",
+    "expected_sha256": "f0e31416fe8a45dbc5d1b36c28dddd0f3f968b76ffc092c25ef30e24b6614b30",
+    "mutation_certainty": "absent",
+    "absence_evidence": {
+      "schema": "overcenter-absence-evidence-v1",
+      "kind": "local-file-enoent/v1",
+      "subject": {
+        "kind": "file-path",
+        "path": "/tmp/overcenter-live-agent-loop/result.txt"
+      },
+      "scope": {
+        "kind": "exact-coordinate",
+        "coordinate": {
+          "kind": "file-path",
+          "path": "/tmp/overcenter-live-agent-loop/result.txt"
+        }
+      },
+      "snapshot": null,
+      "completeness": {
+        "kind": "direct-coordinate-read",
+        "result": "ENOENT"
+      },
+      "provenance": {
+        "adapter": "node:fs",
+        "operation": "readFileSync",
+        "error_code": "ENOENT"
+      }
+    }
+  },
+  "diagnostic": {
+    "current_realization_refresh": {
+      "schema": "overcenter-current-realization-refresh/v1",
+      "prior_settlement_commit": "20ca5aee5baf9f7d1e5673fbc5a84f004d4b5adc"
+    }
+  },
+  "settled_at": "2026-10-04T05:09:34.075Z"
+}
