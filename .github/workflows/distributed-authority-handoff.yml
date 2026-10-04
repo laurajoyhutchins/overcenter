@@ -1,11 +1,21 @@
 name: Distributed authority handoff
 
 on:
-  pull_request:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact source revision to verify
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact source revision to verify; defaults to the dispatched revision
+        required: false
+        type: string
 
 concurrency:
-  group: distributed-authority-handoff-${{ github.event.pull_request.number || github.run_id }}
+  group: distributed-authority-handoff-${{ inputs.source_sha || github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -13,7 +23,7 @@ permissions:
   statuses: write
 
 env:
-  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
   AUTHORITY_REF: refs/heads/overcenter-ha-proof-${{ github.run_id }}-${{ github.run_attempt }}
   STATUS_CONTEXT: overcenter/ha-proof/${{ github.run_id }}/${{ github.run_attempt }}
 
@@ -22,7 +32,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 4
     outputs:
-      required: ${{ contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-handoff-proof') }}
       initial_revision: ${{ steps.setup.outputs.initial_revision }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -35,20 +44,11 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: '.node-version'
-      - id: impact
-        name: Plan assurance evidence
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
-          HEAD_SHA: ${{ env.SOURCE_SHA }}
-        run: node --experimental-strip-types scripts/plan-assurance-evidence.ts "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
       - name: Install runtime dependencies
-        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-handoff-proof')
         run: npm install --ignore-scripts --package-lock=false
       - name: Run deterministic local contract
-        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-handoff-proof')
         run: npm run test:distributed-authority-handoff
       - name: Initialize remote authority
-        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'distributed-authority-handoff-proof')
         id: setup
         shell: bash
         run: |
@@ -64,7 +64,6 @@ jobs:
 
   race:
     needs: setup
-    if: needs.setup.outputs.required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 4
     env:
@@ -194,7 +193,7 @@ jobs:
             "$AUTHORITY_REF" "${{ needs.setup.outputs.initial_revision }}"
 
   cleanup:
-    if: ${{ always() && needs.setup.outputs.required == 'true' }}
+    if: ${{ always() }}
     needs: [setup, race, reserve-effect, recover, controls]
     runs-on: ubuntu-24.04
     timeout-minutes: 2

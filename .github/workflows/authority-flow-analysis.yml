@@ -1,16 +1,26 @@
 name: Authority flow analysis
 
 on:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact source revision to verify
+        required: true
+        type: string
   workflow_dispatch:
-  pull_request:
+    inputs:
+      source_sha:
+        description: Exact source revision to verify; defaults to the dispatched revision
+        required: false
+        type: string
 concurrency:
-  group: authority-flow-analysis-${{ github.event.pull_request.number || github.run_id }}
+  group: authority-flow-analysis-${{ inputs.source_sha || github.sha }}
   cancel-in-progress: true
 
 permissions: {}
 
 env:
-  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
 
 jobs:
   authority-flow-analysis:
@@ -33,21 +43,12 @@ jobs:
         with:
           node-version-file: '.node-version'
 
-      - id: impact
-        name: Plan assurance evidence
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
-          HEAD_SHA: ${{ env.SOURCE_SHA }}
-        run: node --experimental-strip-types scripts/plan-assurance-evidence.ts "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Install pinned build toolchain
-        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'authority-flow-proof')
         run: npm install --ignore-scripts --package-lock=false
 
       - name: Type-check repository
-        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'authority-flow-proof')
         run: npm run typecheck
 
       - name: Authority-flow analysis
-        if: contains(fromJSON(steps.impact.outputs.evidence_json), 'authority-flow-proof')
         run: npm run test:authority-flow-analysis
