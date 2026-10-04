@@ -1,0 +1,25 @@
+{
+  "schema": "overcenter-git-receipt-v5",
+  "run_id": "849f3f39-1b30-49fb-b3e3-abc3b9d95d2a",
+  "obligation_id": "live-agent-loop-witness",
+  "claimed_revision": "e9c1de0a8fd39844bf0813b80e86bc962072a713",
+  "claim_commit": "bdf70753d10d49c8f1e4afe9e12a948d098c5660",
+  "execution_generation": 2,
+  "execution_authority_commit": "2d367a237b096c1a2af88054861a547ee0f1398f",
+  "kind": "observation",
+  "observed": {
+    "verifier": "file-content-equals/v1",
+    "path": "/tmp/overcenter-live-agent-loop/result.txt",
+    "expected_sha256": "f0e31416fe8a45dbc5d1b36c28dddd0f3f968b76ffc092c25ef30e24b6614b30",
+    "actual_sha256": "f0e31416fe8a45dbc5d1b36c28dddd0f3f968b76ffc092c25ef30e24b6614b30",
+    "mutation_certainty": "present"
+  },
+  "diagnostic": {
+    "agent_candidate": {
+      "assignment_sha256": "7e4d9633425fb7283da98a9bb1d29198f77f82b2d31397bb2ac82d2115b1c586",
+      "output_sha256": "f0e31416fe8a45dbc5d1b36c28dddd0f3f968b76ffc092c25ef30e24b6614b30",
+      "candidate_sha": "0d0674e065efac6987b89ccc87a03934427874ad"
+    }
+  },
+  "settled_at": "2026-10-04T05:13:03.703Z"
+}
