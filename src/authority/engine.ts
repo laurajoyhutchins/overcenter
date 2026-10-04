@@ -49,8 +49,12 @@ import {
   hasInFlight,
   type ProjectExplanation,
 } from './project-state.ts';
-import { deriveCurrentRealizationJudgments } from './realization-reuse.ts';
-import { advanceProjection, projectReceipt, replayProjection } from './replay.ts';
+import {
+  advanceProjection,
+  currentRealizationRefreshDiagnostic,
+  projectReceipt,
+  replayProjection,
+} from './replay.ts';
 import type { Projection } from './replay.ts';
 import {
   executionPermits,
@@ -165,7 +169,7 @@ export class KernelCore {
 
   inspect(): Work[] {
     const head = this.#requireHead();
-    return this.#currentProjection(head).project.work;
+    return this.#historicalProjection(head).project.work;
   }
 
   claimedWork(identity: string | ExecutionPermit): Work {
@@ -226,12 +230,55 @@ export class KernelCore {
 
   deriveReadyWork(): Work | null {
     const head = this.#requireHead();
-    return this.#currentProjection(head).project.readyWork;
+    return this.#historicalProjection(head).project.readyWork;
   }
 
   explain(id: string): ProjectExplanation {
     const head = this.#requireHead();
-    return explainProjectWork(this.#currentProjection(head).project, id);
+    return explainProjectWork(this.#historicalProjection(head).project, id);
+  }
+
+  refreshCurrentRealization(id: string, expectedRevision: string): Receipt {
+    const head = this.#requireHead();
+    if (head !== expectedRevision) throw new Error('STALE_REVISION');
+    const { state, history, project } = this.#historicalProjection(head);
+    const work = state.obligations[id];
+    if (!work) throw new Error(`unknown obligation: ${id}`);
+
+    const lifecycle = project.lifecycles.get(id);
+    if (lifecycle?.status !== 'DONE' || !lifecycle.run) {
+      throw new Error('CURRENT_REALIZATION_REFRESH_NOT_DONE');
+    }
+    const run = history.runs.get(lifecycle.run.id);
+    if (!run) throw new Error('CURRENT_REALIZATION_REFRESH_RUN_MISSING');
+    const prior = history.receiptsByRun.get(run.id);
+    if (!prior || prior.disposition !== 'DONE' || !prior.settlement_commit) {
+      throw new Error('CURRENT_REALIZATION_REFRESH_NOT_OBSERVABLE');
+    }
+    if (prior.kind === 'source-integration') return prior;
+    if (history.unresolvedReservationsByRun.has(run.id)) {
+      throw new Error('CURRENT_REALIZATION_REFRESH_UNRESOLVED_EFFECT');
+    }
+
+    const observed = this.#observe(run.obligation.postcondition);
+    const fact = this.#receiptFact(
+      run,
+      run.obligation_id,
+      'observation',
+      observed,
+      currentRealizationRefreshDiagnostic(prior.settlement_commit),
+    );
+    projectReceipt(fact, run.obligation, undefined, false);
+    const commit = this.#store.append(
+      head,
+      `overcenter: refresh realization ${run.obligation_id} ${run.id}`,
+      { 'receipt.json': fact },
+    );
+    if (!commit) throw new Error('CURRENT_REALIZATION_REFRESH_LOST');
+
+    const refreshed = this.#historicalProjection(commit).history.receiptsByRun.get(run.id);
+    if (!refreshed) throw new Error('CURRENT_REALIZATION_REFRESH_PROJECTION_FAILED');
+    return refreshed;
   }
 
   claim(
@@ -241,7 +288,7 @@ export class KernelCore {
   ): ExecutionPermit {
     const head = this.#requireHead();
     if (head !== expectedRevision) throw new Error('STALE_REVISION');
-    const { state, project } = this.#currentProjection(head);
+    const { state, project } = this.#historicalProjection(head);
     const work = state.obligations[id];
     if (!work) throw new Error(`unknown obligation: ${id}`);
     const claimError = project.claimabilityErrors.get(id);
@@ -849,30 +896,6 @@ export class KernelCore {
 
     this.#projectionCache = { head, commitCount: commits.length, projection };
     return projection;
-  }
-
-  #currentProjection(head: string): Projection {
-    const historical = this.#historicalProjection(head);
-    const currentRealizationJudgments = deriveCurrentRealizationJudgments({
-      state: historical.state,
-      runs: historical.history.runs,
-      receiptsByRun: historical.history.receiptsByRun,
-      semanticKeys: historical.project.semanticKeys,
-      observe: (postcondition) => this.#observe(postcondition),
-    });
-    const project = deriveProjectProjection({
-      state: historical.state,
-      runs: historical.history.runs,
-      receiptsByRun: historical.history.receiptsByRun,
-      revision: head,
-      currentBindingOrdinals: historical.history.currentBindingOrdinals,
-      claimOrdinalsByRun: historical.history.claimOrdinalsByRun,
-      currentRealizationJudgments,
-    });
-    return {
-      ...historical,
-      project,
-    };
   }
 
   #observe(postcondition: Postcondition): Observation {

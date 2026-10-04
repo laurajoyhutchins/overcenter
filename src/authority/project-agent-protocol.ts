@@ -372,6 +372,7 @@ export function advanceProjectForAgent(
   const projectSourceRevision = projectSourceSha(context);
   const snapshot = repositorySnapshot(repo, projectSourceRevision);
   const desired = compileProjectGraph(snapshot, context);
+  const refreshedRealizations = new Set<string>();
 
   for (let attempt = 0; attempt < 16; attempt += 1) {
     if (desired.length > 0) {
@@ -434,6 +435,26 @@ export function advanceProjectForAgent(
         obligation_id: recovery.id,
         ...(recovery.run_id ? { run_id: recovery.run_id } : {}),
       });
+    }
+
+    const doneToRefresh = projected.find(
+      (candidate) => candidate.status === 'DONE' && !refreshedRealizations.has(candidate.id),
+    );
+    if (doneToRefresh) {
+      refreshedRealizations.add(doneToRefresh.id);
+      const expectedRevision = kernel.head();
+      if (!expectedRevision) throw new Error('PROJECT_ADVANCE_AUTHORITY_MISSING');
+      try {
+        kernel.refreshCurrentRealization(doneToRefresh.id, expectedRevision);
+        continue;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message === 'STALE_REVISION' || message === 'CURRENT_REALIZATION_REFRESH_LOST') {
+          refreshedRealizations.delete(doneToRefresh.id);
+          continue;
+        }
+        throw error;
+      }
     }
 
     const ready = kernel.deriveReadyWork();

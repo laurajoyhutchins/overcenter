@@ -96,6 +96,59 @@ test('valid authority tail is left unchanged', () => {
   }
 });
 
+test('fresh realization rejection cannot authorize an unreplayable claim', () => {
+  const f = fixture();
+  try {
+    const path = f.path('durable-realization-refresh');
+    f.kernel.define({ id: 'x', postcondition: pc(path, 'present') });
+    const first = f.kernel.claim('x', f.kernel.deriveReadyWork()!.revision);
+    writeFileSync(path, 'present');
+    const done = f.kernel.resolve(first);
+    assert.equal(done.disposition, 'DONE');
+
+    rmSync(path);
+    assert.equal(f.kernel.deriveReadyWork(), null);
+    const before = f.kernel.head();
+
+    assert.throws(() => f.kernel.claim('x', before!), /NOT_READY/);
+    assert.equal(f.kernel.head(), before);
+
+    const refreshed = f.kernel.refreshCurrentRealization('x', before!);
+    assert.equal(refreshed.kind, 'observation');
+    assert.equal(refreshed.disposition, 'READY');
+    assert.equal(refreshed.verified, false);
+    assert.equal(f.kernel.inspect()[0]?.status, 'READY');
+
+    const second = f.kernel.claim('x', f.kernel.deriveReadyWork()!.revision);
+    assert.doesNotThrow(() => f.kernel.claimedWork(second.id));
+    assert.equal(f.kernel.inspect()[0]?.status, 'EXECUTING');
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test('contradictory current realization becomes durable recovery instead of new work', () => {
+  const f = fixture();
+  try {
+    const path = f.path('durable-realization-contradiction');
+    f.kernel.define({ id: 'x', postcondition: pc(path, 'expected') });
+    const first = f.kernel.claim('x', f.kernel.deriveReadyWork()!.revision);
+    writeFileSync(path, 'expected');
+    assert.equal(f.kernel.resolve(first).disposition, 'DONE');
+
+    writeFileSync(path, 'different');
+    assert.equal(f.kernel.deriveReadyWork(), null);
+
+    const refreshed = f.kernel.refreshCurrentRealization('x', f.kernel.head()!);
+    assert.equal(refreshed.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(refreshed.verified, false);
+    assert.equal(f.kernel.inspect()[0]?.status, 'RECOVERY_REQUIRED');
+    assert.equal(f.kernel.deriveReadyWork(), null);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
 test('kernel-owned evidence drives dependency chain to DONE', async () => {
   const f = fixture();
   try {
