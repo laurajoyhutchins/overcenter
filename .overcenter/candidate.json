@@ -1,0 +1,10 @@
+{
+  "schema": "overcenter-agent-candidate/v1",
+  "assignment_sha256": "7e4d9633425fb7283da98a9bb1d29198f77f82b2d31397bb2ac82d2115b1c586",
+  "obligation_id": "live-agent-loop-witness",
+  "run_id": "849f3f39-1b30-49fb-b3e3-abc3b9d95d2a",
+  "claimed_revision": "e9c1de0a8fd39844bf0813b80e86bc962072a713",
+  "output_path": "result.txt",
+  "output_sha256": "f0e31416fe8a45dbc5d1b36c28dddd0f3f968b76ffc092c25ef30e24b6614b30",
+  "output_base64": "Y29tcGxldGVkOmFzc2lnbm1lbnQtYnl0ZXMK"
+}
