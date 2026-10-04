@@ -1,4 +1,5 @@
-import type { Obligation } from '../model.ts';
+import type { Data, Obligation } from '../model.ts';
+import { isData } from '../validation.ts';
 import { authoritativeAbsenceEvidence, observationVerified } from '../observation/observe.ts';
 import {
   emptyState,
@@ -55,6 +56,33 @@ export interface Projection {
   definitions: Record<string, ObligationDefinition>;
   project: WorkProjection;
   history: HistoryProjection;
+}
+
+export const CURRENT_REALIZATION_REFRESH_SCHEMA =
+  'overcenter-current-realization-refresh/v1' as const;
+
+export function currentRealizationRefreshDiagnostic(priorSettlementCommit: string): Data {
+  return {
+    current_realization_refresh: {
+      schema: CURRENT_REALIZATION_REFRESH_SCHEMA,
+      prior_settlement_commit: priorSettlementCommit,
+    },
+  };
+}
+
+function currentRealizationRefreshBinding(fact: ReceiptFact): string | null {
+  const value = fact.diagnostic?.current_realization_refresh;
+  if (value === undefined) return null;
+  if (
+    !isData(value) ||
+    value.schema !== CURRENT_REALIZATION_REFRESH_SCHEMA ||
+    typeof value.prior_settlement_commit !== 'string' ||
+    !/^[0-9a-f]{40,64}$/.test(value.prior_settlement_commit) ||
+    Object.keys(value).some((key) => key !== 'schema' && key !== 'prior_settlement_commit')
+  ) {
+    throw new Error('CURRENT_REALIZATION_REFRESH_INVALID');
+  }
+  return value.prior_settlement_commit;
 }
 
 export function projectReceipt(
@@ -332,6 +360,22 @@ export function replayProjection(
     refresh(record.commit);
     const current = project.lifecycles.get(run.obligation_id);
     if (current?.run?.id !== run.id) throw new Error('RECEIPT_FOR_NONCURRENT_RUN');
+    const previous = receiptsByRun.get(run.id);
+    const refreshBinding = currentRealizationRefreshBinding(fact);
+    const realizationRefresh = refreshBinding !== null;
+    if (realizationRefresh) {
+      if (
+        fact.kind !== 'observation' ||
+        current.status !== 'DONE' ||
+        !previous ||
+        previous.disposition !== 'DONE' ||
+        previous.kind === 'source-integration' ||
+        previous.settlement_commit !== refreshBinding ||
+        unresolvedReservationsByRun.has(run.id)
+      ) {
+        throw new Error('CURRENT_REALIZATION_REFRESH_BINDING_MISMATCH');
+      }
+    }
     if (fact.kind === 'judgment-required' && current.status !== 'EXECUTING') {
       throw new Error('JUDGMENT_REQUIRED_WHILE_NOT_EXECUTING');
     }
@@ -365,12 +409,12 @@ export function replayProjection(
     }
     if (
       fact.kind === 'observation' &&
+      !realizationRefresh &&
       !['EXECUTING', 'WAITING', 'RECOVERY_REQUIRED'].includes(current.status)
     ) {
       throw new Error('OBSERVATION_WHILE_NOT_RESOLVABLE');
     }
-    const previous = receiptsByRun.get(run.id);
-    if (previous && ['DONE', 'READY'].includes(previous.disposition)) {
+    if (previous && ['DONE', 'READY'].includes(previous.disposition) && !realizationRefresh) {
       throw new Error('RECEIPT_AFTER_TERMINAL_SETTLEMENT');
     }
 
