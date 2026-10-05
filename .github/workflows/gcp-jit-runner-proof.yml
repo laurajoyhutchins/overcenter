@@ -210,7 +210,7 @@ jobs:
                   PY
                   )"
                   echo "OVERCENTER_DIAG route_code=$route_code"
-                  if [ "$route_code" -ge 41 ] && [ "$route_code" -le 43 ]; then
+                  if [ "$route_code" -ne 0 ]; then
                     kill "$runner_pid" 2>/dev/null || true
                     wait "$runner_pid" 2>/dev/null || true
                     exit "$route_code"
