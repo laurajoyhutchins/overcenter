@@ -1,0 +1,76 @@
+name: Bootstrap GCP runner deployer actAs
+
+on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+    paths:
+      - .github/workflows/gcp-runner-iam-bootstrap.yml
+      - .overcenter/gcp-runner-iam-bootstrap-request
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-runner-iam-bootstrap
+  cancel-in-progress: true
+
+jobs:
+  grant:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    env:
+      GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
+      GCP_WORKLOAD_IDENTITY_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      GCP_DEPLOY_SERVICE_ACCOUNT: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Grant only self actAs and prove read-back
+        shell: bash
+        run: |
+          set -euo pipefail
+          member="serviceAccount:${GCP_DEPLOY_SERVICE_ACCOUNT}"
+          gcloud iam service-accounts add-iam-policy-binding "$GCP_DEPLOY_SERVICE_ACCOUNT" \
+            --project="$GCP_PROJECT_ID" \
+            --member="$member" \
+            --role="roles/iam.serviceAccountUser" \
+            --condition=None \
+            --quiet >/dev/null
+
+          policy="$RUNNER_TEMP/deployer-policy.json"
+          gcloud iam service-accounts get-iam-policy "$GCP_DEPLOY_SERVICE_ACCOUNT" \
+            --project="$GCP_PROJECT_ID" \
+            --format=json > "$policy"
+
+          python3 - "$policy" "$member" <<'PY'
+          import json
+          import sys
+
+          path, member = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              policy = json.load(handle)
+          ok = any(
+              binding.get("role") == "roles/iam.serviceAccountUser"
+              and member in binding.get("members", [])
+              for binding in policy.get("bindings", [])
+          )
+          if not ok:
+              raise SystemExit("deployer self-actAs binding did not read back")
+          print("deployer self-actAs binding verified")
+          PY
