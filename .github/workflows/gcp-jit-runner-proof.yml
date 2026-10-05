@@ -1,0 +1,168 @@
+name: GCP JIT runner proof
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-jit-runner-proof.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  launch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Launch one-job GCP runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/cloudbuild-jit-runner.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 600s
+          steps:
+            - id: jit-config
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+                - TARGET_REPOSITORY=laurajoyhutchins/arcata
+                - RUNNER_NAME=overcenter-gcp-proof-${BUILD_ID}
+              args:
+                - -e
+                - |
+                  const crypto = require("crypto");
+                  const fs = require("fs");
+                  const repo = process.env.TARGET_REPOSITORY;
+                  const b64 = value => Buffer.from(JSON.stringify(value)).toString("base64url");
+                  const now = Math.floor(Date.now() / 1000);
+                  const header = b64({alg:"RS256",typ:"JWT"});
+                  const payload = b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const unsigned = header + "." + payload;
+                  const signature = crypto.sign(
+                    "RSA-SHA256",
+                    Buffer.from(unsigned),
+                    process.env.GITHUB_APP_PRIVATE_KEY,
+                  ).toString("base64url");
+                  const appJwt = unsigned + "." + signature;
+                  const headers = token => ({
+                    Accept:"application/vnd.github+json",
+                    Authorization:"Bearer " + token,
+                    "X-GitHub-Api-Version":"2026-03-10",
+                    "User-Agent":"overcenter-gcp-runner",
+                  });
+                  async function json(response, label) {
+                    const text = await response.text();
+                    let body = null;
+                    try { body = text ? JSON.parse(text) : null; } catch {}
+                    if (!response.ok) {
+                      throw new Error(label + " HTTP " + response.status + ": " + text.slice(0,300));
+                    }
+                    return body;
+                  }
+                  async function main() {
+                    const installation = await json(
+                      await fetch("https://api.github.com/repos/" + repo + "/installation", {
+                        headers: headers(appJwt),
+                      }),
+                      "installation lookup",
+                    );
+                    const access = await json(
+                      await fetch("https://api.github.com/app/installations/" + installation.id + "/access_tokens", {
+                        method:"POST",
+                        headers:{...headers(appJwt),"Content-Type":"application/json"},
+                        body:JSON.stringify({permissions:{administration:"write"}}),
+                      }),
+                      "installation token",
+                    );
+                    const jit = await json(
+                      await fetch("https://api.github.com/repos/" + repo + "/actions/runners/generate-jitconfig", {
+                        method:"POST",
+                        headers:{...headers(access.token),"Content-Type":"application/json"},
+                        body:JSON.stringify({
+                          name:process.env.RUNNER_NAME,
+                          runner_group_id:1,
+                          labels:["overcenter-gcp","gcp-proof"],
+                          work_folder:"_work",
+                        }),
+                      }),
+                      "JIT configuration",
+                    );
+                    if (!jit || typeof jit.encoded_jit_config !== "string" || !jit.encoded_jit_config) {
+                      throw new Error("JIT configuration returned no encoded config");
+                    }
+                    fs.writeFileSync("/workspace/jit-config", jit.encoded_jit_config, {mode:0o600});
+                  }
+                  main().catch(error => {
+                    console.error(String(error && error.message || error));
+                    process.exit(1);
+                  });
+
+            - id: github-runner
+              name: ubuntu:24.04
+              entrypoint: bash
+              env:
+                - RUNNER_ALLOW_RUNASROOT=1
+              args:
+                - -ceu
+                - |
+                  apt-get update -qq
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates curl git gzip tar unzip
+                  mkdir -p /workspace/actions-runner
+                  cd /workspace/actions-runner
+                  curl -fsSLo actions-runner.tar.gz \
+                    https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-x64-2.337.0.tar.gz
+                  echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum -c -
+                  tar xzf actions-runner.tar.gz
+                  ./run.sh --jitconfig "$(cat /workspace/jit-config)"
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: NONE
+          YAML
+
+          build_id="$(
+            gcloud builds submit               --async               --no-source               --project="$PROJECT_ID"               --region="$REGION"               --config="$config"               --format='value(id)'
+          )"
+          test -n "$build_id"
+          echo "Cloud Build: $build_id" | tee -a "$GITHUB_STEP_SUMMARY"
+
+          status=""
+          for _ in $(seq 1 300); do
+            status="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)')"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
+            esac
+            sleep 2
+          done
+          echo "Status: $status" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$status" = SUCCESS
