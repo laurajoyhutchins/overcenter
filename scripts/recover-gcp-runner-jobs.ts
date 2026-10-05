@@ -94,6 +94,47 @@ async function submitBuild(
   return id;
 }
 
+function describeBuild(buildId: string, format: string): string {
+  return execFileSync(
+    'gcloud',
+    [
+      'builds',
+      'describe',
+      buildId,
+      '--project=project-6b810532-a302-48dc-b56',
+      '--region=us-west1',
+      '--format=' + format,
+    ],
+    { encoding: 'utf8' },
+  ).trim();
+}
+
+async function proveBuildStarted(buildId: string): Promise<string> {
+  const terminal = new Set([
+    'FAILURE',
+    'INTERNAL_ERROR',
+    'TIMEOUT',
+    'CANCELLED',
+    'EXPIRED',
+  ]);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const status = describeBuild(buildId, 'value(status)');
+    if (status === 'WORKING' || status === 'SUCCESS') return status;
+    if (terminal.has(status)) {
+      const detail = describeBuild(buildId, 'value(failureInfo.detail)');
+      throw new Error(
+        'recovery Cloud Build ' +
+          buildId +
+          ' terminated as ' +
+          status +
+          (detail ? ': ' + detail : ''),
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  throw new Error('recovery Cloud Build ' + buildId + ' did not start within 60 seconds');
+}
+
 async function main(): Promise<void> {
   const requestPath = process.argv[2];
   if (!requestPath) throw new Error('recovery request path is required');
@@ -123,6 +164,16 @@ async function main(): Promise<void> {
         repository_id: job.repository_id,
         job_id: job.job_id,
         build_id: buildId,
+      }),
+    );
+    const status = await proveBuildStarted(buildId);
+    console.log(
+      JSON.stringify({
+        event: 'recovery_runner_build_started',
+        repository: job.repository,
+        job_id: job.job_id,
+        build_id: buildId,
+        status,
       }),
     );
   }
