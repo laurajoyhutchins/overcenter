@@ -78,7 +78,11 @@ export function parseRunnerLaunchRequest(value: unknown): RunnerLaunchRequest {
 export function matchRepositoryBinding(
   repositories: readonly RepositoryBinding[],
   request: RunnerLaunchRequest,
+  expectedRunnerLabel?: string,
 ): RepositoryBinding {
+  if (expectedRunnerLabel !== undefined && request.runner_label !== expectedRunnerLabel) {
+    throw new Error('runner launch label mismatch');
+  }
   const binding = repositories.find(
     (candidate) => candidate.full_name.toLowerCase() === request.repository.toLowerCase(),
   );
@@ -398,16 +402,16 @@ function sendJson(response: ServerResponse, status: number, body: unknown): void
   response.end(JSON.stringify(body));
 }
 
-async function loadRepositories(path: string): Promise<readonly RepositoryBinding[]> {
+async function loadConfig(path: string): Promise<ReturnType<typeof parseRunnerAutoscalerConfig>> {
   const body = JSON.parse(await readFile(path, 'utf8')) as unknown;
-  return parseRunnerAutoscalerConfig(body).repositories;
+  return parseRunnerAutoscalerConfig(body);
 }
 
 async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
   environment: LauncherEnvironment,
-  repositories: readonly RepositoryBinding[],
+  config: ReturnType<typeof parseRunnerAutoscalerConfig>,
 ): Promise<void> {
   if (request.method === 'GET' && request.url === '/health') {
     sendJson(response, 200, { ok: true });
@@ -420,7 +424,7 @@ async function handleRequest(
 
   try {
     const launch = parseRunnerLaunchRequest(await readJsonBody(request));
-    matchRepositoryBinding(repositories, launch);
+    matchRepositoryBinding(config.repositories, launch, config.runner_label);
     const buildId = await submitRunnerBuild(environment, launch);
     console.log(
       JSON.stringify({
@@ -444,14 +448,14 @@ async function main(): Promise<void> {
   const configPath =
     String(process.env.OVERCENTER_RUNNER_CONFIG_PATH ?? '').trim() ||
     'config/gcp-runner-autoscaler.json';
-  const repositories = await loadRepositories(configPath);
+  const config = await loadConfig(configPath);
   const port = Number(process.env.PORT ?? '8080');
   if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
     throw new TypeError('PORT must be a valid TCP port');
   }
 
   const server = createServer((request, response) => {
-    void handleRequest(request, response, environment, repositories).catch((error) => {
+    void handleRequest(request, response, environment, config).catch((error) => {
       console.error(String(error instanceof Error ? error.stack ?? error.message : error));
       if (!response.headersSent) sendJson(response, 500, { error: 'internal error' });
       else response.destroy();
