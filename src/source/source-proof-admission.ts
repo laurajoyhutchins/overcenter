@@ -1,20 +1,26 @@
 import {
-  assertExactKeys,
-  assertNonEmptyString,
-  isData,
-  isPositiveSafeInteger,
-  isSha256Hex,
-} from '../validation.ts';
-import type { AdmittedSourceProof, SourceProofContext } from './source-proof-record.ts';
+  executionEvidenceReceipt,
+  executionEvidenceReceiptDigest,
+  normalizeExecutionEvidenceReceipt,
+  sameExecutionEvidenceReceipt,
+  type ExecutionEvidenceReceipt,
+} from '../execution/evidence-receipt.ts';
+import { assertExactKeys, assertNonEmptyString, isData, isSha256Hex } from '../validation.ts';
 import {
-  validateSourceProofObservation,
-  type SourceProofObservation,
-} from './source-proof-observation.ts';
+  sourceProofExecutionEvidenceDescriptor,
+  sourceProofExecutionEvidenceRealization,
+} from './source-proof-evidence.ts';
+import type { AdmittedSourceProof, SourceProofContext } from './source-proof-record.ts';
 import {
   sourceTransactionPlanDigest,
   validateSourceTransactionPlan,
   type SourceTransactionPlan,
 } from './transaction.ts';
+
+export {
+  sourceProofExecutionEvidenceDescriptor,
+  sourceProofExecutionEvidenceRealization,
+} from './source-proof-evidence.ts';
 
 export class SourceProofRejected extends Error {
   constructor() {
@@ -33,48 +39,18 @@ function exactSha(value: unknown): asserts value is string {
   }
 }
 
-export function admitSourceProofObservation(
+export function admitSourceProofEvidence(
   planValue: SourceTransactionPlan,
-  recordValue: unknown,
   {
-    observation: observationValue,
-    expectedWorkflowRunId,
-    expectedWorkflowRunAttempt,
+    executionEvidence,
     context,
   }: {
-    observation: SourceProofObservation;
-    expectedWorkflowRunId: number;
-    expectedWorkflowRunAttempt: number;
+    executionEvidence: ExecutionEvidenceReceipt;
     context: SourceProofContext;
   },
 ): TrustedSourceProofWitness {
   const plan = validateSourceTransactionPlan(planValue);
-  const observation = validateSourceProofObservation(observationValue);
-  const planDigest = sourceTransactionPlanDigest(plan);
-  if (!isData(recordValue) || !isData(recordValue.producer) || !isData(plan.assurance)) {
-    throw new Error('SOURCE_PROOF_RECORD_INVALID');
-  }
-  const producer = recordValue.producer;
-  const assurance = plan.assurance;
-  const rejected = recordValue.state === 'rejected';
   if (
-    recordValue.schema !== 'overcenter-source-verification' ||
-    recordValue.schema_version !== 3 ||
-    (rejected
-      ? recordValue.reason !== 'SOURCE_VERIFICATION_FAILED'
-      : recordValue.state !== 'verified' || recordValue.reason !== null) ||
-    recordValue.run_id !== plan.claim.run_id ||
-    recordValue.candidate_sha !== plan.candidate_sha ||
-    recordValue.base_sha !== plan.claim.source_sha ||
-    recordValue.tree_sha !== plan.candidate_tree ||
-    recordValue.runtime_sha !== plan.runtime_sha ||
-    recordValue.plan_digest !== planDigest ||
-    recordValue.model_sha256 !== assurance.model_sha256 ||
-    recordValue.dependency_sha256 !== assurance.dependency_sha256 ||
-    recordValue.baseline_id !== assurance.baseline_id ||
-    recordValue.baseline_sha256 !== assurance.baseline_sha256 ||
-    recordValue.verification_profile_id !== plan.verification_profile.profile.id ||
-    recordValue.verification_profile_sha256 !== plan.verification_profile.sha256 ||
     context.repository_id !== plan.repository_id ||
     context.repository_full_name !== plan.repository_full_name ||
     context.runtime_sha !== plan.runtime_sha ||
@@ -83,78 +59,32 @@ export function admitSourceProofObservation(
   ) {
     throw new Error('SOURCE_PROOF_BINDING_MISMATCH');
   }
-  exactSha(recordValue.tree_sha);
-  if (
-    producer.repository_id !== plan.repository_id ||
-    producer.repository_full_name !== plan.repository_full_name ||
-    producer.workflow_path !== plan.verification_profile.profile.workflow_path ||
-    producer.workflow_run_id !== expectedWorkflowRunId ||
-    producer.workflow_run_attempt !== expectedWorkflowRunAttempt ||
-    producer.job_name !== plan.verification_profile.profile.record_job ||
-    !isPositiveSafeInteger(producer.job_id) ||
-    !isPositiveSafeInteger(expectedWorkflowRunId) ||
-    !isPositiveSafeInteger(expectedWorkflowRunAttempt)
-  ) {
-    throw new Error('SOURCE_PROOF_PRODUCER_INVALID');
+
+  const observed = normalizeExecutionEvidenceReceipt(executionEvidence);
+  const descriptor = sourceProofExecutionEvidenceDescriptor(plan);
+  const expected = executionEvidenceReceipt(
+    descriptor,
+    sourceProofExecutionEvidenceRealization(plan, observed.observation.result),
+  );
+  if (!sameExecutionEvidenceReceipt(observed, expected)) {
+    throw new Error('SOURCE_PROOF_EXECUTION_EVIDENCE_MISMATCH');
   }
 
-  const run = observation.workflow_run;
-  if (
-    observation.repository_id !== plan.repository_id ||
-    observation.repository_full_name !== plan.repository_full_name ||
-    run.id !== expectedWorkflowRunId ||
-    run.run_attempt !== expectedWorkflowRunAttempt ||
-    run.path !== plan.verification_profile.profile.workflow_path ||
-    run.head_sha !== plan.candidate_sha ||
-    run.head_branch !== `overcenter/candidate/${plan.claim.run_id}` ||
-    run.event !== 'workflow_dispatch' ||
-    run.status !== 'completed' ||
-    run.conclusion !== (rejected ? 'failure' : 'success') ||
-    run.repository_id !== plan.repository_id ||
-    run.head_repository_id !== plan.repository_id
-  ) {
-    throw new Error('SOURCE_PROOF_WORKFLOW_INVALID');
-  }
-
-  const profile = plan.verification_profile.profile;
-  for (const name of [...profile.required_evidence_jobs, profile.record_job]) {
-    const matches = observation.jobs.filter((job) => job.name === name);
-    const job = matches[0];
-    if (
-      matches.length !== 1 ||
-      !job ||
-      job.run_id !== expectedWorkflowRunId ||
-      job.head_sha !== plan.candidate_sha ||
-      job.status !== 'completed' ||
-      job.conclusion !== (name !== profile.record_job && rejected ? 'failure' : 'success') ||
-      (name === profile.record_job && job.id !== producer.job_id)
-    ) {
-      throw new Error(`SOURCE_PROOF_JOB_INVALID:${name}`);
-    }
-  }
-
-  if (rejected) throw new SourceProofRejected();
+  if (observed.observation.result === 'unsatisfied') throw new SourceProofRejected();
 
   const proof = validateAdmittedSourceProof({
-    schema: 'overcenter-admitted-source-proof/v2',
+    schema: 'overcenter-admitted-source-proof/v3',
     state: 'verified',
     reason: null,
     run_id: plan.claim.run_id,
     candidate_sha: plan.candidate_sha,
     base_sha: plan.claim.source_sha,
-    tree_sha: recordValue.tree_sha,
+    tree_sha: plan.candidate_tree,
     runtime_sha: plan.runtime_sha,
-    plan_digest: planDigest,
+    plan_digest: sourceTransactionPlanDigest(plan),
     verification_profile_id: plan.verification_profile.profile.id,
     verification_profile_sha256: plan.verification_profile.sha256,
-    producer: {
-      repository_id: plan.repository_id,
-      repository_full_name: plan.repository_full_name,
-      workflow_path: plan.verification_profile.profile.workflow_path,
-      workflow_run_id: expectedWorkflowRunId,
-      workflow_run_attempt: expectedWorkflowRunAttempt,
-      job_id: producer.job_id,
-    },
+    execution_evidence_sha256: executionEvidenceReceiptDigest(observed),
   });
   const witness = Object.freeze({}) as TrustedSourceProofWitness;
   proofs.set(witness, proof);
@@ -168,7 +98,7 @@ export function trustedSourceProof(witness: TrustedSourceProofWitness): Admitted
 }
 
 export function validateAdmittedSourceProof(value: unknown): AdmittedSourceProof {
-  if (!isData(value) || !isData(value.producer)) throw new Error('SOURCE_PROOF_RECORD_INVALID');
+  if (!isData(value)) throw new Error('SOURCE_PROOF_RECORD_INVALID');
   assertExactKeys(
     value,
     [
@@ -183,38 +113,18 @@ export function validateAdmittedSourceProof(value: unknown): AdmittedSourceProof
       'plan_digest',
       'verification_profile_id',
       'verification_profile_sha256',
-      'producer',
-    ],
-    [],
-    'SOURCE_PROOF_RECORD_INVALID',
-  );
-  assertExactKeys(
-    value.producer,
-    [
-      'repository_id',
-      'repository_full_name',
-      'workflow_path',
-      'workflow_run_id',
-      'workflow_run_attempt',
-      'job_id',
+      'execution_evidence_sha256',
     ],
     [],
     'SOURCE_PROOF_RECORD_INVALID',
   );
   if (
-    value.schema !== 'overcenter-admitted-source-proof/v2' ||
+    value.schema !== 'overcenter-admitted-source-proof/v3' ||
     value.state !== 'verified' ||
     value.reason !== null ||
-    typeof value.producer.workflow_path !== 'string' ||
-    !value.producer.workflow_path.startsWith('.github/workflows/') ||
-    !isPositiveSafeInteger(value.producer.repository_id) ||
-    !isPositiveSafeInteger(value.producer.workflow_run_id) ||
-    !isPositiveSafeInteger(value.producer.workflow_run_attempt) ||
-    !isPositiveSafeInteger(value.producer.job_id) ||
-    typeof value.producer.repository_full_name !== 'string' ||
-    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.producer.repository_full_name) ||
     !isSha256Hex(value.plan_digest) ||
-    !isSha256Hex(value.verification_profile_sha256)
+    !isSha256Hex(value.verification_profile_sha256) ||
+    !isSha256Hex(value.execution_evidence_sha256)
   ) {
     throw new Error('SOURCE_PROOF_RECORD_INVALID');
   }

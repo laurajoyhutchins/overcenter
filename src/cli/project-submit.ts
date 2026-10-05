@@ -1,10 +1,15 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import {
   submitProjectCandidate,
   type ProjectSubmitContext,
 } from '../authority/project-agent-protocol.ts';
+import type { ExecutionEvidenceReceipt } from '../execution/evidence-receipt.ts';
+import {
+  observeGitHubSourceProofExecutionEvidence,
+} from '../providers/github/source-proof-execution-evidence.ts';
+import type { SourceTransactionPlan } from '../source/transaction.ts';
 import {
   appendGitHubOutputs,
   commandOption,
@@ -21,15 +26,23 @@ const context: ProjectSubmitContext = {
   ...projectCommandContext(),
   candidate_sha: requiredEnv('OVERCENTER_CANDIDATE_SHA'),
   candidate_run_id: requiredEnv('OVERCENTER_CANDIDATE_RUN_ID'),
-  ...(process.env.OVERCENTER_CANDIDATE_WORKFLOW_RUN_ID
-    ? {
-        candidate_workflow_run_id: Number(process.env.OVERCENTER_CANDIDATE_WORKFLOW_RUN_ID),
-        candidate_workflow_run_attempt: Number(
-          requiredEnv('OVERCENTER_CANDIDATE_WORKFLOW_RUN_ATTEMPT'),
-        ),
-      }
-    : {}),
 };
+
+const sourceVerificationPath = process.env.OVERCENTER_SOURCE_VERIFICATION_PATH;
+const githubToken = process.env.GITHUB_TOKEN ?? null;
+const sourceExecutionEvidence =
+  sourceVerificationPath === undefined
+    ? undefined
+    : (plan: SourceTransactionPlan): ExecutionEvidenceReceipt => {
+        if (!githubToken) throw new Error('SOURCE_PROOF_PRODUCER_CONTEXT_MISSING');
+        const record: unknown = JSON.parse(readFileSync(sourceVerificationPath, 'utf8'));
+        return observeGitHubSourceProofExecutionEvidence(githubToken, plan, record, {
+          workflowRunId: Number(requiredEnv('OVERCENTER_CANDIDATE_WORKFLOW_RUN_ID')),
+          workflowRunAttempt: Number(
+            requiredEnv('OVERCENTER_CANDIDATE_WORKFLOW_RUN_ATTEMPT'),
+          ),
+        });
+      };
 
 const receipt = submitProjectCandidate(process.cwd(), context, {
   ...(process.env.OVERCENTER_PROJECT_AUTHORITY_REF === undefined
@@ -38,10 +51,8 @@ const receipt = submitProjectCandidate(process.cwd(), context, {
   ...(process.env.OVERCENTER_PROJECT_REMOTE === undefined
     ? {}
     : { remote: process.env.OVERCENTER_PROJECT_REMOTE }),
-  githubToken: process.env.GITHUB_TOKEN ?? null,
-  ...(process.env.OVERCENTER_SOURCE_VERIFICATION_PATH === undefined
-    ? {}
-    : { sourceVerificationPath: process.env.OVERCENTER_SOURCE_VERIFICATION_PATH }),
+  githubToken,
+  ...(sourceExecutionEvidence === undefined ? {} : { sourceExecutionEvidence }),
 });
 mkdirSync(dirname(receiptPath), { recursive: true });
 writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);

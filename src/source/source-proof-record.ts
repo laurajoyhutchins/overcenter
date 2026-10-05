@@ -6,7 +6,7 @@ import {
 } from './transaction.ts';
 
 export interface AdmittedSourceProof {
-  schema: 'overcenter-admitted-source-proof/v2';
+  schema: 'overcenter-admitted-source-proof/v3';
   state: 'verified';
   reason: null;
   run_id: string;
@@ -17,14 +17,7 @@ export interface AdmittedSourceProof {
   plan_digest: string;
   verification_profile_id: string;
   verification_profile_sha256: string;
-  producer: {
-    repository_id: number;
-    repository_full_name: string;
-    workflow_path: string;
-    workflow_run_id: number;
-    workflow_run_attempt: number;
-    job_id: number;
-  };
+  execution_evidence_sha256: string;
 }
 
 export interface SourceProofContext {
