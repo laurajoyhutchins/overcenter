@@ -216,4 +216,3 @@ export function inspectSourceCandidate(
 
   return { task, candidate, changed_paths: changedPaths };
 }
-
