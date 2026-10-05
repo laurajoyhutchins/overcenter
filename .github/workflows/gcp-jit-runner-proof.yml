@@ -109,7 +109,7 @@ jobs:
                         body:JSON.stringify({
                           name:process.env.RUNNER_NAME,
                           runner_group_id:1,
-                          labels:["overcenter-gcp","gcp-proof"],
+                          labels:["self-hosted","Linux","X64","overcenter-gcp","gcp-proof"],
                           work_folder:"_work",
                         }),
                       }),
