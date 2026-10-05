@@ -95,25 +95,46 @@ jobs:
                       "installation lookup",
                     );
                     const access = await json(
-                      await fetch("https://api.github.com/app/installations/" + installation.id + "/access_tokens", {
-                        method:"POST",
-                        headers:{...headers(appJwt),"Content-Type":"application/json"},
-                        body:JSON.stringify({permissions:{administration:"write",actions:"read"}}),
-                      }),
+                      await fetch(
+                        "https://api.github.com/app/installations/" +
+                          installation.id +
+                          "/access_tokens",
+                        {
+                          method:"POST",
+                          headers:{...headers(appJwt),"Content-Type":"application/json"},
+                          body:JSON.stringify({permissions:{administration:"write"}}),
+                        },
+                      ),
                       "installation token",
                     );
-                    const registration = await json(
-                      await fetch("https://api.github.com/repos/" + repo + "/actions/runners/registration-token", {
-                        method:"POST",
-                        headers:{...headers(access.token),"Content-Type":"application/json"},
-                      }),
-                      "runner registration token",
+                    const jit = await json(
+                      await fetch(
+                        "https://api.github.com/repos/" +
+                          repo +
+                          "/actions/runners/generate-jitconfig",
+                        {
+                          method:"POST",
+                          headers:{...headers(access.token),"Content-Type":"application/json"},
+                          body:JSON.stringify({
+                            name:process.env.RUNNER_NAME,
+                            runner_group_id:1,
+                            labels:[
+                              "self-hosted",
+                              "Linux",
+                              "X64",
+                              "overcenter-gcp",
+                              "gcp-proof",
+                            ],
+                            work_folder:"_work",
+                          }),
+                        },
+                      ),
+                      "JIT configuration",
                     );
-                    if (!registration || typeof registration.token !== "string" || !registration.token) {
-                      throw new Error("runner registration endpoint returned no token");
+                    if (!jit || typeof jit.encoded_jit_config !== "string" || !jit.encoded_jit_config) {
+                      throw new Error("JIT configuration returned no encoded config");
                     }
-                    fs.writeFileSync("/workspace/registration-token", registration.token, {mode:0o600});
-                    fs.writeFileSync("/workspace/admin-token", access.token, {mode:0o600});
+                    fs.writeFileSync("/workspace/jit-config", jit.encoded_jit_config, {mode:0o600});
                   }
                   main().catch(error => {
                     console.error(String(error && error.message || error));
@@ -129,120 +150,52 @@ jobs:
                 - -ceu
                 - |
                   apt-get update -qq
-                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates curl git gzip python3 tar unzip
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+                    ca-certificates curl git gzip python3 tar unzip
                   mkdir -p /workspace/actions-runner
                   cd /workspace/actions-runner
                   curl -fsSLo actions-runner.tar.gz \
                     https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-x64-2.337.0.tar.gz
                   echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum -c -
                   tar xzf actions-runner.tar.gz
-
-                  # The runner archive is portable but the base image is intentionally
-                  # minimal. Let the pinned runner declare its own native prerequisites.
                   if [ -x ./bin/installdependencies.sh ]; then
-                    ./bin/installdependencies.sh > /workspace/dependencies-output.log 2>&1
+                    ./bin/installdependencies.sh >/workspace/dependencies-output.log 2>&1
                   fi
 
-                  runner_name="overcenter-gcp-${BUILD_ID}"
-                  set +e
-                  ./config.sh \
-                    --url https://github.com/laurajoyhutchins/arcata \
-                    --token "$(cat /workspace/registration-token)" \
-                    --name "$runner_name" \
-                    --labels "overcenter-gcp,gcp-proof" \
-                    --work "_work" \
-                    --unattended \
-                    --ephemeral \
-                    --disableupdate > /workspace/config-output.log 2>&1
-                  config_rc=$?
-                  set -e
-                  if [ "$config_rc" -ne 0 ]; then
-                    if grep -Eqi 'not found|missing.*depend|libicu|libssl|dependency' /workspace/config-output.log; then
-                      exit 61
-                    elif grep -Eqi 'unauthorized|forbidden|not found|token|registration|repository' /workspace/config-output.log; then
-                      exit 62
-                    elif grep -Eqi 'already.*configured|runner.*exists|same name' /workspace/config-output.log; then
-                      exit 63
-                    elif grep -Eqi 'root|sudo|permission denied' /workspace/config-output.log; then
-                      exit 64
-                    else
-                      exit 65
-                    fi
-                  fi
+                  jit_config="$(cat /workspace/jit-config)"
+                  rm -f /workspace/jit-config
+                  ./run.sh --jitconfig "$jit_config"
+                  unset jit_config
 
-                  ./run.sh > /workspace/runner-output.log 2>&1 &
-                  runner_pid=$!
-                  sleep 10
-
-                  auth_header="Authorization: Bearer $(cat /workspace/admin-token)"
-                  runners_json="$(curl -fsSL \
-                    -H "Accept: application/vnd.github+json" \
-                    -H "$auth_header" \
-                    -H "X-GitHub-Api-Version: 2026-03-10" \
-                    https://api.github.com/repos/laurajoyhutchins/arcata/actions/runners)"
-                  job_json="$(curl -fsSL \
-                    -H "Accept: application/vnd.github+json" \
-                    -H "$auth_header" \
-                    -H "X-GitHub-Api-Version: 2026-03-10" \
-                    https://api.github.com/repos/laurajoyhutchins/arcata/actions/jobs/111879127702)"
-
-                  route_code="$(
-                    python3 - "$runner_name" "$runners_json" "$job_json" <<'PY'
-                  import json, sys
-                  name, runners_raw, job_raw = sys.argv[1:]
-                  runners = json.loads(runners_raw).get("runners", [])
-                  runner = next((item for item in runners if item.get("name") == name), None)
-                  job = json.loads(job_raw)
-                  if runner is None:
-                      print(41)
-                      raise SystemExit
-                  runner_status = str(runner.get("status"))
-                  runner_labels = {str(label.get("name")) for label in runner.get("labels", [])}
-                  job_labels = {str(label) for label in job.get("labels", [])}
-                  if runner_status != "online":
-                      print(42)
-                  elif not job_labels.issubset(runner_labels):
-                      print(43)
-                  elif str(job.get("status")) == "queued":
-                      print(45)
-                  else:
-                      print(0)
-                  PY
-                  )"
-                  echo "OVERCENTER_DIAG route_code=$route_code"
-                  if [ "$route_code" -ne 0 ]; then
-                    kill "$runner_pid" 2>/dev/null || true
-                    wait "$runner_pid" 2>/dev/null || true
-                    exit "$route_code"
-                  fi
-
-                  set +e
-                  wait "$runner_pid"
-                  rc=$?
-                  set -e
-                  worker_count="$(find _diag -maxdepth 1 -type f -name 'Worker_*.log' | wc -l)"
-                  echo "OVERCENTER_DIAG worker_count=$worker_count"
-                  if [ "$worker_count" -lt 1 ]; then
-                    exit 23
-                  fi
-                  exit "$rc"
           availableSecrets:
             secretManager:
               - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
                 env: GITHUB_APP_PRIVATE_KEY
+
           options:
-            logging: CLOUD_LOGGING_ONLY
+            logging: NONE
           YAML
 
           build_id="$(
-            gcloud builds submit               --async               --no-source               --project="$PROJECT_ID"               --region="$REGION"               --config="$config"               --format='value(id)'
+            gcloud builds submit \
+              --async \
+              --no-source \
+              --project="$PROJECT_ID" \
+              --region="$REGION" \
+              --config="$config" \
+              --format='value(id)'
           )"
           test -n "$build_id"
           echo "Cloud Build: $build_id" | tee -a "$GITHUB_STEP_SUMMARY"
 
           status=""
           for _ in $(seq 1 300); do
-            status="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)')"
+            status="$(
+              gcloud builds describe "$build_id" \
+                --project="$PROJECT_ID" \
+                --region="$REGION" \
+                --format='value(status)'
+            )"
             case "$status" in
               SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
             esac
@@ -253,8 +206,4 @@ jobs:
             --project="$PROJECT_ID" \
             --region="$REGION" \
             --format="table(steps.id,steps.status)" | tee -a "$GITHUB_STEP_SUMMARY"
-          gcloud builds describe "$build_id" \
-            --project="$PROJECT_ID" \
-            --region="$REGION" \
-            --format="value(failureInfo.detail)" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$status" = SUCCESS
