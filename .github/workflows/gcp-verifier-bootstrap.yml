@@ -1,4 +1,4 @@
-name: GCP verifier bootstrap inventory
+name: GCP verifier source-connection inventory
 
 on:
   push:
@@ -11,28 +11,22 @@ permissions:
   contents: read
   id-token: write
 
-concurrency:
-  group: gcp-verifier-bootstrap
-  cancel-in-progress: false
-
 jobs:
   inventory:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     env:
       PROJECT_ID: project-6b810532-a302-48dc-b56
-      PROJECT_NUMBER: "380435294892"
       REGION: us-west1
       WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
       DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+
     steps:
-      - name: Check out exact bootstrap revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
 
-      - name: Authenticate with existing Workload Identity Federation
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
@@ -40,261 +34,27 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
 
-      - name: Install gcloud
-        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
         with:
           project_id: ${{ env.PROJECT_ID }}
           version: ">= 363.0.0"
 
-      - name: Read-only GCP inventory
+      - name: Inspect managed source connections
         shell: bash
         run: |
           set -uo pipefail
-          {
-            echo "## GCP verifier bootstrap inventory"
-            echo
-            echo "- repository: \`$GITHUB_REPOSITORY\`"
-            echo "- source SHA: \`$GITHUB_SHA\`"
-            echo "- ref: \`$GITHUB_REF\`"
-            echo "- project: \`$PROJECT_ID\`"
-            echo "- region: \`$REGION\`"
-            echo "- requested identity: \`$DEPLOYER_SA\`"
-            echo
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "== Cloud Build connections =="
+          if ! gcloud builds connections list \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format="table(name,disabled,installationState.stage)"; then
+            echo "connections-list: unavailable"
+          fi
 
-          probe() {
-            local title="$1"
-            shift
-            local rc=0
-            echo "::group::$title"
-            if "$@"; then
-              rc=0
-            else
-              rc=$?
-            fi
-            echo "exit_code=$rc"
-            echo "::endgroup::"
-            printf -- "- %s: exit %s\n" "$title" "$rc" >> "$GITHUB_STEP_SUMMARY"
-            return 0
-          }
-
-          probe "active identity" gcloud auth list --filter=status:ACTIVE --format="value(account)"
-          probe "project read" gcloud projects describe "$PROJECT_ID" --format="value(projectNumber,projectId)"
-          probe "enabled services" gcloud services list --enabled --project="$PROJECT_ID" --format="value(config.name)"
-          probe "cloud build recent builds" gcloud builds list --project="$PROJECT_ID" --region="$REGION" --limit=10 --format="table(id,status,createTime,source.repoSource.repoName)"
-          probe "cloud build triggers" gcloud builds triggers list --project="$PROJECT_ID" --region="$REGION" --format="table(name,id,disabled)"
-          probe "cloud build worker pools" gcloud builds worker-pools list --project="$PROJECT_ID" --region="$REGION" --format="table(name,state)"
-          probe "service accounts" gcloud iam service-accounts list --project="$PROJECT_ID" --format="table(email,disabled)"
-          probe "project IAM policy" gcloud projects get-iam-policy "$PROJECT_ID" --flatten="bindings[].members" --filter="bindings.members:$DEPLOYER_SA" --format="table(bindings.role,bindings.condition.title,bindings.condition.expression)"
-
-      - name: Verify bootstrap identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$GITHUB_REF" = "refs/heads/dev"
-          test "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" = "$DEPLOYER_SA"
-
-      - name: Prove exact-SHA Cloud Build execution
-        shell: bash
-        run: |
-          set -euo pipefail
-          BUILD_CONFIG="$RUNNER_TEMP/cloudbuild-exact-sha-smoke.yaml"
-          cat > "$BUILD_CONFIG" <<'YAML'
-          steps:
-            - name: gcr.io/cloud-builders/git
-              entrypoint: bash
-              args:
-                - -ceu
-                - |
-                  rm -rf /workspace/repo
-                  git init /workspace/repo
-                  cd /workspace/repo
-                  git remote add origin https://github.com/laurajoyhutchins/overcenter.git
-                  git fetch --depth=1 origin "${_SHA}"
-                  git checkout --detach FETCH_HEAD
-                  ACTUAL="$(git rev-parse HEAD)"
-                  printf 'requested=%s\nactual=%s\n' "${_SHA}" "$$ACTUAL"
-                  test "$$ACTUAL" = "${_SHA}"
-          options:
-            logging: CLOUD_LOGGING_ONLY
-          YAML
-
-          BUILD_ID="$(
-            gcloud builds submit               --no-source               --project="$PROJECT_ID"               --region="$REGION"               --config="$BUILD_CONFIG"               --substitutions="_SHA=$GITHUB_SHA"               --format='value(id)'
-          )"
-
-          test -n "$BUILD_ID"
-          echo "Cloud Build exact-SHA proof: $BUILD_ID"
-          printf -- "- exact-SHA Cloud Build: \`%s\`\n" "$BUILD_ID" >> "$GITHUB_STEP_SUMMARY"
-
-
-      - name: Prove private Arcata exact-head verification
-        shell: bash
-        env:
-          ARCATA_SHA: 4c668e2d82e5c1abd1d941cacdd675de20b3a71e
-        run: |
-          set -euo pipefail
-          BUILD_CONFIG="$RUNNER_TEMP/cloudbuild-arcata-exact-head.yaml"
-          cat > "$BUILD_CONFIG" <<'YAML'
-          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
-          steps:
-            - id: private-source
-              name: node:22-bookworm
-              entrypoint: node
-              secretEnv:
-                - GITHUB_APP_PRIVATE_KEY
-              env:
-                - GITHUB_APP_ID=4616688
-                - ARCATA_SHA=${_ARCATA_SHA}
-              args:
-                - -e
-                - |
-                  const crypto = require("crypto");
-                  const fs = require("fs");
-                  const b64 = value => Buffer.from(JSON.stringify(value)).toString("base64url");
-                  const now = Math.floor(Date.now() / 1000);
-                  const header = b64({ alg: "RS256", typ: "JWT" });
-                  const payload = b64({ iat: now - 60, exp: now + 540, iss: process.env.GITHUB_APP_ID });
-                  const unsigned = header + "." + payload;
-                  const signature = crypto.sign(
-                    "RSA-SHA256",
-                    Buffer.from(unsigned),
-                    process.env.GITHUB_APP_PRIVATE_KEY,
-                  ).toString("base64url");
-                  const appJwt = unsigned + "." + signature;
-                  const appHeaders = {
-                    Accept: "application/vnd.github+json",
-                    Authorization: "Bearer " + appJwt,
-                    "X-GitHub-Api-Version": "2022-11-28",
-                    "User-Agent": "overcenter-gcp-verifier",
-                  };
-                  async function json(response, what) {
-                    if (!response.ok) throw new Error(what + " failed with HTTP " + response.status);
-                    return response.json();
-                  }
-                  async function main() {
-                    const repository = "laurajoyhutchins/arcata";
-                    const sha = process.env.ARCATA_SHA;
-                    const installation = await json(
-                      await fetch("https://api.github.com/repos/" + repository + "/installation", { headers: appHeaders }),
-                      "installation lookup",
-                    );
-                    const tokenBody = await json(
-                      await fetch("https://api.github.com/app/installations/" + installation.id + "/access_tokens", {
-                        method: "POST",
-                        headers: Object.assign({}, appHeaders, { "Content-Type": "application/json" }),
-                        body: JSON.stringify({ permissions: { contents: "read" } }),
-                      }),
-                      "installation token",
-                    );
-                    const tokenHeaders = {
-                      Accept: "application/vnd.github+json",
-                      Authorization: "Bearer " + tokenBody.token,
-                      "X-GitHub-Api-Version": "2022-11-28",
-                      "User-Agent": "overcenter-gcp-verifier",
-                    };
-                    const commit = await json(
-                      await fetch("https://api.github.com/repos/" + repository + "/commits/" + sha, { headers: tokenHeaders }),
-                      "commit lookup",
-                    );
-                    if (commit.sha !== sha) throw new Error("exact-head mismatch");
-                    const archive = await fetch(
-                      "https://api.github.com/repos/" + repository + "/tarball/" + sha,
-                      { headers: tokenHeaders, redirect: "follow" },
-                    );
-                    if (!archive.ok) throw new Error("source archive failed with HTTP " + archive.status);
-                    const bytes = Buffer.from(await archive.arrayBuffer());
-                    if (bytes.length < 1024) throw new Error("source archive unexpectedly small");
-                    fs.writeFileSync("/workspace/arcata.tar.gz", bytes, { mode: 0o600 });
-                  }
-                  main().catch(error => {
-                    console.error(String(error && error.message || error));
-                    process.exit(1);
-                  });
-
-            - id: extract-source
-              name: python:3.13-bookworm
-              entrypoint: python
-              args:
-                - -c
-                - |
-                  from pathlib import Path
-                  import shutil
-                  import tarfile
-                  archive = Path("/workspace/arcata.tar.gz")
-                  unpack = Path("/workspace/unpack")
-                  target = Path("/workspace/arcata")
-                  shutil.rmtree(unpack, ignore_errors=True)
-                  shutil.rmtree(target, ignore_errors=True)
-                  unpack.mkdir()
-                  with tarfile.open(archive, "r:gz") as source:
-                      source.extractall(unpack, filter="data")
-                  entries = list(unpack.iterdir())
-                  if len(entries) != 1 or not entries[0].is_dir():
-                      raise SystemExit("GitHub source archive did not contain exactly one root directory")
-                  shutil.move(str(entries[0]), target)
-
-            - id: install-tools
-              name: python:3.13-bookworm
-              entrypoint: bash
-              args:
-                - -ceu
-                - |
-                  cd /workspace/arcata
-                  python tools/verification_tools.py requirements > /workspace/verification-tools.txt
-                  python -m venv /workspace/verification-tools
-                  /workspace/verification-tools/bin/python -m pip install \
-                    --disable-pip-version-check \
-                    --no-input \
-                    --no-compile \
-                    --only-binary=:all: \
-                    --no-deps \
-                    --require-hashes \
-                    --requirement /workspace/verification-tools.txt
-                  /workspace/verification-tools/bin/python -m pip check
-
-            - id: ruff-format
-              name: python:3.13-bookworm
-              dir: arcata
-              entrypoint: /workspace/verification-tools/bin/ruff
-              args: ["format", "--check", "."]
-
-            - id: ruff-lint
-              name: python:3.13-bookworm
-              dir: arcata
-              entrypoint: /workspace/verification-tools/bin/ruff
-              args: ["check", "."]
-
-            - id: mypy
-              name: python:3.13-bookworm
-              dir: arcata
-              entrypoint: /workspace/verification-tools/bin/python
-              args: ["-m", "mypy"]
-
-            - id: tests
-              name: python:3.13-bookworm
-              dir: arcata
-              entrypoint: python
-              args: ["tools/test_all.py"]
-
-          availableSecrets:
-            secretManager:
-              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
-                env: GITHUB_APP_PRIVATE_KEY
-          options:
-            logging: NONE
-          YAML
-
-          BUILD_ID="$(
-            gcloud builds submit \
-              --no-source \
-              --project="$PROJECT_ID" \
-              --region="$REGION" \
-              --config="$BUILD_CONFIG" \
-              --substitutions="_ARCATA_SHA=$ARCATA_SHA" \
-              --format='value(id)'
-          )"
-
-          test -n "$BUILD_ID"
-          echo "Arcata exact-head Cloud Build proof: $BUILD_ID"
-          printf -- "- Arcata exact-head Cloud Build: \`%s\`\n" "$BUILD_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "== Cloud Build repository resources =="
+          if ! gcloud builds repositories list \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format="table(name,remoteUri)"; then
+            echo "repositories-list: unavailable"
+          fi
