@@ -3,13 +3,6 @@
   "poll_interval_ms": 10000,
   "redispatch_after_ms": 600000,
   "runner_label": "overcenter-gcp",
-  "dispatch": {
-    "repository": "laurajoyhutchins/overcenter",
-    "repository_id": 1354872053,
-    "owner_id": 219002713,
-    "workflow": "gcp-runner-launch.yml",
-    "ref": "work/gcp-cloud-run-cloud-sql-bootstrap"
-  },
   "repositories": [
     {
       "full_name": "laurajoyhutchins/arcata",

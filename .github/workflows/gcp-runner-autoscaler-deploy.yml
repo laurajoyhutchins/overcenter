@@ -19,7 +19,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
       GCP_REGION: us-west1

@@ -7,18 +7,10 @@ const GITHUB_API = 'https://api.github.com';
 const GITHUB_API_VERSION = '2026-03-10';
 const USER_AGENT = 'Overcenter-GCP-Runner-Autoscaler/1.0';
 
-type RepositoryBinding = Readonly<{
+export type RepositoryBinding = Readonly<{
   full_name: string;
   repository_id: number;
   owner_id: number;
-}>;
-
-type DispatchBinding = Readonly<{
-  repository: string;
-  repository_id: number;
-  owner_id: number;
-  workflow: string;
-  ref: string;
 }>;
 
 export type RunnerAutoscalerConfig = Readonly<{
@@ -26,7 +18,6 @@ export type RunnerAutoscalerConfig = Readonly<{
   poll_interval_ms: number;
   redispatch_after_ms: number;
   runner_label: string;
-  dispatch: DispatchBinding;
   repositories: readonly RepositoryBinding[];
 }>;
 
@@ -51,7 +42,7 @@ type PollState = {
   lastAttemptAt: string | null;
   lastSuccessAt: string | null;
   lastError: string | null;
-  dispatched: Map<string, number>;
+  launched: Map<string, number>;
 };
 
 function requirePositiveInteger(value: unknown, label: string): number {
@@ -92,27 +83,15 @@ export function parseRunnerAutoscalerConfig(value: unknown): RunnerAutoscalerCon
     throw new TypeError('runner_label must be a canonical GitHub runner label');
   }
 
-  const rawDispatch = body.dispatch;
-  if (!rawDispatch || typeof rawDispatch !== 'object' || Array.isArray(rawDispatch)) {
-    throw new TypeError('dispatch must be an object');
-  }
-  const dispatchBody = rawDispatch as Record<string, unknown>;
-  const dispatch = Object.freeze({
-    repository: requireRepository(dispatchBody.repository, 'dispatch.repository'),
-    repository_id: requirePositiveInteger(dispatchBody.repository_id, 'dispatch.repository_id'),
-    owner_id: requirePositiveInteger(dispatchBody.owner_id, 'dispatch.owner_id'),
-    workflow: String(dispatchBody.workflow ?? '').trim(),
-    ref: String(dispatchBody.ref ?? '').trim(),
-  });
-  if (!/^[A-Za-z0-9_.-]+\.ya?ml$/.test(dispatch.workflow)) {
-    throw new TypeError('dispatch.workflow must be a workflow filename');
-  }
-  if (
-    !/^[A-Za-z0-9._/-]+$/.test(dispatch.ref) ||
-    dispatch.ref.includes('..') ||
-    dispatch.ref.includes('//')
-  ) {
-    throw new TypeError('dispatch.ref must be a canonical Git ref name');
+  const allowedKeys = new Set([
+    'schema',
+    'poll_interval_ms',
+    'redispatch_after_ms',
+    'runner_label',
+    'repositories',
+  ]);
+  for (const key of Object.keys(body)) {
+    if (!allowedKeys.has(key)) throw new TypeError(`unexpected runner autoscaler config key: ${key}`);
   }
 
   if (!Array.isArray(body.repositories) || body.repositories.length < 1) {
@@ -143,7 +122,6 @@ export function parseRunnerAutoscalerConfig(value: unknown): RunnerAutoscalerCon
     poll_interval_ms: pollIntervalMs,
     redispatch_after_ms: redispatchAfterMs,
     runner_label: runnerLabel,
-    dispatch,
     repositories: Object.freeze(repositories),
   });
 }
@@ -324,42 +302,53 @@ async function queuedRunnerJobs(
   return jobs;
 }
 
-async function dispatchRunner(
-  client: GitHubAppClient,
+async function cloudRunIdentityToken(audience: string): Promise<string> {
+  const response = await fetch(
+    `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audience)}&format=full`,
+    { headers: { 'Metadata-Flavor': 'Google' } },
+  );
+  const token = (await response.text()).trim();
+  if (!response.ok || !token) {
+    throw new Error(
+      `Cloud Run identity token request failed with HTTP ${response.status}: ${token.slice(0, 300)}`,
+    );
+  }
+  return token;
+}
+
+async function launchRunner(
+  launcherUrl: string,
   config: RunnerAutoscalerConfig,
   sourceRepository: RepositoryBinding,
   job: WorkflowJob,
 ): Promise<void> {
-  const dispatchRepository: RepositoryBinding = {
-    full_name: config.dispatch.repository,
-    repository_id: config.dispatch.repository_id,
-    owner_id: config.dispatch.owner_id,
-  };
-
-  const token = await client.installationToken(dispatchRepository, {
-    actions: 'write',
-    contents: 'read',
-  });
-  await githubJson(
-    `/repos/${config.dispatch.repository}/actions/workflows/${encodeURIComponent(config.dispatch.workflow)}/dispatches`,
-    token,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        ref: config.dispatch.ref,
-        inputs: {
-          repository: sourceRepository.full_name,
-          repository_id: String(sourceRepository.repository_id),
-          job_id: String(job.id),
-        },
-      }),
+  const token = await cloudRunIdentityToken(launcherUrl);
+  const response = await fetch(`${launcherUrl}/launch`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'User-Agent': USER_AGENT,
     },
-  );
+    body: JSON.stringify({
+      repository: sourceRepository.full_name,
+      repository_id: sourceRepository.repository_id,
+      owner_id: sourceRepository.owner_id,
+      job_id: job.id,
+      runner_label: config.runner_label,
+    }),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `GCP runner launcher failed with HTTP ${response.status}: ${text.slice(0, 300)}`,
+    );
+  }
 }
 
-function pruneDispatches(state: PollState, redispatchAfterMs: number, now: number): void {
-  for (const [key, timestamp] of state.dispatched) {
-    if (now - timestamp >= redispatchAfterMs) state.dispatched.delete(key);
+function pruneLaunches(state: PollState, redispatchAfterMs: number, now: number): void {
+  for (const [key, timestamp] of state.launched) {
+    if (now - timestamp >= redispatchAfterMs) state.launched.delete(key);
   }
 }
 
@@ -367,12 +356,13 @@ async function pollOnce(
   client: GitHubAppClient,
   config: RunnerAutoscalerConfig,
   state: PollState,
+  launcherUrl: string,
 ): Promise<void> {
   if (state.running) return;
   state.running = true;
   const now = Date.now();
   state.lastAttemptAt = new Date(now).toISOString();
-  pruneDispatches(state, config.redispatch_after_ms, now);
+  pruneLaunches(state, config.redispatch_after_ms, now);
 
   try {
     for (const repository of config.repositories) {
@@ -383,17 +373,16 @@ async function pollOnce(
       const jobs = await queuedRunnerJobs(repository, token, config.runner_label);
       for (const job of jobs) {
         const key = `${repository.repository_id}:${job.id}`;
-        const prior = state.dispatched.get(key);
+        const prior = state.launched.get(key);
         if (prior !== undefined && now - prior < config.redispatch_after_ms) continue;
-        await dispatchRunner(client, config, repository, job);
-        state.dispatched.set(key, now);
+        await launchRunner(launcherUrl, config, repository, job);
+        state.launched.set(key, now);
         console.log(
           JSON.stringify({
-            event: 'runner_dispatched',
+            event: 'runner_launched',
             repository: repository.full_name,
             repository_id: repository.repository_id,
             job_id: job.id,
-            dispatch_ref: config.dispatch.ref,
           }),
         );
       }
@@ -415,7 +404,7 @@ function healthResponse(state: PollState): string {
     last_attempt_at: state.lastAttemptAt,
     last_success_at: state.lastSuccessAt,
     last_error: state.lastError,
-    dispatch_cache_size: state.dispatched.size,
+    launch_cache_size: state.launched.size,
   });
 }
 
@@ -429,6 +418,10 @@ async function main(): Promise<void> {
   const configPath =
     String(process.env.OVERCENTER_RUNNER_CONFIG_PATH ?? '').trim() ||
     'config/gcp-runner-autoscaler.json';
+  const launcherUrl = String(process.env.OVERCENTER_RUNNER_LAUNCHER_URL ?? '').trim().replace(/\/$/, '');
+  if (!/^https:\/\/[^/]+$/.test(launcherUrl)) {
+    throw new TypeError('OVERCENTER_RUNNER_LAUNCHER_URL must be an HTTPS origin');
+  }
   const port = Number(process.env.PORT ?? '8080');
   if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
     throw new TypeError('PORT must be a valid TCP port');
@@ -441,7 +434,7 @@ async function main(): Promise<void> {
     lastAttemptAt: null,
     lastSuccessAt: null,
     lastError: null,
-    dispatched: new Map(),
+    launched: new Map(),
   };
 
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
@@ -456,8 +449,11 @@ async function main(): Promise<void> {
   });
   await new Promise<void>((resolve) => server.listen(port, '0.0.0.0', resolve));
 
-  await pollOnce(client, config, state);
-  const timer = setInterval(() => void pollOnce(client, config, state), config.poll_interval_ms);
+  await pollOnce(client, config, state, launcherUrl);
+  const timer = setInterval(
+    () => void pollOnce(client, config, state, launcherUrl),
+    config.poll_interval_ms,
+  );
   timer.unref();
 
   const shutdown = (): void => {
