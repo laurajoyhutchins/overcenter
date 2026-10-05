@@ -190,6 +190,7 @@ jobs:
                   ruff = venv / "bin" / "ruff"
 
                   subprocess.run([str(ruff), "format", "."], cwd=root, check=True)
+                  subprocess.run([str(ruff), "check", "--fix", "."], cwd=root, check=True)
                   changed = run(["git", "diff", "--name-only"], capture=True).stdout.splitlines()
                   allowed = {
                       "packages/ieee1584/src/ieee1584/__init__.py",
