@@ -127,7 +127,6 @@ function observedRead(
     get,
     clock: () => '2026-10-05T18:06:00.000Z',
   });
-  assert.equal(result.state, 'observed');
   if (result.state !== 'observed') {
     throw new Error(
       result.state === 'indeterminate'
