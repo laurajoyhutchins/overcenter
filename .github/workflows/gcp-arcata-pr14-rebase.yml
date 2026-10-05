@@ -6,6 +6,7 @@ on:
     branches: [dev]
     paths:
       - .github/workflows/gcp-arcata-pr14-rebase.yml
+      - .overcenter/gcp-pr14-rebase.trigger
 
 permissions:
   contents: read
