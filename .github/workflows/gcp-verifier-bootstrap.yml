@@ -65,9 +65,13 @@ jobs:
           probe() {
             local title="$1"
             shift
+            local rc=0
             echo "::group::$title"
-            "$@"
-            local rc=$?
+            if "$@"; then
+              rc=0
+            else
+              rc=$?
+            fi
             echo "exit_code=$rc"
             echo "::endgroup::"
             printf -- "- %s: exit %s\n" "$title" "$rc" >> "$GITHUB_STEP_SUMMARY"
