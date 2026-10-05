@@ -48,15 +48,15 @@ export async function performGitHubPullRequestPublicationEffect(
 ): Promise<{
   repository_id: number;
   repository_full_name: string;
-  head_ref: string;
-  head_sha: string;
+  ref: string;
+  commit_sha: string;
   base_ref: string;
   base_sha: string;
 }> {
   if (!token) throw new Error('GITHUB_TOKEN_UNAVAILABLE');
   const authority = kernel.authorizeEffect(permit, GITHUB_PULL_REQUEST_PUBLICATION_EFFECT);
   const p = authority.postcondition;
-  const headRef = canonicalGitHubRef(p.head_ref);
+  const headRef = canonicalGitHubRef(p.ref);
   if (!headRef.startsWith('refs/heads/')) {
     throw new Error('GITHUB_PR_PUBLICATION_HEAD_REF_INVALID');
   }
@@ -69,7 +69,7 @@ export async function performGitHubPullRequestPublicationEffect(
         repositoryId: p.repository_id,
         repositoryFullName: p.repository_full_name,
         ref: headRef,
-        expectedSha: p.expected_head_sha,
+        expectedSha: p.commit_sha,
         get: syncGet,
         clock,
       }),
@@ -105,7 +105,7 @@ export async function performGitHubPullRequestPublicationEffect(
 
   return kernel.performEffect(authority, async () => {
     const response = await post(token, path, {
-      title: `Overcenter verified candidate ${p.expected_head_sha.slice(0, 12)}`,
+      title: `Overcenter verified candidate ${p.commit_sha.slice(0, 12)}`,
       head: branch,
       base: p.base_ref,
     });
@@ -115,8 +115,8 @@ export async function performGitHubPullRequestPublicationEffect(
     return {
       repository_id: p.repository_id,
       repository_full_name: fences.head.repository_full_name!,
-      head_ref: headRef,
-      head_sha: p.expected_head_sha,
+      ref: headRef,
+      commit_sha: p.commit_sha,
       base_ref: p.base_ref,
       base_sha: p.expected_base_sha,
     };
