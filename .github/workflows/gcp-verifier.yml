@@ -148,21 +148,6 @@ jobs:
                   }
 
                   async function main() {
-                    const repo = await json(
-                      await fetch("https://api.github.com/repos/" + repository, {
-                        headers: appHeaders,
-                      }),
-                      "repository identity lookup",
-                    );
-                    if (
-                      repo.id !== expectedRepositoryId ||
-                      !repo.owner ||
-                      repo.owner.id !== expectedOwnerId ||
-                      repo.full_name !== repository
-                    ) {
-                      throw new Error("private source repository identity mismatch");
-                    }
-
                     const installation = await json(
                       await fetch(
                         "https://api.github.com/repos/" + repository + "/installation",
@@ -192,6 +177,21 @@ jobs:
                       baseHeaders,
                       { Authorization: "Bearer " + tokenBody.token },
                     );
+
+                    const repo = await json(
+                      await fetch("https://api.github.com/repos/" + repository, {
+                        headers: tokenHeaders,
+                      }),
+                      "repository identity lookup",
+                    );
+                    if (
+                      repo.id !== expectedRepositoryId ||
+                      !repo.owner ||
+                      repo.owner.id !== expectedOwnerId ||
+                      repo.full_name !== repository
+                    ) {
+                      throw new Error("private source repository identity mismatch");
+                    }
 
                     const commit = await json(
                       await fetch(
