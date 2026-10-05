@@ -1,0 +1,114 @@
+name: Arcata PR 50 source ferry
+
+on:
+  push:
+    branches:
+      - codex/arcata-pr50-source-ferry
+
+permissions:
+  contents: read
+
+env:
+  ARCATA_REPOSITORY: laurajoyhutchins/arcata
+  ARCATA_SHA: 8235cecb0e15e9071f9889ed8fcee425677000df
+
+jobs:
+  ferry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Checkout exact Overcenter ferry implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: '.node-version'
+
+      - name: Fetch exact Arcata source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ env.ARCATA_REPOSITORY }}
+          ref: ${{ env.ARCATA_SHA }}
+          path: arcata-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build and verify private-source capsule
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C arcata-source rev-parse HEAD)" = "$ARCATA_SHA"
+          tree_sha="$(git -C arcata-source rev-parse 'HEAD^{tree}')"
+          mkdir -p capsule/cache transport
+
+          ARCATA_REPOSITORY="$ARCATA_REPOSITORY"           ARCATA_SHA="$ARCATA_SHA"           TREE_SHA="$tree_sha"           python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import subprocess
+
+          repo = pathlib.Path("arcata-source")
+          cache = pathlib.Path("capsule/cache")
+          raw = subprocess.check_output(
+              ["git", "-C", str(repo), "ls-tree", "-r", "-z", os.environ["ARCATA_SHA"]]
+          )
+          entries = []
+          for record in raw.split(b"\0"):
+              if not record:
+                  continue
+              meta, path_b = record.split(b"\t", 1)
+              mode_b, type_b, sha_b = meta.split(b" ", 2)
+              mode = mode_b.decode()
+              kind = type_b.decode()
+              sha = sha_b.decode()
+              path = path_b.decode("utf-8")
+              if kind != "blob" or mode not in {"100644", "100755"}:
+                  raise SystemExit(
+                      f"unsupported Git tree entry for source capsule: {mode} {kind} {path}"
+                  )
+              payload = subprocess.check_output(
+                  ["git", "-C", str(repo), "cat-file", "blob", sha]
+              )
+              (cache / sha).write_bytes(payload)
+              entries.append(
+                  {
+                      "path": path,
+                      "mode": mode,
+                      "blob_sha": sha,
+                      "size": len(payload),
+                      "sha256": hashlib.sha256(payload).hexdigest(),
+                  }
+              )
+
+          manifest = {
+              "schema": "private-source-capsule/manifest/v1",
+              "repository": os.environ["ARCATA_REPOSITORY"],
+              "revision": os.environ["ARCATA_SHA"],
+              "tree_sha": os.environ["TREE_SHA"],
+              "entries": entries,
+          }
+          pathlib.Path("capsule/manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          node --experimental-strip-types             src/transport/private-source-capsule.ts             verify capsule/manifest.json capsule/cache
+          node --experimental-strip-types             src/transport/private-source-capsule.ts             materialize capsule/manifest.json capsule/cache capsule/verified
+
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner             -cf transport/arcata-source.tar -C capsule/verified .
+          sha256sum transport/arcata-source.tar > transport/arcata-source.sha256
+          cp capsule/manifest.json transport/private-source-manifest.json
+
+      - name: Upload verified Arcata source
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: arcata-pr50-source-8235cecb
+          path: transport
+          if-no-files-found: error
+          retention-days: 1
