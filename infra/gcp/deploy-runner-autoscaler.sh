@@ -83,7 +83,7 @@ gcloud run deploy "$LAUNCHER_SERVICE" \
   --source . \
   --project="$PROJECT_ID" \
   --region="$REGION" \
-  --service-account="$DEPLOYER_SA" \
+  --service-account="$RUNTIME_SA" \
   --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=${REGION},GCP_RUNNER_SERVICE_ACCOUNT=${RUNTIME_SA},OVERCENTER_RUNNER_IMAGE=${RUNNER_IMAGE_IMMUTABLE},OVERCENTER_RUNNER_CONFIG_PATH=config/gcp-runner-autoscaler.json,OVERCENTER_SOURCE_REVISION=${EXACT_REVISION}" \
   --command=/cnb/lifecycle/launcher \
   --args="--,node,--experimental-strip-types,src/transport/gcp-runner-launcher.ts" \
@@ -102,7 +102,7 @@ gcloud run services describe "$LAUNCHER_SERVICE" \
   --format=json > "$launcher_json"
 
 launcher_url="$(
-  python3 - "$launcher_json" "$DEPLOYER_SA" "$RUNTIME_SA" "$RUNNER_IMAGE_IMMUTABLE" "$EXACT_REVISION" <<'PY'
+  python3 - "$launcher_json" "$RUNTIME_SA" "$RUNTIME_SA" "$RUNNER_IMAGE_IMMUTABLE" "$EXACT_REVISION" <<'PY'
 import json
 import sys
 
