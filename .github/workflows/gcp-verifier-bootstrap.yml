@@ -126,3 +126,146 @@ jobs:
           test -n "$BUILD_ID"
           echo "Cloud Build exact-SHA proof: $BUILD_ID"
           printf -- "- exact-SHA Cloud Build: \`%s\`\n" "$BUILD_ID" >> "$GITHUB_STEP_SUMMARY"
+
+
+      - name: Prove private Arcata exact-head verification
+        shell: bash
+        env:
+          ARCATA_SHA: 4c668e2d82e5c1abd1d941cacdd675de20b3a71e
+        run: |
+          set -euo pipefail
+          BUILD_CONFIG="$RUNNER_TEMP/cloudbuild-arcata-exact-head.yaml"
+          cat > "$BUILD_CONFIG" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          steps:
+            - name: node:22-bookworm
+              entrypoint: node
+              secretEnv:
+                - GITHUB_APP_PRIVATE_KEY
+              env:
+                - GITHUB_APP_ID=4616688
+                - ARCATA_SHA=${_ARCATA_SHA}
+              args:
+                - -e
+                - |
+                  const crypto = require("crypto");
+                  const fs = require("fs");
+                  const b64 = value => Buffer.from(JSON.stringify(value)).toString("base64url");
+                  const now = Math.floor(Date.now() / 1000);
+                  const header = b64({ alg: "RS256", typ: "JWT" });
+                  const payload = b64({ iat: now - 60, exp: now + 540, iss: process.env.GITHUB_APP_ID });
+                  const unsigned = header + "." + payload;
+                  const signature = crypto.sign(
+                    "RSA-SHA256",
+                    Buffer.from(unsigned),
+                    process.env.GITHUB_APP_PRIVATE_KEY,
+                  ).toString("base64url");
+                  const appJwt = unsigned + "." + signature;
+                  const appHeaders = {
+                    Accept: "application/vnd.github+json",
+                    Authorization: "Bearer " + appJwt,
+                    "X-GitHub-Api-Version": "2022-11-28",
+                    "User-Agent": "overcenter-gcp-verifier",
+                  };
+                  async function json(response, what) {
+                    if (!response.ok) throw new Error(what + " failed with HTTP " + response.status);
+                    return response.json();
+                  }
+                  async function main() {
+                    const repository = "laurajoyhutchins/arcata";
+                    const sha = process.env.ARCATA_SHA;
+                    const installation = await json(
+                      await fetch("https://api.github.com/repos/" + repository + "/installation", { headers: appHeaders }),
+                      "installation lookup",
+                    );
+                    const tokenBody = await json(
+                      await fetch("https://api.github.com/app/installations/" + installation.id + "/access_tokens", {
+                        method: "POST",
+                        headers: Object.assign({}, appHeaders, { "Content-Type": "application/json" }),
+                        body: JSON.stringify({ permissions: { contents: "read" } }),
+                      }),
+                      "installation token",
+                    );
+                    const tokenHeaders = {
+                      Accept: "application/vnd.github+json",
+                      Authorization: "Bearer " + tokenBody.token,
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "User-Agent": "overcenter-gcp-verifier",
+                    };
+                    const commit = await json(
+                      await fetch("https://api.github.com/repos/" + repository + "/commits/" + sha, { headers: tokenHeaders }),
+                      "commit lookup",
+                    );
+                    if (commit.sha !== sha) throw new Error("exact-head mismatch");
+                    const archive = await fetch(
+                      "https://api.github.com/repos/" + repository + "/tarball/" + sha,
+                      { headers: tokenHeaders, redirect: "follow" },
+                    );
+                    if (!archive.ok) throw new Error("source archive failed with HTTP " + archive.status);
+                    const bytes = Buffer.from(await archive.arrayBuffer());
+                    if (bytes.length < 1024) throw new Error("source archive unexpectedly small");
+                    fs.writeFileSync("/workspace/arcata.tar.gz", bytes, { mode: 0o600 });
+                  }
+                  main().catch(error => {
+                    console.error(String(error && error.message || error));
+                    process.exit(1);
+                  });
+
+            - name: python:3.13-bookworm
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  python - <<'PY'
+                  from pathlib import Path
+                  import shutil
+                  import tarfile
+
+                  archive = Path("/workspace/arcata.tar.gz")
+                  unpack = Path("/workspace/unpack")
+                  target = Path("/workspace/arcata")
+                  shutil.rmtree(unpack, ignore_errors=True)
+                  shutil.rmtree(target, ignore_errors=True)
+                  unpack.mkdir()
+                  with tarfile.open(archive, "r:gz") as source:
+                      source.extractall(unpack, filter="data")
+                  entries = list(unpack.iterdir())
+                  if len(entries) != 1 or not entries[0].is_dir():
+                      raise SystemExit("GitHub source archive did not contain exactly one root directory")
+                  shutil.move(str(entries[0]), target)
+                  PY
+                  cd /workspace/arcata
+                  python tools/verification_tools.py requirements > /tmp/verification-tools.txt
+                  python -m venv /tmp/verification-tools
+                  /tmp/verification-tools/bin/python -m pip install \
+                    --disable-pip-version-check \
+                    --no-input \
+                    --no-compile \
+                    --only-binary=:all: \
+                    --no-deps \
+                    --require-hashes \
+                    --requirement /tmp/verification-tools.txt
+                  /tmp/verification-tools/bin/python -m pip check
+                  export PATH="/tmp/verification-tools/bin:$$PATH"
+                  python tools/check.py
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: NONE
+          YAML
+
+          BUILD_ID="$(
+            gcloud builds submit \
+              --no-source \
+              --project="$PROJECT_ID" \
+              --region="$REGION" \
+              --config="$BUILD_CONFIG" \
+              --substitutions="_ARCATA_SHA=$ARCATA_SHA" \
+              --format='value(id)'
+          )"
+
+          test -n "$BUILD_ID"
+          echo "Arcata exact-head Cloud Build proof: $BUILD_ID"
+          printf -- "- Arcata exact-head Cloud Build: \`%s\`\n" "$BUILD_ID" >> "$GITHUB_STEP_SUMMARY"
