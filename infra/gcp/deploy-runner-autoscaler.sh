@@ -30,7 +30,7 @@ test "$(git rev-parse HEAD)" = "$EXACT_REVISION"
 
 echo "Building immutable runner image for ${EXACT_REVISION}"
 build_id="$(
-  gcloud builds submit scripts/gcp-runner-image     --async     --project="$PROJECT_ID"     --region="$REGION"     --tag="$RUNNER_IMAGE"     --format='value(id)'
+  gcloud builds submit infra/gcp-runner-image     --async     --project="$PROJECT_ID"     --region="$REGION"     --tag="$RUNNER_IMAGE"     --format='value(id)'
 )"
 test -n "$build_id"
 
