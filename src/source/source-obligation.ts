@@ -11,14 +11,33 @@ export interface SourceTaskAcceptance extends Record<string, unknown> {
   finding_id: string;
 }
 
+export interface SourceWriteScope extends Record<string, unknown> {
+  allowed_roots: string[];
+  allowed_paths: string[];
+  denied_roots: string[];
+  denied_paths: string[];
+  max_changed_files: number;
+  max_changed_bytes: number;
+}
+
 export interface SourceTaskPacket extends Record<string, unknown> {
   schema: typeof SOURCE_TASK_SCHEMA;
   kind: 'source-change';
   objective: string;
-  writable_paths: string[];
+  writable_paths?: string[];
+  write_scope?: SourceWriteScope;
   effect_contract: typeof GITHUB_SOURCE_INTEGRATION_EFFECT;
   acceptance?: SourceTaskAcceptance;
   context?: Record<string, unknown>;
+}
+
+export interface AuthorizedSourceWriteScope {
+  allowed_roots: string[];
+  allowed_paths: string[];
+  denied_roots: string[];
+  denied_paths: string[];
+  max_changed_files: number;
+  max_changed_bytes: number | null;
 }
 
 export interface SourceClaimBinding {
@@ -106,8 +125,8 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   if (!isData(value)) throw new Error('SOURCE_TASK_INVALID');
   assertExactKeys(
     value,
-    ['schema', 'kind', 'objective', 'writable_paths'],
-    ['effect_contract', 'acceptance', 'context'],
+    ['schema', 'kind', 'objective'],
+    ['writable_paths', 'write_scope', 'effect_contract', 'acceptance', 'context'],
     'SOURCE_TASK_INVALID',
   );
   if (value.schema !== SOURCE_TASK_SCHEMA) throw new Error('SOURCE_TASK_SCHEMA_MISMATCH');
@@ -120,14 +139,72 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
     throw new Error('SOURCE_TASK_EFFECT_CONTRACT_INVALID');
   }
 
-  if (!Array.isArray(value.writable_paths) || value.writable_paths.length === 0) {
-    throw new Error('SOURCE_TASK_WRITABLE_PATHS_INVALID');
-  }
-  if (!value.writable_paths.every(validSourceWritablePath)) {
-    throw new Error('SOURCE_TASK_WRITABLE_PATH_INVALID');
-  }
-  if (new Set(value.writable_paths).size !== value.writable_paths.length) {
-    throw new Error('SOURCE_TASK_WRITABLE_PATH_DUPLICATE');
+  const exact = value.writable_paths !== undefined;
+  const bounded = value.write_scope !== undefined;
+  if (exact === bounded) throw new Error('SOURCE_TASK_SCOPE_INVALID');
+
+  let writablePaths: string[] | undefined;
+  let writeScope: SourceWriteScope | undefined;
+  if (exact) {
+    if (
+      !Array.isArray(value.writable_paths) ||
+      value.writable_paths.length === 0 ||
+      !value.writable_paths.every(validSourceWritablePath)
+    ) {
+      throw new Error('SOURCE_TASK_WRITABLE_PATH_INVALID');
+    }
+    if (new Set(value.writable_paths).size !== value.writable_paths.length) {
+      throw new Error('SOURCE_TASK_WRITABLE_PATH_DUPLICATE');
+    }
+    writablePaths = [...value.writable_paths].sort();
+  } else {
+    if (!isData(value.write_scope)) throw new Error('SOURCE_TASK_WRITE_SCOPE_INVALID');
+    assertExactKeys(
+      value.write_scope,
+      [
+        'allowed_roots',
+        'allowed_paths',
+        'denied_roots',
+        'denied_paths',
+        'max_changed_files',
+        'max_changed_bytes',
+      ],
+      [],
+      'SOURCE_TASK_WRITE_SCOPE_INVALID',
+    );
+    const readPaths = (input: unknown, predicate: (path: unknown) => path is string): string[] => {
+      if (
+        !Array.isArray(input) ||
+        !input.every(predicate) ||
+        new Set(input).size !== input.length
+      ) {
+        throw new Error('SOURCE_TASK_WRITE_SCOPE_PATH_INVALID');
+      }
+      return [...input].sort();
+    };
+    const allowedRoots = readPaths(value.write_scope.allowed_roots, validSourceWritablePath);
+    const allowedPaths = readPaths(value.write_scope.allowed_paths, validSourceWritablePath);
+    const deniedRoots = readPaths(value.write_scope.denied_roots, validRepositoryPath);
+    const deniedPaths = readPaths(value.write_scope.denied_paths, validRepositoryPath);
+    if (allowedRoots.length + allowedPaths.length === 0) {
+      throw new Error('SOURCE_TASK_WRITE_SCOPE_INVALID');
+    }
+    if (
+      !Number.isSafeInteger(value.write_scope.max_changed_files) ||
+      (value.write_scope.max_changed_files as number) <= 0 ||
+      !Number.isSafeInteger(value.write_scope.max_changed_bytes) ||
+      (value.write_scope.max_changed_bytes as number) <= 0
+    ) {
+      throw new Error('SOURCE_TASK_WRITE_SCOPE_BUDGET_INVALID');
+    }
+    writeScope = {
+      allowed_roots: allowedRoots,
+      allowed_paths: allowedPaths,
+      denied_roots: deniedRoots,
+      denied_paths: deniedPaths,
+      max_changed_files: value.write_scope.max_changed_files as number,
+      max_changed_bytes: value.write_scope.max_changed_bytes as number,
+    };
   }
 
   let acceptance: SourceTaskAcceptance | undefined;
@@ -159,11 +236,49 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
     schema: SOURCE_TASK_SCHEMA,
     kind: 'source-change',
     objective: value.objective,
-    writable_paths: [...value.writable_paths].sort(),
+    ...(writablePaths ? { writable_paths: writablePaths } : { write_scope: writeScope! }),
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
     ...(acceptance ? { acceptance } : {}),
     ...(value.context === undefined ? {} : { context: structuredClone(value.context) }),
   };
+}
+
+export function authorizedSourceWriteScope(taskValue: unknown): AuthorizedSourceWriteScope {
+  const task = validateSourceTaskPacket(taskValue);
+  if (task.writable_paths) {
+    return {
+      allowed_roots: [],
+      allowed_paths: task.writable_paths,
+      denied_roots: [],
+      denied_paths: [],
+      max_changed_files: task.writable_paths.length,
+      max_changed_bytes: null,
+    };
+  }
+  return structuredClone(task.write_scope!);
+}
+
+function matchesPath(path: string, root: string): boolean {
+  return path === root || path.startsWith(`${root}/`);
+}
+
+export function sourceWriteScopeAllowsPath(
+  scope: AuthorizedSourceWriteScope,
+  path: string,
+  protectedPaths: readonly string[] = [],
+): boolean {
+  if (!validSourceWritablePath(path)) return false;
+  if (
+    protectedPaths.some((root) => matchesPath(path, root)) ||
+    scope.denied_paths.includes(path) ||
+    scope.denied_roots.some((root) => matchesPath(path, root))
+  ) {
+    return false;
+  }
+  return (
+    scope.allowed_paths.includes(path) ||
+    scope.allowed_roots.some((root) => matchesPath(path, root))
+  );
 }
 
 export function bindSourceClaim(
@@ -282,7 +397,7 @@ export function validateSourceProposal(
     if (!validSourceWritablePath(candidate.path)) {
       throw new Error(`SOURCE_PROPOSAL_PATH_INVALID:${index}`);
     }
-    if (!task.writable_paths.includes(candidate.path)) {
+    if (!sourceWriteScopeAllowsPath(authorizedSourceWriteScope(task), candidate.path)) {
       throw new Error(`SOURCE_PROPOSAL_SCOPE_VIOLATION:${candidate.path}`);
     }
     if (candidate.content_base64 !== null && !canonicalBase64(candidate.content_base64)) {

@@ -8,15 +8,22 @@ import {
   isPositiveSafeInteger,
   isSha256Hex,
 } from '../validation.ts';
-import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
+import {
+  assertSupportedSourceDelta,
+  observeRepositoryDelta,
+  repositoryDeltaChangedBytes,
+} from './repository-delta.ts';
 import {
   baselineSourceTransactionPlan,
   validateSourceTransactionContext,
   type SourceTransactionContext,
 } from './transaction-baseline.ts';
 import {
+  authorizedSourceWriteScope,
+  sourceWriteScopeAllowsPath,
   validateSourceTaskPacket,
   bindSourceClaim,
+  type AuthorizedSourceWriteScope,
   type SourceClaimBinding,
 } from './source-obligation.ts';
 import {
@@ -29,7 +36,7 @@ import type { TransactionAssurancePlan } from './transaction-planner.ts';
 
 export interface SourceTransactionPlan {
   schema: 'overcenter-source-transaction';
-  schema_version: 2;
+  schema_version: 3;
   repository_id: number;
   repository_full_name: string;
   runtime_sha: string;
@@ -37,7 +44,7 @@ export interface SourceTransactionPlan {
   candidate_sha: string;
   candidate_tree: string;
   verification_profile: { profile: SourceVerificationProfile; sha256: string };
-  authorized_write_set: string[];
+  authorized_write_scope: AuthorizedSourceWriteScope;
   expected_write_set: string[];
   observed_write_set: string[];
   assurance: TransactionAssurancePlan;
@@ -79,6 +86,28 @@ function sha(value: unknown): asserts value is string {
   if (typeof value !== 'string' || !/^[0-9a-f]{40}$/.test(value)) throw new Error(INVALID);
 }
 
+function writeScope(value: unknown): AuthorizedSourceWriteScope {
+  const scope = record(value, [
+    'allowed_roots',
+    'allowed_paths',
+    'denied_roots',
+    'denied_paths',
+    'max_changed_files',
+    'max_changed_bytes',
+  ]);
+  for (const key of ['allowed_roots', 'allowed_paths', 'denied_roots', 'denied_paths'] as const) {
+    paths(scope[key]);
+  }
+  if (
+    (scope.allowed_roots as string[]).length + (scope.allowed_paths as string[]).length === 0 ||
+    !isPositiveSafeInteger(scope.max_changed_files) ||
+    (scope.max_changed_bytes !== null && !isPositiveSafeInteger(scope.max_changed_bytes))
+  ) {
+    throw new Error(INVALID);
+  }
+  return structuredClone(scope) as unknown as AuthorizedSourceWriteScope;
+}
+
 function samePaths(left: string[], right: string[]): boolean {
   return canonicalDigest([...left].sort()) === canonicalDigest([...right].sort());
 }
@@ -94,14 +123,14 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
     'candidate_sha',
     'candidate_tree',
     'verification_profile',
-    'authorized_write_set',
+    'authorized_write_scope',
     'expected_write_set',
     'observed_write_set',
     'assurance',
   ]);
   if (
     plan.schema !== 'overcenter-source-transaction' ||
-    plan.schema_version !== 2 ||
+    plan.schema_version !== 3 ||
     !isPositiveSafeInteger(plan.repository_id) ||
     typeof plan.repository_full_name !== 'string' ||
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(plan.repository_full_name)
@@ -126,17 +155,21 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
     claim.source_sha,
   );
 
-  paths(plan.authorized_write_set);
+  const scope = writeScope(plan.authorized_write_scope);
   paths(plan.expected_write_set);
   paths(plan.observed_write_set);
-  const authorized = plan.authorized_write_set;
   if (
     !plan.expected_write_set.length ||
-    plan.expected_write_set.some((path) => !authorized.includes(path))
-  )
+    plan.expected_write_set.length > scope.max_changed_files ||
+    plan.expected_write_set.some(
+      (path) => !sourceWriteScopeAllowsPath(scope, path, verifiedProfile.protected_paths),
+    )
+  ) {
     throw new Error('SOURCE_TRANSACTION_SCOPE');
-  if (!samePaths(plan.expected_write_set, plan.observed_write_set))
+  }
+  if (!samePaths(plan.expected_write_set, plan.observed_write_set)) {
     throw new Error('SOURCE_TRANSACTION_DIVERGED');
+  }
 
   const assurance = record(plan.assurance, [
     'base_revision',
@@ -264,11 +297,11 @@ export function validateSourceTransactionTask(
 ): void {
   const task = validateSourceTaskPacket(taskValue);
   if (
-    (task.verification_profile_id !== undefined &&
-      task.verification_profile_id !== plan.verification_profile.profile.id) ||
-    !samePaths(plan.authorized_write_set, task.writable_paths ?? [])
-  )
+    canonicalDigest(plan.authorized_write_scope) !==
+    canonicalDigest(authorizedSourceWriteScope(task))
+  ) {
     throw new Error('SOURCE_TRANSACTION_TASK_MISMATCH');
+  }
 }
 
 export function buildSourceTransactionPlan({
@@ -298,20 +331,32 @@ export function buildSourceTransactionPlan({
 
   const task = validateSourceTaskPacket(taskValue);
   const profile = readSourceVerificationProfile(repo, claim.source_sha);
-  if (
-    task.verification_profile_id !== undefined &&
-    task.verification_profile_id !== profile.profile.id
-  )
-    throw new Error('SOURCE_TRANSACTION_PROFILE_MISMATCH');
   const delta = observeRepositoryDelta(repo, claim.source_sha, candidateSha);
   assertSupportedSourceDelta(delta);
+  const scope = authorizedSourceWriteScope(task);
+  const changedPaths = delta.entries.map((entry) => entry.path);
+  if (
+    changedPaths.length === 0 ||
+    changedPaths.length > scope.max_changed_files ||
+    changedPaths.some(
+      (path) => !sourceWriteScopeAllowsPath(scope, path, profile.profile.protected_paths),
+    )
+  ) {
+    throw new Error('SOURCE_TRANSACTION_SCOPE');
+  }
+  if (
+    scope.max_changed_bytes !== null &&
+    repositoryDeltaChangedBytes(repo, delta) > scope.max_changed_bytes
+  ) {
+    throw new Error('SOURCE_CHANGE_BUDGET_BYTES_EXCEEDED');
+  }
   const assurance = baselineSourceTransactionPlan(repo, delta, profile.profile);
   if (assurance.validation_mode === 'unsupported')
     throw new Error('SOURCE_TRANSACTION_RECONCILIATION_REQUIRED');
 
   const plan = validateSourceTransactionPlan({
     schema: 'overcenter-source-transaction',
-    schema_version: 2,
+    schema_version: 3,
     repository_id: context.repository_id,
     repository_full_name: context.repository_full_name,
     runtime_sha: context.runtime_sha,
@@ -319,9 +364,9 @@ export function buildSourceTransactionPlan({
     candidate_sha: candidateSha,
     candidate_tree: delta.candidate_tree,
     verification_profile: { profile: profile.profile, sha256: profile.sha256 },
-    authorized_write_set: task.writable_paths,
-    expected_write_set: task.writable_paths,
-    observed_write_set: delta.entries.map((entry) => entry.path),
+    authorized_write_scope: scope,
+    expected_write_set: changedPaths,
+    observed_write_set: changedPaths,
     assurance,
   });
   validateSourceTransactionTask(plan, task);
