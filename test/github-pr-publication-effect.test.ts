@@ -252,6 +252,7 @@ test('duplicate exact PR readback remains recovery-required', async () => {
 test('ambiguous create with no observed PR remains recovery-required', async () => {
   const root = mkdtempSync(join(tmpdir(), 'source-pr-publication-recovery-'));
   const get = getProvider(() => false);
+  let posts = 0;
   const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'), {
     githubToken: 'token',
     observationContext: { githubGetAsync: get },
@@ -264,6 +265,7 @@ test('ambiguous create with no observed PR remains recovery-required', async () 
         token: 'token',
         get,
         post: async () => {
+          posts += 1;
           throw new Error('transport timeout');
         },
       }),
@@ -273,6 +275,19 @@ test('ambiguous create with no observed PR remains recovery-required', async () 
     assert.equal(receipt.disposition, 'RECOVERY_REQUIRED');
     assert.equal(receipt.verified, false);
     assert.equal(kernel.hasUnresolvedEffect(permit.id), true);
+
+    await assert.rejects(
+      performGitHubPullRequestPublicationEffect(kernel, permit, {
+        token: 'token',
+        get,
+        post: async () => {
+          posts += 1;
+          return { status: 201, body: '{}' };
+        },
+      }),
+      /UNRESOLVED_EFFECT/,
+    );
+    assert.equal(posts, 1);
   } finally {
     kernel.close();
     rmSync(root, { recursive: true, force: true });
