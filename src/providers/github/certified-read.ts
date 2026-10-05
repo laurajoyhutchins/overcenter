@@ -17,7 +17,7 @@ import {
 } from './certified-repository.ts';
 import { projectResponseSlice } from '../../observation/response-slice.ts';
 import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
-import { githubGet, type GitHubJsonGet } from './rest.ts';
+import { GitHubAsyncReadRequired, githubGet, type GitHubJsonGet } from './rest.ts';
 
 export type GitHubGenericSemanticOperationName = Exclude<GitHubSemanticOperationName, 'repository'>;
 
@@ -182,6 +182,7 @@ export function observeCertifiedGitHubSemanticRead(
       },
     };
   } catch (error: unknown) {
+    if (error instanceof GitHubAsyncReadRequired) throw error;
     return {
       state: 'indeterminate',
       operation_key: operationName,
