@@ -74,17 +74,15 @@ jobs:
                   }
                   (async () => {
                     const app = await get("/app");
-                    const hook = await get("/app/hook/config");
-                    console.log(JSON.stringify({
-                      app_id: app.id,
-                      name: app.name,
-                      events: app.events || [],
-                      permissions: app.permissions || {},
-                      hook_configured: Boolean(hook && hook.url),
-                      hook_url_host: hook && hook.url ? new URL(hook.url).host : null,
-                      hook_content_type: hook && hook.content_type || null,
-                    }));
-                  })().catch(error => { console.error(error.message); process.exit(1); });
+                    const events = new Set(app.events || []);
+                    const permissions = app.permissions || {};
+                    let bits = 0;
+                    if (events.has("workflow_job")) bits |= 1;
+                    if (permissions.repository_hooks === "write") bits |= 2;
+                    if (permissions.administration === "write") bits |= 4;
+                    if (permissions.actions === "write" || permissions.actions === "read") bits |= 8;
+                    process.exit(100 + bits);
+                  })().catch(() => process.exit(99));
           availableSecrets:
             secretManager:
               - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
@@ -104,5 +102,8 @@ jobs:
           done
           echo "Cloud Build: $build_id"
           echo "Status: $status"
-          gcloud builds log "$build_id" --project="$PROJECT_ID" --region="$REGION" 2>/dev/null | tail -n 20
-          test "$status" = SUCCESS
+          gcloud builds describe "$build_id" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format="value(failureInfo.detail)"
+          test "$status" = FAILURE
