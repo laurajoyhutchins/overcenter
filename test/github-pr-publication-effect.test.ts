@@ -211,6 +211,44 @@ test('stale base fails before reservation and POST', async () => {
   }
 });
 
+test('duplicate exact PR readback remains recovery-required', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'source-pr-publication-duplicate-'));
+  let published = false;
+  const baseGet = getProvider(() => published);
+  const get = async (token: string, path: string): Promise<unknown> => {
+    if (path.startsWith('/repos/acme/widget/pulls?') && published) {
+      return [
+        pull(),
+        { ...pull(), id: 3701, node_id: 'PR_node_38', number: 38 },
+      ];
+    }
+    return baseGet(token, path);
+  };
+  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'), {
+    githubToken: 'token',
+    observationContext: { githubGetAsync: get },
+  });
+
+  try {
+    const permit = define(kernel);
+    await performGitHubPullRequestPublicationEffect(kernel, permit, {
+      token: 'token',
+      get,
+      post: async () => {
+        published = true;
+        return { status: 201, body: '{}' };
+      },
+    });
+    const receipt = await kernel.resolveAsync(permit);
+    assert.equal(receipt.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(receipt.verified, false);
+    assert.equal(kernel.hasUnresolvedEffect(permit.id), true);
+  } finally {
+    kernel.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('ambiguous create with no observed PR remains recovery-required', async () => {
   const root = mkdtempSync(join(tmpdir(), 'source-pr-publication-recovery-'));
   const get = getProvider(() => false);
