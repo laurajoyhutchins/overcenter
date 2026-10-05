@@ -1,12 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
-import {
-  lstatSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { lstatSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -25,7 +19,10 @@ export interface ToolCapsuleRequest {
   source: {
     repository: string;
     revision: string;
-    lock_blob_sha: string;
+    dependency_authority: {
+      path: string;
+      blob_sha: string;
+    };
   };
   target: {
     python_version: string;
@@ -70,6 +67,20 @@ function safeRepository(value: unknown): value is string {
   );
 }
 
+function safeRepositoryPath(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    !value.startsWith('/') &&
+    !value.includes('\\') &&
+    ![...value].some((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || code === 127;
+    }) &&
+    value.split('/').every((part) => part && part !== '.' && part !== '..' && part !== '.git')
+  );
+}
+
 function safePythonVersion(value: unknown): value is string {
   return typeof value === 'string' && /^3\.[0-9]{1,2}$/.test(value);
 }
@@ -108,14 +119,17 @@ export function validateToolCapsuleRequest(value: unknown): ToolCapsuleRequest {
   }
   if (
     !isObject(value.source) ||
-    !exactKeys(value.source, ['repository', 'revision', 'lock_blob_sha'])
+    !exactKeys(value.source, ['repository', 'revision', 'dependency_authority'])
   ) {
     throw new Error('TOOL_CAPSULE_SOURCE_INVALID');
   }
   if (
     !safeRepository(value.source.repository) ||
     !hex(value.source.revision, 40) ||
-    !hex(value.source.lock_blob_sha, 40)
+    !isObject(value.source.dependency_authority) ||
+    !exactKeys(value.source.dependency_authority, ['path', 'blob_sha']) ||
+    !safeRepositoryPath(value.source.dependency_authority.path) ||
+    !hex(value.source.dependency_authority.blob_sha, 40)
   ) {
     throw new Error('TOOL_CAPSULE_SOURCE_INVALID');
   }
@@ -172,7 +186,10 @@ export function validateToolCapsuleRequest(value: unknown): ToolCapsuleRequest {
     source: {
       repository: value.source.repository,
       revision: value.source.revision,
-      lock_blob_sha: value.source.lock_blob_sha,
+      dependency_authority: {
+        path: value.source.dependency_authority.path,
+        blob_sha: value.source.dependency_authority.blob_sha,
+      },
     },
     target: {
       python_version: value.target.python_version,
@@ -256,10 +273,7 @@ function main(args: string[]): void {
     return;
   }
   if (command === 'render-requirements' && rest.length === 2) {
-    writeFileSync(
-      rest[1] as string,
-      renderHashedRequirements(parseJsonFile(rest[0] as string)),
-    );
+    writeFileSync(rest[1] as string, renderHashedRequirements(parseJsonFile(rest[0] as string)));
     return;
   }
   if (command === 'build-manifest' && rest.length === 3) {
