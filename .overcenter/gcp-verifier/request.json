@@ -1,6 +1,6 @@
 {
   "schema": "overcenter-gcp-verifier/request/v1",
-  "request_id": "arcata-phase3-provenance-d846e87e",
+  "request_id": "arcata-phase3-provenance-repair-3620af90",
   "profile": "arcata-ci",
-  "revision": "d846e87e11a2af97b9834a60e157fc86128e1e12"
+  "revision": "3620af907bb848b2e4bd0681a63122449ec0c1fb"
 }
