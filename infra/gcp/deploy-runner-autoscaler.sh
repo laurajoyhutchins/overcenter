@@ -193,7 +193,7 @@ gcloud run deploy "$AUTOSCALER_SERVICE" \
   --max-instances=1 \
   --no-cpu-throttling \
   --cpu=1 \
-  --memory=256Mi \
+  --memory=512Mi \
   --quiet
 
 service_json="${RUNNER_TEMP:-/tmp}/overcenter-gcp-runner-autoscaler.json"
