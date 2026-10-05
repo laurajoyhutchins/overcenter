@@ -5,6 +5,8 @@
   "runner_label": "overcenter-gcp",
   "dispatch": {
     "repository": "laurajoyhutchins/overcenter",
+    "repository_id": 1354872053,
+    "owner_id": 219002713,
     "workflow": "gcp-runner-launch.yml",
     "ref": "work/gcp-cloud-run-cloud-sql-bootstrap"
   },
