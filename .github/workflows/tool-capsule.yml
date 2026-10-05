@@ -1,0 +1,199 @@
+name: Tool capsule transport
+
+on:
+  workflow_dispatch:
+    inputs:
+      python_version:
+        description: Python major.minor selected by the request target
+        required: true
+        default: '3.13'
+        type: string
+      request_base64:
+        description: Base64-encoded tool-capsule/request/v1 JSON
+        required: true
+        type: string
+
+permissions: {}
+
+env:
+  SOURCE_SHA: ${{ github.sha }}
+
+jobs:
+  materialize:
+    name: Trusted networked materializer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    permissions:
+      contents: read
+    outputs:
+      request_sha256: ${{ steps.package.outputs.request_sha256 }}
+      capsule_sha256: ${{ steps.package.outputs.capsule_sha256 }}
+      artifact_name: ${{ steps.package.outputs.artifact_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: '.node-version'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ inputs.python_version }}
+      - name: Materialize only declared wheel bytes
+        id: package
+        shell: bash
+        env:
+          REQUEST_BASE64: ${{ inputs.request_base64 }}
+          REQUESTED_PYTHON: ${{ inputs.python_version }}
+        run: |
+          set -euo pipefail
+          test "${#REQUEST_BASE64}" -le 65536
+          mkdir -p capsule/wheelhouse capsule/verifier transport
+          printf '%s' "$REQUEST_BASE64" | base64 --decode > capsule/request.json
+
+          node --experimental-strip-types src/transport/tool-capsule.ts verify-request capsule/request.json
+          IFS=$'\t' read -r request_python request_platform < <(
+            node --experimental-strip-types src/transport/tool-capsule.ts request-target capsule/request.json
+          )
+          test "$request_python" = "$REQUESTED_PYTHON"
+          test "$request_platform" = 'linux-x86-64'
+          python - <<'PY'
+          import os, sys
+          requested = os.environ['REQUESTED_PYTHON']
+          actual = f'{sys.version_info.major}.{sys.version_info.minor}'
+          if actual != requested:
+              raise SystemExit(f'python target mismatch: requested={requested} actual={actual}')
+          PY
+
+          node --experimental-strip-types src/transport/tool-capsule.ts \
+            render-requirements capsule/request.json capsule/requirements.txt
+          python -m pip download \
+            --disable-pip-version-check \
+            --only-binary=:all: \
+            --no-deps \
+            --require-hashes \
+            --dest capsule/wheelhouse \
+            --requirement capsule/requirements.txt
+
+          node --experimental-strip-types src/transport/tool-capsule.ts \
+            build-manifest capsule/request.json capsule/wheelhouse capsule/manifest.json
+          cp src/transport/tool-capsule.ts capsule/verifier/tool-capsule.ts
+
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+            -cf transport/tool-capsule.tar -C capsule \
+            manifest.json request.json requirements.txt verifier wheelhouse
+          capsule_sha256="$(sha256sum transport/tool-capsule.tar | cut -d' ' -f1)"
+          request_sha256="$(sha256sum capsule/request.json | cut -d' ' -f1)"
+          printf '%s  tool-capsule.tar\n' "$capsule_sha256" > transport/tool-capsule.sha256
+          artifact_name="tool-capsule-${request_sha256}"
+
+          echo "request_sha256=$request_sha256" >> "$GITHUB_OUTPUT"
+          echo "capsule_sha256=$capsule_sha256" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+      - name: Upload immutable tool capsule
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: transport
+          if-no-files-found: error
+          retention-days: 7
+
+  verify:
+    name: Permissionless offline consumer
+    needs: materialize
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    permissions: {}
+    steps:
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ inputs.python_version }}
+      - name: Download immutable tool capsule
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.materialize.outputs.artifact_name }}
+          path: transport
+      - name: Verify exact bytes and install with the network removed
+        shell: bash
+        env:
+          EXPECTED_REQUEST_SHA256: ${{ needs.materialize.outputs.request_sha256 }}
+          EXPECTED_CAPSULE_SHA256: ${{ needs.materialize.outputs.capsule_sha256 }}
+          REQUESTED_PYTHON: ${{ inputs.python_version }}
+        run: |
+          set -euo pipefail
+          test ! -e .git
+          cd transport
+          sha256sum --check tool-capsule.sha256
+          test "$(cut -d' ' -f1 tool-capsule.sha256)" = "$EXPECTED_CAPSULE_SHA256"
+          mkdir capsule
+          tar -xf tool-capsule.tar -C capsule
+          test "$(sha256sum capsule/request.json | cut -d' ' -f1)" = "$EXPECTED_REQUEST_SHA256"
+
+          node --experimental-strip-types capsule/verifier/tool-capsule.ts \
+            verify-capsule capsule/request.json capsule/manifest.json capsule/wheelhouse
+          node --experimental-strip-types capsule/verifier/tool-capsule.ts \
+            render-requirements capsule/request.json capsule/requirements.rebuilt.txt
+          cmp capsule/requirements.txt capsule/requirements.rebuilt.txt
+
+          IFS=$'\t' read -r request_python request_platform < <(
+            node --experimental-strip-types capsule/verifier/tool-capsule.ts \
+              request-target capsule/request.json
+          )
+          test "$request_python" = "$REQUESTED_PYTHON"
+          test "$request_platform" = 'linux-x86-64'
+
+          python_bin="$(command -v python)"
+          mkdir -p "$RUNNER_TEMP/tool-capsule-home"
+          sudo /usr/bin/unshare --net --fork /usr/bin/env -i \
+            PATH="$PATH" \
+            HOME="$RUNNER_TEMP/tool-capsule-home" \
+            PYTHON="$python_bin" \
+            CAPSULE="$PWD/capsule" \
+            VENV="$RUNNER_TEMP/tool-capsule-venv" \
+            /bin/bash -c '
+              set -euo pipefail
+              "$PYTHON" -m venv "$VENV"
+              "$VENV/bin/python" -m pip install \
+                --disable-pip-version-check \
+                --no-index \
+                --no-deps \
+                --require-hashes \
+                --find-links "$CAPSULE/wheelhouse" \
+                --requirement "$CAPSULE/requirements.txt"
+              "$VENV/bin/python" -m pip check
+            '
+
+          cat > verification-receipt.json <<EOF_RECEIPT
+          {
+            "schema": "tool-capsule/verification-receipt/v1",
+            "workflow_source_sha": "${SOURCE_SHA}",
+            "request_sha256": "${EXPECTED_REQUEST_SHA256}",
+            "capsule_sha256": "${EXPECTED_CAPSULE_SHA256}",
+            "python_version": "${REQUESTED_PYTHON}",
+            "platform": "linux-x86-64",
+            "network_isolated_install": true
+          }
+          EOF_RECEIPT
+
+          {
+            echo '### Tool capsule transport'
+            echo
+            echo "- workflow source: ${SOURCE_SHA}"
+            echo "- request: ${EXPECTED_REQUEST_SHA256}"
+            echo "- capsule: ${EXPECTED_CAPSULE_SHA256}"
+            echo "- Python: ${REQUESTED_PYTHON}"
+            echo '- platform: linux-x86-64'
+            echo '- repository checkout in consumer: none'
+            echo '- repository permissions in consumer: {}'
+            echo '- install network namespace: isolated'
+            echo '- exact request and wheel manifest verification: passed'
+            echo '- offline pip install and dependency metadata check: passed'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload verification receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ needs.materialize.outputs.artifact_name }}-receipt
+          path: transport/verification-receipt.json
+          if-no-files-found: error
+          retention-days: 7
