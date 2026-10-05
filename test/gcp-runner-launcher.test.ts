@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -84,4 +85,43 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
       'overcenter-github-app-private-key/versions/latest',
   );
   assert.equal(JSON.stringify(build).includes('registration-token='), false);
+});
+
+
+test('runner launcher identity is bootstrapped once and attached without recurring IAM elevation', () => {
+  const deploy = readFileSync(
+    new URL('../infra/gcp/deploy-runner-autoscaler.sh', import.meta.url),
+    'utf8',
+  );
+  const bootstrap = readFileSync(
+    new URL('../infra/gcp/bootstrap-runner-launcher-iam.sh', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    deploy,
+    /LAUNCHER_SA="overcenter-runner-launcher@\$\{PROJECT_ID\}\.iam\.gserviceaccount\.com"/,
+  );
+  assert.match(deploy, /--service-account="\$LAUNCHER_SA"/);
+  assert.doesNotMatch(deploy, /--service-account="\$DEPLOYER_SA"/);
+  assert.doesNotMatch(deploy, /gcloud iam service-accounts create/);
+  assert.doesNotMatch(deploy, /gcloud projects add-iam-policy-binding/);
+  assert.doesNotMatch(deploy, /gcloud iam service-accounts add-iam-policy-binding/);
+
+  assert.match(bootstrap, /gcloud iam service-accounts create "\$LAUNCHER_SA_NAME"/);
+  assert.match(bootstrap, /roles\/cloudbuild\.builds\.editor/);
+  assert.match(bootstrap, /roles\/serviceusage\.serviceUsageConsumer/);
+  assert.match(bootstrap, /roles\/iam\.serviceAccountUser/);
+  assert.match(bootstrap, /serviceAccount:\$\{LAUNCHER_SA\}/);
+  assert.match(bootstrap, /serviceAccount:\$\{DEPLOYER_SA\}/);
+
+  for (const forbidden of [
+    'roles/owner',
+    'roles/editor',
+    'roles/iam.serviceAccountAdmin',
+    'roles/secretmanager.secretAccessor',
+    'roles/run.admin',
+  ]) {
+    assert.equal(bootstrap.includes(forbidden), false, `bootstrap must not grant ${forbidden}`);
+  }
 });
