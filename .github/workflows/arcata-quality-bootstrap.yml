@@ -1,9 +1,11 @@
 name: Arcata quality tool bootstrap
 
 on:
-  push:
-    branches:
-      - bootstrap/arcata-python-quality-tools
+  pull_request:
+    branches: [main]
+    types: [ready_for_review]
+    paths:
+      - '.github/workflows/arcata-quality-bootstrap.yml'
 
 permissions:
   contents: read
