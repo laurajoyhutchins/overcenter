@@ -75,7 +75,7 @@ function gitTreeSha(entries: PrivateSourceEntry[]): string {
     const items:Array<{name:string,mode:string,sha:string}>=[];
     for(const f of node.files) items.push({name:f.path,mode:f.mode,sha:f.blob_sha});
     for(const [name,child] of node.dirs) items.push({name,mode:'40000',sha:createHash('sha1').update(encode(child)).digest('hex')});
-    items.sort((a,b)=>Buffer.from(a.name).compare(Buffer.from(b.name)));
+    items.sort((a,b)=>Buffer.from(a.name + (a.mode === '40000' ? '/' : '')).compare(Buffer.from(b.name + (b.mode === '40000' ? '/' : ''))));
     const body=Buffer.concat(items.map(i=>Buffer.concat([Buffer.from(`${i.mode} ${i.name}\0`),Buffer.from(i.sha,'hex')])));
     return Buffer.concat([Buffer.from(`tree ${body.length}\0`),body]);
   };
@@ -98,10 +98,16 @@ export function verifyPrivateSourceCapsule(manifestValue: unknown, cacheRoot: st
 export function materializePrivateSource(manifestValue: unknown, cacheRoot: string, destination: string): void {
   const manifest=verifyPrivateSourceCapsule(manifestValue,cacheRoot);
   const temp=`${destination}.tmp-${process.pid}`;
-  rmSync(temp,{recursive:true,force:true}); mkdirSync(temp,{recursive:true});
+  const previous=`${destination}.previous-${process.pid}`;
+  rmSync(temp,{recursive:true,force:true}); rmSync(previous,{recursive:true,force:true}); mkdirSync(temp,{recursive:true});
   try {
     for(const e of manifest.entries){const out=join(temp,e.path);mkdirSync(dirname(out),{recursive:true});writeFileSync(out,readFileSync(join(cacheRoot,e.blob_sha)));chmodSync(out,e.mode==='100755'?0o755:0o644);}
-    rmSync(destination,{recursive:true,force:true}); renameSync(temp,destination);
+    let hadDestination=false;
+    try { lstatSync(destination); hadDestination=true; } catch {}
+    if(hadDestination) renameSync(destination,previous);
+    try { renameSync(temp,destination); }
+    catch(error){ if(hadDestination) renameSync(previous,destination); throw error; }
+    if(hadDestination) rmSync(previous,{recursive:true,force:true});
   } catch(error){rmSync(temp,{recursive:true,force:true});throw error;}
 }
 
