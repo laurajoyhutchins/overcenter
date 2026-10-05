@@ -11,8 +11,11 @@ AUTOSCALER_SERVICE="overcenter-github-runner-autoscaler"
 LAUNCHER_SERVICE="overcenter-gcp-runner-launcher"
 RUNTIME_SA="overcenter-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
 DEPLOYER_SA="overcenter-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
+LAUNCHER_SA="overcenter-runner-launcher@${PROJECT_ID}.iam.gserviceaccount.com"
 RUNNER_IMAGE_REPO="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/overcenter-gcp-runner"
 RUNNER_IMAGE="${RUNNER_IMAGE_REPO}:git-${EXACT_REVISION}"
+CONTROL_IMAGE_REPO="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/overcenter-gcp-runner-control"
+CONTROL_IMAGE="${CONTROL_IMAGE_REPO}:git-${EXACT_REVISION}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 if [[ ! "$EXACT_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
@@ -78,15 +81,64 @@ fi
 RUNNER_IMAGE_IMMUTABLE="${RUNNER_IMAGE_REPO}@${runner_digest}"
 printf 'Runner image: %s\n' "$RUNNER_IMAGE_IMMUTABLE"
 
+echo "Building immutable runner control image for ${EXACT_REVISION}"
+control_build_id="$(
+  gcloud builds submit . \
+    --async \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --config=infra/gcp-runner-control/cloudbuild.yaml \
+    --substitutions="_IMAGE=$CONTROL_IMAGE" \
+    --format='value(id)'
+)"
+test -n "$control_build_id"
+
+control_build_status=""
+for _ in $(seq 1 300); do
+  control_build_status="$(
+    gcloud builds describe "$control_build_id" \
+      --project="$PROJECT_ID" \
+      --region="$REGION" \
+      --format='value(status)'
+  )"
+  case "$control_build_status" in
+    SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED)
+      break
+      ;;
+  esac
+  sleep 2
+done
+if [[ "$control_build_status" != "SUCCESS" ]]; then
+  echo "runner control image build failed: $control_build_status" >&2
+  gcloud builds describe "$control_build_id" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --format='value(failureInfo.detail)' >&2 || true
+  exit 1
+fi
+
+control_digest="$(
+  gcloud builds describe "$control_build_id" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --format='value(results.images[0].digest)' | tail -n1
+)"
+if [[ ! "$control_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  echo "runner control image build returned no immutable digest" >&2
+  exit 1
+fi
+CONTROL_IMAGE_IMMUTABLE="${CONTROL_IMAGE_REPO}@${control_digest}"
+printf 'Runner control image: %s\n' "$CONTROL_IMAGE_IMMUTABLE"
+
 echo "Deploying private build launcher"
 gcloud run deploy "$LAUNCHER_SERVICE" \
-  --source . \
+  --image="$CONTROL_IMAGE_IMMUTABLE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
-  --service-account="$DEPLOYER_SA" \
+  --service-account="$LAUNCHER_SA" \
   --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=${REGION},GCP_RUNNER_SERVICE_ACCOUNT=${RUNTIME_SA},OVERCENTER_RUNNER_IMAGE=${RUNNER_IMAGE_IMMUTABLE},OVERCENTER_RUNNER_CONFIG_PATH=config/gcp-runner-autoscaler.json,OVERCENTER_SOURCE_REVISION=${EXACT_REVISION}" \
-  --command=/cnb/lifecycle/launcher \
-  --args="--,node,--experimental-strip-types,src/transport/gcp-runner-launcher.ts" \
+  --command=node \
+  --args="--experimental-strip-types,src/transport/gcp-runner-launcher.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
   --no-allow-unauthenticated \
   --min-instances=0 \
@@ -102,11 +154,11 @@ gcloud run services describe "$LAUNCHER_SERVICE" \
   --format=json > "$launcher_json"
 
 launcher_url="$(
-  python3 - "$launcher_json" "$DEPLOYER_SA" "$RUNTIME_SA" "$RUNNER_IMAGE_IMMUTABLE" "$EXACT_REVISION" <<'PY'
+  python3 - "$launcher_json" "$LAUNCHER_SA" "$RUNTIME_SA" "$RUNNER_IMAGE_IMMUTABLE" "$CONTROL_IMAGE_IMMUTABLE" "$EXACT_REVISION" <<'PY'
 import json
 import sys
 
-path, expected_sa, runner_sa, runner_image, expected_revision = sys.argv[1:]
+path, expected_sa, runner_sa, runner_image, control_image, expected_revision = sys.argv[1:]
 with open(path, encoding="utf-8") as handle:
     body = json.load(handle)
 
@@ -116,6 +168,8 @@ if spec.get("serviceAccountName") != expected_sa:
     raise SystemExit("runner launcher service account readback mismatch")
 
 containers = spec.get("containers") or [{}]
+if str(containers[0].get("image") or "") != control_image:
+    raise SystemExit("runner launcher control image readback mismatch")
 env = {
     str(item.get("name")): item
     for item in (containers[0].get("env") or [])
@@ -148,14 +202,7 @@ print(url)
 PY
 )"
 
-echo "Granting watcher invocation of the private launcher"
-gcloud run services add-iam-policy-binding "$LAUNCHER_SERVICE" \
-  --project="$PROJECT_ID" \
-  --region="$REGION" \
-  --member="serviceAccount:${RUNTIME_SA}" \
-  --role="roles/run.invoker" \
-  --quiet >/dev/null
-
+echo "Verifying pre-provisioned watcher invocation of the private launcher"
 launcher_policy="${RUNNER_TEMP:-/tmp}/overcenter-gcp-runner-launcher-policy.json"
 gcloud run services get-iam-policy "$LAUNCHER_SERVICE" \
   --project="$PROJECT_ID" \
@@ -179,14 +226,14 @@ PY
 
 echo "Deploying private autoscaler service"
 gcloud run deploy "$AUTOSCALER_SERVICE" \
-  --source . \
+  --image="$CONTROL_IMAGE_IMMUTABLE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
   --service-account="$RUNTIME_SA" \
   --set-env-vars="GITHUB_APP_ID=4616688,OVERCENTER_RUNNER_CONFIG_PATH=config/gcp-runner-autoscaler.json,OVERCENTER_RUNNER_LAUNCHER_URL=${launcher_url},OVERCENTER_SOURCE_REVISION=${EXACT_REVISION}" \
   --set-secrets="GITHUB_APP_PRIVATE_KEY=overcenter-github-app-private-key:latest" \
-  --command=/cnb/lifecycle/launcher \
-  --args="--,node,--experimental-strip-types,src/transport/gcp-runner-autoscaler.ts" \
+  --command=node \
+  --args="--experimental-strip-types,src/transport/gcp-runner-autoscaler.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
   --no-allow-unauthenticated \
   --min-instances=1 \
@@ -202,11 +249,11 @@ gcloud run services describe "$AUTOSCALER_SERVICE" \
   --region="$REGION" \
   --format=json > "$service_json"
 
-python3 - "$service_json" "$RUNTIME_SA" "$EXACT_REVISION" "$launcher_url" <<'PY'
+python3 - "$service_json" "$RUNTIME_SA" "$CONTROL_IMAGE_IMMUTABLE" "$EXACT_REVISION" "$launcher_url" <<'PY'
 import json
 import sys
 
-path, expected_sa, expected_revision, launcher_url = sys.argv[1:]
+path, expected_sa, control_image, expected_revision, launcher_url = sys.argv[1:]
 with open(path, encoding="utf-8") as handle:
     body = json.load(handle)
 
@@ -216,6 +263,8 @@ if spec.get("serviceAccountName") != expected_sa:
     raise SystemExit("autoscaler service account readback mismatch")
 
 containers = spec.get("containers") or [{}]
+if str(containers[0].get("image") or "") != control_image:
+    raise SystemExit("autoscaler control image readback mismatch")
 env = {
     str(item.get("name")): item
     for item in (containers[0].get("env") or [])
@@ -278,6 +327,7 @@ printf '%s\n' \
   "GCP runner substrate deployed" \
   "Source revision: ${EXACT_REVISION}" \
   "Runner digest:   ${runner_digest}" \
+  "Control digest:  ${control_digest}" \
   "Launcher:        private Cloud Run; Cloud Build submission only" \
   "Autoscaler:      private Cloud Run; GitHub observation only" \
   "Hosted Actions:  deployment only, never per verification job"
