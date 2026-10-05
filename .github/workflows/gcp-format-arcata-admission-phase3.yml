@@ -1,4 +1,4 @@
-name: GCP format Arcata admission phase3
+name: GCP format Arcata Siemens source phase3
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: gcp-format-arcata-admission-phase3
+  group: gcp-format-arcata-siemens-source-phase3
   cancel-in-progress: false
 
 jobs:
@@ -25,8 +25,8 @@ jobs:
       WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
       DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
       ARCATA_REPOSITORY: laurajoyhutchins/arcata
-      ARCATA_BRANCH: refactor/vendor-admission-phase3
-      EXPECTED_HEAD: 4f40715c4a627c402c427eef4947ed42d9b0da23
+      ARCATA_BRANCH: vendor/siemens-3va62-etu320-phase3
+      EXPECTED_HEAD: 1cb724b737062ad46fe3c7e7a512cdea40ed313a
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -213,6 +213,8 @@ jobs:
                       "packages/ieee1584/tests/test_sqlite_tcc.py",
                       "packages/ieee1584/tests/test_staged.py",
                       "packages/ieee1584/tests/test_study.py",
+                      "packages/ieee1584/src/ieee1584/vendors/siemens.py",
+                      "packages/ieee1584/tests/test_siemens.py",
                   }
                   if not changed:
                       raise SystemExit("formatter produced no diff despite prior format failure")
@@ -229,7 +231,7 @@ jobs:
                   run(["git", "config", "user.name", "Overcenter GCP Formatter"])
                   run(["git", "config", "user.email", "noreply@users.noreply.github.com"])
                   run(["git", "add", "--", *changed])
-                  run(["git", "commit", "-m", "Format phase 3 admission candidate"])
+                  run(["git", "commit", "-m", "Format Siemens source phase 3 candidate"])
                   new_head = run(["git", "rev-parse", "HEAD"], capture=True).stdout.strip()
                   run([
                       "git", "-c",
