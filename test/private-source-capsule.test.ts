@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -12,7 +13,6 @@ function fixture(){
  const a=Buffer.from('alpha\n'), b=Buffer.from('#!/bin/sh\necho beta\n'); const as=gitBlobSha(a), bs=gitBlobSha(b);
  writeFileSync(join(cache,as),a);writeFileSync(join(cache,bs),b);
  // Git tree for a.txt + bin/run.sh, independently constructed by git.
- const {execFileSync}=require('node:child_process');
  const repo=join(root,'oracle');mkdirSync(repo);execFileSync('git',['init','-q'],{cwd:repo});
  writeFileSync(join(repo,'a.txt'),a);mkdirSync(join(repo,'bin'));writeFileSync(join(repo,'bin/run.sh'),b);chmodSync(join(repo,'bin/run.sh'),0o755);
  execFileSync('git',['add','-A'],{cwd:repo}); const tree=execFileSync('git',['write-tree'],{cwd:repo,encoding:'utf8'}).trim();
@@ -30,4 +30,4 @@ test('rejects unsafe paths, unsupported modes, duplicates, and symbolic revision
  assert.throws(()=>verifyPrivateSourceCapsule({...f.manifest,entries:[f.manifest.entries[0],f.manifest.entries[0]]},f.cache));
  assert.throws(()=>verifyPrivateSourceCapsule({...f.manifest,revision:'main'},f.cache));
 }finally{rmSync(f.root,{recursive:true,force:true});}});
-test('materializes atomically with exact executable modes',()=>{const f=fixture();try{const out=join(f.root,'out');materializePrivateSource(f.manifest,f.cache,out);assert.deepEqual(readFileSync(join(out,'a.txt')),f.a);assert.deepEqual(readFileSync(join(out,'bin/run.sh')),f.b);assert.equal((require('node:fs').statSync(join(out,'bin/run.sh')).mode&0o777),0o755);}finally{rmSync(f.root,{recursive:true,force:true});}});
+test('materializes atomically with exact executable modes',()=>{const f=fixture();try{const out=join(f.root,'out');materializePrivateSource(f.manifest,f.cache,out);assert.deepEqual(readFileSync(join(out,'a.txt')),f.a);assert.deepEqual(readFileSync(join(out,'bin/run.sh')),f.b);assert.equal((statSync(join(out,'bin/run.sh')).mode&0o777),0o755);}finally{rmSync(f.root,{recursive:true,force:true});}});
