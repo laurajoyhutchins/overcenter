@@ -1,0 +1,108 @@
+name: GCP runner autoscaler capability probe
+
+on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+    paths:
+      - .github/workflows/gcp-runner-autoscaler-capability.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+      - name: Probe Overcenter GitHub App capabilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/app-capability.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 180s
+          steps:
+            - id: app-capability
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+              args:
+                - -e
+                - |
+                  const crypto = require("crypto");
+                  const b64 = value => Buffer.from(JSON.stringify(value)).toString("base64url");
+                  const now = Math.floor(Date.now() / 1000);
+                  const unsigned = b64({alg:"RS256",typ:"JWT"}) + "." + b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const signature = crypto.sign("RSA-SHA256", Buffer.from(unsigned), process.env.GITHUB_APP_PRIVATE_KEY).toString("base64url");
+                  const jwt = unsigned + "." + signature;
+                  const headers = {
+                    Accept:"application/vnd.github+json",
+                    Authorization:"Bearer " + jwt,
+                    "X-GitHub-Api-Version":"2026-03-10",
+                    "User-Agent":"overcenter-gcp-runner-probe",
+                  };
+                  async function get(path) {
+                    const response = await fetch("https://api.github.com" + path, {headers});
+                    const text = await response.text();
+                    if (!response.ok) throw new Error(path + " HTTP " + response.status + ": " + text.slice(0,300));
+                    return JSON.parse(text);
+                  }
+                  (async () => {
+                    const app = await get("/app");
+                    const hook = await get("/app/hook/config");
+                    console.log(JSON.stringify({
+                      app_id: app.id,
+                      name: app.name,
+                      events: app.events || [],
+                      permissions: app.permissions || {},
+                      hook_configured: Boolean(hook && hook.url),
+                      hook_url_host: hook && hook.url ? new URL(hook.url).host : null,
+                      hook_content_type: hook && hook.content_type || null,
+                    }));
+                  })().catch(error => { console.error(error.message); process.exit(1); });
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: CLOUD_LOGGING_ONLY
+          YAML
+
+          build_id="$(gcloud builds submit --async --no-source --project="$PROJECT_ID" --region="$REGION" --config="$config" --format='value(id)')"
+          test -n "$build_id"
+          for _ in $(seq 1 90); do
+            status="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)')"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
+            esac
+            sleep 2
+          done
+          echo "Cloud Build: $build_id"
+          echo "Status: $status"
+          gcloud builds log "$build_id" --project="$PROJECT_ID" --region="$REGION" 2>/dev/null | tail -n 20
+          test "$status" = SUCCESS
