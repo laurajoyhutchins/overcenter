@@ -1,4 +1,4 @@
-import type { GitHubJsonGet } from '../providers/github/rest.ts';
+import { verifyGitHubSourceProofObservation } from './github-source-proof-observation.ts';
 import {
   assertExactKeys,
   assertNonEmptyString,
@@ -30,12 +30,6 @@ function exactSha(value: unknown): asserts value is string {
     throw new Error('SOURCE_PROOF_BINDING_MISMATCH');
 }
 
-function repositoryPath(repositoryFullName: string, suffix: string): string {
-  const [owner, name, ...extra] = repositoryFullName.split('/');
-  if (!owner || !name || extra.length) throw new Error('SOURCE_PROOF_REPOSITORY_INVALID');
-  return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}${suffix}`;
-}
-
 export function admitSourceProof(
   planValue: SourceTransactionPlan,
   recordValue: unknown,
@@ -50,7 +44,7 @@ export function admitSourceProof(
     expectedWorkflowRunId: number;
     expectedWorkflowRunAttempt: number;
     context: SourceProofContext;
-    get: GitHubJsonGet;
+    get: (token: string, path: string) => unknown;
   },
 ): TrustedSourceProofWitness {
   const plan = validateSourceTransactionPlan(planValue);
@@ -99,47 +93,23 @@ export function admitSourceProof(
   )
     throw new Error('SOURCE_PROOF_PRODUCER_INVALID');
 
-  const api = (suffix: string) =>
-    get(githubToken, repositoryPath(plan.repository_full_name, suffix));
-  const run = api(`/actions/runs/${expectedWorkflowRunId}`);
-  if (
-    !isData(run) ||
-    run.id !== expectedWorkflowRunId ||
-    run.run_attempt !== expectedWorkflowRunAttempt ||
-    run.path !== plan.verification_profile.profile.workflow_path ||
-    run.head_sha !== plan.candidate_sha ||
-    run.head_branch !== `overcenter/candidate/${plan.claim.run_id}` ||
-    run.event !== 'workflow_dispatch' ||
-    run.status !== 'completed' ||
-    run.conclusion !== (rejected ? 'failure' : 'success') ||
-    !isData(run.repository) ||
-    run.repository.id !== plan.repository_id ||
-    !isData(run.head_repository) ||
-    run.head_repository.id !== plan.repository_id
-  )
-    throw new Error('SOURCE_PROOF_WORKFLOW_INVALID');
-
-  const jobs = api(
-    `/actions/runs/${expectedWorkflowRunId}/attempts/${expectedWorkflowRunAttempt}/jobs?per_page=100`,
+  verifyGitHubSourceProofObservation(
+    githubToken,
+    {
+      repository_id: plan.repository_id,
+      repository_full_name: plan.repository_full_name,
+      workflow_path: plan.verification_profile.profile.workflow_path,
+      workflow_run_id: expectedWorkflowRunId,
+      workflow_run_attempt: expectedWorkflowRunAttempt,
+      candidate_sha: plan.candidate_sha,
+      candidate_branch: `overcenter/candidate/${plan.claim.run_id}`,
+      required_evidence_jobs: plan.verification_profile.profile.required_evidence_jobs,
+      record_job: plan.verification_profile.profile.record_job,
+      record_job_id: producer.job_id,
+      rejected,
+    },
+    get,
   );
-  if (!isData(jobs) || !Array.isArray(jobs.jobs) || jobs.jobs.length >= 100)
-    throw new Error('SOURCE_PROOF_JOBS_INCOMPLETE');
-  const profile = plan.verification_profile.profile;
-  for (const name of [...profile.required_evidence_jobs, profile.record_job]) {
-    const matches = jobs.jobs.filter((job) => isData(job) && job.name === name);
-    const job = matches[0];
-    if (
-      matches.length !== 1 ||
-      !isData(job) ||
-      !isPositiveSafeInteger(job.id) ||
-      job.run_id !== expectedWorkflowRunId ||
-      job.head_sha !== plan.candidate_sha ||
-      job.status !== 'completed' ||
-      job.conclusion !== (name !== profile.record_job && rejected ? 'failure' : 'success') ||
-      (name === profile.record_job && job.id !== producer.job_id)
-    )
-      throw new Error(`SOURCE_PROOF_JOB_INVALID:${name}`);
-  }
 
   if (rejected) throw new SourceProofRejected();
 
