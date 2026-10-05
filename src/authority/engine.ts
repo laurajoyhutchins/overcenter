@@ -63,7 +63,6 @@ import {
 } from './transaction-admission.ts';
 import {
   effectAdapterCapabilities,
-  GITHUB_SOURCE_INTEGRATION_EFFECT,
   reservedEffectReleaseWitnessSafe,
   type EffectVerifier,
   type RegisteredEffectContract,
@@ -75,10 +74,6 @@ import {
   type EffectAttemptBinding,
   type TrustedEffectReleaseWitness,
 } from '../effect-release-witness.ts';
-import {
-  trustedSourceIntegrationEvidence,
-  type TrustedSourceIntegrationWitness,
-} from '../source/source-integration.ts';
 import { bindSourceClaim, type SourceClaimBinding } from '../source/source-obligation.ts';
 
 export type { Receipt } from './facts.ts';
@@ -548,38 +543,6 @@ export class KernelCore {
     throw new Error('EFFECT_RELEASE_CONTENTION_EXHAUSTED');
   }
 
-  settleSourceIntegration(
-    permit: ExecutionPermit,
-    witness: TrustedSourceIntegrationWitness,
-  ): Receipt {
-    const evidence = trustedSourceIntegrationEvidence(witness);
-    const receipt = this.#settleWithoutObservation(
-      permit,
-      'source-integration',
-      { source_integration: evidence },
-      ({ run, work }) => {
-        if (
-          work.packet.kind !== 'source-change' ||
-          work.packet.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT ||
-          work.postcondition.verifier !== 'source-integration/v1'
-        ) {
-          throw new Error('SOURCE_SETTLEMENT_WORK_INVALID');
-        }
-        if (
-          evidence.run_id !== run.id ||
-          evidence.obligation_key !== run.obligation_key ||
-          evidence.source_sha !== run.source_revision
-        ) {
-          throw new Error('SOURCE_INTEGRATION_EVIDENCE_BINDING_MISMATCH');
-        }
-      },
-    );
-    if (receipt.disposition !== 'DONE' || !receipt.verified) {
-      throw new Error('SOURCE_INTEGRATION_PROJECTION_FAILED');
-    }
-    return receipt;
-  }
-
   retrySourceIntegration(permit: ExecutionPermit, reason: string, diagnostic: Data = {}): Receipt {
     if (!reason) throw new Error('SOURCE_RETRY_REASON_INVALID');
     const receipt = this.#settleWithoutObservation(
@@ -797,10 +760,7 @@ export class KernelCore {
 
   #settleWithoutObservation(
     permit: ExecutionPermit,
-    kind: Extract<
-      ReceiptKind,
-      'judgment-required' | 'execution-terminated' | 'source-integration' | 'source-retry'
-    >,
+    kind: Extract<ReceiptKind, 'judgment-required' | 'execution-terminated' | 'source-retry'>,
     diagnostic: Data,
     validate?: (context: { run: HistoricalRun; work: HistoricalRun['obligation'] }) => void,
   ): Receipt {
@@ -820,14 +780,7 @@ export class KernelCore {
               unresolvedError: null,
               contentionError: 'RECOVERY_CONTENTION_EXHAUSTED',
             }
-          : kind === 'source-integration'
-            ? {
-                action: 'integrate source',
-                lifecycleError: 'SOURCE_SETTLEMENT_RUN_NOT_EXECUTING',
-                unresolvedError: null,
-                contentionError: 'SOURCE_INTEGRATION_SETTLEMENT_CONTENTION_EXHAUSTED',
-              }
-            : {
+          : {
                 action: 'retry source',
                 lifecycleError: 'SOURCE_RETRY_RUN_NOT_EXECUTING',
                 unresolvedError: 'SOURCE_RETRY_WITH_UNRESOLVED_EFFECT',
@@ -851,9 +804,6 @@ export class KernelCore {
         throw new Error(policy.lifecycleError);
       }
       const unresolvedEffect = history.unresolvedReservationsByRun.has(runId);
-      if (kind === 'source-integration' && !unresolvedEffect) {
-        throw new Error('SOURCE_SETTLEMENT_WITHOUT_RESERVED_EFFECT');
-      }
       if (policy.unresolvedError && unresolvedEffect) {
         throw new Error(policy.unresolvedError);
       }
