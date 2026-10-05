@@ -156,11 +156,22 @@ steps:
         });
 
   - id: github-runner
-    name: ${RUNNER_IMAGE}
-    env:
-      - TARGET_REPOSITORY=${TARGET_REPOSITORY}
-      - TARGET_JOB_ID=${TARGET_JOB_ID}
-      - RUNNER_NAME=overcenter-gcp-${TARGET_JOB_ID}-\$BUILD_ID
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        if [ -f /workspace/skip-runner ]; then
+          echo "GitHub job is no longer queued; no runner required."
+          exit 0
+        fi
+        docker run --rm \
+          --network bridge \
+          --volume /workspace:/workspace \
+          --env TARGET_REPOSITORY=${TARGET_REPOSITORY} \
+          --env TARGET_JOB_ID=${TARGET_JOB_ID} \
+          --env RUNNER_NAME=overcenter-gcp-${TARGET_JOB_ID}-\$BUILD_ID \
+          ${RUNNER_IMAGE}
 
 availableSecrets:
   secretManager:
