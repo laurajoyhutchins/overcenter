@@ -129,7 +129,7 @@ jobs:
                 - -ceu
                 - |
                   apt-get update -qq
-                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates curl git gzip tar unzip
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates curl git gzip python3 tar unzip
                   mkdir -p /workspace/actions-runner
                   cd /workspace/actions-runner
                   curl -fsSLo actions-runner.tar.gz \
