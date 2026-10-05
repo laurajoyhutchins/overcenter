@@ -1,0 +1,475 @@
+name: GCP Arcata maintenance
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .overcenter/gcp-maintenance/request.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-arcata-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+
+    steps:
+      - name: Check out controller revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Validate maintenance request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          body = json.loads(Path(".overcenter/gcp-maintenance/request.json").read_text())
+          if set(body) != {
+              "schema",
+              "request_id",
+              "repository",
+              "set_delete_branch_on_merge",
+              "branches",
+          }:
+              raise SystemExit("maintenance request has unexpected keys")
+          if body["schema"] != "overcenter-gcp-arcata-maintenance/request/v1":
+              raise SystemExit("unsupported maintenance request schema")
+          if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,95}", str(body["request_id"])):
+              raise SystemExit("invalid request_id")
+          repo = body["repository"]
+          expected = {
+              "full_name": "laurajoyhutchins/arcata",
+              "id": 1402666660,
+              "owner_id": 219002713,
+              "default_branch": "main",
+          }
+          if repo != expected:
+              raise SystemExit("repository identity request mismatch")
+          if not isinstance(body["set_delete_branch_on_merge"], bool):
+              raise SystemExit("set_delete_branch_on_merge must be boolean")
+          branches = body["branches"]
+          if not isinstance(branches, list) or not branches or len(branches) > 100:
+              raise SystemExit("branches must contain 1..100 entries")
+          seen = set()
+          for item in branches:
+              if set(item) != {"branch", "expected_head", "merged_pr"}:
+                  raise SystemExit("branch entry has unexpected keys")
+              branch = str(item["branch"])
+              if not branch or branch == "main" or branch in seen:
+                  raise SystemExit("invalid or duplicate branch")
+              if not re.fullmatch(r"[0-9a-f]{40}", str(item["expected_head"])):
+                  raise SystemExit("expected_head must be 40-hex")
+              if not isinstance(item["merged_pr"], int) or item["merged_pr"] < 1:
+                  raise SystemExit("merged_pr must be a positive integer")
+              seen.add(branch)
+          PY
+
+      - name: Authenticate with Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Submit maintenance transaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/dev"
+
+          config="$RUNNER_TEMP/cloudbuild-arcata-maintenance.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 600s
+          steps:
+            - id: arcata-maintenance
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv:
+                - GITHUB_APP_PRIVATE_KEY
+              env:
+                - GITHUB_APP_ID=4616688
+                - CONTROLLER_REVISION=${_CONTROLLER_REVISION}
+              args:
+                - -e
+                - |
+                  const crypto = require("crypto");
+
+                  const requestUrl =
+                    "https://raw.githubusercontent.com/laurajoyhutchins/overcenter/" +
+                    process.env.CONTROLLER_REVISION +
+                    "/.overcenter/gcp-maintenance/request.json";
+                  const apiVersion = "2026-03-10";
+                  const b64 = value =>
+                    Buffer.from(JSON.stringify(value)).toString("base64url");
+
+                  function appJwt() {
+                    const now = Math.floor(Date.now() / 1000);
+                    const header = b64({alg:"RS256",typ:"JWT"});
+                    const payload = b64({
+                      iat: now - 60,
+                      exp: now + 540,
+                      iss: process.env.GITHUB_APP_ID,
+                    });
+                    const unsigned = header + "." + payload;
+                    const signature = crypto.sign(
+                      "RSA-SHA256",
+                      Buffer.from(unsigned),
+                      process.env.GITHUB_APP_PRIVATE_KEY,
+                    ).toString("base64url");
+                    return unsigned + "." + signature;
+                  }
+
+                  function headers(token) {
+                    return {
+                      Accept: "application/vnd.github+json",
+                      Authorization: "Bearer " + token,
+                      "X-GitHub-Api-Version": apiVersion,
+                      "User-Agent": "overcenter-gcp-arcata-maintenance",
+                    };
+                  }
+
+                  async function responseJson(response, label, allowed = []) {
+                    const text = await response.text();
+                    let body = null;
+                    try { body = text ? JSON.parse(text) : null; } catch {}
+                    if (!response.ok && !allowed.includes(response.status)) {
+                      throw new Error(
+                        label + " HTTP " + response.status + ": " + text.slice(0, 500)
+                      );
+                    }
+                    return {status: response.status, body, text};
+                  }
+
+                  async function api(repo, path, token, options = {}) {
+                    const method = options.method || "GET";
+                    const response = await fetch(
+                      "https://api.github.com/repos/" + repo + path,
+                      {
+                        method,
+                        headers: {
+                          ...headers(token),
+                          ...(options.body ? {"Content-Type":"application/json"} : {}),
+                        },
+                        body: options.body ? JSON.stringify(options.body) : undefined,
+                      },
+                    );
+                    return responseJson(
+                      response,
+                      method + " " + path,
+                      options.allowed || [],
+                    );
+                  }
+
+                  function encodedRef(branch) {
+                    return branch.split("/").map(encodeURIComponent).join("/");
+                  }
+
+                  async function readOpenPulls(repo, token) {
+                    const pulls = [];
+                    for (let page = 1; page <= 10; page++) {
+                      const result = await api(
+                        repo,
+                        "/pulls?state=open&per_page=100&page=" + page,
+                        token,
+                      );
+                      const batch = Array.isArray(result.body) ? result.body : [];
+                      pulls.push(...batch);
+                      if (batch.length < 100) return pulls;
+                    }
+                    throw new Error("open pull request pagination exceeded safety bound");
+                  }
+
+                  async function readRef(repo, branch, token, allowed = []) {
+                    return api(
+                      repo,
+                      "/git/ref/heads/" + encodedRef(branch),
+                      token,
+                      {allowed},
+                    );
+                  }
+
+                  async function main() {
+                    const requestResponse = await fetch(requestUrl, {
+                      headers: {"User-Agent":"overcenter-gcp-arcata-maintenance"},
+                    });
+                    const request = (
+                      await responseJson(requestResponse, "request fetch")
+                    ).body;
+
+                    if (
+                      !request ||
+                      request.schema !== "overcenter-gcp-arcata-maintenance/request/v1"
+                    ) throw new Error("request schema mismatch");
+
+                    const expectedRepo = {
+                      full_name: "laurajoyhutchins/arcata",
+                      id: 1402666660,
+                      owner_id: 219002713,
+                      default_branch: "main",
+                    };
+                    if (JSON.stringify(request.repository) !== JSON.stringify(expectedRepo)) {
+                      throw new Error("repository identity request mismatch");
+                    }
+
+                    const jwt = appJwt();
+                    const installation = (
+                      await responseJson(
+                        await fetch(
+                          "https://api.github.com/repos/" +
+                            expectedRepo.full_name +
+                            "/installation",
+                          {headers:headers(jwt)},
+                        ),
+                        "installation lookup",
+                      )
+                    ).body;
+
+                    const tokenBody = (
+                      await responseJson(
+                        await fetch(
+                          "https://api.github.com/app/installations/" +
+                            installation.id +
+                            "/access_tokens",
+                          {
+                            method:"POST",
+                            headers:{
+                              ...headers(jwt),
+                              "Content-Type":"application/json",
+                            },
+                            body:JSON.stringify({
+                              permissions:{
+                                contents:"write",
+                                administration:"write",
+                                pull_requests:"read",
+                              },
+                            }),
+                          },
+                        ),
+                        "installation token",
+                      )
+                    ).body;
+                    const token = tokenBody.token;
+
+                    const repo = (
+                      await api(expectedRepo.full_name, "", token)
+                    ).body;
+                    if (
+                      repo.id !== expectedRepo.id ||
+                      !repo.owner ||
+                      repo.owner.id !== expectedRepo.owner_id ||
+                      repo.full_name !== expectedRepo.full_name ||
+                      repo.default_branch !== expectedRepo.default_branch
+                    ) throw new Error("authoritative repository identity mismatch");
+
+                    const openPulls = await readOpenPulls(expectedRepo.full_name, token);
+                    const targets = request.branches;
+
+                    for (const target of targets) {
+                      if (
+                        openPulls.some(
+                          pr =>
+                            pr &&
+                            pr.head &&
+                            pr.base &&
+                            (
+                              pr.head.ref === target.branch ||
+                              pr.base.ref === target.branch
+                            )
+                        )
+                      ) {
+                        throw new Error(
+                          "branch participates in open pull request: " + target.branch
+                        );
+                      }
+
+                      const pr = (
+                        await api(
+                          expectedRepo.full_name,
+                          "/pulls/" + target.merged_pr,
+                          token,
+                        )
+                      ).body;
+                      if (
+                        !pr ||
+                        !pr.merged_at ||
+                        !pr.head ||
+                        pr.head.ref !== target.branch ||
+                        pr.head.sha !== target.expected_head
+                      ) {
+                        throw new Error(
+                          "merged PR evidence mismatch for " + target.branch
+                        );
+                      }
+
+                      const ref = await readRef(
+                        expectedRepo.full_name,
+                        target.branch,
+                        token,
+                      );
+                      if (
+                        !ref.body ||
+                        !ref.body.object ||
+                        ref.body.object.sha !== target.expected_head
+                      ) {
+                        throw new Error(
+                          "branch exact-head lease mismatch for " + target.branch
+                        );
+                      }
+                    }
+
+                    if (request.set_delete_branch_on_merge) {
+                      if (repo.delete_branch_on_merge !== true) {
+                        const updated = (
+                          await api(
+                            expectedRepo.full_name,
+                            "",
+                            token,
+                            {
+                              method:"PATCH",
+                              body:{delete_branch_on_merge:true},
+                            },
+                          )
+                        ).body;
+                        if (!updated || updated.delete_branch_on_merge !== true) {
+                          throw new Error(
+                            "delete_branch_on_merge update did not read back true"
+                          );
+                        }
+                      }
+                    }
+
+                    const deleted = [];
+                    for (const target of targets) {
+                      const before = await readRef(
+                        expectedRepo.full_name,
+                        target.branch,
+                        token,
+                      );
+                      if (
+                        !before.body ||
+                        !before.body.object ||
+                        before.body.object.sha !== target.expected_head
+                      ) {
+                        throw new Error(
+                          "branch moved after preflight: " + target.branch
+                        );
+                      }
+
+                      await api(
+                        expectedRepo.full_name,
+                        "/git/refs/heads/" + encodedRef(target.branch),
+                        token,
+                        {method:"DELETE"},
+                      );
+
+                      const after = await readRef(
+                        expectedRepo.full_name,
+                        target.branch,
+                        token,
+                        [404],
+                      );
+                      if (after.status !== 404) {
+                        throw new Error(
+                          "deleted branch remained visible: " + target.branch
+                        );
+                      }
+                      deleted.push(target.branch);
+                    }
+
+                    const finalRepo = (
+                      await api(expectedRepo.full_name, "", token)
+                    ).body;
+                    if (
+                      request.set_delete_branch_on_merge &&
+                      finalRepo.delete_branch_on_merge !== true
+                    ) {
+                      throw new Error("final repository setting readback failed");
+                    }
+
+                    console.log(JSON.stringify({
+                      schema:"overcenter-gcp-arcata-maintenance/receipt/v1",
+                      request_id:request.request_id,
+                      repository_id:finalRepo.id,
+                      deleted_count:deleted.length,
+                      deleted,
+                      delete_branch_on_merge:finalRepo.delete_branch_on_merge,
+                    }));
+                  }
+
+                  main().catch(error => {
+                    console.error(String(error && error.message || error));
+                    process.exit(1);
+                  });
+
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: CLOUD_LOGGING_ONLY
+          YAML
+
+          build_id="$(
+            gcloud builds submit \
+              --async \
+              --no-source \
+              --project="$PROJECT_ID" \
+              --region="$REGION" \
+              --config="$config" \
+              --substitutions="_CONTROLLER_REVISION=$GITHUB_SHA" \
+              --format='value(id)'
+          )"
+          test -n "$build_id"
+          echo "Cloud Build: $build_id" | tee -a "$GITHUB_STEP_SUMMARY"
+
+          status=""
+          for _ in $(seq 1 300); do
+            status="$(
+              gcloud builds describe "$build_id" \
+                --project="$PROJECT_ID" \
+                --region="$REGION" \
+                --format='value(status)'
+            )"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
+            esac
+            sleep 2
+          done
+
+          echo "Status: $status" | tee -a "$GITHUB_STEP_SUMMARY"
+          gcloud builds describe "$build_id" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format="table(steps.id,steps.status)" | tee -a "$GITHUB_STEP_SUMMARY"
+          gcloud builds describe "$build_id" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format="value(failureInfo.detail)" | tee -a "$GITHUB_STEP_SUMMARY"
+
+          test "$status" = SUCCESS
