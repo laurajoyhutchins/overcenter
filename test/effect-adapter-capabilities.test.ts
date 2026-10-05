@@ -9,7 +9,6 @@ import {
   EFFECT_ADAPTER_CAPABILITIES,
   EFFECT_ADAPTER_CAPABILITIES_SCHEMA,
   GITHUB_COMMIT_STATUS_EFFECT,
-  GITHUB_PULL_REQUEST_PUBLICATION_EFFECT,
   GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
   GITHUB_SOURCE_INTEGRATION_EFFECT,
   KUBERNETES_CONFIGMAP_EFFECT,
@@ -24,7 +23,7 @@ import { localFileEnoentEvidence } from '../src/observation/evidence.ts';
 import type { Obligation } from '../src/model.ts';
 
 test('effect adapter capabilities are closed machine-readable data', () => {
-  assert.equal(EFFECT_ADAPTER_CAPABILITIES.length, 5);
+  assert.equal(EFFECT_ADAPTER_CAPABILITIES.length, 4);
   assert.doesNotThrow(() => JSON.stringify(EFFECT_ADAPTER_CAPABILITIES));
 
   for (const capabilities of EFFECT_ADAPTER_CAPABILITIES) {
@@ -36,7 +35,6 @@ test('effect adapter capabilities are closed machine-readable data', () => {
     EFFECT_ADAPTER_CAPABILITIES.map((candidate) => candidate.effect_contract).sort(),
     [
       GITHUB_COMMIT_STATUS_EFFECT,
-      GITHUB_PULL_REQUEST_PUBLICATION_EFFECT,
       GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
       GITHUB_SOURCE_INTEGRATION_EFFECT,
       KUBERNETES_CONFIGMAP_EFFECT,
@@ -52,7 +50,6 @@ test('reservation release public API requires a validated witness', () => {
 test('current production mutation adapters do not claim replay safety they cannot prove', () => {
   for (const effectContract of [
     GITHUB_COMMIT_STATUS_EFFECT,
-    GITHUB_PULL_REQUEST_PUBLICATION_EFFECT,
     GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT,
     GITHUB_SOURCE_INTEGRATION_EFFECT,
     KUBERNETES_CONFIGMAP_EFFECT,
