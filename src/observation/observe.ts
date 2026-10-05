@@ -7,6 +7,7 @@ import type {
   GitHubHostileMutationEvidencePostcondition,
   Observation,
   Postcondition,
+  SourceIntegrationPostcondition,
 } from '../model.ts';
 import {
   localFileEnoentEvidence,
@@ -68,6 +69,39 @@ const repositoryRelativePath = (value: unknown): value is string =>
   !value.startsWith('/') &&
   !value.split('/').some((part) => part === '' || part === '.' || part === '..');
 
+type GitHubSourceIntegrationPostcondition = SourceIntegrationPostcondition & {
+  provider: 'github';
+  repository_id: number;
+  repository_full_name: string;
+  ref: string;
+  commit_sha: string;
+  base_ref: string;
+  expected_base_sha: string;
+};
+
+function githubSourceIntegrationPostcondition(
+  value: SourceIntegrationPostcondition,
+): value is GitHubSourceIntegrationPostcondition {
+  return (
+    value.provider === 'github' &&
+    isPositiveSafeInteger(value.repository_id) &&
+    typeof value.repository_full_name === 'string' &&
+    /^[^/]+\/[^/]+$/.test(value.repository_full_name) &&
+    typeof value.ref === 'string' &&
+    value.ref.startsWith('refs/heads/') &&
+    value.ref.length > 'refs/heads/'.length &&
+    isGitHubObjectId(value.commit_sha) &&
+    typeof value.base_ref === 'string' &&
+    value.base_ref.length > 0 &&
+    !value.base_ref.startsWith('refs/') &&
+    isGitHubObjectId(value.expected_base_sha)
+  );
+}
+
+function legacySourceIntegrationPostcondition(value: SourceIntegrationPostcondition): boolean {
+  return Object.keys(value).length === 1;
+}
+
 assertSupportedStructuralSchema(SettlementObservationSchema);
 
 const observationExternalRef = (ref: string, value: unknown): boolean => {
@@ -115,7 +149,10 @@ function readLocalFile(path: string, context: ObservationContext): string {
 
 export function validatePostcondition(p: Postcondition): void {
   if (p?.verifier === 'operator-judgment/v1' && data(p.subject)) return;
-  if (p?.verifier === 'source-integration/v1') return;
+  if (p?.verifier === 'source-integration/v1') {
+    if (legacySourceIntegrationPostcondition(p) || githubSourceIntegrationPostcondition(p)) return;
+    throw new Error('SOURCE_INTEGRATION_POSTCONDITION_INVALID');
+  }
   if (
     p?.verifier === 'file-content-equals/v1' &&
     typeof p.path === 'string' &&
@@ -155,23 +192,6 @@ export function validatePostcondition(p: Postcondition): void {
     isGitHubObjectId(p.expected_previous_head_sha) &&
     typeof p.base_ref === 'string' &&
     p.base_ref.length > 0 &&
-    isGitHubObjectId(p.expected_base_sha)
-  )
-    return;
-  if (
-    p?.verifier === 'github-pull-request-published/v1' &&
-    p.provider === 'github' &&
-    Number.isSafeInteger(p.repository_id) &&
-    p.repository_id > 0 &&
-    typeof p.repository_full_name === 'string' &&
-    /^[^/]+\/[^/]+$/.test(p.repository_full_name) &&
-    typeof p.ref === 'string' &&
-    p.ref.startsWith('refs/heads/') &&
-    p.ref.length > 'refs/heads/'.length &&
-    isGitHubObjectId(p.commit_sha) &&
-    typeof p.base_ref === 'string' &&
-    p.base_ref.length > 0 &&
-    !p.base_ref.startsWith('refs/') &&
     isGitHubObjectId(p.expected_base_sha)
   )
     return;
@@ -381,137 +401,6 @@ function observeGitHubPullRequestBranchUpdated(
   };
 }
 
-type GitHubPullRequestPublishedPostcondition = Extract<
-  Postcondition,
-  { verifier: 'github-pull-request-published/v1' }
->;
-
-const githubPullRequestPublishedCommon = (p: GitHubPullRequestPublishedPostcondition) => ({
-  verifier: p.verifier,
-  provider: 'github' as const,
-  repository_id: p.repository_id,
-  repository_full_name: p.repository_full_name,
-  ref: p.ref,
-  commit_sha: p.commit_sha,
-  base_ref: p.base_ref,
-  expected_base_sha: p.expected_base_sha,
-});
-
-const githubPullRequestPublishedError = (
-  p: GitHubPullRequestPublishedPostcondition,
-  error: string,
-): Observation => ({
-  ...githubPullRequestPublishedCommon(p),
-  mutation_certainty: 'uncertain',
-  observation_error: error,
-});
-
-function observeGitHubPullRequestPublished(
-  token: string,
-  p: GitHubPullRequestPublishedPostcondition,
-  get: GitHubJsonGet,
-  clock?: () => string,
-): Observation {
-  const headRef = canonicalGitHubRef(p.ref);
-  const owner = p.repository_full_name.split('/')[0]!;
-  const read = observeCertifiedGitHubSemanticRead(token, {
-    repositoryId: p.repository_id,
-    repositoryFullName: p.repository_full_name,
-    operation: 'pull_requests',
-    parameters: {
-      base: p.base_ref,
-      head: `${owner}:${headRef.slice('refs/heads/'.length)}`,
-      page: 1,
-      per_page: 30,
-      state: 'open',
-    },
-    grantedPermissions: ['pull_requests:read'],
-    get,
-    ...(clock ? { clock } : {}),
-  });
-  if (read.state === 'indeterminate' || !Array.isArray(read.value)) {
-    return githubPullRequestPublishedError(
-      p,
-      read.state === 'indeterminate'
-        ? read.observation_error
-        : 'GITHUB_PR_PUBLICATION_COLLECTION_INVALID',
-    );
-  }
-  const matches = read.value.filter((value) => {
-    if (!data(value) || value.state !== 'open' || !data(value.head) || !data(value.base)) {
-      return false;
-    }
-    return (
-      isPositiveSafeInteger(value.number) &&
-      typeof value.node_id === 'string' &&
-      value.node_id.length > 0 &&
-      isGitHubObjectId(value.head.sha) &&
-      sameGitHubObjectId(value.head.sha, p.commit_sha) &&
-      value.base.ref === p.base_ref &&
-      isGitHubObjectId(value.base.sha) &&
-      sameGitHubObjectId(value.base.sha, p.expected_base_sha)
-    );
-  });
-  if (matches.length !== 1) {
-    return githubPullRequestPublishedError(
-      p,
-      matches.length === 0
-        ? 'GITHUB_PR_PUBLICATION_NOT_OBSERVED'
-        : 'GITHUB_PR_PUBLICATION_OBSERVATION_AMBIGUOUS',
-    );
-  }
-  const pull = matches[0]!;
-  return {
-    ...githubPullRequestPublishedCommon(p),
-    pull_number: pull.number as number,
-    pull_node_id: pull.node_id as string,
-    actual_head_sha: (pull.head as Record<string, unknown>).sha as string,
-    mutation_certainty: 'present',
-    provider_evidence: {
-      pull_request: {
-        ...read.evidence,
-        ref: headRef,
-        commit_sha: p.commit_sha,
-        base_ref: p.base_ref,
-        base_sha: p.expected_base_sha,
-        pull_number: pull.number,
-        node_id: pull.node_id,
-      },
-    },
-  };
-}
-
-function githubPullRequestPublishedEvidenceMatches(
-  p: GitHubPullRequestPublishedPostcondition,
-  observed: Observation,
-): boolean {
-  if (
-    !isPositiveSafeInteger(observed.pull_number) ||
-    typeof observed.pull_node_id !== 'string' ||
-    typeof observed.actual_head_sha !== 'string' ||
-    !isGitHubObjectId(observed.actual_head_sha) ||
-    !sameGitHubObjectId(observed.actual_head_sha, p.commit_sha) ||
-    !data(observed.provider_evidence) ||
-    !data(observed.provider_evidence.pull_request)
-  )
-    return false;
-  const evidence = observed.provider_evidence.pull_request;
-  return (
-    evidence.provider === 'github' &&
-    evidence.operation_id === 'pulls/list' &&
-    evidence.repository_id === p.repository_id &&
-    typeof evidence.requested_repository_full_name === 'string' &&
-    evidence.requested_repository_full_name.toLowerCase() ===
-      p.repository_full_name.toLowerCase() &&
-    evidence.ref === p.ref &&
-    evidence.commit_sha === p.commit_sha &&
-    evidence.base_ref === p.base_ref &&
-    evidence.base_sha === p.expected_base_sha &&
-    evidence.pull_number === observed.pull_number &&
-    evidence.node_id === observed.pull_node_id
-  );
-}
-
 function githubCommitAncestryEvidenceMatches(
   value: unknown,
   ancestorSha: string,
@@ -572,30 +461,163 @@ function githubPullRequestBranchUpdatedEvidenceMatches(
   );
 }
 
+const sourceIntegrationCommon = (p: GitHubSourceIntegrationPostcondition) => ({
+  verifier: p.verifier,
+  provider: 'github' as const,
+  repository_id: p.repository_id,
+  repository_full_name: p.repository_full_name,
+  ref: p.ref,
+  commit_sha: p.commit_sha,
+  base_ref: p.base_ref,
+  expected_base_sha: p.expected_base_sha,
+});
+
+const sourceIntegrationError = (
+  p: GitHubSourceIntegrationPostcondition,
+  error: string,
+): Observation => ({
+  ...sourceIntegrationCommon(p),
+  mutation_certainty: 'uncertain',
+  observation_error: error,
+});
+
+function observeSourceIntegrationPullRequest(
+  token: string,
+  p: GitHubSourceIntegrationPostcondition,
+  get: GitHubJsonGet,
+  clock?: () => string,
+): Observation {
+  const headRef = canonicalGitHubRef(p.ref);
+  const owner = p.repository_full_name.split('/')[0]!;
+  const head = `${owner}:${headRef.slice('refs/heads/'.length)}`;
+  const read = observeCertifiedGitHubSemanticRead(token, {
+    repositoryId: p.repository_id,
+    repositoryFullName: p.repository_full_name,
+    operation: 'pull_requests',
+    parameters: {
+      base: p.base_ref,
+      head,
+      page: 1,
+      per_page: 100,
+      state: 'open',
+    },
+    grantedPermissions: ['pull_requests:read'],
+    get,
+    ...(clock ? { clock } : {}),
+  });
+  if (read.state === 'indeterminate' || !Array.isArray(read.value)) {
+    return sourceIntegrationError(
+      p,
+      read.state === 'indeterminate'
+        ? read.observation_error
+        : 'SOURCE_PR_PUBLICATION_COLLECTION_INVALID',
+    );
+  }
+
+  const matches = read.value.filter((value) => {
+    if (!data(value) || value.state !== 'open' || !data(value.head) || !data(value.base)) {
+      return false;
+    }
+    return (
+      isPositiveSafeInteger(value.number) &&
+      typeof value.node_id === 'string' &&
+      value.node_id.length > 0 &&
+      isGitHubObjectId(value.head.sha) &&
+      sameGitHubObjectId(value.head.sha, p.commit_sha) &&
+      value.base.ref === p.base_ref &&
+      isGitHubObjectId(value.base.sha) &&
+      sameGitHubObjectId(value.base.sha, p.expected_base_sha)
+    );
+  });
+  if (matches.length !== 1) {
+    return sourceIntegrationError(
+      p,
+      matches.length === 0
+        ? 'SOURCE_PR_PUBLICATION_NOT_OBSERVED'
+        : 'SOURCE_PR_PUBLICATION_OBSERVATION_AMBIGUOUS',
+    );
+  }
+
+  const pull = matches[0]!;
+  return {
+    ...sourceIntegrationCommon(p),
+    pull_number: pull.number as number,
+    pull_node_id: pull.node_id as string,
+    actual_head_sha: (pull.head as Record<string, unknown>).sha as string,
+    mutation_certainty: 'present',
+    provider_evidence: {
+      pull_request: {
+        ...read.evidence,
+        ref: headRef,
+        commit_sha: p.commit_sha,
+        base_ref: p.base_ref,
+        base_sha: p.expected_base_sha,
+        pull_number: pull.number,
+        node_id: pull.node_id,
+      },
+    },
+  };
+}
+
+function sourceIntegrationPullRequestEvidenceMatches(
+  p: GitHubSourceIntegrationPostcondition,
+  observed: Observation,
+): boolean {
+  if (
+    !isPositiveSafeInteger(observed.pull_number) ||
+    typeof observed.pull_node_id !== 'string' ||
+    observed.pull_node_id.length === 0 ||
+    typeof observed.actual_head_sha !== 'string' ||
+    !isGitHubObjectId(observed.actual_head_sha) ||
+    !sameGitHubObjectId(observed.actual_head_sha, p.commit_sha) ||
+    !data(observed.provider_evidence) ||
+    !data(observed.provider_evidence.pull_request)
+  )
+    return false;
+
+  const evidence = observed.provider_evidence.pull_request;
+  const expectedHead = `${p.repository_full_name.split('/')[0]!}:${p.ref.slice('refs/heads/'.length)}`;
+  return (
+    evidence.provider === 'github' &&
+    evidence.operation_id === 'pulls/list' &&
+    evidence.repository_id === p.repository_id &&
+    typeof evidence.requested_repository_full_name === 'string' &&
+    evidence.requested_repository_full_name.toLowerCase() ===
+      p.repository_full_name.toLowerCase() &&
+    data(evidence.parameters) &&
+    evidence.parameters.head === expectedHead &&
+    evidence.parameters.base === p.base_ref &&
+    evidence.parameters.state === 'open' &&
+    evidence.ref === p.ref &&
+    evidence.commit_sha === p.commit_sha &&
+    evidence.base_ref === p.base_ref &&
+    evidence.base_sha === p.expected_base_sha &&
+    evidence.pull_number === observed.pull_number &&
+    evidence.node_id === observed.pull_node_id
+  );
+}
+
 export function observePostcondition(p: Postcondition, context: ObservationContext): Observation {
   validatePostcondition(p);
   if (p.verifier === 'source-integration/v1') {
-    throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
-  }
-
-  if (p.verifier === 'operator-judgment/v1') {
-    throw new Error('OPERATOR_JUDGMENT_NOT_AUTOMATICALLY_OBSERVABLE');
-  }
-
-  if (p.verifier === 'github-pull-request-published/v1') {
-    if (!context.githubToken) {
-      return githubPullRequestPublishedError(p, 'GITHUB_TOKEN_UNAVAILABLE');
+    if (!githubSourceIntegrationPostcondition(p)) {
+      throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
     }
+    if (!context.githubToken) return sourceIntegrationError(p, 'GITHUB_TOKEN_UNAVAILABLE');
     try {
-      return observeGitHubPullRequestPublished(
+      return observeSourceIntegrationPullRequest(
         context.githubToken,
         p,
         context.githubGet ?? githubGet,
         context.clock,
       );
     } catch (e: unknown) {
-      return githubPullRequestPublishedError(p, errorMessage(e));
+      return sourceIntegrationError(p, errorMessage(e));
     }
+  }
+
+  if (p.verifier === 'operator-judgment/v1') {
+    throw new Error('OPERATOR_JUDGMENT_NOT_AUTOMATICALLY_OBSERVABLE');
   }
 
   if (p.verifier === 'github-pull-request-branch-updated/v1') {
@@ -775,10 +797,8 @@ export async function observePostconditionAsync(
   context: ObservationContext,
 ): Promise<Observation> {
   validatePostcondition(p);
-  if (p.verifier === 'github-pull-request-published/v1') {
-    if (!context.githubToken) {
-      return githubPullRequestPublishedError(p, 'GITHUB_TOKEN_UNAVAILABLE');
-    }
+  if (p.verifier === 'source-integration/v1' && githubSourceIntegrationPostcondition(p)) {
+    if (!context.githubToken) return sourceIntegrationError(p, 'GITHUB_TOKEN_UNAVAILABLE');
     const getAsync =
       context.githubGetAsync ??
       (context.githubGet
@@ -787,11 +807,11 @@ export async function observePostconditionAsync(
     try {
       return await runGitHubReadObserverAsync(
         context.githubToken,
-        (get) => observeGitHubPullRequestPublished(context.githubToken!, p, get, context.clock),
+        (get) => observeSourceIntegrationPullRequest(context.githubToken!, p, get, context.clock),
         getAsync,
       );
     } catch (e: unknown) {
-      return githubPullRequestPublishedError(p, errorMessage(e));
+      return sourceIntegrationError(p, errorMessage(e));
     }
   }
   if (p.verifier === 'github-pull-request-branch-updated/v1') {
@@ -846,12 +866,35 @@ function assertObservationCoordinate(postcondition: Postcondition, observed: Obs
   if (postcondition.verifier === 'operator-judgment/v1') {
     throw new Error('OPERATOR_JUDGMENT_NOT_AUTOMATICALLY_OBSERVABLE');
   }
-  if (postcondition.verifier === 'source-integration/v1') {
+  if (
+    postcondition.verifier === 'source-integration/v1' &&
+    !githubSourceIntegrationPostcondition(postcondition)
+  ) {
     throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
   }
   validateObservationEnvelope(observed);
   if (observed.verifier !== postcondition.verifier) {
     throw new Error('OBSERVATION_VERIFIER_MISMATCH');
+  }
+
+  if (
+    postcondition.verifier === 'source-integration/v1' &&
+    githubSourceIntegrationPostcondition(postcondition)
+  ) {
+    if (
+      observed.provider !== 'github' ||
+      observed.repository_id !== postcondition.repository_id ||
+      typeof observed.repository_full_name !== 'string' ||
+      observed.repository_full_name.toLowerCase() !==
+        postcondition.repository_full_name.toLowerCase() ||
+      observed.ref !== postcondition.ref ||
+      observed.commit_sha !== postcondition.commit_sha ||
+      observed.base_ref !== postcondition.base_ref ||
+      observed.expected_base_sha !== postcondition.expected_base_sha
+    ) {
+      throw new Error('OBSERVATION_COORDINATE_MISMATCH');
+    }
+    return;
   }
 
   if (
@@ -892,22 +935,6 @@ function assertObservationCoordinate(postcondition: Postcondition, observed: Obs
     ) {
       throw new Error('OBSERVATION_COORDINATE_MISMATCH');
     }
-    return;
-  }
-
-  if (postcondition.verifier === 'github-pull-request-published/v1') {
-    if (
-      observed.provider !== 'github' ||
-      observed.repository_id !== postcondition.repository_id ||
-      typeof observed.repository_full_name !== 'string' ||
-      observed.repository_full_name.toLowerCase() !==
-        postcondition.repository_full_name.toLowerCase() ||
-      observed.ref !== postcondition.ref ||
-      observed.commit_sha !== postcondition.commit_sha ||
-      observed.base_ref !== postcondition.base_ref ||
-      observed.expected_base_sha !== postcondition.expected_base_sha
-    )
-      throw new Error('OBSERVATION_COORDINATE_MISMATCH');
     return;
   }
 
@@ -975,7 +1002,11 @@ export function observationVerified(postcondition: Postcondition, observed: Obse
   }
   assertObservationCoordinate(postcondition, observed);
   if (postcondition.verifier === 'source-integration/v1') {
-    throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
+    if (!githubSourceIntegrationPostcondition(postcondition)) {
+      throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
+    }
+    if (observed.mutation_certainty !== 'present') return false;
+    return sourceIntegrationPullRequestEvidenceMatches(postcondition, observed);
   }
   if (observed.mutation_certainty !== 'present') return false;
 
@@ -1001,10 +1032,6 @@ export function observationVerified(postcondition: Postcondition, observed: Obse
       observed.actual_sha256 === postcondition.expected_sha256 &&
       observed.source_binding_sha256 === canonicalDigest(postcondition.source_blobs)
     );
-  }
-
-  if (postcondition.verifier === 'github-pull-request-published/v1') {
-    return githubPullRequestPublishedEvidenceMatches(postcondition, observed);
   }
 
   if (postcondition.verifier === 'github-pull-request-branch-updated/v1') {
