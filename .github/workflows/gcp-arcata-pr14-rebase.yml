@@ -166,32 +166,32 @@ jobs:
                   apt-get update -qq
                   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git curl jq
                   token="$$(cat /workspace/github-token)"
-                  auth="$$(printf 'x-access-token:%s' "$$token" | base64 -w0)"
+                  auth="$$(printf 'x-access-token:%s' "$$$token" | base64 -w0)"
                   mkdir -p /workspace/source
                   cd /workspace/source
                   git init -q
-                  git remote add origin "https://github.com/$$REPOSITORY.git"
+                  git remote add origin "https://github.com/$$$REPOSITORY.git"
                   git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $$auth"                     fetch --no-tags origin                     "refs/heads/main:refs/remotes/origin/main"                     "refs/heads/$$BRANCH:refs/remotes/origin/pr14"
 
-                  test "$$(git rev-parse refs/remotes/origin/main)" = "$$EXPECTED_MAIN"
-                  test "$$(git rev-parse refs/remotes/origin/pr14)" = "$$EXPECTED_OLD_HEAD"
+                  test "$$(git rev-parse refs/remotes/origin/main)" = "$$$EXPECTED_MAIN"
+                  test "$$(git rev-parse refs/remotes/origin/pr14)" = "$$$EXPECTED_OLD_HEAD"
 
-                  git checkout -q --detach "$$EXPECTED_MAIN"
+                  git checkout -q --detach "$$$EXPECTED_MAIN"
                   git config user.name "Overcenter GCP Reconciler"
                   git config user.email "noreply@users.noreply.github.com"
 
                   set +e
-                  git cherry-pick "$$EXPECTED_OLD_HEAD"
+                  git cherry-pick "$$$EXPECTED_OLD_HEAD"
                   rc=$$?
                   set -e
-                  if [ "$rc" -ne 0 ]; then
+                  if [ "$$rc" -ne 0 ]; then
                     echo "OVERCENTER_PR14_CHERRY_PICK_CONFLICT"
                     report="$(mktemp)"
                     {
                       echo "GCP exact-head rebase diagnostic"
                       echo
-                      echo "main: `$EXPECTED_MAIN`"
-                      echo "old PR head: `$EXPECTED_OLD_HEAD`"
+                      echo "main: `$$EXPECTED_MAIN`"
+                      echo "old PR head: `$$EXPECTED_OLD_HEAD`"
                       echo
                       echo "Conflicted paths:"
                       git diff --name-only --diff-filter=U
@@ -201,22 +201,22 @@ jobs:
                       echo
                       echo "Combined conflict diff:"
                       git diff --cc
-                    } > "$report"
-                    body="$(head -c 50000 "$report")"
-                    jq -n --arg body "$body" '{body: $body}' > /workspace/comment.json
+                    } > "$$report"
+                    body="$(head -c 50000 "$$report")"
+                    jq -n --arg body "$$body" '{body: $$body}' > /workspace/comment.json
                     curl --fail-with-body --silent --show-error \
                       -X POST \
                       -H "Accept: application/vnd.github+json" \
-                      -H "Authorization: Bearer $token" \
+                      -H "Authorization: Bearer $$token" \
                       -H "X-GitHub-Api-Version: 2026-03-10" \
                       -H "Content-Type: application/json" \
                       --data-binary @/workspace/comment.json \
-                      "https://api.github.com/repos/$REPOSITORY/issues/14/comments"
-                    exit "$rc"
+                      "https://api.github.com/repos/$$REPOSITORY/issues/14/comments"
+                    exit "$$rc"
                   fi
 
                   new_head="$$(git rev-parse HEAD)"
-                  test "$$(git rev-list --count "$$EXPECTED_MAIN"..HEAD)" = "1"
+                  test "$$(git rev-list --count "$$$EXPECTED_MAIN"..HEAD)" = "1"
                   printf '%s' "$$new_head" > /workspace/new-head
                   echo "OVERCENTER_PR14_REBASED_HEAD=$$new_head"
 
@@ -270,10 +270,10 @@ jobs:
                   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git
                   cd /workspace/source
                   token="$$(cat /workspace/github-token)"
-                  auth="$$(printf 'x-access-token:%s' "$$token" | base64 -w0)"
+                  auth="$$(printf 'x-access-token:%s' "$$$token" | base64 -w0)"
                   new_head="$$(cat /workspace/new-head)"
                   test "$$(git rev-parse HEAD)" = "$$new_head"
-                  git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $$auth"                     push origin "$$new_head:refs/heads/$$BRANCH"                     "--force-with-lease=refs/heads/$$BRANCH:$$EXPECTED_OLD_HEAD"
+                  git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $$auth"                     push origin "$$new_head:refs/heads/$$BRANCH"                     "--force-with-lease=refs/heads/$$BRANCH:$$$EXPECTED_OLD_HEAD"
                   echo "OVERCENTER_PR14_PUBLISHED_HEAD=$$new_head"
 
           availableSecrets:
