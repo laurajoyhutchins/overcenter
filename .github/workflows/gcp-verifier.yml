@@ -281,24 +281,84 @@ jobs:
 
             - id: ruff-format
               name: python:3.13-bookworm
+              waitFor: ["install-tools"]
               dir: source
               entrypoint: /workspace/verification-tools/bin/ruff
               args: ["format", "--check", "."]
 
             - id: ruff-lint
               name: python:3.13-bookworm
+              waitFor: ["install-tools"]
               dir: source
               entrypoint: /workspace/verification-tools/bin/ruff
               args: ["check", "."]
 
-            - id: mypy
+            - id: mypy-components
               name: python:3.13-bookworm
+              waitFor: ["install-tools"]
               dir: source
               entrypoint: /workspace/verification-tools/bin/python
-              args: ["-m", "mypy"]
+              args: ["-m", "mypy", "packages/components/src"]
+
+            - id: mypy-conductor-sizing
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/conductor-sizing/src"]
+
+            - id: mypy-project
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/project/src"]
+
+            - id: mypy-load-flow
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/load-flow/src"]
+
+            - id: mypy-ieee1584
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/ieee1584/src"]
+
+            - id: mypy-motors
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/motors/src"]
+
+            - id: mypy-short-circuit
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/short-circuit/src"]
+
+            - id: mypy-power-quality
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/power-quality/src"]
+
+            - id: mypy-integration
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "integration"]
 
             - id: tests
               name: python:3.13-bookworm
+              waitFor: ["install-tools"]
               dir: source
               entrypoint: python
               args: ["tools/test_all.py"]
@@ -309,7 +369,7 @@ jobs:
                 env: GITHUB_APP_PRIVATE_KEY
 
           options:
-            logging: CLOUD_LOGGING_ONLY
+            logging: NONE
           YAML
 
           BUILD_ID="$(
@@ -375,10 +435,6 @@ jobs:
           PY
 
           if [ "$STATUS" != "SUCCESS" ]; then
-            echo "== Cloud Build diagnostics ==" >&2
-            gcloud builds log "$BUILD_ID" \
-              --project="$PROJECT_ID" \
-              --region="$REGION" || true
             echo "Exact-head verification finished with Cloud Build status: $STATUS" >&2
             exit 1
           fi
