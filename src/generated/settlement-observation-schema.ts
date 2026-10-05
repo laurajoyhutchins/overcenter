@@ -115,12 +115,6 @@ export const SettlementObservationSchema={
     "expected_previous_head_sha": {
       "type": "string"
     },
-    "head_ref": {
-      "type": "string"
-    },
-    "expected_head_sha": {
-      "type": "string"
-    },
     "base_ref": {
       "type": "string"
     },
@@ -128,9 +122,6 @@ export const SettlementObservationSchema={
       "type": "string"
     },
     "actual_head_sha": {
-      "type": "string"
-    },
-    "actual_base_sha": {
       "type": "string"
     }
   },
