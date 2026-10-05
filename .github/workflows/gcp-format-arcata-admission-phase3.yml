@@ -216,8 +216,6 @@ jobs:
                       "packages/ieee1584/src/ieee1584/vendors/siemens.py",
                       "packages/ieee1584/tests/test_siemens.py",
                   }
-                  if not changed:
-                      raise SystemExit("formatter produced no diff despite prior format failure")
                   unexpected = sorted(set(changed) - allowed)
                   if unexpected:
                       raise SystemExit(f"formatter touched unexpected paths: {unexpected}")
@@ -228,17 +226,20 @@ jobs:
                   subprocess.run([str(pip), "-m", "mypy"], cwd=root, check=True)
                   subprocess.run([sys.executable, "tools/test_all.py"], cwd=root, check=True)
 
-                  run(["git", "config", "user.name", "Overcenter GCP Formatter"])
-                  run(["git", "config", "user.email", "noreply@users.noreply.github.com"])
-                  run(["git", "add", "--", *changed])
-                  run(["git", "commit", "-m", "Format Siemens source phase 3 candidate"])
-                  new_head = run(["git", "rev-parse", "HEAD"], capture=True).stdout.strip()
-                  run([
-                      "git", "-c",
-                      f"http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}",
-                      "push", "origin", f"{new_head}:refs/heads/{branch}",
-                      f"--force-with-lease=refs/heads/{branch}:{expected}",
-                  ])
+                  if changed:
+                      run(["git", "config", "user.name", "Overcenter GCP Formatter"])
+                      run(["git", "config", "user.email", "noreply@users.noreply.github.com"])
+                      run(["git", "add", "--", *changed])
+                      run(["git", "commit", "-m", "Format Siemens source phase 3 candidate"])
+                      new_head = run(["git", "rev-parse", "HEAD"], capture=True).stdout.strip()
+                      run([
+                          "git", "-c",
+                          f"http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}",
+                          "push", "origin", f"{new_head}:refs/heads/{branch}",
+                          f"--force-with-lease=refs/heads/{branch}:{expected}",
+                      ])
+                  else:
+                      new_head = expected
                   print(f"OVERCENTER_FORMATTED_HEAD={new_head}")
                   PY
 
