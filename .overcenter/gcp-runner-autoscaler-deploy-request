@@ -1,1 +1,1 @@
-redeploy after private launcher invoker bootstrap
+redeploy after separating IAM bootstrap from recurring deployment
