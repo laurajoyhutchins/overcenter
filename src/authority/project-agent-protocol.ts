@@ -25,15 +25,9 @@ import {
   type AssignmentTaskPacket,
 } from '../execution/assignment-capsule.ts';
 import { canonicalDigest, sha256 } from '../digest.ts';
-import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import { isData, isPositiveSafeInteger } from '../validation.ts';
 import { buildSourceAssignment, validateSourceTaskPacket } from '../source/source-obligation.ts';
-import {
-  SOURCE_VERIFICATION_SCHEMA,
-  integrateVerifiedSourceCandidate,
-  validateSourceIntegrationEvidence,
-  type SourceVerification,
-} from '../source/source-integration.ts';
+import { validateSourceIntegrationEvidence } from '../source/source-integration.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
 import { compileProjectGraph } from './project-graph.ts';
 import { planGraphReconciliation } from '../graph/reconciliation.ts';
@@ -767,7 +761,6 @@ export function submitProjectCandidate(
       );
     }
 
-    let verification: SourceVerification;
     try {
       const proofContext = transactionContext ?? sourceTransactionContextFromEnvironment();
       if (
@@ -806,15 +799,7 @@ export function submitProjectCandidate(
         },
       );
       const proof = trustedSourceProof(proofWitness);
-      verification = {
-        schema: SOURCE_VERIFICATION_SCHEMA,
-        state: 'verified',
-        run_id: proof.run_id,
-        candidate_sha: proof.candidate_sha,
-        base_sha: proof.base_sha,
-        tree_sha: proof.tree_sha,
-        reason: null,
-      };
+      void proof;
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : String(error);
       const settled =
@@ -837,68 +822,7 @@ export function submitProjectCandidate(
       );
     }
 
-    const sourceAuthority = kernel.authorizeEffect(permit, GITHUB_SOURCE_INTEGRATION_EFFECT);
-    const integration = integrateVerifiedSourceCandidate(
-      repo,
-      assigned.packet,
-      claim,
-      assigned.id,
-      candidateSha,
-      verification,
-      {
-        remote,
-        performReservedMutation: (mutation) =>
-          kernel.performEffectSync(sourceAuthority, () => mutation()),
-      },
-    );
-
-    if (integration.state === 'INTEGRATED' || integration.state === 'ALREADY_INTEGRATED') {
-      const settled = kernel.settleSourceIntegration(permit, integration.witness);
-      return sourceSubmitReceipt(
-        context,
-        authorityRef,
-        kernel,
-        assigned.id,
-        claim.claimed_revision,
-        candidateSha,
-        settled,
-        integration.state === 'ALREADY_INTEGRATED',
-        integration.commit_sha,
-      );
-    }
-
-    if (integration.state === 'RECOVERY_REQUIRED') {
-      const recovered = kernel.recoverInterrupted(permit, {
-        source_integration: { reason: integration.reason, candidate_sha: candidateSha },
-      });
-      return sourceSubmitReceipt(
-        context,
-        authorityRef,
-        kernel,
-        assigned.id,
-        claim.claimed_revision,
-        candidateSha,
-        recovered,
-        false,
-      );
-    }
-
-    if (integration.state === 'REJECTED' || integration.state === 'REREALIZE_REQUIRED') {
-      const retry = kernel.retrySourceIntegration(permit, integration.reason, {
-        candidate_sha: candidateSha,
-      });
-      return sourceSubmitReceipt(
-        context,
-        authorityRef,
-        kernel,
-        assigned.id,
-        claim.claimed_revision,
-        candidateSha,
-        retry,
-        false,
-      );
-    }
-    throw new Error('SOURCE_INTEGRATION_RESULT_UNCLASSIFIED');
+    throw new Error('PROJECT_SUBMIT_SOURCE_PUBLICATION_REQUIRES_PR_EFFECT');
   }
 
   const raw = JSON.parse(gitBytes(repo, candidateSha, candidatePath).toString('utf8'));
