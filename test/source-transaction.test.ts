@@ -16,12 +16,8 @@ import {
 import { sourceVerificationProfileBinding } from '../src/source/source-verification-profile.ts';
 
 const profile = {
-  schema: 'overcenter-source-verification-profile/v1' as const,
+  schema: 'overcenter-source-verification-profile/v2' as const,
   id: 'repository-baseline',
-  workflow_path: '.github/workflows/verify.yml',
-  required_evidence_jobs: ['Verify candidate / Candidate evidence'],
-  record_job: 'Record source verification',
-  commands: ['npm run test:unit'],
   protected_paths: ['.github', '.overcenter'],
   baseline_test_roots: ['test'],
 };
@@ -59,26 +55,6 @@ function plan(): SourceTransactionPlan {
       impacts: [],
       proof_plans: [],
       evidence: [],
-      evidence_frontiers: [
-        {
-          coordinate: `revision:${'c'.repeat(40)}`,
-          revision: 'c'.repeat(40),
-          model_sha256: 'e'.repeat(64),
-          dependency_sha256: 'f'.repeat(64),
-          baseline_sha256: '1'.repeat(64),
-          required_propositions: ['baseline:repository-baseline'],
-          candidates: [
-            {
-              evidence_id: 'baseline:repository-baseline',
-              proposition_ids: ['baseline:repository-baseline'],
-              obligation_ids: [],
-              artifact_ids: [],
-              package_scripts: ['test:unit'],
-              uses_package_runtime: true,
-            },
-          ],
-        },
-      ],
     },
   };
 }
@@ -136,12 +112,8 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
     join(repo, '.overcenter/source-verification-profile.json'),
     `${JSON.stringify(
       {
-        schema: 'overcenter-source-verification-profile/v1',
+        schema: 'overcenter-source-verification-profile/v2',
         id: 'fixture',
-        workflow_path: '.github/workflows/agent-candidate-signal.yml',
-        required_evidence_jobs: ['Verify source candidate / Candidate evidence'],
-        record_job: 'Record source verification',
-        commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
         protected_paths: ['.github', '.overcenter', 'baseline.txt'],
         baseline_test_roots: ['test'],
       },

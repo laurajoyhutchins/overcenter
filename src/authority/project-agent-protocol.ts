@@ -1,17 +1,3 @@
-import type { ExecutionEvidenceReceipt } from '../execution/evidence-receipt.ts';
-import {
-  admitSourceProofEvidence,
-  SourceProofRejected,
-  trustedSourceProof,
-} from '../source/source-proof-admission.ts';
-import {
-  sourceTransactionContextFromEnvironment,
-  type SourceTransactionContext,
-} from '../source/transaction-baseline.ts';
-import {
-  buildSourceTransactionPlan,
-  type SourceTransactionPlan,
-} from '../source/transaction.ts';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -127,8 +113,6 @@ interface AdvanceOptions extends ProtocolOptions {
 
 interface SubmitOptions extends ProtocolOptions {
   candidatePath?: string;
-  transactionContext?: SourceTransactionContext;
-  sourceExecutionEvidence?: (plan: SourceTransactionPlan) => ExecutionEvidenceReceipt;
 }
 
 const DEFAULT_AUTHORITY_REF = 'refs/overcenter/state';
@@ -654,8 +638,6 @@ export function submitProjectCandidate(
     remote = DEFAULT_REMOTE,
     githubToken = null,
     candidatePath = DEFAULT_CANDIDATE_PATH,
-    transactionContext,
-    sourceExecutionEvidence,
   }: SubmitOptions = {},
 ): ProjectSubmitReceipt {
   validateCommandContext(context);
@@ -744,72 +726,22 @@ export function submitProjectCandidate(
     }
 
     const permit = kernel.acquireExecution(runId);
-    if (!sourceExecutionEvidence) {
-      const recovered = kernel.recoverInterrupted(permit, {
-        source_verification: { reason: 'SOURCE_VERIFICATION_MISSING', candidate_sha: candidateSha },
-      });
-      return sourceSubmitReceipt(
-        context,
-        authorityRef,
-        kernel,
-        assigned.id,
-        claim.claimed_revision,
-        candidateSha,
-        recovered,
-        false,
-      );
-    }
-
-    try {
-      const proofContext = transactionContext ?? sourceTransactionContextFromEnvironment();
-      if (
-        proofContext.repository_id !== context.repository_id ||
-        proofContext.repository_full_name !== context.repository_full_name ||
-        proofContext.runtime_sha !== context.command_source_sha.toLowerCase()
-      )
-        throw new Error('SOURCE_TRANSACTION_SUBMIT_MISMATCH');
-      const plan = buildSourceTransactionPlan({
-        repo,
-        taskValue: assigned.packet,
-        claim,
-        candidateSha,
-        context: proofContext,
-      });
-      const admittedProofContext = {
-        ...proofContext,
-        verification_profile_id: plan.verification_profile.profile.id,
-        verification_profile_sha256: plan.verification_profile.sha256,
-      };
-      const executionEvidence = sourceExecutionEvidence(plan);
-      const proofWitness = admitSourceProofEvidence(plan, {
-        executionEvidence,
-        context: admittedProofContext,
-      });
-      const proof = trustedSourceProof(proofWitness);
-      void proof;
-    } catch (error: unknown) {
-      const reason = error instanceof Error ? error.message : String(error);
-      const settled =
-        error instanceof SourceProofRejected
-          ? kernel.retrySourceIntegration(permit, reason, {
-              source_verification: { reason, candidate_sha: candidateSha },
-            })
-          : kernel.recoverInterrupted(permit, {
-              source_verification: { reason, candidate_sha: candidateSha },
-            });
-      return sourceSubmitReceipt(
-        context,
-        authorityRef,
-        kernel,
-        assigned.id,
-        claim.claimed_revision,
-        candidateSha,
-        settled,
-        false,
-      );
-    }
-
-    throw new Error('PROJECT_SUBMIT_SOURCE_PUBLICATION_REQUIRES_PR_EFFECT');
+    const recovered = kernel.recoverInterrupted(permit, {
+      source_verification: {
+        reason: 'SOURCE_NEUTRAL_EVIDENCE_REQUIRED',
+        candidate_sha: candidateSha,
+      },
+    });
+    return sourceSubmitReceipt(
+      context,
+      authorityRef,
+      kernel,
+      assigned.id,
+      claim.claimed_revision,
+      candidateSha,
+      recovered,
+      false,
+    );
   }
 
   const raw = JSON.parse(gitBytes(repo, candidateSha, candidatePath).toString('utf8'));

@@ -16,12 +16,8 @@ import {
 } from '../src/source/source-verification-profile.ts';
 
 const profile = {
-  schema: 'overcenter-source-verification-profile/v1',
+  schema: 'overcenter-source-verification-profile/v2',
   id: 'fixture-profile/v1',
-  workflow_path: '.github/workflows/evidence.yml',
-  required_evidence_jobs: ['Evidence / Candidate'],
-  record_job: 'Record evidence',
-  commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
   protected_paths: ['.github', '.overcenter', 'architecture', 'validator.sh'],
   baseline_test_roots: ['test'],
 };

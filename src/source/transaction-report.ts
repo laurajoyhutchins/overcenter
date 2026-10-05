@@ -6,7 +6,7 @@ import {
   verifyGitHubRepositoryIdentity,
 } from '../providers/github/evidence-primitives.ts';
 import { githubGet, type GitHubJsonGet } from '../providers/github/rest.ts';
-import { isData, isPositiveSafeInteger } from '../validation.ts';
+import { isData } from '../validation.ts';
 import { GitOvercenterKernel } from '../storage/git-kernel.ts';
 import { validateSourceIntegrationEvidence } from './source-integration.ts';
 import {
@@ -29,8 +29,6 @@ export function reportSourceTransaction(
     githubToken = null,
     get = githubGet,
     requireSettled = false,
-    candidateWorkflowRunId,
-    candidateWorkflowRunAttempt,
     transactionContext,
   }: {
     remote?: string;
@@ -39,8 +37,6 @@ export function reportSourceTransaction(
     githubToken?: string | null;
     get?: GitHubJsonGet;
     requireSettled?: boolean;
-    candidateWorkflowRunId?: number;
-    candidateWorkflowRunAttempt?: number;
     transactionContext?: SourceTransactionContext;
   } = {},
 ) {
@@ -109,12 +105,6 @@ export function reportSourceTransaction(
     }
   }
 
-  let executedChecks: Array<{
-    number: number;
-    name: string;
-    status: string;
-    conclusion: string | null;
-  }> | null = null;
   let repositoryIdentity: 'verified' | 'unverified' = 'unverified';
 
   if (githubToken) {
@@ -144,68 +134,13 @@ export function reportSourceTransaction(
       }
     }
 
-    if (candidateWorkflowRunId !== undefined || candidateWorkflowRunAttempt !== undefined) {
-      if (
-        !isPositiveSafeInteger(candidateWorkflowRunId) ||
-        !isPositiveSafeInteger(candidateWorkflowRunAttempt)
-      ) {
-        throw new Error('SOURCE_TRANSACTION_REPORT_WORKFLOW_ID_INVALID');
-      }
-      const raw = get(
-        githubToken,
-        githubRepositoryPath(
-          plan.repository_full_name,
-          `/actions/runs/${candidateWorkflowRunId}/attempts/${candidateWorkflowRunAttempt}/jobs?per_page=100`,
-        ),
-      );
-      if (!isData(raw) || !Array.isArray(raw.jobs) || raw.jobs.length >= 100) {
-        throw new Error('SOURCE_TRANSACTION_REPORT_JOBS_INVALID');
-      }
-      const jobs = raw.jobs.filter(
-        (job) => isData(job) && job.name === 'Verify source candidate / Candidate evidence',
-      );
-      const job = jobs[0];
-      if (
-        jobs.length !== 1 ||
-        !isData(job) ||
-        !isPositiveSafeInteger(job.id) ||
-        job.run_id !== candidateWorkflowRunId ||
-        job.head_sha !== plan.candidate_sha ||
-        job.status !== 'completed' ||
-        job.conclusion !== 'success' ||
-        !Array.isArray(job.steps) ||
-        !job.steps.length
-      ) {
-        throw new Error('SOURCE_TRANSACTION_REPORT_CHECKS_UNVERIFIED');
-      }
-      executedChecks = job.steps.map((step) => {
-        if (
-          !isData(step) ||
-          !isPositiveSafeInteger(step.number) ||
-          typeof step.name !== 'string' ||
-          typeof step.status !== 'string' ||
-          (step.conclusion !== null && typeof step.conclusion !== 'string')
-        ) {
-          throw new Error('SOURCE_TRANSACTION_REPORT_CHECKS_INVALID');
-        }
-        return {
-          number: step.number,
-          name: step.name,
-          status: step.status,
-          conclusion: step.conclusion,
-        };
-      });
-      if (new Set(executedChecks.map((step) => step.number)).size !== executedChecks.length) {
-        throw new Error('SOURCE_TRANSACTION_REPORT_CHECKS_INVALID');
-      }
-    }
     repositoryIdentity = 'verified';
   }
 
   const state = kernel.inspect().find((work) => work.run_id === runId)?.status ?? 'HISTORICAL';
   const report = {
     schema: 'overcenter-source-transaction-evidence',
-    schema_version: 1,
+    schema_version: 2,
     repository_identity: repositoryIdentity,
     repository_id: plan.repository_id,
     repository_full_name: plan.repository_full_name,
@@ -219,16 +154,6 @@ export function reportSourceTransaction(
     candidate_sha: plan.candidate_sha,
     candidate_tree: plan.candidate_tree,
     assurance: plan.assurance,
-    validation_executed:
-      candidateWorkflowRunId && candidateWorkflowRunAttempt
-        ? {
-            workflow_path: '.github/workflows/agent-candidate-signal.yml',
-            workflow_run_id: candidateWorkflowRunId,
-            workflow_run_attempt: candidateWorkflowRunAttempt,
-            required_job: 'Verify source candidate / Candidate evidence',
-            observed_steps: executedChecks,
-          }
-        : null,
     source_integration: integration,
     independently_observed_source_sha: observedSource,
     reconstructed_state: state,

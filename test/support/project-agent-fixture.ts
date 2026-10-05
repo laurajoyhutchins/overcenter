@@ -41,12 +41,8 @@ export function fixture(): {
     join(work, '.overcenter/source-verification-profile.json'),
     `${JSON.stringify(
       {
-        schema: 'overcenter-source-verification-profile/v1',
+        schema: 'overcenter-source-verification-profile/v2',
         id: 'fixture-baseline',
-        workflow_path: '.github/workflows/agent-candidate-signal.yml',
-        required_evidence_jobs: ['Verify source candidate / Candidate evidence'],
-        record_job: 'Record source verification',
-        commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
         protected_paths: ['.github', '.overcenter', 'input.txt'],
         baseline_test_roots: ['test'],
       },
