@@ -1,0 +1,230 @@
+name: Arcata PR 85 exact-head GCP verification
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-arcata-pr85-exact.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+      ARCATA_REVISION: 473be92b81843e85f4b7693edb9100d5bc431813
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Verify Arcata exact head on Cloud Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/arcata-pr85-cloudbuild.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 600s
+          steps:
+            - id: private-source
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+                - SOURCE_REVISION=${_REVISION}
+              args:
+                - -e
+                - |
+                  const crypto = require("crypto");
+                  const fs = require("fs");
+                  const repository = "laurajoyhutchins/arcata";
+                  const revision = process.env.SOURCE_REVISION;
+                  const expectedRepositoryId = 1402666660;
+                  const expectedOwnerId = 219002713;
+                  const b64 = value => Buffer.from(JSON.stringify(value)).toString("base64url");
+                  const now = Math.floor(Date.now() / 1000);
+                  const header = b64({alg:"RS256",typ:"JWT"});
+                  const payload = b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const unsigned = header + "." + payload;
+                  const signature = crypto.sign(
+                    "RSA-SHA256",
+                    Buffer.from(unsigned),
+                    process.env.GITHUB_APP_PRIVATE_KEY,
+                  ).toString("base64url");
+                  const jwt = unsigned + "." + signature;
+                  const baseHeaders = {
+                    Accept:"application/vnd.github+json",
+                    "X-GitHub-Api-Version":"2022-11-28",
+                    "User-Agent":"overcenter-arcata-pr85-verifier",
+                  };
+                  async function json(response, label) {
+                    if (!response.ok) throw new Error(label + " HTTP " + response.status);
+                    return response.json();
+                  }
+                  async function main() {
+                    const installation = await json(
+                      await fetch("https://api.github.com/repos/" + repository + "/installation", {
+                        headers:{...baseHeaders,Authorization:"Bearer " + jwt},
+                      }),
+                      "installation lookup",
+                    );
+                    const access = await json(
+                      await fetch(
+                        "https://api.github.com/app/installations/" + installation.id + "/access_tokens",
+                        {
+                          method:"POST",
+                          headers:{
+                            ...baseHeaders,
+                            Authorization:"Bearer " + jwt,
+                            "Content-Type":"application/json",
+                          },
+                          body:JSON.stringify({permissions:{contents:"read"}}),
+                        },
+                      ),
+                      "installation token",
+                    );
+                    const headers={...baseHeaders,Authorization:"Bearer " + access.token};
+                    const repo = await json(
+                      await fetch("https://api.github.com/repos/" + repository,{headers}),
+                      "repository identity",
+                    );
+                    if (repo.id !== expectedRepositoryId || repo.owner.id !== expectedOwnerId) {
+                      throw new Error("repository identity mismatch");
+                    }
+                    const commit = await json(
+                      await fetch(
+                        "https://api.github.com/repos/" + repository + "/commits/" + revision,
+                        {headers},
+                      ),
+                      "exact revision",
+                    );
+                    if (commit.sha !== revision) throw new Error("revision mismatch");
+                    const archive = await fetch(
+                      "https://api.github.com/repos/" + repository + "/tarball/" + revision,
+                      {headers,redirect:"follow"},
+                    );
+                    if (!archive.ok) throw new Error("archive HTTP " + archive.status);
+                    const bytes=Buffer.from(await archive.arrayBuffer());
+                    if (bytes.length < 1024) throw new Error("archive unexpectedly small");
+                    fs.writeFileSync("/workspace/source.tar.gz",bytes,{mode:0o600});
+                  }
+                  main().catch(error => {
+                    console.error(String(error && error.message || error));
+                    process.exit(1);
+                  });
+
+            - id: extract-source
+              name: python:3.13-bookworm
+              entrypoint: python
+              args:
+                - -c
+                - |
+                  from pathlib import Path
+                  import shutil
+                  import tarfile
+                  archive=Path("/workspace/source.tar.gz")
+                  unpack=Path("/workspace/unpack")
+                  target=Path("/workspace/source")
+                  shutil.rmtree(unpack,ignore_errors=True)
+                  shutil.rmtree(target,ignore_errors=True)
+                  unpack.mkdir()
+                  with tarfile.open(archive,"r:gz") as source:
+                      source.extractall(unpack,filter="data")
+                  entries=list(unpack.iterdir())
+                  if len(entries) != 1 or not entries[0].is_dir():
+                      raise SystemExit("unexpected archive layout")
+                  shutil.move(str(entries[0]),target)
+
+            - id: install-tools
+              name: python:3.13-bookworm
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  cd /workspace/source
+                  python tools/verification_tools.py requirements > /workspace/verification-tools.txt
+                  python -m venv /workspace/verification-tools
+                  /workspace/verification-tools/bin/python -m pip install \
+                    --disable-pip-version-check \
+                    --no-input \
+                    --no-compile \
+                    --only-binary=:all: \
+                    --no-deps \
+                    --require-hashes \
+                    --requirement /workspace/verification-tools.txt
+                  /workspace/verification-tools/bin/python -m pip check
+
+            - id: arcata-check
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  export PATH="/workspace/verification-tools/bin:$$PATH"
+                  python tools/check.py
+
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: NONE
+          YAML
+
+          build_id="$(
+            gcloud builds submit \
+              --async \
+              --no-source \
+              --project="$PROJECT_ID" \
+              --region="$REGION" \
+              --config="$config" \
+              --substitutions="_REVISION=$ARCATA_REVISION" \
+              --format='value(id)'
+          )"
+          test -n "$build_id"
+          echo "Cloud Build: $build_id" | tee -a "$GITHUB_STEP_SUMMARY"
+
+          status=""
+          for _ in $(seq 1 240); do
+            status="$(
+              gcloud builds describe "$build_id" \
+                --project="$PROJECT_ID" \
+                --region="$REGION" \
+                --format='value(status)'
+            )"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
+            esac
+            sleep 2
+          done
+
+          gcloud builds describe "$build_id" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format='table(steps.id,steps.status)' | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Status: $status" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$status" = SUCCESS
