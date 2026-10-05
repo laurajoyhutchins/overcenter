@@ -83,7 +83,12 @@ test('GitHub source proof observation boundary fails closed on incomplete or amb
       verifyGitHubSourceProofObservation(
         'fixture',
         expected,
-        read({ jobs: Array.from({ length: 100 }, (_, index) => ({ ...evidenceJob, id: index + 1 })) }),
+        read({
+          jobs: Array.from({ length: 100 }, (_, index) => ({
+            ...evidenceJob,
+            id: index + 1,
+          })),
+        }),
       ),
     /SOURCE_PROOF_JOBS_INCOMPLETE/,
   );
