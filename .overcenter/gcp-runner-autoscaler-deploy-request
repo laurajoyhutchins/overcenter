@@ -1,1 +1,1 @@
-deploy corrected hosted bootstrap for direct GCP runner substrate
+deploy direct GCP runner substrate via ARM64 bootstrap controller
