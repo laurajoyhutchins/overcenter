@@ -129,7 +129,9 @@ test('matches Git ordering when a file name is a prefix-neighbor of a directory'
 test('rejects tampered bytes even under the expected cache key', () => {
   const f = fixture();
   try {
-    writeFileSync(join(f.cache, f.manifest.entries[0].blob_sha), 'tampered');
+    const first = f.manifest.entries[0];
+    assert.ok(first);
+    writeFileSync(join(f.cache, first.blob_sha), 'tampered');
     assert.throws(
       () => verifyPrivateSourceCapsule(f.manifest, f.cache),
       /PRIVATE_SOURCE_BLOB_MISMATCH/,
@@ -154,9 +156,11 @@ test('rejects a false authoritative tree claim', () => {
 test('rejects unsafe paths, unsupported modes, duplicates, and symbolic revisions', () => {
   const f = fixture();
   try {
+    const first = f.manifest.entries[0];
+    assert.ok(first);
     for (const entry of [
-      { ...f.manifest.entries[0], path: '../escape' },
-      { ...f.manifest.entries[0], mode: '120000' },
+      { ...first, path: '../escape' },
+      { ...first, mode: '120000' },
     ]) {
       assert.throws(() => verifyPrivateSourceCapsule({ ...f.manifest, entries: [entry] }, f.cache));
     }
@@ -165,7 +169,7 @@ test('rejects unsafe paths, unsupported modes, duplicates, and symbolic revision
       verifyPrivateSourceCapsule(
         {
           ...f.manifest,
-          entries: [f.manifest.entries[0], f.manifest.entries[0]],
+          entries: [first, first],
         },
         f.cache,
       ),
