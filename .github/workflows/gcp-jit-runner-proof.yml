@@ -98,7 +98,7 @@ jobs:
                       await fetch("https://api.github.com/app/installations/" + installation.id + "/access_tokens", {
                         method:"POST",
                         headers:{...headers(appJwt),"Content-Type":"application/json"},
-                        body:JSON.stringify({permissions:{administration:"write",actions:"read",statuses:"write"}}),
+                        body:JSON.stringify({permissions:{administration:"write",actions:"read"}}),
                       }),
                       "installation token",
                     );
@@ -163,46 +163,35 @@ jobs:
                     -H "X-GitHub-Api-Version: 2026-03-10" \
                     https://api.github.com/repos/laurajoyhutchins/arcata/actions/jobs/111879127702)"
 
-                  diagnostic="$(
+                  route_code="$(
                     python3 - "$runner_name" "$runners_json" "$job_json" <<'PY'
                   import json, sys
                   name, runners_raw, job_raw = sys.argv[1:]
                   runners = json.loads(runners_raw).get("runners", [])
                   runner = next((item for item in runners if item.get("name") == name), None)
                   job = json.loads(job_raw)
-                  runner_status = "missing" if runner is None else str(runner.get("status"))
-                  runner_labels = set() if runner is None else {
-                      str(label.get("name")) for label in runner.get("labels", [])
-                  }
+                  if runner is None:
+                      print(41)
+                      raise SystemExit
+                  runner_status = str(runner.get("status"))
+                  runner_labels = {str(label.get("name")) for label in runner.get("labels", [])}
                   job_labels = {str(label) for label in job.get("labels", [])}
-                  labels_match = job_labels.issubset(runner_labels)
-                  print(
-                      f"runner={runner_status};job={job.get('status')};"
-                      f"labels_match={str(labels_match).lower()}"
-                  )
+                  if runner_status != "online":
+                      print(42)
+                  elif not job_labels.issubset(runner_labels):
+                      print(43)
+                  elif str(job.get("status")) == "queued":
+                      print(45)
+                  else:
+                      print(0)
                   PY
                   )"
-                  echo "OVERCENTER_DIAG $diagnostic"
-
-                  status_body="$(
-                    python3 - "$diagnostic" <<'PY'
-                  import json, sys
-                  diagnostic = sys.argv[1]
-                  state = "success" if "runner=online" in diagnostic and "labels_match=true" in diagnostic else "failure"
-                  print(json.dumps({
-                      "state": state,
-                      "context": "overcenter-gcp/runner-probe",
-                      "description": diagnostic[:140],
-                  }, separators=(",", ":")))
-                  PY
-                  )"
-                  curl -fsSL -X POST \
-                    -H "Accept: application/vnd.github+json" \
-                    -H "$auth_header" \
-                    -H "X-GitHub-Api-Version: 2026-03-10" \
-                    -H "Content-Type: application/json" \
-                    https://api.github.com/repos/laurajoyhutchins/arcata/statuses/de0c7f3e82323dcf86d0dc48936cdd5cbabef0da \
-                    -d "$status_body" >/dev/null
+                  echo "OVERCENTER_DIAG route_code=$route_code"
+                  if [ "$route_code" -ge 41 ] && [ "$route_code" -le 43 ]; then
+                    kill "$runner_pid" 2>/dev/null || true
+                    wait "$runner_pid" 2>/dev/null || true
+                    exit "$route_code"
+                  fi
 
                   set +e
                   wait "$runner_pid"
@@ -241,7 +230,8 @@ jobs:
             --project="$PROJECT_ID" \
             --region="$REGION" \
             --format="table(steps.id,steps.status)" | tee -a "$GITHUB_STEP_SUMMARY"
-          gcloud builds log "$build_id" \
+          gcloud builds describe "$build_id" \
             --project="$PROJECT_ID" \
-            --region="$REGION" 2>/dev/null | grep 'OVERCENTER_DIAG' || true
+            --region="$REGION" \
+            --format="value(failureInfo.detail)" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$status" = SUCCESS
