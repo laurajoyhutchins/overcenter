@@ -48,17 +48,6 @@ export interface GitHubPullRequestBranchUpdatedPostcondition {
   expected_base_sha: string;
 }
 
-export interface GitHubPullRequestPublishedPostcondition {
-  verifier: 'github-pull-request-published/v1';
-  provider: 'github';
-  repository_id: number;
-  repository_full_name: string;
-  ref: string;
-  commit_sha: string;
-  base_ref: string;
-  expected_base_sha: string;
-}
-
 export interface GitHubHostileMutationEvidencePostcondition {
   verifier: 'github-hostile-mutation-evidence/v1';
   provider: 'github';
@@ -72,6 +61,13 @@ export interface GitHubHostileMutationEvidencePostcondition {
 
 export interface SourceIntegrationPostcondition {
   verifier: 'source-integration/v1';
+  provider?: 'github';
+  repository_id?: number;
+  repository_full_name?: string;
+  ref?: string;
+  commit_sha?: string;
+  base_ref?: string;
+  expected_base_sha?: string;
 }
 
 export interface KubernetesConfigMapExistsPostcondition {
@@ -94,7 +90,6 @@ export type Postcondition =
   | EventuallyConsistentFilePostcondition
   | GitHubCommitStatusPostcondition
   | GitHubPullRequestBranchUpdatedPostcondition
-  | GitHubPullRequestPublishedPostcondition
   | GitHubHostileMutationEvidencePostcondition
   | SourceIntegrationPostcondition
   | KubernetesConfigMapExistsPostcondition
