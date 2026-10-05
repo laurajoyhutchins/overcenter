@@ -45,14 +45,7 @@ export async function performGitHubPullRequestPublicationEffect(
     post?: GitHubPullRequestPost;
     clock?: () => string;
   },
-): Promise<{
-  repository_id: number;
-  repository_full_name: string;
-  ref: string;
-  commit_sha: string;
-  base_ref: string;
-  base_sha: string;
-}> {
+): Promise<void> {
   if (!token) throw new Error('GITHUB_TOKEN_UNAVAILABLE');
   const authority = kernel.authorizeEffect(permit, GITHUB_SOURCE_INTEGRATION_EFFECT);
   const p = authority.postcondition;
@@ -121,7 +114,7 @@ export async function performGitHubPullRequestPublicationEffect(
   const branchName = headRef.slice('refs/heads/'.length);
   const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls`;
 
-  return kernel.performEffect(authority, async () => {
+  await kernel.performEffect(authority, async () => {
     const response = await post(token, path, {
       title: `Overcenter verified candidate ${p.commit_sha!.slice(0, 12)}`,
       head: branchName,
@@ -130,13 +123,5 @@ export async function performGitHubPullRequestPublicationEffect(
     if (response.status !== 201) {
       throw new Error(`SOURCE_PR_PUBLICATION_FAILED:${response.status}:${response.body}`);
     }
-    return {
-      repository_id: p.repository_id!,
-      repository_full_name: fences.head.repository_full_name!,
-      ref: headRef,
-      commit_sha: p.commit_sha!,
-      base_ref: p.base_ref!,
-      base_sha: p.expected_base_sha!,
-    };
   });
 }
