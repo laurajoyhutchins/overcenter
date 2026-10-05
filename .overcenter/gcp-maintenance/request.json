@@ -1,18 +1,218 @@
 {
   "schema": "overcenter-gcp-arcata-maintenance/request/v1",
-  "request_id": "arcata-branch-cleanup-canary-20261005",
+  "request_id": "arcata-branch-cleanup-batch-20261005",
   "repository": {
     "full_name": "laurajoyhutchins/arcata",
     "id": 1402666660,
     "owner_id": 219002713,
     "default_branch": "main"
   },
-  "set_delete_branch_on_merge": false,
+  "set_delete_branch_on_merge": true,
   "branches": [
     {
-      "branch": "chatgpt/import-short-circuit-0.10",
-      "expected_head": "4a57da350d577c0d98a52a5039d8cc56af79470d",
-      "merged_pr": 1
+      "branch": "architecture/electrical-components",
+      "expected_head": "634db02480d471a489024103cb25069120d25f0f",
+      "merged_pr": 26
+    },
+    {
+      "branch": "architecture/electrical-system-ontology",
+      "expected_head": "e9ba47a10ae20e4942e37998aeafc81238c65b4b",
+      "merged_pr": 34
+    },
+    {
+      "branch": "architecture/project-study-boundary",
+      "expected_head": "ec2a1928f2b0e475f339bb9b768ac285a4f05c29",
+      "merged_pr": 48
+    },
+    {
+      "branch": "benchmark/hostile-engine-harness",
+      "expected_head": "1596469c71b08b5e0ed0885e6128c63a00093548",
+      "merged_pr": 46
+    },
+    {
+      "branch": "chatgpt/clarify-short-circuit-arc-flash-contract",
+      "expected_head": "9223e47f791f0be2f834bf9ace395ef7cef03759",
+      "merged_pr": 4
+    },
+    {
+      "branch": "chatgpt/fix-protection-reference-frames",
+      "expected_head": "a82c085ca558fccc5a296cd7924eaf2e9198887d",
+      "merged_pr": 11
+    },
+    {
+      "branch": "chatgpt/harden-short-circuit-arc-flash-contract",
+      "expected_head": "4ab9cdfcdddafcc0895de1e60441c1badb1983f1",
+      "merged_pr": 5
+    },
+    {
+      "branch": "chatgpt/staged-short-circuit-network-adapter",
+      "expected_head": "0be38d3ddf18a19e138c8383ffe0617bc47a7dc8",
+      "merged_pr": 7
+    },
+    {
+      "branch": "chore/enforce-ruff-mypy",
+      "expected_head": "7c90c54a781e6a289353feda5c818ff1784e9a20",
+      "merged_pr": 16
+    },
+    {
+      "branch": "chore/unify-quality-gate",
+      "expected_head": "277cb76e6a3845a63666a09331a09a521133bee6",
+      "merged_pr": 25
+    },
+    {
+      "branch": "cleanup/dedupe-mypy-path",
+      "expected_head": "405646d797e651c5f4e7895f27b377c42d4b807c",
+      "merged_pr": 57
+    },
+    {
+      "branch": "cleanup/delete-generated-kernel-manifest",
+      "expected_head": "756c2fafa9285516ad8b58f913ad67bbe837ea4c",
+      "merged_pr": 8
+    },
+    {
+      "branch": "codex/arc-angle-bound-redteam",
+      "expected_head": "d84660a3098abe885636b114c8a89aa5ebe021ac",
+      "merged_pr": 36
+    },
+    {
+      "branch": "codex/schneider-powerpact-stress-test",
+      "expected_head": "9416212274cc9c24478c1b9e942edadd4d618f6f",
+      "merged_pr": 2
+    },
+    {
+      "branch": "feature/current-limiting-interval-bounds",
+      "expected_head": "ecfc3538a0d6279d275d4ea442efde22d55e46a4",
+      "merged_pr": 47
+    },
+    {
+      "branch": "feature/generated-sequence-kernels",
+      "expected_head": "1b531380d2400d1e982338afb199272537385f52",
+      "merged_pr": 3
+    },
+    {
+      "branch": "feature/generator-kernel",
+      "expected_head": "cb5ff2c711533cb43466917648df77565cf5daf7",
+      "merged_pr": 23
+    },
+    {
+      "branch": "feature/load-flow-kernel-final",
+      "expected_head": "95eae2c3415db2cc143b895eac779fa5f625a964",
+      "merged_pr": 74
+    },
+    {
+      "branch": "feature/motors-core",
+      "expected_head": "ea9364b5f25993d64c7600eccd576eb2795d320d",
+      "merged_pr": 22
+    },
+    {
+      "branch": "fix/close-schneider-sqlite-test-connection",
+      "expected_head": "208a5d35cc821312d76c1661d55e948b4f222cd7",
+      "merged_pr": 52
+    },
+    {
+      "branch": "fix/explicit-verification-environment",
+      "expected_head": "27ee7a115781c9ae1ddf4c4cd0324416507cc17c",
+      "merged_pr": 73
+    },
+    {
+      "branch": "fix/generator-sequence-authority-final",
+      "expected_head": "b355fdaa8402a748782f379bb9fe32c01cc5522b",
+      "merged_pr": 72
+    },
+    {
+      "branch": "fix/independent-protection-bound-oracle",
+      "expected_head": "db6ca38ac97a443980e4620fe2f33ad3ed3dffa4",
+      "merged_pr": 39
+    },
+    {
+      "branch": "fix/load-flow-compat-import-order",
+      "expected_head": "9e7929df47880fde933ad8e1c16ef02f96383ead",
+      "merged_pr": 77
+    },
+    {
+      "branch": "fix/load-flow-python-compat-claim",
+      "expected_head": "3fb588a2b6ea7cd9dbb5d1b89494d2f409f4547a",
+      "merged_pr": 75
+    },
+    {
+      "branch": "fix/motor-physical-ontology",
+      "expected_head": "5c6b95198b6de172937b91dfc13d856fba4775ea",
+      "merged_pr": 49
+    },
+    {
+      "branch": "fix/pickup-transition-bounds",
+      "expected_head": "85d204b12dec73309c568204be359714402e9838",
+      "merged_pr": 45
+    },
+    {
+      "branch": "fix/protection-authority-contract",
+      "expected_head": "ac9a5889e5cf7ef470556e85a73f6c336f0a23f5",
+      "merged_pr": 51
+    },
+    {
+      "branch": "fix/verification-gate-root-causes",
+      "expected_head": "9d54a36007947278b93b240b8d05f1aea4d3fc09",
+      "merged_pr": 70
+    },
+    {
+      "branch": "integration/motor-conductor-sizing",
+      "expected_head": "4aa518342243d1e9233c9ce88c9c5e094bbdd6f2",
+      "merged_pr": 43
+    },
+    {
+      "branch": "perf/minimize-verification-compute",
+      "expected_head": "f23d33cd405835c498440b0151127b064fd7917b",
+      "merged_pr": 55
+    },
+    {
+      "branch": "perf/tree-short-circuit-factorization-final",
+      "expected_head": "2b069143f5f68375e35088b36a5368cd7cf907ac",
+      "merged_pr": 71
+    },
+    {
+      "branch": "refactor/declarative-protection-characteristic",
+      "expected_head": "e70f1552438474150aea7bb84827e226c29ed537",
+      "merged_pr": 13
+    },
+    {
+      "branch": "refactor/explicit-ampacity-demand",
+      "expected_head": "e5d5bfbfaca8640b8901ec2aae85f5b3dd2e9fc2",
+      "merged_pr": 42
+    },
+    {
+      "branch": "refactor/interval-protection-state-contract",
+      "expected_head": "70d1b3ddc58cb6eb944ffede45f369943bc3a1a6",
+      "merged_pr": 28
+    },
+    {
+      "branch": "refactor/load-flow-projection-seam-phase2-final",
+      "expected_head": "0349c9f963c286f5da3d690824f3ed508faac8fb",
+      "merged_pr": 78
+    },
+    {
+      "branch": "refactor/tcc-strangler",
+      "expected_head": "cdf85533be9ecc3f3331904d530ebca571160e56",
+      "merged_pr": 9
+    },
+    {
+      "branch": "roadmap/end-to-end-arcata",
+      "expected_head": "e56d0fd5f7986f8f3e6a3e6ff35d44693ff1389c",
+      "merged_pr": 66
+    },
+    {
+      "branch": "test/property-invariants",
+      "expected_head": "9d1bf7d6dcd1489b59971913cc1d8a59dc8c4203",
+      "merged_pr": 29
+    },
+    {
+      "branch": "test/protection-bound-invariants",
+      "expected_head": "8f746dc4977595c27964c150401038308e2c6000",
+      "merged_pr": 31
+    },
+    {
+      "branch": "tooling/verification-tool-lock",
+      "expected_head": "b293389053886ca2ce363ac1061f7bc52f12e450",
+      "merged_pr": 67
     }
   ]
 }
