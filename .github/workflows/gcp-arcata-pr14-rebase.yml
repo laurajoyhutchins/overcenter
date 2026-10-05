@@ -67,10 +67,10 @@ jobs:
                 - GITHUB_APP_PRIVATE_KEY
               env:
                 - GITHUB_APP_ID=4616688
-                - REPOSITORY=${_REPOSITORY}
-                - BRANCH=${_BRANCH}
-                - EXPECTED_OLD_HEAD=${_EXPECTED_OLD_HEAD}
-                - EXPECTED_MAIN=${_EXPECTED_MAIN}
+                - REPOSITORY=$${_REPOSITORY}
+                - BRANCH=$${_BRANCH}
+                - EXPECTED_OLD_HEAD=$${_EXPECTED_OLD_HEAD}
+                - EXPECTED_MAIN=$${_EXPECTED_MAIN}
               args:
                 - -e
                 - |
@@ -156,46 +156,46 @@ jobs:
               name: ubuntu:24.04
               entrypoint: bash
               env:
-                - REPOSITORY=${_REPOSITORY}
-                - BRANCH=${_BRANCH}
-                - EXPECTED_OLD_HEAD=${_EXPECTED_OLD_HEAD}
-                - EXPECTED_MAIN=${_EXPECTED_MAIN}
+                - REPOSITORY=$${_REPOSITORY}
+                - BRANCH=$${_BRANCH}
+                - EXPECTED_OLD_HEAD=$${_EXPECTED_OLD_HEAD}
+                - EXPECTED_MAIN=$${_EXPECTED_MAIN}
               args:
                 - -ceu
                 - |
                   apt-get update -qq
                   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git
-                  token="$(cat /workspace/github-token)"
-                  auth="$(printf 'x-access-token:%s' "$token" | base64 -w0)"
+                  token="$$(cat /workspace/github-token)"
+                  auth="$$(printf 'x-access-token:%s' "$$token" | base64 -w0)"
                   mkdir -p /workspace/source
                   cd /workspace/source
                   git init -q
-                  git remote add origin "https://github.com/$REPOSITORY.git"
-                  git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth"                     fetch --no-tags origin                     "refs/heads/main:refs/remotes/origin/main"                     "refs/heads/$BRANCH:refs/remotes/origin/pr14"
+                  git remote add origin "https://github.com/$$REPOSITORY.git"
+                  git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $$auth"                     fetch --no-tags origin                     "refs/heads/main:refs/remotes/origin/main"                     "refs/heads/$$BRANCH:refs/remotes/origin/pr14"
 
-                  test "$(git rev-parse refs/remotes/origin/main)" = "$EXPECTED_MAIN"
-                  test "$(git rev-parse refs/remotes/origin/pr14)" = "$EXPECTED_OLD_HEAD"
+                  test "$$(git rev-parse refs/remotes/origin/main)" = "$$EXPECTED_MAIN"
+                  test "$$(git rev-parse refs/remotes/origin/pr14)" = "$$EXPECTED_OLD_HEAD"
 
-                  git checkout -q --detach "$EXPECTED_MAIN"
+                  git checkout -q --detach "$$EXPECTED_MAIN"
                   git config user.name "Overcenter GCP Reconciler"
                   git config user.email "noreply@users.noreply.github.com"
 
                   set +e
-                  git cherry-pick "$EXPECTED_OLD_HEAD"
-                  rc=$?
+                  git cherry-pick "$$EXPECTED_OLD_HEAD"
+                  rc=$$?
                   set -e
-                  if [ "$rc" -ne 0 ]; then
+                  if [ "$$rc" -ne 0 ]; then
                     echo "OVERCENTER_PR14_CHERRY_PICK_CONFLICT"
                     git status --short
                     git diff --name-only --diff-filter=U
                     git diff --cc
-                    exit "$rc"
+                    exit "$$rc"
                   fi
 
-                  new_head="$(git rev-parse HEAD)"
-                  test "$(git rev-list --count "$EXPECTED_MAIN"..HEAD)" = "1"
-                  printf '%s' "$new_head" > /workspace/new-head
-                  echo "OVERCENTER_PR14_REBASED_HEAD=$new_head"
+                  new_head="$$(git rev-parse HEAD)"
+                  test "$$(git rev-list --count "$$EXPECTED_MAIN"..HEAD)" = "1"
+                  printf '%s' "$$new_head" > /workspace/new-head
+                  echo "OVERCENTER_PR14_REBASED_HEAD=$$new_head"
 
             - id: install-tools
               name: python:3.13-bookworm
@@ -237,21 +237,21 @@ jobs:
               name: ubuntu:24.04
               entrypoint: bash
               env:
-                - REPOSITORY=${_REPOSITORY}
-                - BRANCH=${_BRANCH}
-                - EXPECTED_OLD_HEAD=${_EXPECTED_OLD_HEAD}
+                - REPOSITORY=$${_REPOSITORY}
+                - BRANCH=$${_BRANCH}
+                - EXPECTED_OLD_HEAD=$${_EXPECTED_OLD_HEAD}
               args:
                 - -ceu
                 - |
                   apt-get update -qq
                   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git
                   cd /workspace/source
-                  token="$(cat /workspace/github-token)"
-                  auth="$(printf 'x-access-token:%s' "$token" | base64 -w0)"
-                  new_head="$(cat /workspace/new-head)"
-                  test "$(git rev-parse HEAD)" = "$new_head"
-                  git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth"                     push origin "$new_head:refs/heads/$BRANCH"                     "--force-with-lease=refs/heads/$BRANCH:$EXPECTED_OLD_HEAD"
-                  echo "OVERCENTER_PR14_PUBLISHED_HEAD=$new_head"
+                  token="$$(cat /workspace/github-token)"
+                  auth="$$(printf 'x-access-token:%s' "$$token" | base64 -w0)"
+                  new_head="$$(cat /workspace/new-head)"
+                  test "$$(git rev-parse HEAD)" = "$$new_head"
+                  git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $$auth"                     push origin "$$new_head:refs/heads/$$BRANCH"                     "--force-with-lease=refs/heads/$$BRANCH:$$EXPECTED_OLD_HEAD"
+                  echo "OVERCENTER_PR14_PUBLISHED_HEAD=$$new_head"
 
           availableSecrets:
             secretManager:
