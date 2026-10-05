@@ -66,12 +66,9 @@ export const SettlementObservation = Type.Object(
     ),
     pull_node_id: Type.Optional(Type.String()),
     expected_previous_head_sha: Type.Optional(Type.String()),
-    head_ref: Type.Optional(Type.String()),
-    expected_head_sha: Type.Optional(Type.String()),
     base_ref: Type.Optional(Type.String()),
     expected_base_sha: Type.Optional(Type.String()),
     actual_head_sha: Type.Optional(Type.String()),
-    actual_base_sha: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );
