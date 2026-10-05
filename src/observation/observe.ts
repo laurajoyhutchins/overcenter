@@ -488,47 +488,40 @@ function observeSourceIntegrationPullRequest(
   clock?: () => string,
 ): Observation {
   const headRef = canonicalGitHubRef(p.ref);
-  const owner = p.repository_full_name.split('/')[0]!;
-  const head = `${owner}:${headRef.slice('refs/heads/'.length)}`;
+  const head = `${p.repository_full_name.split('/')[0]!}:${headRef.slice('refs/heads/'.length)}`;
   const read = observeCertifiedGitHubSemanticRead(token, {
     repositoryId: p.repository_id,
     repositoryFullName: p.repository_full_name,
     operation: 'pull_requests',
-    parameters: {
-      base: p.base_ref,
-      head,
-      page: 1,
-      per_page: 100,
-      state: 'open',
-    },
+    parameters: { base: p.base_ref, head, page: 1, per_page: 100, state: 'open' },
     grantedPermissions: ['pull_requests:read'],
     get,
     ...(clock ? { clock } : {}),
   });
-  if (read.state === 'indeterminate' || !Array.isArray(read.value)) {
+  if (read.state === 'indeterminate' || !Array.isArray(read.value) || read.value.length >= 100) {
     return sourceIntegrationError(
       p,
       read.state === 'indeterminate'
         ? read.observation_error
-        : 'SOURCE_PR_PUBLICATION_COLLECTION_INVALID',
+        : 'SOURCE_PR_PUBLICATION_COLLECTION_INCOMPLETE',
     );
   }
 
-  const matches = read.value.filter((value) => {
-    if (!data(value) || value.state !== 'open' || !data(value.head) || !data(value.base)) {
-      return false;
-    }
-    return (
+  const matches = read.value.filter(
+    (value) =>
+      data(value) &&
+      value.state === 'open' &&
       isPositiveSafeInteger(value.number) &&
       typeof value.node_id === 'string' &&
       value.node_id.length > 0 &&
+      data(value.head) &&
       isGitHubObjectId(value.head.sha) &&
       sameGitHubObjectId(value.head.sha, p.commit_sha) &&
+      data(value.base) &&
       value.base.ref === p.base_ref &&
       isGitHubObjectId(value.base.sha) &&
-      sameGitHubObjectId(value.base.sha, p.expected_base_sha)
-    );
-  });
+      sameGitHubObjectId(value.base.sha, p.expected_base_sha),
+  );
   if (matches.length !== 1) {
     return sourceIntegrationError(
       p,
@@ -546,15 +539,9 @@ function observeSourceIntegrationPullRequest(
     actual_head_sha: (pull.head as Record<string, unknown>).sha as string,
     mutation_certainty: 'present',
     provider_evidence: {
-      pull_request: {
-        ...read.evidence,
-        ref: headRef,
-        commit_sha: p.commit_sha,
-        base_ref: p.base_ref,
-        base_sha: p.expected_base_sha,
-        pull_number: pull.number,
-        node_id: pull.node_id,
-      },
+      pull_request: read.evidence,
+      matched_base_sha: (pull.base as Record<string, unknown>).sha,
+      member_count: read.value.length,
     },
   };
 }
@@ -575,25 +562,28 @@ function sourceIntegrationPullRequestEvidenceMatches(
   )
     return false;
 
-  const evidence = observed.provider_evidence.pull_request;
-  const expectedHead = `${p.repository_full_name.split('/')[0]!}:${p.ref.slice('refs/heads/'.length)}`;
+  const evidence = observed.provider_evidence;
+  const read = evidence.pull_request as Record<string, unknown>;
+  const parameters = data(read.parameters) ? read.parameters : null;
   return (
-    evidence.provider === 'github' &&
-    evidence.operation_id === 'pulls/list' &&
-    evidence.repository_id === p.repository_id &&
-    typeof evidence.requested_repository_full_name === 'string' &&
-    evidence.requested_repository_full_name.toLowerCase() ===
+    read.provider === 'github' &&
+    read.operation_id === 'pulls/list' &&
+    read.repository_id === p.repository_id &&
+    typeof read.requested_repository_full_name === 'string' &&
+    read.requested_repository_full_name.toLowerCase() ===
       p.repository_full_name.toLowerCase() &&
-    data(evidence.parameters) &&
-    evidence.parameters.head === expectedHead &&
-    evidence.parameters.base === p.base_ref &&
-    evidence.parameters.state === 'open' &&
-    evidence.ref === p.ref &&
-    evidence.commit_sha === p.commit_sha &&
-    evidence.base_ref === p.base_ref &&
-    evidence.base_sha === p.expected_base_sha &&
-    evidence.pull_number === observed.pull_number &&
-    evidence.node_id === observed.pull_node_id
+    parameters?.head ===
+      `${p.repository_full_name.split('/')[0]!}:${p.ref.slice('refs/heads/'.length)}` &&
+    parameters.base === p.base_ref &&
+    parameters.state === 'open' &&
+    parameters.page === 1 &&
+    parameters.per_page === 100 &&
+    typeof evidence.member_count === 'number' &&
+    evidence.member_count >= 1 &&
+    evidence.member_count < 100 &&
+    typeof evidence.matched_base_sha === 'string' &&
+    isGitHubObjectId(evidence.matched_base_sha) &&
+    sameGitHubObjectId(evidence.matched_base_sha, p.expected_base_sha)
   );
 }
 
