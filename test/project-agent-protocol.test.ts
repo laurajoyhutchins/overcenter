@@ -656,7 +656,8 @@ test('project.submit refuses to publish a verified source candidate directly to 
       authorityRef: AUTHORITY_REF,
       remote: 'origin',
     });
-    assert.ok(acquired.run_id);
+    const runId = runId;
+    assert.ok(runId);
 
     const assignment = JSON.parse(
       readFileSync(join(f.root, 'source-packet', 'assignment.json'), 'utf8'),
@@ -710,7 +711,7 @@ test('project.submit refuses to publish a verified source candidate directly to 
           {
             ...commandContext(transactionContext.runtime_sha, 9100),
             candidate_sha: candidateSha,
-            candidate_run_id: acquired.run_id,
+            candidate_run_id: runId,
             candidate_workflow_run_id: 123,
             candidate_workflow_run_attempt: 1,
           },
@@ -720,7 +721,7 @@ test('project.submit refuses to publish a verified source candidate directly to 
             sourceVerificationPath: verificationPath,
             githubToken: 'fixture',
             transactionContext,
-            observationContext: { githubGet: sourceProofProvider(candidateSha, acquired.run_id) },
+            observationContext: { githubGet: sourceProofProvider(candidateSha, runId) },
           },
         ),
       /PROJECT_SUBMIT_SOURCE_PUBLICATION_REQUIRES_PR_EFFECT/,
