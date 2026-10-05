@@ -19,7 +19,7 @@ jobs:
       REGION: us-west1
       WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
       DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
-      ARCATA_REVISION: 2028a4ad70f906cb9e324e59b2f98714aaab9553
+      ARCATA_REVISION: 3b61f1543560fa8a57286fbb0ac99b197fa99886
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
