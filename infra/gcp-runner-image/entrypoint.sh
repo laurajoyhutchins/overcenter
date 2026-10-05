@@ -23,9 +23,44 @@ if [[ ! -s /workspace/registration-token ]]; then
   exit 3
 fi
 
+for variable in GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE GOOGLE_GHA_CREDS_PATH; do
+  if [[ -n "${!variable:-}" ]]; then
+    echo "ambient GCP credential variable reached runner: $variable" >&2
+    exit 70
+  fi
+done
+
+for endpoint in \
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+  "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token"
+do
+  status="$(
+    curl --silent --output /dev/null --write-out '%{http_code}' \
+      --connect-timeout 1 --max-time 2 \
+      -H 'Metadata-Flavor: Google' \
+      "$endpoint" || true
+  )"
+  if [[ "$status" = "200" ]]; then
+    echo "GCP metadata credentials are reachable from runner network" >&2
+    exit 71
+  fi
+done
+
+registration_token="$(cat /workspace/registration-token)"
+rm -f /workspace/registration-token
+
 cd /actions-runner
 rm -rf _work .runner .credentials .credentials_rsaparams
 
-./config.sh   --url "https://github.com/${TARGET_REPOSITORY}"   --token "$(cat /workspace/registration-token)"   --name "$RUNNER_NAME"   --labels "overcenter-gcp"   --work "_work"   --unattended   --ephemeral   --disableupdate
+./config.sh \
+  --url "https://github.com/${TARGET_REPOSITORY}" \
+  --token "$registration_token" \
+  --name "$RUNNER_NAME" \
+  --labels "overcenter-gcp" \
+  --work "_work" \
+  --unattended \
+  --ephemeral \
+  --disableupdate
 
+unset registration_token
 exec ./run.sh
