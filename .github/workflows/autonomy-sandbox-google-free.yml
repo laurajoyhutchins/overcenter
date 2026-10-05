@@ -1,0 +1,43 @@
+name: GCP WIF permission probe
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/autonomy-sandbox-google-free.yml'
+
+permissions: {}
+
+jobs:
+  probe:
+    name: Probe existing reasoning WIF
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - id: google-auth
+        name: Exchange GitHub OIDC for short-lived Google credentials
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: project-6b810532-a302-48dc-b56
+          workload_identity_provider: projects/380435294892/locations/global/workloadIdentityPools/github-reasoning/providers/overcenter-research
+          service_account: oc-reasoning-key-reader@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_lifetime: 300s
+          create_credentials_file: false
+          export_environment_variables: false
+
+      - name: Read-only permission probe
+        env:
+          GOOGLE_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          body='{"permissions":["resourcemanager.projects.get","resourcemanager.projects.getIamPolicy","resourcemanager.projects.setIamPolicy","iam.workloadIdentityPools.get","iam.workloadIdentityPools.update","iam.workloadIdentityPoolProviders.get","iam.workloadIdentityPoolProviders.update","cloudbuild.builds.create","iam.serviceAccounts.actAs","iam.serviceAccounts.getAccessToken"]}'
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer $GOOGLE_ACCESS_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data "$body" \
+            'https://cloudresourcemanager.googleapis.com/v1/projects/project-6b810532-a302-48dc-b56:testIamPermissions'
