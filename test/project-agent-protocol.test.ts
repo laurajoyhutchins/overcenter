@@ -700,7 +700,9 @@ test('project.submit refuses to publish a verified source candidate directly to 
       ),
     );
 
-    const remoteMainBefore = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
+    const remoteMainBefore = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(
+      /\s+/,
+    )[0];
     assert.throws(
       () =>
         submitProjectCandidate(
