@@ -1,6 +1,6 @@
 {
   "schema": "overcenter-gcp-verifier/request/v1",
-  "request_id": "arcata-pr83-7c1f1cb9",
+  "request_id": "arcata-motor-load-flow-1302cf23",
   "profile": "arcata-ci",
-  "revision": "7c1f1cb9111435cb9a1ad3c26867c2f6ee7c6381"
+  "revision": "1302cf23a47fa1bb516cae1751b5b7ff1720fcbe"
 }
