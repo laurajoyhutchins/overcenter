@@ -1,0 +1,45 @@
+name: Temporary Python tool ferry
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/temp-python-tool-ferry.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Download exact Arcata quality tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir wheelhouse
+          python -m pip download --disable-pip-version-check --only-binary=:all: --dest wheelhouse \
+            "ruff==0.13.2" "mypy==1.18.2"
+          python - <<'PY'
+          import hashlib, pathlib
+          for path in sorted(pathlib.Path("wheelhouse").iterdir()):
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              print(f"{digest}  {path.name}")
+          PY
+          python - <<'PY' > wheelhouse/SHA256SUMS
+          import hashlib, pathlib
+          for path in sorted(pathlib.Path("wheelhouse").iterdir()):
+              if path.name == "SHA256SUMS":
+                  continue
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              print(f"{digest}  {path.name}")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arcata-python-quality-tools
+          path: wheelhouse
+          if-no-files-found: error
+          retention-days: 1
