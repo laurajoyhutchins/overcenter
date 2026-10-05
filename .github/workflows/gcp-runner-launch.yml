@@ -33,7 +33,7 @@ jobs:
       REGION: us-west1
       WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
       DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
-      RUNNER_IMAGE: us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner:stable
+      RUNNER_IMAGE: us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner:git-${{ github.sha }}
       TARGET_REPOSITORY: ${{ inputs.repository }}
       TARGET_REPOSITORY_ID: ${{ inputs.repository_id }}
       TARGET_JOB_ID: ${{ inputs.job_id }}
