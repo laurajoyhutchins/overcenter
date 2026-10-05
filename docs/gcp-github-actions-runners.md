@@ -26,7 +26,7 @@ Repository admission is explicit in `config/gcp-runner-autoscaler.json` and incl
 
 The autoscaler implementation lives under `src/transport` and runs privately as `overcenter-runtime` and has the GitHub App key only so it can observe Actions state and request the public launcher workflow. It does not submit Cloud Builds.
 
-The launcher runs from the WIF-authorized Overcenter infrastructure ref and uses `overcenter-deployer` only to submit/read the build. The Cloud Build uses `overcenter-runtime` to read the existing GitHub App private key and mint a one-hour runner-registration token. The GitHub runner is ephemeral and receives no ambient GCP credential.
+The launcher runs from the WIF-authorized Overcenter infrastructure ref and uses `overcenter-deployer` only to submit/read the build. The Cloud Build authorization step uses `overcenter-runtime` to read the existing GitHub App private key and mint a one-hour runner-registration token. The GitHub runner itself executes in a nested Docker container on the ordinary Docker bridge, not Cloud Build's credential-bearing `cloudbuild` network. Startup fails closed if a GCP credential environment variable or metadata token is reachable, and the registration-token file is deleted before job execution.
 
 The runner image pins the GitHub Actions runner archive and SHA-256 digest. A deployment builds an image tagged to the exact controller Git revision. The launcher for that revision uses the matching image tag.
 
