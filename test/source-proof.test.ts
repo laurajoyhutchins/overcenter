@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -11,6 +11,8 @@ import {
   SourceProofRejected,
   trustedSourceProof,
 } from '../src/source/source-proof.ts';
+import { observeGitHubSourceProof } from '../src/source/github-source-proof-observation.ts';
+import { admitSourceProofObservation } from '../src/source/source-proof-admission.ts';
 import { sourceProofRecord, type SourceProofRecord } from '../src/source/source-proof-record.ts';
 import {
   buildSourceTransactionPlan,
@@ -136,7 +138,21 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
       verification_profile_sha256: plan.verification_profile.sha256,
     },
   };
+  const observation = observeGitHubSourceProof('fixture', {
+    repositoryId: context.repository_id,
+    repositoryFullName: context.repository_full_name,
+    workflowRunId: 123,
+    workflowRunAttempt: 2,
+    get,
+  });
+  const observedWitness = admitSourceProofObservation(plan, record, {
+    observation,
+    expectedWorkflowRunId: 123,
+    expectedWorkflowRunAttempt: 2,
+    context: options.context,
+  });
   const witness = admitSourceProof(plan, record, options);
+  assert.deepEqual(trustedSourceProof(observedWitness), trustedSourceProof(witness));
   assert.equal(trustedSourceProof(witness).plan_digest, sourceTransactionPlanDigest(plan));
   assert.throws(() => trustedSourceProof(record as never), /SOURCE_PROOF_WITNESS_INVALID/);
 
@@ -209,4 +225,14 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
     'unsupported',
   );
   assert.equal((record as SourceProofRecord).schema_version, 3);
+});
+
+
+test('source proof admission core owns no GitHub observation mechanics', () => {
+  const source = readFileSync(
+    new URL('../src/source/source-proof-admission.ts', import.meta.url),
+    'utf8',
+  );
+  assert.doesNotMatch(source, /githubToken|GitHubJsonGet|\/actions\//);
+  assert.doesNotMatch(source, /providers\/github/);
 });
