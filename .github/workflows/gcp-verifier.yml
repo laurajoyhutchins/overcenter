@@ -347,7 +347,7 @@ jobs:
             --region="$REGION" \
             --format=json > "$BUILD_JSON"
 
-          python - "$BUILD_JSON" "$REQUEST_ID" "$PROFILE" "$REVISION" "$GITHUB_SHA" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          python - "$BUILD_JSON" "$REQUEST_ID" "$PROFILE" "$REVISION" "$GITHUB_SHA" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import json
           import sys
 
