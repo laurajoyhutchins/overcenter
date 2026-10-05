@@ -572,7 +572,8 @@ function sourceIntegrationPullRequestEvidenceMatches(
     typeof read.requested_repository_full_name === 'string' &&
     read.requested_repository_full_name.toLowerCase() ===
       p.repository_full_name.toLowerCase() &&
-    parameters?.head ===
+    !!parameters &&
+    parameters.head ===
       `${p.repository_full_name.split('/')[0]!}:${p.ref.slice('refs/heads/'.length)}` &&
     parameters.base === p.base_ref &&
     parameters.state === 'open' &&
