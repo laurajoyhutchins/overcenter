@@ -166,7 +166,19 @@ export function trustedSourceIntegrationEvidence(
   return structuredClone(evidence);
 }
 
-export function integrateVerifiedSourceCandidate(..._args: unknown[]): SourceIntegrationResult {
+export function integrateVerifiedSourceCandidate(
+  _repo: string,
+  _taskValue: unknown,
+  _claim: SourceClaimBinding,
+  _obligationId: string,
+  _candidateSha: string,
+  _verificationValue: unknown,
+  _options: {
+    remote?: string;
+    ref?: string;
+    performReservedMutation: (mutation: () => boolean) => boolean;
+  },
+): SourceIntegrationResult {
   return { state: 'REJECTED', reason: 'SOURCE_DIRECT_MAIN_INTEGRATION_RETIRED' };
 }
 
