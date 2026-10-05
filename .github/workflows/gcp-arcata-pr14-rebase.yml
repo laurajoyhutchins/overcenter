@@ -1,4 +1,5 @@
 name: GCP Arcata PR14 rebase
+# retry after Cloud Build substitution fix
 
 on:
   push:
