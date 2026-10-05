@@ -15,6 +15,8 @@ type RepositoryBinding = Readonly<{
 
 type DispatchBinding = Readonly<{
   repository: string;
+  repository_id: number;
+  owner_id: number;
   workflow: string;
   ref: string;
 }>;
@@ -97,6 +99,8 @@ export function parseRunnerAutoscalerConfig(value: unknown): RunnerAutoscalerCon
   const dispatchBody = rawDispatch as Record<string, unknown>;
   const dispatch = Object.freeze({
     repository: requireRepository(dispatchBody.repository, "dispatch.repository"),
+    repository_id: requirePositiveInteger(dispatchBody.repository_id, "dispatch.repository_id"),
+    owner_id: requirePositiveInteger(dispatchBody.owner_id, "dispatch.owner_id"),
     workflow: String(dispatchBody.workflow ?? "").trim(),
     ref: String(dispatchBody.ref ?? "").trim(),
   });
@@ -321,12 +325,10 @@ async function dispatchRunner(
   sourceRepository: RepositoryBinding,
   job: WorkflowJob,
 ): Promise<void> {
-  const dispatchRepository = config.repositories.find(
-    (entry) => entry.full_name.toLowerCase() === config.dispatch.repository.toLowerCase(),
-  ) ?? {
+  const dispatchRepository: RepositoryBinding = {
     full_name: config.dispatch.repository,
-    repository_id: 1354872053,
-    owner_id: 219002713,
+    repository_id: config.dispatch.repository_id,
+    owner_id: config.dispatch.owner_id,
   };
 
   const token = await client.installationToken(dispatchRepository, {
@@ -371,7 +373,6 @@ async function pollOnce(
     for (const repository of config.repositories) {
       const token = await client.installationToken(repository, {
         actions: "read",
-        metadata: "read",
       });
       await verifyRepositoryIdentity(repository, token);
       const jobs = await queuedRunnerJobs(repository, token, config.runner_label);
