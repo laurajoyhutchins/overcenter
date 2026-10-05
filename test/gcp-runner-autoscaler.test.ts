@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -91,4 +92,16 @@ test('only queued self-hosted jobs with the GCP label are eligible', () => {
     ),
     false,
   );
+});
+
+const launcherWorkflow = readFileSync(
+  new URL('../.github/workflows/gcp-runner-launch.yml', import.meta.url),
+  'utf8',
+);
+
+test('launcher admission derives repository authority from the autoscaler config', () => {
+  assert.match(launcherWorkflow, /config\/gcp-runner-autoscaler\.json/);
+  assert.doesNotMatch(launcherWorkflow, /laurajoyhutchins\/arcata:1402666660/);
+  assert.doesNotMatch(launcherWorkflow, /laurajoyhutchins\/overcenter:1354872053/);
+  assert.doesNotMatch(launcherWorkflow, /laurajoyhutchins\/azelficoast:1384608118/);
 });
