@@ -1,4 +1,4 @@
-name: Bootstrap GCP runner deployer actAs
+name: Bootstrap GCP runner IAM
 
 on:
   push:
@@ -22,16 +22,18 @@ jobs:
     timeout-minutes: 10
     env:
       GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
+      GCP_REGION: us-west1
       GCP_WORKLOAD_IDENTITY_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
       GCP_DEPLOY_SERVICE_ACCOUNT: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+      GCP_RUNTIME_SERVICE_ACCOUNT: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+      GCP_LAUNCHER_SERVICE: overcenter-gcp-runner-launcher
 
     steps:
-      - name: Authenticate to Google Cloud
+      - name: Authenticate bootstrap principal
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
           create_credentials_file: true
           export_environment_variables: true
 
@@ -41,21 +43,22 @@ jobs:
           project_id: ${{ env.GCP_PROJECT_ID }}
           version: ">= 363.0.0"
 
-      - name: Grant only self actAs and prove read-back
+      - name: Grant runtime only launcher invocation
         shell: bash
         run: |
           set -euo pipefail
-          member="serviceAccount:${GCP_DEPLOY_SERVICE_ACCOUNT}"
-          gcloud iam service-accounts add-iam-policy-binding "$GCP_DEPLOY_SERVICE_ACCOUNT" \
+          member="serviceAccount:${GCP_RUNTIME_SERVICE_ACCOUNT}"
+          gcloud run services add-iam-policy-binding "$GCP_LAUNCHER_SERVICE" \
             --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
             --member="$member" \
-            --role="roles/iam.serviceAccountUser" \
-            --condition=None \
+            --role="roles/run.invoker" \
             --quiet >/dev/null
 
-          policy="$RUNNER_TEMP/deployer-policy.json"
-          gcloud iam service-accounts get-iam-policy "$GCP_DEPLOY_SERVICE_ACCOUNT" \
+          policy="$RUNNER_TEMP/launcher-policy.json"
+          gcloud run services get-iam-policy "$GCP_LAUNCHER_SERVICE" \
             --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
             --format=json > "$policy"
 
           python3 - "$policy" "$member" <<'PY'
@@ -66,11 +69,32 @@ jobs:
           with open(path, encoding="utf-8") as handle:
               policy = json.load(handle)
           ok = any(
-              binding.get("role") == "roles/iam.serviceAccountUser"
+              binding.get("role") == "roles/run.invoker"
               and member in binding.get("members", [])
               for binding in policy.get("bindings", [])
           )
           if not ok:
-              raise SystemExit("deployer self-actAs binding did not read back")
-          print("deployer self-actAs binding verified")
+              raise SystemExit("runtime launcher invoker binding did not read back")
+          print("runtime launcher invoker binding verified")
           PY
+
+      - name: Authenticate deployer
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Grant only deployer self actAs
+        shell: bash
+        run: |
+          set -euo pipefail
+          member="serviceAccount:${GCP_DEPLOY_SERVICE_ACCOUNT}"
+          gcloud iam service-accounts add-iam-policy-binding "$GCP_DEPLOY_SERVICE_ACCOUNT" \
+            --project="$GCP_PROJECT_ID" \
+            --member="$member" \
+            --role="roles/iam.serviceAccountUser" \
+            --condition=None \
+            --quiet >/dev/null
