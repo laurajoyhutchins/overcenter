@@ -201,14 +201,7 @@ print(url)
 PY
 )"
 
-echo "Granting watcher invocation of the private launcher"
-gcloud run services add-iam-policy-binding "$LAUNCHER_SERVICE" \
-  --project="$PROJECT_ID" \
-  --region="$REGION" \
-  --member="serviceAccount:${RUNTIME_SA}" \
-  --role="roles/run.invoker" \
-  --quiet >/dev/null
-
+echo "Verifying pre-provisioned watcher invocation of the private launcher"
 launcher_policy="${RUNNER_TEMP:-/tmp}/overcenter-gcp-runner-launcher-policy.json"
 gcloud run services get-iam-policy "$LAUNCHER_SERVICE" \
   --project="$PROJECT_ID" \
