@@ -1,0 +1,251 @@
+name: GCP restack Arcata Siemens source
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-restack-arcata-siemens-source.yml
+      - .overcenter/gcp-restack-siemens-source.trigger
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-restack-arcata-siemens-source
+  cancel-in-progress: false
+
+jobs:
+  restack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Restack and verify Siemens source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/cloudbuild-siemens-source.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 900s
+          steps:
+            - id: github-token
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+              args:
+                - -e
+                - |
+                  const crypto = require("crypto");
+                  const fs = require("fs");
+                  const repository = "laurajoyhutchins/arcata";
+                  const parentBranch = "refactor/provenance-admission-consolidated";
+                  const sourceBranch = "vendor/siemens-3va62-etu320";
+                  const expectedParent = "5669b06e9b21ed118596cb40f7540a4f84c3bcc2";
+                  const expectedSource = "5a3e7f2f25dc833fb62f942c2a09f76e926b6c09";
+                  const b64 = value => Buffer.from(JSON.stringify(value)).toString("base64url");
+                  const now = Math.floor(Date.now()/1000);
+                  const unsigned = b64({alg:"RS256",typ:"JWT"}) + "." + b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const jwt = unsigned + "." + crypto.sign("RSA-SHA256", Buffer.from(unsigned), process.env.GITHUB_APP_PRIVATE_KEY).toString("base64url");
+                  const h = token => ({
+                    Accept:"application/vnd.github+json",
+                    Authorization:"Bearer " + token,
+                    "X-GitHub-Api-Version":"2026-03-10",
+                    "User-Agent":"overcenter-gcp-siemens-restack",
+                  });
+                  async function json(response,label) {
+                    const text = await response.text();
+                    if (!response.ok) throw new Error(label + " HTTP " + response.status + ": " + text.slice(0,300));
+                    return text ? JSON.parse(text) : null;
+                  }
+                  async function main() {
+                    const installation = await json(
+                      await fetch("https://api.github.com/repos/" + repository + "/installation",{headers:h(jwt)}),
+                      "installation lookup",
+                    );
+                    const access = await json(
+                      await fetch("https://api.github.com/app/installations/" + installation.id + "/access_tokens",{
+                        method:"POST",
+                        headers:{...h(jwt),"Content-Type":"application/json"},
+                        body:JSON.stringify({permissions:{contents:"write"}}),
+                      }),
+                      "installation token",
+                    );
+                    const token = access.token;
+                    for (const [branch,expected] of [[parentBranch,expectedParent],[sourceBranch,expectedSource]]) {
+                      const path = branch.split("/").map(encodeURIComponent).join("/");
+                      const ref = await json(
+                        await fetch("https://api.github.com/repos/" + repository + "/git/ref/heads/" + path,{headers:h(token)}),
+                        "ref lookup",
+                      );
+                      if (ref.object.sha !== expected) throw new Error(branch + " exact-head lease mismatch");
+                    }
+                    fs.writeFileSync("/workspace/github-token", token, {mode:0o600});
+                  }
+                  main().catch(error => { console.error(String(error && error.message || error)); process.exit(1); });
+
+            - id: restack
+              name: python:3.13-bookworm
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  apt-get update -qq
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git
+                  python - <<'PY'
+                  import base64
+                  import subprocess
+                  from pathlib import Path
+
+                  repository = "laurajoyhutchins/arcata"
+                  parent_branch = "refactor/provenance-admission-consolidated"
+                  source_branch = "vendor/siemens-3va62-etu320"
+                  expected_parent = "5669b06e9b21ed118596cb40f7540a4f84c3bcc2"
+                  expected_source = "5a3e7f2f25dc833fb62f942c2a09f76e926b6c09"
+                  token = Path("/workspace/github-token").read_text()
+                  auth = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+                  root = Path("/workspace/source")
+                  root.mkdir(parents=True, exist_ok=True)
+
+                  def run(args, check=True, capture=False, env=None):
+                      return subprocess.run(
+                          args, cwd=root, check=check, text=True, env=env,
+                          stdout=subprocess.PIPE if capture else None,
+                          stderr=subprocess.STDOUT if capture else None,
+                      )
+
+                  run(["git","init","-q"])
+                  run(["git","remote","add","origin",f"https://github.com/{repository}.git"])
+                  run([
+                      "git","-c",f"http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}",
+                      "fetch","--no-tags","origin",
+                      f"refs/heads/{parent_branch}:refs/remotes/origin/parent",
+                      f"refs/heads/{source_branch}:refs/remotes/origin/source",
+                  ])
+                  if run(["git","rev-parse","refs/remotes/origin/parent"],capture=True).stdout.strip() != expected_parent:
+                      raise SystemExit("parent moved")
+                  if run(["git","rev-parse","refs/remotes/origin/source"],capture=True).stdout.strip() != expected_source:
+                      raise SystemExit("source moved")
+                  run(["git","checkout","-q","--detach",expected_parent])
+                  run(["git","config","user.name","Overcenter GCP Reconciler"])
+                  run(["git","config","user.email","noreply@users.noreply.github.com"])
+                  pick = run(["git","cherry-pick",expected_source],check=False,capture=True)
+                  if pick.returncode:
+                      conflicts = run(["git","diff","--name-only","--diff-filter=U"],capture=True).stdout.splitlines()
+                      raise SystemExit("Siemens source cherry-pick conflicts: " + ",".join(conflicts))
+                  new_head = run(["git","rev-parse","HEAD"],capture=True).stdout.strip()
+                  if run(["git","rev-list","--count",f"{expected_parent}..HEAD"],capture=True).stdout.strip() != "1":
+                      raise SystemExit("restack did not produce exactly one commit")
+                  Path("/workspace/new-head").write_text(new_head)
+                  PY
+
+            - id: install-tools
+              name: python:3.13-bookworm
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  cd /workspace/source
+                  python tools/verification_tools.py requirements > /workspace/verification-tools.txt
+                  python -m venv /workspace/verification-tools
+                  /workspace/verification-tools/bin/python -m pip install                     --disable-pip-version-check --no-input --no-compile                     --only-binary=:all: --no-deps --require-hashes                     --requirement /workspace/verification-tools.txt
+                  /workspace/verification-tools/bin/python -m pip check
+
+            - id: ruff-format
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/ruff
+              args: ["format","--check","."]
+
+            - id: ruff-lint
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/ruff
+              args: ["check","."]
+
+            - id: mypy
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m","mypy"]
+
+            - id: tests
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: python
+              args: ["tools/test_all.py"]
+
+            - id: publish
+              name: python:3.13-bookworm
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  apt-get update -qq
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git
+                  python - <<'PY'
+                  import base64
+                  import subprocess
+                  from pathlib import Path
+                  repository = "laurajoyhutchins/arcata"
+                  target_branch = "vendor/siemens-3va62-etu320-phase3"
+                  token = Path("/workspace/github-token").read_text()
+                  auth = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+                  root = Path("/workspace/source")
+                  head = Path("/workspace/new-head").read_text()
+                  subprocess.run(
+                      ["git","-c",f"http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}",
+                       "push","origin",f"{head}:refs/heads/{target_branch}"],
+                      cwd=root, check=True,
+                  )
+                  print("OVERCENTER_SIEMENS_SOURCE_HEAD=" + head)
+                  PY
+
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: NONE
+          YAML
+
+          build_id="$(
+            gcloud builds submit --async --no-source               --project="$PROJECT_ID" --region="$REGION"               --config="$config" --format='value(id)'
+          )"
+          status=""
+          for _ in $(seq 1 450); do
+            status="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)')"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
+            esac
+            sleep 2
+          done
+          echo "Cloud Build: $build_id" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Status: $status" | tee -a "$GITHUB_STEP_SUMMARY"
+          gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION"             --format="table(steps.id,steps.status)" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$status" = SUCCESS
