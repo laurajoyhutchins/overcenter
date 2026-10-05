@@ -121,3 +121,12 @@ test('deployment lane keeps only the latest exact substrate revision', () => {
   assert.match(workflow, /group: deploy-gcp-runner-autoscaler/);
   assert.match(workflow, /cancel-in-progress: true/);
 });
+
+test('bootstrap deployment uses the separate ARM64 hosted pool', () => {
+  const workflow = readFileSync(
+    new URL('../.github/workflows/gcp-runner-autoscaler-deploy.yml', import.meta.url),
+    'utf8',
+  );
+  assert.match(workflow, /runs-on: ubuntu-24\.04-arm/);
+  assert.match(workflow, /cancel-in-progress: true/);
+});
