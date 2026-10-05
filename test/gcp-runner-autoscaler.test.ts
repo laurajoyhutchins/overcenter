@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   isEligibleRunnerJob,
   parseRunnerAutoscalerConfig,
-} from "../scripts/gcp-runner-autoscaler.ts";
+} from "../src/transport/gcp-runner-autoscaler.ts";
 
 const validConfig = {
   schema: "overcenter-gcp-runner-autoscaler/v1",
