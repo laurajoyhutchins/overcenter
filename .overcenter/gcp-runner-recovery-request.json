@@ -1,6 +1,6 @@
 {
   "schema": "overcenter-gcp-runner-recovery/v1",
-  "runner_image": "us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner@sha256:70d91fe2167d662a17c0361a466daba92687da8e31e197ec0a729177d92b69cc",
+  "runner_image": "us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner@sha256:b33e17f6e7d1dc91467035131b443a896ab1210596a427148269d22071aec2a1",
   "jobs": [
     {
       "repository": "laurajoyhutchins/arcata",
