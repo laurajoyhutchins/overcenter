@@ -18,7 +18,7 @@ concurrency:
 jobs:
   inventory:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     env:
       PROJECT_ID: project-6b810532-a302-48dc-b56
       PROJECT_NUMBER: "380435294892"
@@ -87,9 +87,42 @@ jobs:
           probe "service accounts" gcloud iam service-accounts list --project="$PROJECT_ID" --format="table(email,disabled)"
           probe "project IAM policy" gcloud projects get-iam-policy "$PROJECT_ID" --flatten="bindings[].members" --filter="bindings.members:$DEPLOYER_SA" --format="table(bindings.role,bindings.condition.title,bindings.condition.expression)"
 
-      - name: Verify bootstrap identity stayed read-only
+      - name: Verify bootstrap identity
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/dev"
           test "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" = "$DEPLOYER_SA"
+
+      - name: Prove exact-SHA Cloud Build execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_CONFIG="$RUNNER_TEMP/cloudbuild-exact-sha-smoke.yaml"
+          cat > "$BUILD_CONFIG" <<'YAML'
+          steps:
+            - name: gcr.io/cloud-builders/git
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  rm -rf /workspace/repo
+                  git init /workspace/repo
+                  cd /workspace/repo
+                  git remote add origin https://github.com/laurajoyhutchins/overcenter.git
+                  git fetch --depth=1 origin "${_SHA}"
+                  git checkout --detach FETCH_HEAD
+                  ACTUAL="$(git rev-parse HEAD)"
+                  printf 'requested=%s\nactual=%s\n' "${_SHA}" "$ACTUAL"
+                  test "$ACTUAL" = "${_SHA}"
+          options:
+            logging: CLOUD_LOGGING_ONLY
+          YAML
+
+          BUILD_ID="$(
+            gcloud builds submit               --no-source               --project="$PROJECT_ID"               --region="$REGION"               --config="$BUILD_CONFIG"               --substitutions="_SHA=$GITHUB_SHA"               --format='value(id)'
+          )"
+
+          test -n "$BUILD_ID"
+          echo "Cloud Build exact-SHA proof: $BUILD_ID"
+          printf -- "- exact-SHA Cloud Build: \`%s\`\n" "$BUILD_ID" >> "$GITHUB_STEP_SUMMARY"
