@@ -23,6 +23,13 @@ function fixture(){
  return {root,cache,manifest,a,b};
 }
 test('verifies blob identities and reconstructs the authoritative Git tree',()=>{const f=fixture();try{assert.equal(verifyPrivateSourceCapsule(f.manifest,f.cache).tree_sha,f.manifest.tree_sha);}finally{rmSync(f.root,{recursive:true,force:true});}});
+test('matches Git ordering when a file name is a prefix-neighbor of a directory',()=>{const f=fixture();try{
+ const c=Buffer.from('file\n'), d=Buffer.from('nested\n'); const cs=gitBlobSha(c), ds=gitBlobSha(d); writeFileSync(join(f.cache,cs),c);writeFileSync(join(f.cache,ds),d);
+ const repo=join(f.root,'ordering');mkdirSync(repo);execFileSync('git',['init','-q'],{cwd:repo});writeFileSync(join(repo,'foo.c'),c);mkdirSync(join(repo,'foo'));writeFileSync(join(repo,'foo','x'),d);execFileSync('git',['add','-A'],{cwd:repo});
+ const tree=execFileSync('git',['write-tree'],{cwd:repo,encoding:'utf8'}).trim();
+ const manifest={...f.manifest,tree_sha:tree,entries:[{path:'foo.c',mode:'100644' as const,blob_sha:cs,size:c.length,sha256:sha256(c)},{path:'foo/x',mode:'100644' as const,blob_sha:ds,size:d.length,sha256:sha256(d)}]};
+ assert.equal(verifyPrivateSourceCapsule(manifest,f.cache).tree_sha,tree);
+}finally{rmSync(f.root,{recursive:true,force:true});}});
 test('rejects tampered bytes even under the expected cache key',()=>{const f=fixture();try{writeFileSync(join(f.cache,f.manifest.entries[0].blob_sha),'tampered');assert.throws(()=>verifyPrivateSourceCapsule(f.manifest,f.cache),/BLOB_MISMATCH/);}finally{rmSync(f.root,{recursive:true,force:true});}});
 test('rejects a false authoritative tree claim',()=>{const f=fixture();try{assert.throws(()=>verifyPrivateSourceCapsule({...f.manifest,tree_sha:'f'.repeat(40)},f.cache),/TREE_MISMATCH/);}finally{rmSync(f.root,{recursive:true,force:true});}});
 test('rejects unsafe paths, unsupported modes, duplicates, and symbolic revisions',()=>{const f=fixture();try{
