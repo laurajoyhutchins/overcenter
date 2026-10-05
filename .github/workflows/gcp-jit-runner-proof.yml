@@ -98,7 +98,7 @@ jobs:
                       await fetch("https://api.github.com/app/installations/" + installation.id + "/access_tokens", {
                         method:"POST",
                         headers:{...headers(appJwt),"Content-Type":"application/json"},
-                        body:JSON.stringify({permissions:{administration:"write"}}),
+                        body:JSON.stringify({permissions:{administration:"write",actions:"read"}}),
                       }),
                       "installation token",
                     );
@@ -113,6 +113,7 @@ jobs:
                       throw new Error("runner registration endpoint returned no token");
                     }
                     fs.writeFileSync("/workspace/registration-token", registration.token, {mode:0o600});
+                    fs.writeFileSync("/workspace/admin-token", access.token, {mode:0o600});
                   }
                   main().catch(error => {
                     console.error(String(error && error.message || error));
@@ -135,22 +136,57 @@ jobs:
                     https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-x64-2.337.0.tar.gz
                   echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum -c -
                   tar xzf actions-runner.tar.gz
+                  runner_name="overcenter-gcp-${BUILD_ID}"
                   ./config.sh \
                     --url https://github.com/laurajoyhutchins/arcata \
                     --token "$(cat /workspace/registration-token)" \
-                    --name "overcenter-gcp-${BUILD_ID}" \
+                    --name "$runner_name" \
                     --labels "overcenter-gcp,gcp-proof" \
                     --work "_work" \
                     --unattended \
                     --ephemeral \
-                    --disableupdate
+                    --disableupdate > /workspace/config-output.log 2>&1
+
+                  ./run.sh > /workspace/runner-output.log 2>&1 &
+                  runner_pid=$!
+                  sleep 10
+
+                  auth_header="Authorization: Bearer $(cat /workspace/admin-token)"
+                  runners_json="$(curl -fsSL \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "$auth_header" \
+                    -H "X-GitHub-Api-Version: 2026-03-10" \
+                    https://api.github.com/repos/laurajoyhutchins/arcata/actions/runners)"
+                  job_json="$(curl -fsSL \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "$auth_header" \
+                    -H "X-GitHub-Api-Version: 2026-03-10" \
+                    https://api.github.com/repos/laurajoyhutchins/arcata/actions/jobs/111879127702)"
+
+                  python3 - "$runner_name" "$runners_json" "$job_json" <<'PY'
+                  import json, sys
+                  name, runners_raw, job_raw = sys.argv[1:]
+                  runners = json.loads(runners_raw).get("runners", [])
+                  runner = next((item for item in runners if item.get("name") == name), None)
+                  job = json.loads(job_raw)
+                  runner_status = "missing" if runner is None else str(runner.get("status"))
+                  runner_labels = [] if runner is None else sorted(
+                      str(label.get("name")) for label in runner.get("labels", [])
+                  )
+                  job_labels = sorted(str(label) for label in job.get("labels", []))
+                  print("OVERCENTER_DIAG runner_status=" + runner_status)
+                  print("OVERCENTER_DIAG runner_labels=" + ",".join(runner_labels))
+                  print("OVERCENTER_DIAG job_status=" + str(job.get("status")))
+                  print("OVERCENTER_DIAG job_labels=" + ",".join(job_labels))
+                  PY
+
                   set +e
-                  ./run.sh > /workspace/runner-output.log 2>&1
+                  wait "$runner_pid"
                   rc=$?
                   set -e
                   worker_count="$(find _diag -maxdepth 1 -type f -name 'Worker_*.log' | wc -l)"
+                  echo "OVERCENTER_DIAG worker_count=$worker_count"
                   if [ "$worker_count" -lt 1 ]; then
-                    echo "ephemeral runner exited without executing a GitHub Actions job" >&2
                     exit 23
                   fi
                   exit "$rc"
@@ -159,7 +195,7 @@ jobs:
               - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
                 env: GITHUB_APP_PRIVATE_KEY
           options:
-            logging: NONE
+            logging: CLOUD_LOGGING_ONLY
           YAML
 
           build_id="$(
@@ -177,4 +213,11 @@ jobs:
             sleep 2
           done
           echo "Status: $status" | tee -a "$GITHUB_STEP_SUMMARY"
+          gcloud builds describe "$build_id" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format="table(steps.id,steps.status)" | tee -a "$GITHUB_STEP_SUMMARY"
+          gcloud builds log "$build_id" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" 2>/dev/null | grep 'OVERCENTER_DIAG' || true
           test "$status" = SUCCESS
