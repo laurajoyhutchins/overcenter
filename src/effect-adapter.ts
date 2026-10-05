@@ -8,9 +8,6 @@ export const EFFECT_ADAPTER_CAPABILITIES_SCHEMA = 'overcenter-effect-adapter-cap
 export const GITHUB_COMMIT_STATUS_EFFECT =
   'github-commit-status/set-from-postcondition/v1' as const;
 
-export const GITHUB_PULL_REQUEST_PUBLICATION_EFFECT =
-  'github-pull-request/publish-verified-head/v1' as const;
-
 export const GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT =
   'github-pull-request/update-branch' as const;
 
@@ -107,21 +104,6 @@ export const EFFECT_ADAPTER_CAPABILITIES = [
     reservation_release: {
       kind: 'forbidden',
       reason: 'no trusted Kubernetes pre-dispatch evidence boundary is admitted',
-    },
-  },
-  {
-    schema: EFFECT_ADAPTER_CAPABILITIES_SCHEMA,
-    effect_contract: GITHUB_PULL_REQUEST_PUBLICATION_EFFECT,
-    postcondition_verifier: 'github-pull-request-published/v1',
-    duplicate_delivery: 'may-duplicate',
-    replay: {
-      kind: 'forbidden',
-      reason:
-        'ambiguous pull-request creation must reconcile from authoritative GitHub readback before any retry',
-    },
-    reservation_release: {
-      kind: 'forbidden',
-      reason: 'no trusted pre-dispatch release boundary is admitted for pull-request publication',
     },
   },
   {
