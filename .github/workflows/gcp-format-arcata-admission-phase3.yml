@@ -1,0 +1,266 @@
+name: GCP format Arcata admission phase3
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-format-arcata-admission-phase3.yml
+      - .overcenter/gcp-format-admission-phase3.trigger
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-format-arcata-admission-phase3
+  cancel-in-progress: false
+
+jobs:
+  format-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+      ARCATA_REPOSITORY: laurajoyhutchins/arcata
+      ARCATA_BRANCH: refactor/vendor-admission-phase3
+      EXPECTED_HEAD: 4f40715c4a627c402c427eef4947ed42d9b0da23
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Format and verify exact Arcata candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/cloudbuild-format-admission.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 900s
+          steps:
+            - id: github-token
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+                - REPOSITORY=${_REPOSITORY}
+                - BRANCH=${_BRANCH}
+                - EXPECTED_HEAD=${_EXPECTED_HEAD}
+              args:
+                - -e
+                - |
+                  const crypto = require("crypto");
+                  const fs = require("fs");
+                  const repo = process.env.REPOSITORY;
+                  const branch = process.env.BRANCH;
+                  const expected = process.env.EXPECTED_HEAD;
+                  const b64 = value => Buffer.from(JSON.stringify(value)).toString("base64url");
+                  const now = Math.floor(Date.now() / 1000);
+                  const unsigned = b64({alg:"RS256",typ:"JWT"}) + "." + b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const sig = crypto.sign("RSA-SHA256", Buffer.from(unsigned), process.env.GITHUB_APP_PRIVATE_KEY).toString("base64url");
+                  const jwt = unsigned + "." + sig;
+                  const h = token => ({
+                    Accept:"application/vnd.github+json",
+                    Authorization:"Bearer " + token,
+                    "X-GitHub-Api-Version":"2026-03-10",
+                    "User-Agent":"overcenter-gcp-format-admission",
+                  });
+                  async function json(response, label) {
+                    const text = await response.text();
+                    if (!response.ok) throw new Error(label + " HTTP " + response.status + ": " + text.slice(0,300));
+                    return text ? JSON.parse(text) : null;
+                  }
+                  async function main() {
+                    const installation = await json(
+                      await fetch("https://api.github.com/repos/" + repo + "/installation", {headers:h(jwt)}),
+                      "installation lookup",
+                    );
+                    const access = await json(
+                      await fetch("https://api.github.com/app/installations/" + installation.id + "/access_tokens", {
+                        method:"POST",
+                        headers:{...h(jwt),"Content-Type":"application/json"},
+                        body:JSON.stringify({permissions:{contents:"write"}}),
+                      }),
+                      "installation token",
+                    );
+                    const token = access.token;
+                    const ref = await json(
+                      await fetch(
+                        "https://api.github.com/repos/" + repo + "/git/ref/heads/" +
+                          branch.split("/").map(encodeURIComponent).join("/"),
+                        {headers:h(token)},
+                      ),
+                      "branch ref",
+                    );
+                    if (ref.object.sha !== expected) throw new Error("exact-head lease mismatch");
+                    fs.writeFileSync("/workspace/github-token", token, {mode:0o600});
+                  }
+                  main().catch(error => {
+                    console.error(String(error && error.message || error));
+                    process.exit(1);
+                  });
+
+            - id: format-verify-publish
+              name: python:3.13-bookworm
+              entrypoint: bash
+              env:
+                - REPOSITORY=${_REPOSITORY}
+                - BRANCH=${_BRANCH}
+                - EXPECTED_HEAD=${_EXPECTED_HEAD}
+              args:
+                - -ceu
+                - |
+                  apt-get update -qq
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git
+                  python - <<'PY'
+                  import base64
+                  import os
+                  import subprocess
+                  import sys
+                  from pathlib import Path
+
+                  repo = os.environ["REPOSITORY"]
+                  branch = os.environ["BRANCH"]
+                  expected = os.environ["EXPECTED_HEAD"]
+                  token = Path("/workspace/github-token").read_text(encoding="utf-8")
+                  auth = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+                  root = Path("/workspace/source")
+                  root.mkdir(parents=True, exist_ok=True)
+
+                  def run(args, *, check=True, capture=False):
+                      return subprocess.run(
+                          args,
+                          cwd=root,
+                          check=check,
+                          text=True,
+                          stdout=subprocess.PIPE if capture else None,
+                          stderr=subprocess.STDOUT if capture else None,
+                      )
+
+                  run(["git", "init", "-q"])
+                  run(["git", "remote", "add", "origin", f"https://github.com/{repo}.git"])
+                  run([
+                      "git", "-c",
+                      f"http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}",
+                      "fetch", "--no-tags", "origin",
+                      f"refs/heads/{branch}:refs/remotes/origin/candidate",
+                  ])
+                  actual = run(["git", "rev-parse", "refs/remotes/origin/candidate"], capture=True).stdout.strip()
+                  if actual != expected:
+                      raise SystemExit("candidate moved before formatting")
+                  run(["git", "checkout", "-q", "--detach", expected])
+
+                  requirements = root / ".verification-tools.txt"
+                  with requirements.open("w", encoding="utf-8") as handle:
+                      subprocess.run(
+                          [sys.executable, "tools/verification_tools.py", "requirements"],
+                          cwd=root,
+                          check=True,
+                          text=True,
+                          stdout=handle,
+                      )
+                  venv = Path("/workspace/verification-tools")
+                  subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
+                  pip = venv / "bin" / "python"
+                  subprocess.run([
+                      str(pip), "-m", "pip", "install",
+                      "--disable-pip-version-check", "--no-input", "--no-compile",
+                      "--only-binary=:all:", "--no-deps", "--require-hashes",
+                      "--requirement", str(requirements),
+                  ], cwd=root, check=True)
+                  subprocess.run([str(pip), "-m", "pip", "check"], cwd=root, check=True)
+                  ruff = venv / "bin" / "ruff"
+
+                  subprocess.run([str(ruff), "format", "."], cwd=root, check=True)
+                  changed = run(["git", "diff", "--name-only"], capture=True).stdout.splitlines()
+                  allowed = {
+                      "packages/ieee1584/src/ieee1584/__init__.py",
+                      "packages/ieee1584/src/ieee1584/current_limiting.py",
+                      "packages/ieee1584/src/ieee1584/ingestion.py",
+                      "packages/ieee1584/src/ieee1584/protection.py",
+                      "packages/ieee1584/src/ieee1584/sqlite_tcc.py",
+                      "packages/ieee1584/src/ieee1584/staged.py",
+                      "packages/ieee1584/src/ieee1584/study.py",
+                      "packages/ieee1584/src/ieee1584/vendors/__init__.py",
+                      "packages/ieee1584/src/ieee1584/vendors/eaton.py",
+                      "packages/ieee1584/src/ieee1584/vendors/eaton_bussmann.py",
+                      "packages/ieee1584/src/ieee1584/vendors/eaton_pxr.py",
+                      "packages/ieee1584/src/ieee1584/vendors/schneider.py",
+                      "packages/ieee1584/tests/test_eaton.py",
+                      "packages/ieee1584/tests/test_eaton_bussmann.py",
+                      "packages/ieee1584/tests/test_eaton_pxr_pipeline.py",
+                      "packages/ieee1584/tests/test_ingestion.py",
+                      "packages/ieee1584/tests/test_protection.py",
+                      "packages/ieee1584/tests/test_schneider.py",
+                      "packages/ieee1584/tests/test_sqlite_tcc.py",
+                      "packages/ieee1584/tests/test_staged.py",
+                      "packages/ieee1584/tests/test_study.py",
+                  }
+                  if not changed:
+                      raise SystemExit("formatter produced no diff despite prior format failure")
+                  unexpected = sorted(set(changed) - allowed)
+                  if unexpected:
+                      raise SystemExit(f"formatter touched unexpected paths: {unexpected}")
+                  print("OVERCENTER_FORMATTED_PATHS=" + ",".join(changed))
+
+                  subprocess.run([str(ruff), "format", "--check", "."], cwd=root, check=True)
+                  subprocess.run([str(ruff), "check", "."], cwd=root, check=True)
+                  subprocess.run([str(pip), "-m", "mypy"], cwd=root, check=True)
+                  subprocess.run([sys.executable, "tools/test_all.py"], cwd=root, check=True)
+
+                  run(["git", "config", "user.name", "Overcenter GCP Formatter"])
+                  run(["git", "config", "user.email", "noreply@users.noreply.github.com"])
+                  run(["git", "add", "--", *changed])
+                  run(["git", "commit", "-m", "Format phase 3 admission candidate"])
+                  new_head = run(["git", "rev-parse", "HEAD"], capture=True).stdout.strip()
+                  run([
+                      "git", "-c",
+                      f"http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}",
+                      "push", "origin", f"{new_head}:refs/heads/{branch}",
+                      f"--force-with-lease=refs/heads/{branch}:{expected}",
+                  ])
+                  print(f"OVERCENTER_FORMATTED_HEAD={new_head}")
+                  PY
+
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: NONE
+          YAML
+
+          build_id="$(
+            gcloud builds submit               --async               --no-source               --project="$PROJECT_ID"               --region="$REGION"               --config="$config"               --substitutions="_REPOSITORY=$ARCATA_REPOSITORY,_BRANCH=$ARCATA_BRANCH,_EXPECTED_HEAD=$EXPECTED_HEAD"               --format='value(id)'
+          )"
+
+          status=""
+          for _ in $(seq 1 450); do
+            status="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)')"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
+            esac
+            sleep 2
+          done
+          echo "Cloud Build: $build_id" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Status: $status" | tee -a "$GITHUB_STEP_SUMMARY"
+          gcloud builds describe "$build_id"             --project="$PROJECT_ID"             --region="$REGION"             --format="table(steps.id,steps.status)" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$status" = SUCCESS
