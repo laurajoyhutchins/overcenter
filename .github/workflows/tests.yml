@@ -27,7 +27,7 @@ permissions:
 jobs:
   evidence:
     name: Candidate evidence
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.expensive && '["ubuntu-24.04"]' || '["self-hosted","overcenter-gcp"]') }}
     timeout-minutes: 20
     env:
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
