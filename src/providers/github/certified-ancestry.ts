@@ -1,14 +1,5 @@
-import {
-  GITHUB_API_VERSION,
-  GITHUB_OPENAPI_SHA256,
-  GITHUB_OPENAPI_SOURCE_COMMIT,
-} from './contract.ts';
-import { GITHUB_COMPARE_COMMITS_OPERATION } from './operations.generated.ts';
-import { materializeGitHubOperationRequest } from './openapi.ts';
-import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
-import { GITHUB_COMPARE_COMMITS_RESPONSE_SLICE } from './semantics.ts';
+import { observeGitHubSemanticSlice } from './certified-read.ts';
 import { isGitHubObjectId, sameGitHubObjectId, type GitHubJsonGet } from './rest.ts';
-import { githubRepositoryCoordinate } from './certified-repository.ts';
 
 export interface CertifiedGitHubCommitAncestryEvidence {
   provider: 'github';
@@ -55,22 +46,18 @@ export function observeCertifiedGitHubCommitAncestry(
   if (!isGitHubObjectId(ancestorSha) || !isGitHubObjectId(descendantSha)) {
     throw new Error('GITHUB_COMMIT_ANCESTRY_SHA_INVALID');
   }
-  const { owner, repo } = githubRepositoryCoordinate(repositoryFullName);
-  const request = materializeGitHubOperationRequest(GITHUB_COMPARE_COMMITS_OPERATION, {
-    owner,
-    repo,
-    basehead: `${ancestorSha}...${descendantSha}`,
-  });
-  const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
-    token,
-    operation: GITHUB_COMPARE_COMMITS_OPERATION,
-    request,
-    fields: GITHUB_COMPARE_COMMITS_RESPONSE_SLICE,
+  const read = observeGitHubSemanticSlice(token, {
+    repositoryFullName,
+    operation: 'compare_commits',
+    parameters: { basehead: `${ancestorSha}...${descendantSha}` },
     get,
     clock,
     observerId: 'github-pull-request-branch-updated/v1',
   });
-  const value = certified.outcome.value as {
+  if (read.state !== 'observed') {
+    throw new Error('GITHUB_COMMIT_ANCESTRY_UNEXPECTED_COLLECTION_OBSERVATION');
+  }
+  const value = read.value as {
     status: 'ahead' | 'behind' | 'diverged' | 'identical';
     ahead_by: number;
     behind_by: number;
@@ -98,15 +85,15 @@ export function observeCertifiedGitHubCommitAncestry(
   return {
     state: relation,
     evidence: {
-      provider: 'github',
-      api_version: GITHUB_API_VERSION,
-      schema_sha256: GITHUB_OPENAPI_SHA256,
-      schema_source_commit: GITHUB_OPENAPI_SOURCE_COMMIT,
+      provider: read.evidence.provider,
+      api_version: read.evidence.api_version,
+      schema_sha256: read.evidence.schema_sha256,
+      schema_source_commit: read.evidence.schema_source_commit,
       observer: { kind: 'git-kernel', id: 'github-pull-request-branch-updated/v1' },
       operation_id: 'repos/compare-commits',
-      observed_at: observedAt,
+      observed_at: read.evidence.observed_at,
       requested_repository_full_name: repositoryFullName,
-      request_path: request.path,
+      request_path: read.evidence.request_path,
       ancestor_sha: ancestorSha,
       descendant_sha: descendantSha,
       status: value.status,
@@ -114,8 +101,8 @@ export function observeCertifiedGitHubCommitAncestry(
       behind_by: value.behind_by,
       merge_base_sha: value.merge_base_commit.sha,
       relation,
-      validated_paths: certified.structural_validation.validated_paths,
-      optional_absent_paths: certified.structural_validation.optional_absent_paths,
+      validated_paths: read.evidence.validated_paths,
+      optional_absent_paths: read.evidence.optional_absent_paths,
     },
   };
 }

@@ -299,3 +299,30 @@ test('generic read fails closed before provider access when credential permissio
   if (result.state !== 'indeterminate') return;
   assert.equal(result.observation_error, 'GITHUB_SEMANTIC_READ_PERMISSION_NOT_GRANTED:issues:read');
 });
+
+test('scalar compare semantics stay complete even when the transport operation paginates files', () => {
+  const descendant = 'b'.repeat(40);
+  const result = observeCertifiedGitHubSemanticRead('token', {
+    repositoryId: 42,
+    repositoryFullName: 'acme/widget',
+    operation: 'compare_commits',
+    grantedPermissions: ['contents:read'],
+    parameters: { basehead: `${SHA}...${descendant}` },
+    get: (_token, path) => {
+      if (path === '/repos/acme/widget') return repository();
+      assert.equal(path, `/repos/acme/widget/compare/${SHA}...${descendant}`);
+      return {
+        status: 'ahead',
+        ahead_by: 1,
+        behind_by: 0,
+        base_commit: { sha: SHA },
+        merge_base_commit: { sha: SHA },
+      };
+    },
+  });
+
+  assert.equal(result.state, 'observed');
+  if (result.state !== 'observed') return;
+  assert.equal(result.evidence.collection, null);
+  assert.equal(result.evidence.operation_id, 'repos/compare-commits');
+});

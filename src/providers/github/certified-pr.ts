@@ -1,16 +1,8 @@
-import {
-  GITHUB_API_VERSION,
-  GITHUB_OPENAPI_SHA256,
-  GITHUB_OPENAPI_SOURCE_COMMIT,
-} from './contract.ts';
-import { GITHUB_PULL_REQUEST_OPERATION } from './operations.generated.ts';
-import { materializeGitHubOperationRequest } from './openapi.ts';
-import { GITHUB_PULL_REQUEST_RESPONSE_SLICE } from './semantics.ts';
+import { observeGitHubSemanticSlice } from './certified-read.ts';
 import {
   observeCertifiedGitHubRepository,
   type CertifiedGitHubRepositoryEvidence,
 } from './certified-repository.ts';
-import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
 import {
   GitHubAsyncReadRequired,
   githubGet,
@@ -90,11 +82,8 @@ export function observeCertifiedGitHubPullRequestIdentity(
     clock?: () => string;
   },
 ): CertifiedGitHubPullRequestIdentityResult {
-  if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) {
-    throw new Error('GITHUB_PR_NUMBER_INVALID');
-  }
+  if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) throw new Error('GITHUB_PR_NUMBER_INVALID');
   validateExpected(expected);
-
   try {
     const repository = observeCertifiedGitHubRepository(token, {
       repositoryId,
@@ -103,22 +92,16 @@ export function observeCertifiedGitHubPullRequestIdentity(
       clock,
       observerId: 'github-pr-identity/v1',
     });
-    const { owner, repo } = repository.fact.object;
-    const request = materializeGitHubOperationRequest(GITHUB_PULL_REQUEST_OPERATION, {
-      owner,
-      repo,
-      pull_number: pullNumber,
-    });
-    const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
-      token,
-      operation: GITHUB_PULL_REQUEST_OPERATION,
-      request,
-      fields: GITHUB_PULL_REQUEST_RESPONSE_SLICE,
+    const read = observeGitHubSemanticSlice(token, {
+      repositoryFullName: repository.fact.object.full_name,
+      operation: 'pull_request',
+      parameters: { pull_number: pullNumber },
       get,
       clock,
       observerId: 'github-pr-identity/v1',
     });
-    const value = certified.outcome.value as {
+    if (read.state !== 'observed') throw new Error('GITHUB_PR_UNEXPECTED_COLLECTION_OBSERVATION');
+    const value = read.value as {
       id: number;
       node_id: string;
       number: number;
@@ -132,7 +115,6 @@ export function observeCertifiedGitHubPullRequestIdentity(
     if (!isGitHubObjectId(value.head.sha) || !isGitHubObjectId(value.base.sha)) {
       throw new Error('GITHUB_PR_REVISION_INVALID');
     }
-
     const actual = {
       id: value.id,
       node_id: value.node_id,
@@ -147,18 +129,17 @@ export function observeCertifiedGitHubPullRequestIdentity(
     if (!sameGitHubObjectId(actual.head_sha, expected.head_sha)) differences.push('head_sha');
     if (actual.base_ref !== expected.base_ref) differences.push('base_ref');
     if (!sameGitHubObjectId(actual.base_sha, expected.base_sha)) differences.push('base_sha');
-
     const evidence: CertifiedGitHubPullRequestEvidence = {
-      provider: 'github',
-      api_version: GITHUB_API_VERSION,
-      schema_sha256: GITHUB_OPENAPI_SHA256,
-      schema_source_commit: GITHUB_OPENAPI_SOURCE_COMMIT,
+      provider: read.evidence.provider,
+      api_version: read.evidence.api_version,
+      schema_sha256: read.evidence.schema_sha256,
+      schema_source_commit: read.evidence.schema_source_commit,
       observer: { kind: 'git-kernel', id: 'github-pr-identity/v1' },
       repository_id: repositoryId,
       requested_repository_full_name: repositoryFullName,
       repository: repository.evidence,
       operation_id: 'pulls/get',
-      observed_at: observedAt,
+      observed_at: read.evidence.observed_at,
       pull_number: pullNumber,
       pull_id: value.id,
       node_id: value.node_id,
@@ -166,10 +147,9 @@ export function observeCertifiedGitHubPullRequestIdentity(
       head_sha: value.head.sha,
       base_ref: value.base.ref,
       base_sha: value.base.sha,
-      validated_paths: certified.structural_validation.validated_paths,
-      optional_absent_paths: certified.structural_validation.optional_absent_paths,
+      validated_paths: read.evidence.validated_paths,
+      optional_absent_paths: read.evidence.optional_absent_paths,
     };
-
     return {
       state: differences.length === 0 ? 'CURRENT' : 'STALE',
       reason:

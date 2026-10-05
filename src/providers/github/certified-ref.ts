@@ -1,16 +1,8 @@
-import {
-  GITHUB_API_VERSION,
-  GITHUB_OPENAPI_SHA256,
-  GITHUB_OPENAPI_SOURCE_COMMIT,
-} from './contract.ts';
-import { GITHUB_REF_OPERATION } from './operations.generated.ts';
-import { materializeGitHubOperationRequest } from './openapi.ts';
-import { GITHUB_REF_RESPONSE_SLICE } from './semantics.ts';
+import { observeGitHubSemanticSlice } from './certified-read.ts';
 import {
   observeCertifiedGitHubRepository,
   type CertifiedGitHubRepositoryEvidence,
 } from './certified-repository.ts';
-import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
 import { githubGet, isGitHubObjectId, sameGitHubObjectId, type GitHubJsonGet } from './rest.ts';
 
 export interface CertifiedGitHubRefEvidence {
@@ -74,7 +66,6 @@ export function observeCertifiedGitHubRefFence(
   if (!isGitHubObjectId(expectedSha)) throw new Error('GITHUB_REF_EXPECTED_SHA_INVALID');
   const canonicalRef = canonicalGitHubRef(ref);
   const requestedRef = apiRef(canonicalRef);
-
   try {
     const repository = observeCertifiedGitHubRepository(token, {
       repositoryId,
@@ -83,52 +74,39 @@ export function observeCertifiedGitHubRefFence(
       clock,
       observerId: 'github-ref-fence/v1',
     });
-    const { owner, repo } = repository.fact.object;
-    const request = materializeGitHubOperationRequest(GITHUB_REF_OPERATION, {
-      owner,
-      repo,
-      ref: requestedRef,
-    });
-    const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
-      token,
-      operation: GITHUB_REF_OPERATION,
-      request,
-      fields: GITHUB_REF_RESPONSE_SLICE,
+    const read = observeGitHubSemanticSlice(token, {
+      repositoryFullName: repository.fact.object.full_name,
+      operation: 'ref',
+      parameters: { ref: requestedRef },
       get,
       clock,
       observerId: 'github-ref-fence/v1',
     });
-    const value = certified.outcome.value as {
-      ref: string;
-      object: { type: string; sha: string };
-    };
-    if (!['commit', 'tag'].includes(value.object.type)) {
-      throw new Error('GITHUB_REF_OBJECT_TYPE_INVALID');
-    }
+    if (read.state !== 'observed') throw new Error('GITHUB_REF_UNEXPECTED_COLLECTION_OBSERVATION');
+    const value = read.value as { ref: string; object: { type: string; sha: string } };
+    if (!['commit', 'tag'].includes(value.object.type)) throw new Error('GITHUB_REF_OBJECT_TYPE_INVALID');
     if (!isGitHubObjectId(value.object.sha)) throw new Error('GITHUB_REF_OBJECT_SHA_INVALID');
     if (canonicalGitHubRef(value.ref) !== canonicalRef) {
       throw new Error('GITHUB_REF_RESPONSE_COORDINATE_MISMATCH');
     }
-
     const evidence: CertifiedGitHubRefEvidence = {
-      provider: 'github',
-      api_version: GITHUB_API_VERSION,
-      schema_sha256: GITHUB_OPENAPI_SHA256,
-      schema_source_commit: GITHUB_OPENAPI_SOURCE_COMMIT,
+      provider: read.evidence.provider,
+      api_version: read.evidence.api_version,
+      schema_sha256: read.evidence.schema_sha256,
+      schema_source_commit: read.evidence.schema_source_commit,
       observer: { kind: 'git-kernel', id: 'github-ref-fence/v1' },
       repository_id: repositoryId,
       requested_repository_full_name: repositoryFullName,
       repository: repository.evidence,
       operation_id: 'git/get-ref',
-      observed_at: observedAt,
+      observed_at: read.evidence.observed_at,
       requested_ref: requestedRef,
       canonical_ref: canonicalRef,
       object_kind: value.object.type === 'commit' ? 'github.commit' : 'github.tag',
       actual_sha: value.object.sha,
-      validated_paths: certified.structural_validation.validated_paths,
-      optional_absent_paths: certified.structural_validation.optional_absent_paths,
+      validated_paths: read.evidence.validated_paths,
+      optional_absent_paths: read.evidence.optional_absent_paths,
     };
-
     const current = sameGitHubObjectId(value.object.sha, expectedSha);
     return {
       state: current ? 'CURRENT' : 'STALE',
