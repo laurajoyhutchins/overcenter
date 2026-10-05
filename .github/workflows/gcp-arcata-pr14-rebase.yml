@@ -67,10 +67,10 @@ jobs:
                 - GITHUB_APP_PRIVATE_KEY
               env:
                 - GITHUB_APP_ID=4616688
-                - REPOSITORY=$${"_REPOSITORY"}
-                - BRANCH=$${"_BRANCH"}
-                - EXPECTED_OLD_HEAD=$${"_EXPECTED_OLD_HEAD"}
-                - EXPECTED_MAIN=$${"_EXPECTED_MAIN"}
+                - REPOSITORY=${_REPOSITORY}
+                - BRANCH=${_BRANCH}
+                - EXPECTED_OLD_HEAD=${_EXPECTED_OLD_HEAD}
+                - EXPECTED_MAIN=${_EXPECTED_MAIN}
               args:
                 - -e
                 - |
@@ -156,10 +156,10 @@ jobs:
               name: ubuntu:24.04
               entrypoint: bash
               env:
-                - REPOSITORY=$${"_REPOSITORY"}
-                - BRANCH=$${"_BRANCH"}
-                - EXPECTED_OLD_HEAD=$${"_EXPECTED_OLD_HEAD"}
-                - EXPECTED_MAIN=$${"_EXPECTED_MAIN"}
+                - REPOSITORY=${_REPOSITORY}
+                - BRANCH=${_BRANCH}
+                - EXPECTED_OLD_HEAD=${_EXPECTED_OLD_HEAD}
+                - EXPECTED_MAIN=${_EXPECTED_MAIN}
               args:
                 - -ceu
                 - |
@@ -237,9 +237,9 @@ jobs:
               name: ubuntu:24.04
               entrypoint: bash
               env:
-                - REPOSITORY=$${"_REPOSITORY"}
-                - BRANCH=$${"_BRANCH"}
-                - EXPECTED_OLD_HEAD=$${"_EXPECTED_OLD_HEAD"}
+                - REPOSITORY=${_REPOSITORY}
+                - BRANCH=${_BRANCH}
+                - EXPECTED_OLD_HEAD=${_EXPECTED_OLD_HEAD}
               args:
                 - -ceu
                 - |
