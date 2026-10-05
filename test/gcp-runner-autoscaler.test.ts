@@ -112,3 +112,12 @@ test('runner image pins rustup bootstrap for repository verification', () => {
   assert.match(dockerfile, /--default-toolchain none/);
   assert.doesNotMatch(dockerfile, /docker\.sock|--privileged/);
 });
+
+test('deployment lane keeps only the latest exact substrate revision', () => {
+  const workflow = readFileSync(
+    new URL('../.github/workflows/gcp-runner-autoscaler-deploy.yml', import.meta.url),
+    'utf8',
+  );
+  assert.match(workflow, /group: deploy-gcp-runner-autoscaler/);
+  assert.match(workflow, /cancel-in-progress: true/);
+});
