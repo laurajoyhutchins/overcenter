@@ -18,7 +18,85 @@ import {
 } from '../src/source/transaction.ts';
 import { baselineSourceTransactionPlan } from '../src/source/transaction-baseline.ts';
 import { observeRepositoryDelta } from '../src/source/repository-delta.ts';
+import { verifyGitHubSourceProofObservation } from '../src/source/github-source-proof-observation.ts';
 import { readSourceVerificationProfile } from '../src/source/source-verification-profile.ts';
+
+test('GitHub source proof observation boundary fails closed on incomplete or ambiguous evidence', () => {
+  const expected = {
+    repository_id: 42,
+    repository_full_name: 'acme/widget',
+    workflow_path: '.github/workflows/agent-candidate-signal.yml',
+    workflow_run_id: 123,
+    workflow_run_attempt: 2,
+    candidate_sha: 'a'.repeat(40),
+    candidate_branch: 'overcenter/candidate/source-run',
+    required_evidence_jobs: ['Verify source candidate / Candidate evidence'],
+    record_job: 'Record source verification',
+    record_job_id: 11,
+    rejected: false,
+  };
+  const run = {
+    id: 123,
+    path: expected.workflow_path,
+    run_attempt: 2,
+    head_sha: expected.candidate_sha,
+    head_branch: expected.candidate_branch,
+    event: 'workflow_dispatch',
+    status: 'completed',
+    conclusion: 'success',
+    repository: { id: 42 },
+    head_repository: { id: 42 },
+  };
+  const evidenceJob = {
+    id: 10,
+    status: 'completed',
+    run_id: 123,
+    head_sha: expected.candidate_sha,
+    name: expected.required_evidence_jobs[0],
+    conclusion: 'success',
+  };
+  const recordJob = {
+    id: 11,
+    status: 'completed',
+    run_id: 123,
+    head_sha: expected.candidate_sha,
+    name: expected.record_job,
+    conclusion: 'success',
+  };
+  const read = (jobs: unknown) => (_token: string, path: string): unknown =>
+    path.endsWith('/actions/runs/123') ? run : jobs;
+
+  assert.doesNotThrow(() =>
+    verifyGitHubSourceProofObservation('fixture', expected, read({ jobs: [evidenceJob, recordJob] })),
+  );
+  assert.throws(
+    () =>
+      verifyGitHubSourceProofObservation(
+        'fixture',
+        expected,
+        read({ jobs: [evidenceJob, { ...evidenceJob, id: 12 }, recordJob] }),
+      ),
+    /SOURCE_PROOF_JOB_INVALID/,
+  );
+  assert.throws(
+    () =>
+      verifyGitHubSourceProofObservation(
+        'fixture',
+        expected,
+        read({ jobs: Array.from({ length: 100 }, (_, index) => ({ ...evidenceJob, id: index + 1 })) }),
+      ),
+    /SOURCE_PROOF_JOBS_INCOMPLETE/,
+  );
+  assert.throws(
+    () =>
+      verifyGitHubSourceProofObservation(
+        'fixture',
+        { ...expected, record_job_id: 99 },
+        read({ jobs: [evidenceJob, recordJob] }),
+      ),
+    /SOURCE_PROOF_JOB_INVALID/,
+  );
+});
 
 test('source proof admission binds provider jobs to reconstructed plan and trusted baseline', (t) => {
   const repo = mkdtempSync(join(tmpdir(), 'overcenter-source-proof-'));
