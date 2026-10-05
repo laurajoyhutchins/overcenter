@@ -143,8 +143,7 @@ test('rejects a false authoritative tree claim', () => {
   const f = fixture();
   try {
     assert.throws(
-      () =>
-        verifyPrivateSourceCapsule({ ...f.manifest, tree_sha: 'f'.repeat(40) }, f.cache),
+      () => verifyPrivateSourceCapsule({ ...f.manifest, tree_sha: 'f'.repeat(40) }, f.cache),
       /PRIVATE_SOURCE_TREE_MISMATCH/,
     );
   } finally {
@@ -159,9 +158,7 @@ test('rejects unsafe paths, unsupported modes, duplicates, and symbolic revision
       { ...f.manifest.entries[0], path: '../escape' },
       { ...f.manifest.entries[0], mode: '120000' },
     ]) {
-      assert.throws(() =>
-        verifyPrivateSourceCapsule({ ...f.manifest, entries: [entry] }, f.cache),
-      );
+      assert.throws(() => verifyPrivateSourceCapsule({ ...f.manifest, entries: [entry] }, f.cache));
     }
 
     assert.throws(() =>
@@ -173,9 +170,7 @@ test('rejects unsafe paths, unsupported modes, duplicates, and symbolic revision
         f.cache,
       ),
     );
-    assert.throws(() =>
-      verifyPrivateSourceCapsule({ ...f.manifest, revision: 'main' }, f.cache),
-    );
+    assert.throws(() => verifyPrivateSourceCapsule({ ...f.manifest, revision: 'main' }, f.cache));
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
