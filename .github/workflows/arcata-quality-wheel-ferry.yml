@@ -1,0 +1,22 @@
+name: Arcata quality wheel ferry
+on:
+  push:
+    branches:
+      - tooling/arcata-quality-wheels
+jobs:
+  ferry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Download exact quality wheels
+        run: |
+          mkdir wheels
+          python -m pip download --only-binary=:all: --dest wheels "ruff==0.13.2" "mypy==1.18.2"
+          sha256sum wheels/* | sort > wheels/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arcata-quality-wheels
+          path: wheels
+          retention-days: 1
