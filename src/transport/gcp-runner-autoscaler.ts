@@ -284,20 +284,28 @@ async function queuedRunnerJobs(
 ): Promise<WorkflowJob[]> {
   const runIds = new Set<number>();
   for (const status of ['queued', 'in_progress']) {
-    const body = await githubJson(
-      `/repos/${repository.full_name}/actions/runs?status=${status}&per_page=20`,
-      token,
-    );
-    for (const run of parseRuns(body)) runIds.add(run.id);
+    for (let page = 1; ; page += 1) {
+      const body = await githubJson(
+        `/repos/${repository.full_name}/actions/runs?status=${status}&per_page=100&page=${page}`,
+        token,
+      );
+      const runs = parseRuns(body);
+      for (const run of runs) runIds.add(run.id);
+      if (runs.length < 100) break;
+    }
   }
 
   const jobs: WorkflowJob[] = [];
   for (const runId of runIds) {
-    const body = await githubJson(
-      `/repos/${repository.full_name}/actions/runs/${runId}/jobs?filter=latest&per_page=100`,
-      token,
-    );
-    jobs.push(...parseJobs(body).filter((job) => isEligibleRunnerJob(job, runnerLabel)));
+    for (let page = 1; ; page += 1) {
+      const body = await githubJson(
+        `/repos/${repository.full_name}/actions/runs/${runId}/jobs?filter=latest&per_page=100&page=${page}`,
+        token,
+      );
+      const pageJobs = parseJobs(body);
+      jobs.push(...pageJobs.filter((job) => isEligibleRunnerJob(job, runnerLabel)));
+      if (pageJobs.length < 100) break;
+    }
   }
   return jobs;
 }
