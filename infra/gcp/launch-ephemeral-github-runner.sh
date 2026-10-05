@@ -86,6 +86,21 @@ steps:
             }),
             "installation lookup",
           );
+          const installationPermissions =
+            installation && typeof installation.permissions === "object"
+              ? installation.permissions
+              : {};
+          if (String(installationPermissions.administration || "") !== "write") {
+            throw new Error(
+              "GitHub App installation lacks administration:write required for ephemeral runner registration",
+            );
+          }
+          if (!["read", "write"].includes(String(installationPermissions.actions || ""))) {
+            throw new Error(
+              "GitHub App installation lacks actions:read required to validate queued jobs",
+            );
+          }
+
           const access = await json(
             await fetch(
               "https://api.github.com/app/installations/" + installation.id + "/access_tokens",
