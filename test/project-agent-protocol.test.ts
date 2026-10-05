@@ -645,7 +645,7 @@ test('generic source proposal broker reproduces a worker revision tree exactly',
   }
 });
 
-test('project.submit integrates a verified source candidate and settles the source obligation', () => {
+test('project.submit refuses to publish a verified source candidate directly to main', () => {
   const f = fixture();
   try {
     const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
@@ -700,51 +700,31 @@ test('project.submit integrates a verified source candidate and settles the sour
       ),
     );
 
-    const settled = submitProjectCandidate(
-      f.work,
-      {
-        ...commandContext(transactionContext.runtime_sha, 9100),
-        candidate_sha: candidateSha,
-        candidate_run_id: acquired.run_id,
-        candidate_workflow_run_id: 123,
-        candidate_workflow_run_attempt: 1,
-      },
-      {
-        authorityRef: AUTHORITY_REF,
-        remote: 'origin',
-        sourceVerificationPath: verificationPath,
-        githubToken: 'fixture',
-        transactionContext,
-        observationContext: { githubGet: sourceProofProvider(candidateSha, acquired.run_id) },
-      },
+    const remoteMainBefore = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
+    assert.throws(
+      () =>
+        submitProjectCandidate(
+          f.work,
+          {
+            ...commandContext(transactionContext.runtime_sha, 9100),
+            candidate_sha: candidateSha,
+            candidate_run_id: acquired.run_id,
+            candidate_workflow_run_id: 123,
+            candidate_workflow_run_attempt: 1,
+          },
+          {
+            authorityRef: AUTHORITY_REF,
+            remote: 'origin',
+            sourceVerificationPath: verificationPath,
+            githubToken: 'fixture',
+            transactionContext,
+            observationContext: { githubGet: sourceProofProvider(candidateSha, acquired.run_id) },
+          },
+        ),
+      /PROJECT_SUBMIT_SOURCE_PUBLICATION_REQUIRES_PR_EFFECT/,
     );
-
-    assert.equal(settled.disposition, 'DONE');
-    assert.equal(settled.verified, true);
-    assert.equal(settled.already_settled, false);
-    assert.match(settled.integration_commit ?? '', /^[0-9a-f]{40}$/);
-    const remoteMain = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
-    assert.equal(remoteMain, settled.integration_commit);
-    assert.equal(git(f.work, ['show', `${remoteMain}:src/feature.txt`]), 'feature:integrated');
-
-    const authoritative = new GitOvercenterKernel(f.work, {
-      remote: 'origin',
-      ref: AUTHORITY_REF,
-    });
-    assert.equal(authoritative.inspect()[0]?.status, 'DONE');
-
-    const replay = submitProjectCandidate(
-      f.work,
-      {
-        ...commandContext('f'.repeat(40), 9101),
-        candidate_sha: candidateSha,
-        candidate_run_id: acquired.run_id,
-      },
-      { authorityRef: AUTHORITY_REF, remote: 'origin' },
-    );
-    assert.equal(replay.disposition, 'DONE');
-    assert.equal(replay.already_settled, true);
-    assert.equal(replay.integration_commit, settled.integration_commit);
+    const remoteMainAfter = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
+    assert.equal(remoteMainAfter, remoteMainBefore);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
