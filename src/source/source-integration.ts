@@ -166,6 +166,10 @@ export function trustedSourceIntegrationEvidence(
   return structuredClone(evidence);
 }
 
+export function integrateVerifiedSourceCandidate(..._args: unknown[]): SourceIntegrationResult {
+  return { state: 'REJECTED', reason: 'SOURCE_DIRECT_MAIN_INTEGRATION_RETIRED' };
+}
+
 export function inspectSourceCandidate(
   repo: string,
   taskValue: unknown,
