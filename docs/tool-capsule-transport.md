@@ -2,10 +2,10 @@
 
 Tool capsule transport moves an already-authorized Python wheel closure across a network boundary without making dependency-selection decisions inside the transport.
 
-The request is the authority for what may be fetched. It binds the package closure to an exact source revision and lockfile Git blob, but v1 does **not** prove that the request was correctly derived from that lockfile. A caller that needs that claim must generate or verify the request against the exact lock before dispatch.
+The request is the authority for what may be fetched. It binds the package closure to an exact source revision and dependency-authority Git blob, but v1 does **not** prove that the request was correctly derived from that authority file. A caller that needs that claim must generate or verify the request against the exact authority file before dispatch.
 
 ```text
-exact project revision + lock authority
+exact project revision + dependency authority
               |
        derived request
   exact versions + allowed hashes
@@ -32,7 +32,7 @@ exact project revision + lock authority
 `tool-capsule/request/v1` contains:
 
 - exact source repository and 40-hex revision;
-- exact lockfile Git blob SHA;
+- repository-relative dependency-authority path and exact Git blob SHA;
 - Python major/minor and the supported `linux-x86-64` platform;
 - the complete package closure, with one exact version and one or more authorized SHA-256 wheel hashes for each normalized package name.
 
@@ -53,4 +53,4 @@ Offline consumers should verify the capsule digest before caching it by request 
 
 ## Non-claims
 
-The transport proves faithful realization of a declared exact package closure. It does not prove that the closure was derived correctly from a particular package manager lockfile, that PyPI metadata is trustworthy beyond the declared hashes, or that transported tools are semantically correct. Those are separate evidence obligations.
+The transport proves faithful realization of a declared exact package closure. It does not prove that the closure was derived correctly from a particular dependency-authority file, that PyPI metadata is trustworthy beyond the declared hashes, or that transported tools are semantically correct. Those are separate evidence obligations.
