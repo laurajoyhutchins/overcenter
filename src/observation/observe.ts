@@ -21,7 +21,8 @@ import {
   type GitHubJsonGet,
 } from '../providers/github/certified-status.ts';
 import { observeCertifiedGitHubPullRequestIdentity } from '../providers/github/certified-pr.ts';
-import { observeCertifiedGitHubPullRequestPublication } from '../providers/github/certified-pr-publication.ts';
+import { observeCertifiedGitHubSemanticRead } from '../providers/github/certified-read.ts';
+import { canonicalGitHubRef } from '../providers/github/certified-ref.ts';
 import { observeCertifiedGitHubCommitAncestry } from '../providers/github/certified-ancestry.ts';
 import {
   githubGet,
@@ -164,10 +165,10 @@ export function validatePostcondition(p: Postcondition): void {
     p.repository_id > 0 &&
     typeof p.repository_full_name === 'string' &&
     /^[^/]+\/[^/]+$/.test(p.repository_full_name) &&
-    typeof p.head_ref === 'string' &&
-    p.head_ref.startsWith('refs/heads/') &&
-    p.head_ref.length > 'refs/heads/'.length &&
-    isGitHubObjectId(p.expected_head_sha) &&
+    typeof p.ref === 'string' &&
+    p.ref.startsWith('refs/heads/') &&
+    p.ref.length > 'refs/heads/'.length &&
+    isGitHubObjectId(p.commit_sha) &&
     typeof p.base_ref === 'string' &&
     p.base_ref.length > 0 &&
     !p.base_ref.startsWith('refs/') &&
@@ -390,8 +391,8 @@ const githubPullRequestPublishedCommon = (p: GitHubPullRequestPublishedPostcondi
   provider: 'github' as const,
   repository_id: p.repository_id,
   repository_full_name: p.repository_full_name,
-  head_ref: p.head_ref,
-  expected_head_sha: p.expected_head_sha,
+  ref: p.ref,
+  commit_sha: p.commit_sha,
   base_ref: p.base_ref,
   expected_base_sha: p.expected_base_sha,
 });
@@ -411,30 +412,72 @@ function observeGitHubPullRequestPublished(
   get: GitHubJsonGet,
   clock?: () => string,
 ): Observation {
-  const result = observeCertifiedGitHubPullRequestPublication(token, {
+  const headRef = canonicalGitHubRef(p.ref);
+  const owner = p.repository_full_name.split('/')[0]!;
+  const read = observeCertifiedGitHubSemanticRead(token, {
     repositoryId: p.repository_id,
     repositoryFullName: p.repository_full_name,
-    headRef: p.head_ref,
-    expectedHeadSha: p.expected_head_sha,
-    baseRef: p.base_ref,
-    expectedBaseSha: p.expected_base_sha,
+    operation: 'pull_requests',
+    parameters: {
+      base: p.base_ref,
+      head: `${owner}:${headRef.slice('refs/heads/'.length)}`,
+      page: 1,
+      per_page: 30,
+      state: 'open',
+    },
+    grantedPermissions: ['pull_requests:read'],
     get,
     ...(clock ? { clock } : {}),
   });
-  if (result.state !== 'CURRENT') {
+  if (read.state === 'indeterminate' || !Array.isArray(read.value)) {
     return githubPullRequestPublishedError(
       p,
-      result.observation_error ?? result.reason,
+      read.state === 'indeterminate'
+        ? read.observation_error
+        : 'GITHUB_PR_PUBLICATION_COLLECTION_INVALID',
     );
   }
+  const matches = read.value.filter((value) => {
+    if (!data(value) || value.state !== 'open' || !data(value.head) || !data(value.base)) {
+      return false;
+    }
+    return (
+      isPositiveSafeInteger(value.number) &&
+      typeof value.node_id === 'string' &&
+      value.node_id.length > 0 &&
+      isGitHubObjectId(value.head.sha) &&
+      sameGitHubObjectId(value.head.sha, p.commit_sha) &&
+      value.base.ref === p.base_ref &&
+      isGitHubObjectId(value.base.sha) &&
+      sameGitHubObjectId(value.base.sha, p.expected_base_sha)
+    );
+  });
+  if (matches.length !== 1) {
+    return githubPullRequestPublishedError(
+      p,
+      matches.length === 0
+        ? 'GITHUB_PR_PUBLICATION_NOT_OBSERVED'
+        : 'GITHUB_PR_PUBLICATION_OBSERVATION_AMBIGUOUS',
+    );
+  }
+  const pull = matches[0]!;
   return {
     ...githubPullRequestPublishedCommon(p),
-    pull_number: result.pull_number,
-    pull_node_id: result.node_id,
-    actual_head_sha: result.head_sha,
-    actual_base_sha: result.base_sha,
+    pull_number: pull.number as number,
+    pull_node_id: pull.node_id as string,
+    actual_head_sha: (pull.head as Record<string, unknown>).sha as string,
     mutation_certainty: 'present',
-    provider_evidence: { pull_request: result.evidence },
+    provider_evidence: {
+      pull_request: {
+        ...read.evidence,
+        ref: headRef,
+        commit_sha: p.commit_sha,
+        base_ref: p.base_ref,
+        base_sha: p.expected_base_sha,
+        pull_number: pull.number,
+        node_id: pull.node_id,
+      },
+    },
   };
 }
 
@@ -443,36 +486,27 @@ function githubPullRequestPublishedEvidenceMatches(
   observed: Observation,
 ): boolean {
   if (
-    !Number.isSafeInteger(observed.pull_number) ||
-    Number(observed.pull_number) <= 0 ||
+    !isPositiveSafeInteger(observed.pull_number) ||
     typeof observed.pull_node_id !== 'string' ||
-    observed.pull_node_id.length === 0 ||
     typeof observed.actual_head_sha !== 'string' ||
-    typeof observed.actual_base_sha !== 'string' ||
     !isGitHubObjectId(observed.actual_head_sha) ||
-    !isGitHubObjectId(observed.actual_base_sha) ||
-    !sameGitHubObjectId(observed.actual_head_sha, p.expected_head_sha) ||
-    !sameGitHubObjectId(observed.actual_base_sha, p.expected_base_sha) ||
-    !data(observed.provider_evidence)
+    !sameGitHubObjectId(observed.actual_head_sha, p.commit_sha) ||
+    !data(observed.provider_evidence) ||
+    !data(observed.provider_evidence.pull_request)
   )
     return false;
-  const evidence = data(observed.provider_evidence.pull_request)
-    ? observed.provider_evidence.pull_request
-    : null;
+  const evidence = observed.provider_evidence.pull_request;
   return (
-    !!evidence &&
     evidence.provider === 'github' &&
     evidence.operation_id === 'pulls/list' &&
     evidence.repository_id === p.repository_id &&
     typeof evidence.requested_repository_full_name === 'string' &&
     evidence.requested_repository_full_name.toLowerCase() ===
       p.repository_full_name.toLowerCase() &&
-    evidence.head_ref === p.head_ref &&
-    typeof evidence.head_sha === 'string' &&
-    sameGitHubObjectId(evidence.head_sha, p.expected_head_sha) &&
+    evidence.ref === p.ref &&
+    evidence.commit_sha === p.commit_sha &&
     evidence.base_ref === p.base_ref &&
-    typeof evidence.base_sha === 'string' &&
-    sameGitHubObjectId(evidence.base_sha, p.expected_base_sha) &&
+    evidence.base_sha === p.expected_base_sha &&
     evidence.pull_number === observed.pull_number &&
     evidence.node_id === observed.pull_node_id
   );
@@ -868,8 +902,8 @@ function assertObservationCoordinate(postcondition: Postcondition, observed: Obs
       typeof observed.repository_full_name !== 'string' ||
       observed.repository_full_name.toLowerCase() !==
         postcondition.repository_full_name.toLowerCase() ||
-      observed.head_ref !== postcondition.head_ref ||
-      observed.expected_head_sha !== postcondition.expected_head_sha ||
+      observed.ref !== postcondition.ref ||
+      observed.commit_sha !== postcondition.commit_sha ||
       observed.base_ref !== postcondition.base_ref ||
       observed.expected_base_sha !== postcondition.expected_base_sha
     )
