@@ -53,8 +53,8 @@ export interface GitHubPullRequestPublishedPostcondition {
   provider: 'github';
   repository_id: number;
   repository_full_name: string;
-  head_ref: string;
-  expected_head_sha: string;
+  ref: string;
+  commit_sha: string;
   base_ref: string;
   expected_base_sha: string;
 }
