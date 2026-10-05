@@ -142,6 +142,16 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
     /evidence:\n\s+name: Candidate evidence/,
     'merge-gate evidence must share one full runner',
   );
+  assert.match(
+    evidenceWorkflow,
+    /runs-on: \$\{\{ fromJSON\(inputs\.expensive && '\["ubuntu-24\.04"\]' \|\| '\["self-hosted","overcenter-gcp"\]'\) \}\}/,
+    'cheap candidate evidence must use the GCP runner substrate while expensive proof stays hosted',
+  );
+  assert.match(
+    mergeGate,
+    /runs-on: \[self-hosted, overcenter-gcp\]/,
+    'merge-gate bookkeeping must not depend on GitHub-hosted capacity',
+  );
   for (const command of [
     'npm run proof:formal',
     'npm run proof:production-boundary',
