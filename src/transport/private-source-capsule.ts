@@ -42,11 +42,7 @@ function exactKeys(v: JsonObject, expected: readonly string[]): boolean {
 }
 
 function safeRepository(v: unknown): v is string {
-  return (
-    typeof v === 'string' &&
-    /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(v) &&
-    !v.includes('..')
-  );
+  return typeof v === 'string' && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(v) && !v.includes('..');
 }
 
 function safePath(v: unknown): v is string {
@@ -144,8 +140,7 @@ function gitTreeSha(entries: PrivateSourceEntry[]): string {
 
   const encode = (node: Node): Buffer => {
     const items: Array<{ name: string; mode: string; sha: string }> = [];
-    for (const f of node.files)
-      items.push({ name: f.path, mode: f.mode, sha: f.blob_sha });
+    for (const f of node.files) items.push({ name: f.path, mode: f.mode, sha: f.blob_sha });
     for (const [name, child] of node.dirs)
       items.push({
         name,
