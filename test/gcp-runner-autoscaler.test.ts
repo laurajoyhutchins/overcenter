@@ -24,6 +24,11 @@ const validConfig = {
       repository_id: 1_402_666_660,
       owner_id: 219_002_713,
     },
+    {
+      full_name: 'laurajoyhutchins/azelficoast',
+      repository_id: 1_384_608_118,
+      owner_id: 219_002_713,
+    },
   ],
 };
 
@@ -33,6 +38,8 @@ test('autoscaler config preserves immutable repository identities', () => {
   assert.equal(parsed.dispatch.owner_id, 219_002_713);
   assert.equal(parsed.repositories[0]?.repository_id, 1_402_666_660);
   assert.equal(parsed.repositories[0]?.owner_id, 219_002_713);
+  assert.equal(parsed.repositories[1]?.repository_id, 1_384_608_118);
+  assert.equal(parsed.repositories[1]?.owner_id, 219_002_713);
 });
 
 test('autoscaler config rejects duplicate repository authorities', () => {
