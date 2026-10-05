@@ -165,6 +165,77 @@ jobs:
                 - |
                   echo 'c2V0IC1ldW8gcGlwZWZhaWwKYXB0LWdldCB1cGRhdGUgLXFxCkRFQklBTl9GUk9OVEVORD1ub25pbnRlcmFjdGl2ZSBhcHQtZ2V0IGluc3RhbGwgLXkgLXFxIGNhLWNlcnRpZmljYXRlcyBnaXQgY3VybCBqcQp0b2tlbj0iJChjYXQgL3dvcmtzcGFjZS9naXRodWItdG9rZW4pIgphdXRoPSIkKHByaW50ZiAneC1hY2Nlc3MtdG9rZW46JXMnICIkdG9rZW4iIHwgYmFzZTY0IC13MCkiCm1rZGlyIC1wIC93b3Jrc3BhY2Uvc291cmNlCmNkIC93b3Jrc3BhY2Uvc291cmNlCmdpdCBpbml0IC1xCmdpdCByZW1vdGUgYWRkIG9yaWdpbiAiaHR0cHM6Ly9naXRodWIuY29tLyRSRVBPU0lUT1JZLmdpdCIKZ2l0IC1jICJodHRwLmh0dHBzOi8vZ2l0aHViLmNvbS8uZXh0cmFoZWFkZXI9QVVUSE9SSVpBVElPTjogYmFzaWMgJGF1dGgiIFwKICBmZXRjaCAtLW5vLXRhZ3Mgb3JpZ2luIFwKICAicmVmcy9oZWFkcy9tYWluOnJlZnMvcmVtb3Rlcy9vcmlnaW4vbWFpbiIgXAogICJyZWZzL2hlYWRzLyRCUkFOQ0g6cmVmcy9yZW1vdGVzL29yaWdpbi9wcjE0IgoKdGVzdCAiJChnaXQgcmV2LXBhcnNlIHJlZnMvcmVtb3Rlcy9vcmlnaW4vbWFpbikiID0gIiRFWFBFQ1RFRF9NQUlOIgp0ZXN0ICIkKGdpdCByZXYtcGFyc2UgcmVmcy9yZW1vdGVzL29yaWdpbi9wcjE0KSIgPSAiJEVYUEVDVEVEX09MRF9IRUFEIgoKZ2l0IGNoZWNrb3V0IC1xIC0tZGV0YWNoICIkRVhQRUNURURfTUFJTiIKZ2l0IGNvbmZpZyB1c2VyLm5hbWUgIk92ZXJjZW50ZXIgR0NQIFJlY29uY2lsZXIiCmdpdCBjb25maWcgdXNlci5lbWFpbCAibm9yZXBseUB1c2Vycy5ub3JlcGx5LmdpdGh1Yi5jb20iCgpzZXQgK2UKZ2l0IGNoZXJyeS1waWNrICIkRVhQRUNURURfT0xEX0hFQUQiCnJjPSQ/CnNldCAtZQppZiBbICIkcmMiIC1uZSAwIF07IHRoZW4KICBlY2hvICJPVkVSQ0VOVEVSX1BSMTRfQ0hFUlJZX1BJQ0tfQ09ORkxJQ1QiCiAgcmVwb3J0PSIkKG1rdGVtcCkiCiAgewogICAgZWNobyAiR0NQIGV4YWN0LWhlYWQgcmViYXNlIGRpYWdub3N0aWMiCiAgICBlY2hvCiAgICBlY2hvICJtYWluOiBcYCRFWFBFQ1RFRF9NQUlOXGAiCiAgICBlY2hvICJvbGQgUFIgaGVhZDogXGAkRVhQRUNURURfT0xEX0hFQURcYCIKICAgIGVjaG8KICAgIGVjaG8gIkNvbmZsaWN0ZWQgcGF0aHM6IgogICAgZ2l0IGRpZmYgLS1uYW1lLW9ubHkgLS1kaWZmLWZpbHRlcj1VCiAgICBlY2hvCiAgICBlY2hvICJTdGF0dXM6IgogICAgZ2l0IHN0YXR1cyAtLXNob3J0CiAgICBlY2hvCiAgICBlY2hvICJDb21iaW5lZCBjb25mbGljdCBkaWZmOiIKICAgIGdpdCBkaWZmIC0tY2MKICB9ID4gIiRyZXBvcnQiCiAgYm9keT0iJChoZWFkIC1jIDUwMDAwICIkcmVwb3J0IikiCiAganEgLW4gLS1hcmcgYm9keSAiJGJvZHkiICd7Ym9keTogJGJvZHl9JyA+IC93b3Jrc3BhY2UvY29tbWVudC5qc29uCiAgY3VybCAtLWZhaWwtd2l0aC1ib2R5IC0tc2lsZW50IC0tc2hvdy1lcnJvciBcCiAgICAtWCBQT1NUIFwKICAgIC1IICJBY2NlcHQ6IGFwcGxpY2F0aW9uL3ZuZC5naXRodWIranNvbiIgXAogICAgLUggIkF1dGhvcml6YXRpb246IEJlYXJlciAkdG9rZW4iIFwKICAgIC1IICJYLUdpdEh1Yi1BcGktVmVyc2lvbjogMjAyNi0wMy0xMCIgXAogICAgLUggIkNvbnRlbnQtVHlwZTogYXBwbGljYXRpb24vanNvbiIgXAogICAgLS1kYXRhLWJpbmFyeSBAL3dvcmtzcGFjZS9jb21tZW50Lmpzb24gXAogICAgImh0dHBzOi8vYXBpLmdpdGh1Yi5jb20vcmVwb3MvJFJFUE9TSVRPUlkvaXNzdWVzLzE0L2NvbW1lbnRzIgogIGV4aXQgIiRyYyIKZmkKCm5ld19oZWFkPSIkKGdpdCByZXYtcGFyc2UgSEVBRCkiCnRlc3QgIiQoZ2l0IHJldi1saXN0IC0tY291bnQgIiRFWFBFQ1RFRF9NQUlOIi4uSEVBRCkiID0gIjEiCnByaW50ZiAnJXMnICIkbmV3X2hlYWQiID4gL3dvcmtzcGFjZS9uZXctaGVhZAplY2hvICJPVkVSQ0VOVEVSX1BSMTRfUkVCQVNFRF9IRUFEPSRuZXdfaGVhZCIK' | base64 -d | bash
 
+            - id: resolve-known-pr14-conflict
+              name: python:3.13-bookworm
+              entrypoint: python
+              args:
+                - -c
+                - |
+                  import os
+                  import subprocess
+                  from pathlib import Path
+
+                  root = Path("/workspace/source")
+                  path = Path("packages/ieee1584/tests/test_protection.py")
+                  old_head = "36664d012da6370ba0f7541f35c26eda212bb038"
+                  expected_main = "0e7a1ec6f864c08fdb11bb0b2397bdc331a03017"
+
+                  def git(*args, check=True):
+                      return subprocess.run(
+                          ["git", *args],
+                          cwd=root,
+                          check=check,
+                          text=True,
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT,
+                      )
+
+                  cherry_pick_head = root / ".git" / "CHERRY_PICK_HEAD"
+                  new_head_file = Path("/workspace/new-head")
+                  if not cherry_pick_head.exists():
+                      if new_head_file.exists():
+                          raise SystemExit(0)
+                      raise SystemExit("rebase failed without a cherry-pick conflict state")
+
+                  conflicts = git("diff", "--name-only", "--diff-filter=U").stdout.splitlines()
+                  if conflicts != [path.as_posix()]:
+                      raise SystemExit(f"unexpected PR14 conflicts: {conflicts!r}")
+
+                  git("checkout", "--ours", "--", path.as_posix())
+                  current_path = root / path
+                  current = current_path.read_text(encoding="utf-8")
+                  old = git("show", f"{old_head}:{path.as_posix()}").stdout
+
+                  start = "    def test_structured_evidence_rejects_conflicting_legacy_source"
+                  end = "    def test_current_limiting_region_fails_closed"
+                  if start in current:
+                      raise SystemExit("structured-evidence tests unexpectedly already present")
+                  if start not in old or end not in old or end not in current:
+                      raise SystemExit("expected PR14 conflict anchors are missing")
+
+                  block = old[old.index(start):old.index(end)]
+                  current_path.write_text(
+                      current.replace(end, block + end, 1),
+                      encoding="utf-8",
+                  )
+                  git("add", path.as_posix())
+                  env = os.environ.copy()
+                  env["GIT_EDITOR"] = "true"
+                  subprocess.run(
+                      ["git", "cherry-pick", "--continue"],
+                      cwd=root,
+                      check=True,
+                      env=env,
+                  )
+
+                  new_head = git("rev-parse", "HEAD").stdout.strip()
+                  count = git("rev-list", "--count", f"{expected_main}..HEAD").stdout.strip()
+                  if count != "1":
+                      raise SystemExit(f"expected exactly one rebased commit, observed {count}")
+                  new_head_file.write_text(new_head, encoding="utf-8")
+                  print("OVERCENTER_PR14_CONFLICT_RESOLUTION=keep-both-independent-test-blocks")
+                  print(f"OVERCENTER_PR14_REBASED_HEAD={new_head}")
+
             - id: install-tools
               name: python:3.13-bookworm
               entrypoint: bash
