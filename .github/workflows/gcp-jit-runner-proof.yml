@@ -102,23 +102,17 @@ jobs:
                       }),
                       "installation token",
                     );
-                    const jit = await json(
-                      await fetch("https://api.github.com/repos/" + repo + "/actions/runners/generate-jitconfig", {
+                    const registration = await json(
+                      await fetch("https://api.github.com/repos/" + repo + "/actions/runners/registration-token", {
                         method:"POST",
                         headers:{...headers(access.token),"Content-Type":"application/json"},
-                        body:JSON.stringify({
-                          name:process.env.RUNNER_NAME,
-                          runner_group_id:1,
-                          labels:["self-hosted","Linux","X64","overcenter-gcp","gcp-proof"],
-                          work_folder:"_work",
-                        }),
                       }),
-                      "JIT configuration",
+                      "runner registration token",
                     );
-                    if (!jit || typeof jit.encoded_jit_config !== "string" || !jit.encoded_jit_config) {
-                      throw new Error("JIT configuration returned no encoded config");
+                    if (!registration || typeof registration.token !== "string" || !registration.token) {
+                      throw new Error("runner registration endpoint returned no token");
                     }
-                    fs.writeFileSync("/workspace/jit-config", jit.encoded_jit_config, {mode:0o600});
+                    fs.writeFileSync("/workspace/registration-token", registration.token, {mode:0o600});
                   }
                   main().catch(error => {
                     console.error(String(error && error.message || error));
@@ -141,7 +135,25 @@ jobs:
                     https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-x64-2.337.0.tar.gz
                   echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum -c -
                   tar xzf actions-runner.tar.gz
-                  ./run.sh --jitconfig "$(cat /workspace/jit-config)"
+                  ./config.sh \
+                    --url https://github.com/laurajoyhutchins/arcata \
+                    --token "$(cat /workspace/registration-token)" \
+                    --name "overcenter-gcp-${BUILD_ID}" \
+                    --labels "overcenter-gcp,gcp-proof" \
+                    --work "_work" \
+                    --unattended \
+                    --ephemeral \
+                    --disableupdate
+                  set +e
+                  ./run.sh > /workspace/runner-output.log 2>&1
+                  rc=$?
+                  set -e
+                  worker_count="$(find _diag -maxdepth 1 -type f -name 'Worker_*.log' | wc -l)"
+                  if [ "$worker_count" -lt 1 ]; then
+                    echo "ephemeral runner exited without executing a GitHub Actions job" >&2
+                    exit 23
+                  fi
+                  exit "$rc"
           availableSecrets:
             secretManager:
               - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
