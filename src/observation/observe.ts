@@ -540,7 +540,12 @@ function observeSourceIntegrationPullRequest(
     mutation_certainty: 'present',
     provider_evidence: {
       pull_request: read.evidence,
-      matched_base_sha: (pull.base as Record<string, unknown>).sha,
+      matched_pull: {
+        number: pull.number,
+        node_id: pull.node_id,
+        head_sha: (pull.head as Record<string, unknown>).sha,
+        base_sha: (pull.base as Record<string, unknown>).sha,
+      },
       member_count: read.value.length,
     },
   };
@@ -564,8 +569,18 @@ function sourceIntegrationPullRequestEvidenceMatches(
 
   const evidence = observed.provider_evidence;
   const read = evidence.pull_request as Record<string, unknown>;
+  const matched = data(evidence.matched_pull) ? evidence.matched_pull : null;
   const parameters = data(read.parameters) ? read.parameters : null;
   return (
+    !!matched &&
+    matched.number === observed.pull_number &&
+    matched.node_id === observed.pull_node_id &&
+    typeof matched.head_sha === 'string' &&
+    isGitHubObjectId(matched.head_sha) &&
+    sameGitHubObjectId(matched.head_sha, p.commit_sha) &&
+    typeof matched.base_sha === 'string' &&
+    isGitHubObjectId(matched.base_sha) &&
+    sameGitHubObjectId(matched.base_sha, p.expected_base_sha) &&
     read.provider === 'github' &&
     read.operation_id === 'pulls/list' &&
     read.repository_id === p.repository_id &&
@@ -581,10 +596,7 @@ function sourceIntegrationPullRequestEvidenceMatches(
     parameters.per_page === 100 &&
     typeof evidence.member_count === 'number' &&
     evidence.member_count >= 1 &&
-    evidence.member_count < 100 &&
-    typeof evidence.matched_base_sha === 'string' &&
-    isGitHubObjectId(evidence.matched_base_sha) &&
-    sameGitHubObjectId(evidence.matched_base_sha, p.expected_base_sha)
+    evidence.member_count < 100
   );
 }
 
