@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { OvercenterKernel } from '../src/authority/kernel.ts';
-import { GITHUB_PULL_REQUEST_PUBLICATION_EFFECT } from '../src/effect-adapter.ts';
+import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../src/effect-adapter.ts';
 import {
   performGitHubPullRequestPublicationEffect,
   type GitHubPullRequestPost,
@@ -26,8 +26,8 @@ function repository() {
   };
 }
 
-function ref(ref: string, sha: string) {
-  return { ref, object: { type: 'commit', sha } };
+function ref(refName: string, sha: string) {
+  return { ref: refName, object: { type: 'commit', sha } };
 }
 
 function pull() {
@@ -48,9 +48,9 @@ function define(kernel: OvercenterKernel) {
   kernel.initialize();
   kernel.define({
     id: 'publish-pr',
-    packet: { effect_contract: GITHUB_PULL_REQUEST_PUBLICATION_EFFECT },
+    packet: { effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT },
     postcondition: {
-      verifier: 'github-pull-request-published/v1',
+      verifier: 'source-integration/v1',
       provider: 'github',
       repository_id: 42,
       repository_full_name: 'acme/widget',
@@ -78,8 +78,8 @@ function getProvider(published: () => boolean, headSha = HEAD, baseSha = BASE) {
   };
 }
 
-test('PR publication fences exact refs, reserves before POST, and settles from certified readback', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'github-pr-publication-'));
+test('PR publication reuses admitted source effect, reserves before POST, and settles from readback', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'source-pr-publication-'));
   let published = false;
   const get = getProvider(() => published);
   const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'), {
@@ -120,7 +120,7 @@ test('PR publication fences exact refs, reserves before POST, and settles from c
 });
 
 test('timeout after PR creation reconciles to DONE without a second mutation', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'github-pr-publication-timeout-'));
+  const root = mkdtempSync(join(tmpdir(), 'source-pr-publication-timeout-'));
   let published = false;
   let posts = 0;
   const get = getProvider(() => published);
@@ -158,7 +158,7 @@ test('timeout after PR creation reconciles to DONE without a second mutation', a
 });
 
 test('stale head fails before reservation and POST', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'github-pr-publication-stale-'));
+  const root = mkdtempSync(join(tmpdir(), 'source-pr-publication-stale-'));
   let posts = 0;
   const get = getProvider(() => false, OTHER);
   const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
@@ -174,7 +174,34 @@ test('stale head fails before reservation and POST', async () => {
           return { status: 201, body: '{}' };
         },
       }),
-      /GITHUB_PR_PUBLICATION_HEAD_NOT_CURRENT/,
+      /SOURCE_PR_PUBLICATION_HEAD_NOT_CURRENT/,
+    );
+    assert.equal(posts, 0);
+    assert.equal(kernel.hasUnresolvedEffect(permit.id), false);
+  } finally {
+    kernel.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('stale base fails before reservation and POST', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'source-pr-publication-stale-base-'));
+  let posts = 0;
+  const get = getProvider(() => false, HEAD, OTHER);
+  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+
+  try {
+    const permit = define(kernel);
+    await assert.rejects(
+      performGitHubPullRequestPublicationEffect(kernel, permit, {
+        token: 'token',
+        get,
+        post: async () => {
+          posts += 1;
+          return { status: 201, body: '{}' };
+        },
+      }),
+      /SOURCE_PR_PUBLICATION_BASE_NOT_CURRENT/,
     );
     assert.equal(posts, 0);
     assert.equal(kernel.hasUnresolvedEffect(permit.id), false);
@@ -185,7 +212,7 @@ test('stale head fails before reservation and POST', async () => {
 });
 
 test('ambiguous create with no observed PR remains recovery-required', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'github-pr-publication-recovery-'));
+  const root = mkdtempSync(join(tmpdir(), 'source-pr-publication-recovery-'));
   const get = getProvider(() => false);
   const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'), {
     githubToken: 'token',
