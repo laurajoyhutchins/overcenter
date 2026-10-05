@@ -1,0 +1,91 @@
+name: GCP verifier bootstrap inventory
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-verifier-bootstrap.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-verifier-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      PROJECT_NUMBER: "380435294892"
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - name: Check out exact bootstrap revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Authenticate with existing Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Read-only GCP inventory
+        shell: bash
+        run: |
+          set -uo pipefail
+          {
+            echo "## GCP verifier bootstrap inventory"
+            echo
+            echo "- repository: \`$GITHUB_REPOSITORY\`"
+            echo "- source SHA: \`$GITHUB_SHA\`"
+            echo "- ref: \`$GITHUB_REF\`"
+            echo "- project: \`$PROJECT_ID\`"
+            echo "- region: \`$REGION\`"
+            echo "- requested identity: \`$DEPLOYER_SA\`"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          probe() {
+            local title="$1"
+            shift
+            echo "::group::$title"
+            "$@"
+            local rc=$?
+            echo "exit_code=$rc"
+            echo "::endgroup::"
+            printf -- "- %s: exit %s\n" "$title" "$rc" >> "$GITHUB_STEP_SUMMARY"
+            return 0
+          }
+
+          probe "active identity" gcloud auth list --filter=status:ACTIVE --format="value(account)"
+          probe "project read" gcloud projects describe "$PROJECT_ID" --format="value(projectNumber,projectId)"
+          probe "enabled services" gcloud services list --enabled --project="$PROJECT_ID" --format="value(config.name)"
+          probe "cloud build recent builds" gcloud builds list --project="$PROJECT_ID" --region="$REGION" --limit=10 --format="table(id,status,createTime,source.repoSource.repoName)"
+          probe "cloud build triggers" gcloud builds triggers list --project="$PROJECT_ID" --region="$REGION" --format="table(name,id,disabled)"
+          probe "cloud build worker pools" gcloud builds worker-pools list --project="$PROJECT_ID" --region="$REGION" --format="table(name,state)"
+          probe "service accounts" gcloud iam service-accounts list --project="$PROJECT_ID" --format="table(email,disabled)"
+          probe "project IAM policy" gcloud projects get-iam-policy "$PROJECT_ID" --flatten="bindings[].members" --filter="bindings.members:$DEPLOYER_SA" --format="table(bindings.role,bindings.condition.title,bindings.condition.expression)"
+
+      - name: Verify bootstrap identity stayed read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/dev"
+          test "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" = "$DEPLOYER_SA"
