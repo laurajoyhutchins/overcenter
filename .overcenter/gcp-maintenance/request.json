@@ -1,0 +1,18 @@
+{
+  "schema": "overcenter-gcp-arcata-maintenance/request/v1",
+  "request_id": "arcata-branch-cleanup-canary-20261005",
+  "repository": {
+    "full_name": "laurajoyhutchins/arcata",
+    "id": 1402666660,
+    "owner_id": 219002713,
+    "default_branch": "main"
+  },
+  "set_delete_branch_on_merge": false,
+  "branches": [
+    {
+      "branch": "chatgpt/import-short-circuit-0.10",
+      "expected_head": "4a57da350d577c0d98a52a5039d8cc56af79470d",
+      "merged_pr": 1
+    }
+  ]
+}
