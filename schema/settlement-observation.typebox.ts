@@ -10,6 +10,7 @@ export const VerifierKind = stringEnum([
   'eventually-consistent-file-content-equals/v1',
   'github-commit-status/v2',
   'github-pull-request-branch-updated/v1',
+  'github-pull-request-published/v1',
   'github-hostile-mutation-evidence/v1',
   'kubernetes-configmap-exists/v1',
 ] as const);
@@ -65,9 +66,12 @@ export const SettlementObservation = Type.Object(
     ),
     pull_node_id: Type.Optional(Type.String()),
     expected_previous_head_sha: Type.Optional(Type.String()),
+    head_ref: Type.Optional(Type.String()),
+    expected_head_sha: Type.Optional(Type.String()),
     base_ref: Type.Optional(Type.String()),
     expected_base_sha: Type.Optional(Type.String()),
     actual_head_sha: Type.Optional(Type.String()),
+    actual_base_sha: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );

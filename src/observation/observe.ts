@@ -21,6 +21,7 @@ import {
   type GitHubJsonGet,
 } from '../providers/github/certified-status.ts';
 import { observeCertifiedGitHubPullRequestIdentity } from '../providers/github/certified-pr.ts';
+import { observeCertifiedGitHubPullRequestPublication } from '../providers/github/certified-pr-publication.ts';
 import { observeCertifiedGitHubCommitAncestry } from '../providers/github/certified-ancestry.ts';
 import {
   githubGet,
@@ -153,6 +154,23 @@ export function validatePostcondition(p: Postcondition): void {
     isGitHubObjectId(p.expected_previous_head_sha) &&
     typeof p.base_ref === 'string' &&
     p.base_ref.length > 0 &&
+    isGitHubObjectId(p.expected_base_sha)
+  )
+    return;
+  if (
+    p?.verifier === 'github-pull-request-published/v1' &&
+    p.provider === 'github' &&
+    Number.isSafeInteger(p.repository_id) &&
+    p.repository_id > 0 &&
+    typeof p.repository_full_name === 'string' &&
+    /^[^/]+\/[^/]+$/.test(p.repository_full_name) &&
+    typeof p.head_ref === 'string' &&
+    p.head_ref.startsWith('refs/heads/') &&
+    p.head_ref.length > 'refs/heads/'.length &&
+    isGitHubObjectId(p.expected_head_sha) &&
+    typeof p.base_ref === 'string' &&
+    p.base_ref.length > 0 &&
+    !p.base_ref.startsWith('refs/') &&
     isGitHubObjectId(p.expected_base_sha)
   )
     return;
@@ -362,6 +380,104 @@ function observeGitHubPullRequestBranchUpdated(
   };
 }
 
+type GitHubPullRequestPublishedPostcondition = Extract<
+  Postcondition,
+  { verifier: 'github-pull-request-published/v1' }
+>;
+
+const githubPullRequestPublishedCommon = (p: GitHubPullRequestPublishedPostcondition) => ({
+  verifier: p.verifier,
+  provider: 'github' as const,
+  repository_id: p.repository_id,
+  repository_full_name: p.repository_full_name,
+  head_ref: p.head_ref,
+  expected_head_sha: p.expected_head_sha,
+  base_ref: p.base_ref,
+  expected_base_sha: p.expected_base_sha,
+});
+
+const githubPullRequestPublishedError = (
+  p: GitHubPullRequestPublishedPostcondition,
+  error: string,
+): Observation => ({
+  ...githubPullRequestPublishedCommon(p),
+  mutation_certainty: 'uncertain',
+  observation_error: error,
+});
+
+function observeGitHubPullRequestPublished(
+  token: string,
+  p: GitHubPullRequestPublishedPostcondition,
+  get: GitHubJsonGet,
+  clock?: () => string,
+): Observation {
+  const result = observeCertifiedGitHubPullRequestPublication(token, {
+    repositoryId: p.repository_id,
+    repositoryFullName: p.repository_full_name,
+    headRef: p.head_ref,
+    expectedHeadSha: p.expected_head_sha,
+    baseRef: p.base_ref,
+    expectedBaseSha: p.expected_base_sha,
+    get,
+    ...(clock ? { clock } : {}),
+  });
+  if (result.state !== 'CURRENT') {
+    return githubPullRequestPublishedError(
+      p,
+      result.observation_error ?? result.reason,
+    );
+  }
+  return {
+    ...githubPullRequestPublishedCommon(p),
+    pull_number: result.pull_number,
+    pull_node_id: result.node_id,
+    actual_head_sha: result.head_sha,
+    actual_base_sha: result.base_sha,
+    mutation_certainty: 'present',
+    provider_evidence: { pull_request: result.evidence },
+  };
+}
+
+function githubPullRequestPublishedEvidenceMatches(
+  p: GitHubPullRequestPublishedPostcondition,
+  observed: Observation,
+): boolean {
+  if (
+    !Number.isSafeInteger(observed.pull_number) ||
+    Number(observed.pull_number) <= 0 ||
+    typeof observed.pull_node_id !== 'string' ||
+    observed.pull_node_id.length === 0 ||
+    typeof observed.actual_head_sha !== 'string' ||
+    typeof observed.actual_base_sha !== 'string' ||
+    !isGitHubObjectId(observed.actual_head_sha) ||
+    !isGitHubObjectId(observed.actual_base_sha) ||
+    !sameGitHubObjectId(observed.actual_head_sha, p.expected_head_sha) ||
+    !sameGitHubObjectId(observed.actual_base_sha, p.expected_base_sha) ||
+    !data(observed.provider_evidence)
+  )
+    return false;
+  const evidence = data(observed.provider_evidence.pull_request)
+    ? observed.provider_evidence.pull_request
+    : null;
+  return (
+    !!evidence &&
+    evidence.provider === 'github' &&
+    evidence.operation_id === 'pulls/list' &&
+    evidence.repository_id === p.repository_id &&
+    typeof evidence.requested_repository_full_name === 'string' &&
+    evidence.requested_repository_full_name.toLowerCase() ===
+      p.repository_full_name.toLowerCase() &&
+    evidence.head_ref === p.head_ref &&
+    typeof evidence.head_sha === 'string' &&
+    sameGitHubObjectId(evidence.head_sha, p.expected_head_sha) &&
+    evidence.base_ref === p.base_ref &&
+    typeof evidence.base_sha === 'string' &&
+    sameGitHubObjectId(evidence.base_sha, p.expected_base_sha) &&
+    evidence.pull_number === observed.pull_number &&
+    evidence.node_id === observed.pull_node_id
+  );
+}
+
 function githubCommitAncestryEvidenceMatches(
   value: unknown,
   ancestorSha: string,
@@ -430,6 +546,22 @@ export function observePostcondition(p: Postcondition, context: ObservationConte
 
   if (p.verifier === 'operator-judgment/v1') {
     throw new Error('OPERATOR_JUDGMENT_NOT_AUTOMATICALLY_OBSERVABLE');
+  }
+
+  if (p.verifier === 'github-pull-request-published/v1') {
+    if (!context.githubToken) {
+      return githubPullRequestPublishedError(p, 'GITHUB_TOKEN_UNAVAILABLE');
+    }
+    try {
+      return observeGitHubPullRequestPublished(
+        context.githubToken,
+        p,
+        context.githubGet ?? githubGet,
+        context.clock,
+      );
+    } catch (e: unknown) {
+      return githubPullRequestPublishedError(p, errorMessage(e));
+    }
   }
 
   if (p.verifier === 'github-pull-request-branch-updated/v1') {
@@ -609,6 +741,25 @@ export async function observePostconditionAsync(
   context: ObservationContext,
 ): Promise<Observation> {
   validatePostcondition(p);
+  if (p.verifier === 'github-pull-request-published/v1') {
+    if (!context.githubToken) {
+      return githubPullRequestPublishedError(p, 'GITHUB_TOKEN_UNAVAILABLE');
+    }
+    const getAsync =
+      context.githubGetAsync ??
+      (context.githubGet
+        ? async (token: string, path: string) => context.githubGet!(token, path)
+        : githubGetAsync);
+    try {
+      return await runGitHubReadObserverAsync(
+        context.githubToken,
+        (get) => observeGitHubPullRequestPublished(context.githubToken!, p, get, context.clock),
+        getAsync,
+      );
+    } catch (e: unknown) {
+      return githubPullRequestPublishedError(p, errorMessage(e));
+    }
+  }
   if (p.verifier === 'github-pull-request-branch-updated/v1') {
     if (!context.githubToken) {
       return githubPullRequestBranchUpdatedError(p, 'GITHUB_TOKEN_UNAVAILABLE');
@@ -710,6 +861,22 @@ function assertObservationCoordinate(postcondition: Postcondition, observed: Obs
     return;
   }
 
+  if (postcondition.verifier === 'github-pull-request-published/v1') {
+    if (
+      observed.provider !== 'github' ||
+      observed.repository_id !== postcondition.repository_id ||
+      typeof observed.repository_full_name !== 'string' ||
+      observed.repository_full_name.toLowerCase() !==
+        postcondition.repository_full_name.toLowerCase() ||
+      observed.head_ref !== postcondition.head_ref ||
+      observed.expected_head_sha !== postcondition.expected_head_sha ||
+      observed.base_ref !== postcondition.base_ref ||
+      observed.expected_base_sha !== postcondition.expected_base_sha
+    )
+      throw new Error('OBSERVATION_COORDINATE_MISMATCH');
+    return;
+  }
+
   if (postcondition.verifier === 'github-pull-request-branch-updated/v1') {
     if (
       observed.provider !== 'github' ||
@@ -800,6 +967,10 @@ export function observationVerified(postcondition: Postcondition, observed: Obse
       observed.actual_sha256 === postcondition.expected_sha256 &&
       observed.source_binding_sha256 === canonicalDigest(postcondition.source_blobs)
     );
+  }
+
+  if (postcondition.verifier === 'github-pull-request-published/v1') {
+    return githubPullRequestPublishedEvidenceMatches(postcondition, observed);
   }
 
   if (postcondition.verifier === 'github-pull-request-branch-updated/v1') {

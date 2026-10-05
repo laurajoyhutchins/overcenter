@@ -13,6 +13,7 @@ export const SettlementObservationSchema={
         "eventually-consistent-file-content-equals/v1",
         "github-commit-status/v2",
         "github-pull-request-branch-updated/v1",
+        "github-pull-request-published/v1",
         "github-hostile-mutation-evidence/v1",
         "kubernetes-configmap-exists/v1"
       ]
@@ -114,6 +115,12 @@ export const SettlementObservationSchema={
     "expected_previous_head_sha": {
       "type": "string"
     },
+    "head_ref": {
+      "type": "string"
+    },
+    "expected_head_sha": {
+      "type": "string"
+    },
     "base_ref": {
       "type": "string"
     },
@@ -121,6 +128,9 @@ export const SettlementObservationSchema={
       "type": "string"
     },
     "actual_head_sha": {
+      "type": "string"
+    },
+    "actual_base_sha": {
       "type": "string"
     }
   },
