@@ -1,0 +1,106 @@
+name: Temporary Overcenter lineage-aware branch cleanup v2
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-overcenter-lineage-branch-cleanup-v2.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-overcenter-lineage-branch-cleanup-v2
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Submit lineage-aware cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/dev"
+          config="$RUNNER_TEMP/cloudbuild-overcenter-lineage-cleanup-v2.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 600s
+          steps:
+            - id: cleanup
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+                - TARGET_REPOSITORY=laurajoyhutchins/overcenter
+                - EXPECTED_REPOSITORY_ID=1354872053
+                - EXPECTED_OWNER_ID=219002713
+                - CONTROLLER_SHA=${_CONTROLLER_SHA}
+              args:
+                - -e
+                - |
+                  const url =
+                    "https://raw.githubusercontent.com/laurajoyhutchins/overcenter/" +
+                    process.env.CONTROLLER_SHA +
+                    "/.overcenter/maintenance/lineage-branch-cleanup.mjs";
+                  fetch(url)
+                    .then(r => {
+                      if (!r.ok) throw new Error("worker fetch HTTP " + r.status);
+                      return r.text();
+                    })
+                    .then(code => import(
+                      "data:text/javascript;base64," + Buffer.from(code).toString("base64")
+                    ))
+                    .catch(error => {
+                      console.error(String(error && error.stack || error));
+                      process.exit(1);
+                    });
+
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: NONE
+          YAML
+
+          build_id="$(
+            gcloud builds submit               --async               --no-source               --project="$PROJECT_ID"               --region="$REGION"               --config="$config"               --substitutions="_CONTROLLER_SHA=$GITHUB_SHA"               --format='value(id)'
+          )"
+          test -n "$build_id"
+          echo "Cloud Build: $build_id" | tee -a "$GITHUB_STEP_SUMMARY"
+          status=""
+          for _ in $(seq 1 300); do
+            status="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)')"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
+            esac
+            sleep 2
+          done
+          echo "Status: $status" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$status" = SUCCESS
