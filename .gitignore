@@ -4,3 +4,4 @@
 node_modules/
 formal/.tlc/
 .overcenter-build/
+.overcenter/cache/
