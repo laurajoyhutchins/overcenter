@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -96,4 +97,18 @@ test('only queued self-hosted jobs with the GCP label are eligible', () => {
     ),
     false,
   );
+});
+
+test('runner image pins rustup bootstrap for repository verification', () => {
+  const dockerfile = readFileSync(
+    new URL('../infra/gcp-runner-image/Dockerfile', import.meta.url),
+    'utf8',
+  );
+  assert.match(dockerfile, /ARG RUSTUP_VERSION=1\.28\.2/);
+  assert.match(
+    dockerfile,
+    /ARG RUSTUP_SHA256=20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c/,
+  );
+  assert.match(dockerfile, /--default-toolchain none/);
+  assert.doesNotMatch(dockerfile, /docker\.sock|--privileged/);
 });
