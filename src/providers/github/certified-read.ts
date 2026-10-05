@@ -144,7 +144,7 @@ function observeRead(
       validated_paths: certified.structural_validation.validated_paths,
       optional_absent_paths: certified.structural_validation.optional_absent_paths,
     },
-  };
+  } as const;
 }
 
 export function observeCertifiedGitHubRead(
