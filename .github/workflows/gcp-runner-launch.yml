@@ -79,4 +79,4 @@ jobs:
 
       - name: Launch disposable runner
         shell: bash
-        run: bash scripts/gcp/launch-ephemeral-github-runner.sh
+        run: bash infra/gcp/launch-ephemeral-github-runner.sh
