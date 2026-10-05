@@ -18,7 +18,7 @@ if [[ ! "$EXACT_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
   exit 2
 fi
 
-for command in gcloud python3; do
+for command in curl gcloud python3; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "$command is required" >&2
     exit 2
