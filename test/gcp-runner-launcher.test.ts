@@ -41,6 +41,10 @@ test('launcher binds repository name, numeric identity, owner, job, and label', 
     () => matchRepositoryBinding(repositories, { ...parsed, repository_id: 1 }),
     /repository identity mismatch/,
   );
+  assert.throws(
+    () => matchRepositoryBinding(repositories, parsed, 'different-runner'),
+    /runner launch label mismatch/,
+  );
 });
 
 test('launcher rejects stale workflow-dispatch-shaped requests', () => {
