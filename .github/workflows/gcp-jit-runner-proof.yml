@@ -98,7 +98,7 @@ jobs:
                       await fetch("https://api.github.com/app/installations/" + installation.id + "/access_tokens", {
                         method:"POST",
                         headers:{...headers(appJwt),"Content-Type":"application/json"},
-                        body:JSON.stringify({permissions:{administration:"write",actions:"read"}}),
+                        body:JSON.stringify({permissions:{administration:"write",actions:"read",statuses:"write"}}),
                       }),
                       "installation token",
                     );
@@ -163,22 +163,46 @@ jobs:
                     -H "X-GitHub-Api-Version: 2026-03-10" \
                     https://api.github.com/repos/laurajoyhutchins/arcata/actions/jobs/111879127702)"
 
-                  python3 - "$runner_name" "$runners_json" "$job_json" <<'PY'
+                  diagnostic="$(
+                    python3 - "$runner_name" "$runners_json" "$job_json" <<'PY'
                   import json, sys
                   name, runners_raw, job_raw = sys.argv[1:]
                   runners = json.loads(runners_raw).get("runners", [])
                   runner = next((item for item in runners if item.get("name") == name), None)
                   job = json.loads(job_raw)
                   runner_status = "missing" if runner is None else str(runner.get("status"))
-                  runner_labels = [] if runner is None else sorted(
+                  runner_labels = set() if runner is None else {
                       str(label.get("name")) for label in runner.get("labels", [])
+                  }
+                  job_labels = {str(label) for label in job.get("labels", [])}
+                  labels_match = job_labels.issubset(runner_labels)
+                  print(
+                      f"runner={runner_status};job={job.get('status')};"
+                      f"labels_match={str(labels_match).lower()}"
                   )
-                  job_labels = sorted(str(label) for label in job.get("labels", []))
-                  print("OVERCENTER_DIAG runner_status=" + runner_status)
-                  print("OVERCENTER_DIAG runner_labels=" + ",".join(runner_labels))
-                  print("OVERCENTER_DIAG job_status=" + str(job.get("status")))
-                  print("OVERCENTER_DIAG job_labels=" + ",".join(job_labels))
                   PY
+                  )"
+                  echo "OVERCENTER_DIAG $diagnostic"
+
+                  status_body="$(
+                    python3 - "$diagnostic" <<'PY'
+                  import json, sys
+                  diagnostic = sys.argv[1]
+                  state = "success" if "runner=online" in diagnostic and "labels_match=true" in diagnostic else "failure"
+                  print(json.dumps({
+                      "state": state,
+                      "context": "overcenter-gcp/runner-probe",
+                      "description": diagnostic[:140],
+                  }, separators=(",", ":")))
+                  PY
+                  )"
+                  curl -fsSL -X POST \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "$auth_header" \
+                    -H "X-GitHub-Api-Version: 2026-03-10" \
+                    -H "Content-Type: application/json" \
+                    https://api.github.com/repos/laurajoyhutchins/arcata/statuses/de0c7f3e82323dcf86d0dc48936cdd5cbabef0da \
+                    -d "$status_body" >/dev/null
 
                   set +e
                   wait "$runner_pid"
