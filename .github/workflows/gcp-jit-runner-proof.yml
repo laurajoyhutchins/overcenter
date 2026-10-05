@@ -136,7 +136,15 @@ jobs:
                     https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-x64-2.337.0.tar.gz
                   echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum -c -
                   tar xzf actions-runner.tar.gz
+
+                  # The runner archive is portable but the base image is intentionally
+                  # minimal. Let the pinned runner declare its own native prerequisites.
+                  if [ -x ./bin/installdependencies.sh ]; then
+                    ./bin/installdependencies.sh > /workspace/dependencies-output.log 2>&1
+                  fi
+
                   runner_name="overcenter-gcp-${BUILD_ID}"
+                  set +e
                   ./config.sh \
                     --url https://github.com/laurajoyhutchins/arcata \
                     --token "$(cat /workspace/registration-token)" \
@@ -146,6 +154,21 @@ jobs:
                     --unattended \
                     --ephemeral \
                     --disableupdate > /workspace/config-output.log 2>&1
+                  config_rc=$?
+                  set -e
+                  if [ "$config_rc" -ne 0 ]; then
+                    if grep -Eqi 'not found|missing.*depend|libicu|libssl|dependency' /workspace/config-output.log; then
+                      exit 61
+                    elif grep -Eqi 'unauthorized|forbidden|not found|token|registration|repository' /workspace/config-output.log; then
+                      exit 62
+                    elif grep -Eqi 'already.*configured|runner.*exists|same name' /workspace/config-output.log; then
+                      exit 63
+                    elif grep -Eqi 'root|sudo|permission denied' /workspace/config-output.log; then
+                      exit 64
+                    else
+                      exit 65
+                    fi
+                  fi
 
                   ./run.sh > /workspace/runner-output.log 2>&1 &
                   runner_pid=$!
