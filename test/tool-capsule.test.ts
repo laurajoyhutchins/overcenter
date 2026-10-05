@@ -20,7 +20,10 @@ function request(): unknown {
     source: {
       repository: 'laurajoyhutchins/arcata',
       revision: '1'.repeat(40),
-      lock_blob_sha: '2'.repeat(40),
+      dependency_authority: {
+        path: '.github/workflows/ci.yml',
+        blob_sha: '2'.repeat(40),
+      },
     },
     target: { python_version: '3.13', platform: 'linux-x86-64' },
     packages: [
@@ -49,16 +52,16 @@ test('request rejects unsafe names, duplicate packages, and invalid source bindi
     { name: 'ruff', version: '0.13.2', hashes: [hashA] },
     { name: 'ruff', version: '0.13.2', hashes: [hashB] },
   ];
-  assert.throws(
-    () => validateToolCapsuleRequest(duplicate),
-    /TOOL_CAPSULE_PACKAGE_NAME_INVALID/,
-  );
+  assert.throws(() => validateToolCapsuleRequest(duplicate), /TOOL_CAPSULE_PACKAGE_NAME_INVALID/);
 
   const wrongRevision = structuredClone(request()) as Record<string, unknown>;
   wrongRevision.source = {
     repository: 'laurajoyhutchins/arcata',
     revision: '../main',
-    lock_blob_sha: '2'.repeat(40),
+    dependency_authority: {
+      path: '.github/workflows/ci.yml',
+      blob_sha: '2'.repeat(40),
+    },
   };
   assert.throws(() => validateToolCapsuleRequest(wrongRevision), /TOOL_CAPSULE_SOURCE_INVALID/);
 });
