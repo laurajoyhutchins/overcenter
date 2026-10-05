@@ -1,0 +1,177 @@
+name: GCP promote Arcata admission phase3
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-promote-arcata-admission-phase3.yml
+      - .overcenter/gcp-promote-admission-phase3.trigger
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-promote-arcata-admission-phase3
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Promote verified tree under exact leases
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/cloudbuild-promote-admission.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 300s
+          steps:
+            - id: promote
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+              args:
+                - -e
+                - |
+                  const crypto = require("crypto");
+
+                  const repository = "laurajoyhutchins/arcata";
+                  const expectedRepositoryId = 1402666660;
+                  const branch = "refactor/provenance-admission-consolidated";
+                  const expectedOldHead = "4e95c51462a705fdafa8501176e093e082128794";
+                  const expectedMain = "67e11722c3c4b0396127ea9c6398fc0c91562a73";
+                  const target = "5669b06e9b21ed118596cb40f7540a4f84c3bcc2";
+                  const expectedTree = "fdf4b8cd961dbccc845733780d1cf504bed13caf";
+                  const apiVersion = "2026-03-10";
+
+                  const b64 = value => Buffer.from(JSON.stringify(value)).toString("base64url");
+                  const now = Math.floor(Date.now() / 1000);
+                  const unsigned = b64({alg:"RS256",typ:"JWT"}) + "." + b64({
+                    iat:now-60, exp:now+540, iss:process.env.GITHUB_APP_ID,
+                  });
+                  const jwt = unsigned + "." + crypto.sign(
+                    "RSA-SHA256",
+                    Buffer.from(unsigned),
+                    process.env.GITHUB_APP_PRIVATE_KEY,
+                  ).toString("base64url");
+
+                  const headers = token => ({
+                    Accept:"application/vnd.github+json",
+                    Authorization:"Bearer " + token,
+                    "X-GitHub-Api-Version":apiVersion,
+                    "User-Agent":"overcenter-gcp-promote-admission",
+                  });
+                  async function json(response, label) {
+                    const text = await response.text();
+                    if (!response.ok) throw new Error(label + " HTTP " + response.status + ": " + text.slice(0,400));
+                    return text ? JSON.parse(text) : null;
+                  }
+                  async function get(path, token) {
+                    return json(await fetch("https://api.github.com/repos/" + repository + path, {headers:headers(token)}), "GET " + path);
+                  }
+
+                  async function main() {
+                    const installation = await json(
+                      await fetch("https://api.github.com/repos/" + repository + "/installation", {headers:headers(jwt)}),
+                      "installation lookup",
+                    );
+                    const access = await json(
+                      await fetch("https://api.github.com/app/installations/" + installation.id + "/access_tokens", {
+                        method:"POST",
+                        headers:{...headers(jwt),"Content-Type":"application/json"},
+                        body:JSON.stringify({permissions:{contents:"write"}}),
+                      }),
+                      "installation token",
+                    );
+                    const token = access.token;
+                    const repo = await get("", token);
+                    if (repo.id !== expectedRepositoryId || repo.full_name !== repository) throw new Error("repository identity mismatch");
+
+                    const mainRef = await get("/git/ref/heads/main", token);
+                    if (mainRef.object.sha !== expectedMain) throw new Error("main moved");
+
+                    const branchPath = branch.split("/").map(encodeURIComponent).join("/");
+                    const branchRef = await get("/git/ref/heads/" + branchPath, token);
+                    if (branchRef.object.sha !== expectedOldHead) throw new Error("canonical branch moved");
+
+                    const commit = await get("/git/commits/" + target, token);
+                    if (!commit.tree || commit.tree.sha !== expectedTree) throw new Error("target tree mismatch");
+                    if (!Array.isArray(commit.parents) || commit.parents.length !== 1 || commit.parents[0].sha !== expectedMain) {
+                      throw new Error("target parent mismatch");
+                    }
+
+                    await json(
+                      await fetch("https://api.github.com/repos/" + repository + "/git/refs/heads/" + branchPath, {
+                        method:"PATCH",
+                        headers:{...headers(token),"Content-Type":"application/json"},
+                        body:JSON.stringify({sha:target,force:true}),
+                      }),
+                      "ref update",
+                    );
+                    const after = await get("/git/ref/heads/" + branchPath, token);
+                    if (after.object.sha !== target) throw new Error("ref readback mismatch");
+                    console.log(JSON.stringify({
+                      schema:"overcenter-gcp-ref-promotion/receipt/v1",
+                      repository_id:repo.id,
+                      branch,
+                      old_head:expectedOldHead,
+                      new_head:target,
+                      parent:expectedMain,
+                      tree:expectedTree,
+                    }));
+                  }
+                  main().catch(error => {
+                    console.error(String(error && error.message || error));
+                    process.exit(1);
+                  });
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: NONE
+          YAML
+
+          build_id="$(
+            gcloud builds submit               --async               --no-source               --project="$PROJECT_ID"               --region="$REGION"               --config="$config"               --format='value(id)'
+          )"
+          status=""
+          for _ in $(seq 1 240); do
+            status="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)')"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
+            esac
+            sleep 2
+          done
+          echo "Cloud Build: $build_id" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Status: $status" | tee -a "$GITHUB_STEP_SUMMARY"
+          gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION"             --format="table(steps.id,steps.status)" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$status" = SUCCESS
