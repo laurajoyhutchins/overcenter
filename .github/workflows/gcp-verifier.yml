@@ -300,12 +300,54 @@ jobs:
               entrypoint: /workspace/verification-tools/bin/python
               args: ["-m", "mypy", "packages/components/src"]
 
+            - id: mypy-conductor-init
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/conductor-sizing/src/conductor_sizing/__init__.py"]
+
+            - id: mypy-conductor-ampacity
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/conductor-sizing/src/conductor_sizing/ampacity.py"]
+
+            - id: mypy-conductor-dwelling
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/conductor-sizing/src/conductor_sizing/dwelling.py"]
+
+            - id: mypy-conductor-model
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/conductor-sizing/src/conductor_sizing/model.py"]
+
+            - id: mypy-conductor-ocpd
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/conductor-sizing/src/conductor_sizing/ocpd.py"]
+
             - id: mypy-conductor-sizing
               name: python:3.13-bookworm
               waitFor: ["install-tools"]
               dir: source
               entrypoint: /workspace/verification-tools/bin/python
-              args: ["-m", "mypy", "packages/conductor-sizing/src"]
+              args: ["-m", "mypy", "packages/conductor-sizing/src/conductor_sizing/sizing.py"]
+
+            - id: mypy-conductor-tables
+              name: python:3.13-bookworm
+              waitFor: ["install-tools"]
+              dir: source
+              entrypoint: /workspace/verification-tools/bin/python
+              args: ["-m", "mypy", "packages/conductor-sizing/src/conductor_sizing/tables.py"]
 
             - id: mypy-project
               name: python:3.13-bookworm
