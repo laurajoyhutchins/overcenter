@@ -1,6 +1,16 @@
 name: Tool capsule transport
 
 on:
+  workflow_call:
+    inputs:
+      python_version:
+        description: Python major.minor selected by the request target
+        required: true
+        type: string
+      request_base64:
+        description: Base64-encoded tool-capsule/request/v1 JSON
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       python_version:
