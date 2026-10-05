@@ -1,1 +1,1 @@
-arcata-pr14-conflict-diagnostic-encoded
+arcata-pr14-resolve-known-conflict
