@@ -309,7 +309,7 @@ jobs:
                 env: GITHUB_APP_PRIVATE_KEY
 
           options:
-            logging: NONE
+            logging: CLOUD_LOGGING_ONLY
           YAML
 
           BUILD_ID="$(
@@ -375,6 +375,10 @@ jobs:
           PY
 
           if [ "$STATUS" != "SUCCESS" ]; then
+            echo "== Cloud Build diagnostics ==" >&2
+            gcloud builds log "$BUILD_ID" \
+              --project="$PROJECT_ID" \
+              --region="$REGION" || true
             echo "Exact-head verification finished with Cloud Build status: $STATUS" >&2
             exit 1
           fi
