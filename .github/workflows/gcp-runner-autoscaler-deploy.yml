@@ -60,4 +60,4 @@ jobs:
 
       - name: Deploy runner substrate
         shell: bash
-        run: bash scripts/gcp/deploy-runner-autoscaler.sh
+        run: bash infra/gcp/deploy-runner-autoscaler.sh
