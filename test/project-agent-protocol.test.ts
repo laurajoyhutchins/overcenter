@@ -656,7 +656,7 @@ test('project.submit refuses to publish a verified source candidate directly to 
       authorityRef: AUTHORITY_REF,
       remote: 'origin',
     });
-    const runId = runId;
+    const runId = acquired.run_id;
     assert.ok(runId);
 
     const assignment = JSON.parse(
