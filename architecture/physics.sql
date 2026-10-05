@@ -9,6 +9,8 @@ INSERT INTO artifact(artifact_id) VALUES
   ('.github/workflows/distributed-authority-chaos.yml'),
   ('.github/workflows/distributed-authority-handoff.yml'),
   ('.github/workflows/github-object-transport-proof.yml'),
+  ('.github/workflows/gcp-runner-autoscaler-deploy.yml'),
+  ('.github/workflows/gcp-runner-launch.yml'),
   ('.github/workflows/operator-project-advance.yml'),
   ('.github/workflows/operator-project-submit.yml'),
   ('.github/workflows/production-criticality-mutation-probe.yml'),
