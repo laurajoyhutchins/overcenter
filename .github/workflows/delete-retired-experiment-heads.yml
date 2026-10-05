@@ -1,0 +1,39 @@
+name: Temporary delete retired experiment heads
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/delete-retired-experiment-heads.yml
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+      - name: Delete exact retired heads
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          check_ref() {
+            local branch="$1"
+            local expected="$2"
+            local observed
+            observed="$(git ls-remote origin "refs/heads/$branch" | awk '{print $1}')"
+            test "$observed" = "$expected"
+          }
+
+          check_ref "experiment/finite-difference-semantic-projection" "4ec87e91c3c75c85b6b845fdca4d560e820881d4"
+          check_ref "codex/recovery-action-partition" "605ea4a344c98660d1841c22a965c90323c7ad4c"
+
+          git push origin             --delete             experiment/finite-difference-semantic-projection             codex/recovery-action-partition
+
+          test -z "$(git ls-remote origin refs/heads/experiment/finite-difference-semantic-projection)"
+          test -z "$(git ls-remote origin refs/heads/codex/recovery-action-partition)"
