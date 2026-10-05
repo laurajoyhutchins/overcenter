@@ -24,7 +24,7 @@ GitHub owns workflow scheduling, job state, step logs, cancellation, reruns, art
 
 Repository admission is explicit in `config/gcp-runner-autoscaler.json` and includes GitHub repository and owner numeric IDs. Textual repository names alone are not authority.
 
-The autoscaler runs privately as `overcenter-runtime` and has the GitHub App key only so it can observe Actions state and request the public launcher workflow. It does not submit Cloud Builds.
+The autoscaler implementation lives under `src/transport` and runs privately as `overcenter-runtime` and has the GitHub App key only so it can observe Actions state and request the public launcher workflow. It does not submit Cloud Builds.
 
 The launcher runs from the WIF-authorized Overcenter infrastructure ref and uses `overcenter-deployer` only to submit/read the build. The Cloud Build uses `overcenter-runtime` to read the existing GitHub App private key and mint a one-hour runner-registration token. The GitHub runner is ephemeral and receives no ambient GCP credential.
 
