@@ -4,6 +4,7 @@ set -euo pipefail
 : "${TARGET_REPOSITORY:?TARGET_REPOSITORY is required}"
 : "${TARGET_JOB_ID:?TARGET_JOB_ID is required}"
 : "${RUNNER_NAME:?RUNNER_NAME is required}"
+: "${RUNNER_LABEL:?RUNNER_LABEL is required}"
 
 if [[ -f /workspace/skip-runner ]]; then
   echo "GitHub job is no longer queued; no runner required."
@@ -16,6 +17,10 @@ if [[ ! "$TARGET_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
 fi
 if [[ ! "$TARGET_JOB_ID" =~ ^[0-9]+$ ]]; then
   echo "TARGET_JOB_ID must be numeric" >&2
+  exit 2
+fi
+if [[ ! "$RUNNER_LABEL" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+  echo "RUNNER_LABEL must be a canonical GitHub runner label" >&2
   exit 2
 fi
 if [[ ! -s /workspace/registration-token ]]; then
@@ -56,7 +61,7 @@ rm -rf _work .runner .credentials .credentials_rsaparams
   --url "https://github.com/${TARGET_REPOSITORY}" \
   --token "$registration_token" \
   --name "$RUNNER_NAME" \
-  --labels "overcenter-gcp" \
+  --labels "$RUNNER_LABEL" \
   --work "_work" \
   --unattended \
   --ephemeral \
