@@ -1,0 +1,35 @@
+name: Format GCP runner slice
+
+on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+    paths:
+      - .github/workflows/format-gcp-runner.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - name: Format exact runner files
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes @biomejs/biome@2.5.14 format --write             src/transport/gcp-runner-autoscaler.ts             test/gcp-runner-autoscaler.test.ts
+          git diff --check
+          if git diff --quiet; then
+            echo "Already formatted."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/transport/gcp-runner-autoscaler.ts test/gcp-runner-autoscaler.test.ts
+          git commit -m "Format GCP runner autoscaler"
+          git push origin HEAD:work/gcp-cloud-run-cloud-sql-bootstrap
