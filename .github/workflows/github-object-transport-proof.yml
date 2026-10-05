@@ -3,7 +3,7 @@ name: GitHub object transport proof
 on:
   pull_request:
     branches: [main]
-    types: [ready_for_review]
+    types: [ready_for_review, synchronize]
     paths:
       - '.github/workflows/github-object-transport-proof.yml'
 
@@ -24,11 +24,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git init -q source
-          cd source
-          git remote add origin "https://github.com/${ARCATA_REPOSITORY}.git"
-          git fetch -q --no-tags origin "${BASE_SHA}" "${FEATURE_SHA}"
-          git checkout -q --detach "${BASE_SHA}"
+
+          curl --fail --silent --show-error --location             "https://codeload.github.com/${ARCATA_REPOSITORY}/tar.gz/${BASE_SHA}"             -o base.tar.gz
+          curl --fail --silent --show-error --location             "https://codeload.github.com/${ARCATA_REPOSITORY}/tar.gz/${FEATURE_SHA}"             -o feature.tar.gz
+
+          mkdir source feature
+          tar -xzf base.tar.gz --strip-components=1 -C source
+          tar -xzf feature.tar.gz --strip-components=1 -C feature
 
           paths=(
             benchmarks/tests/test_workloads.py
@@ -39,24 +41,27 @@ jobs:
             packages/short-circuit/tests/test_short_circuit.py
           )
 
-          : > ../feature-blobs.tsv
+          : > feature-blobs.tsv
           for path in "${paths[@]}"; do
-            mkdir -p "$(dirname "${path}")"
-            git show "${FEATURE_SHA}:${path}" > "${path}"
-            blob="$(git rev-parse "${FEATURE_SHA}:${path}")"
-            printf '%s\t%s\n' "${path}" "${blob}" >> ../feature-blobs.tsv
+            test -f "feature/${path}"
+            mkdir -p "source/$(dirname "${path}")"
+            cp -p "feature/${path}" "source/${path}"
+            blob="$(git hash-object "feature/${path}")"
+            printf '%s\t%s\n' "${path}" "${blob}" >> feature-blobs.tsv
           done
 
-          git add -- "${paths[@]}"
-          git diff --cached --name-only | LC_ALL=C sort > ../observed-paths
-          printf '%s\n' "${paths[@]}" | LC_ALL=C sort > ../expected-paths
-          diff -u ../expected-paths ../observed-paths
-          synthetic_tree="$(git write-tree)"
+          (
+            cd source
+            git init -q
+            git add -A -f .
+            synthetic_tree="$(git write-tree)"
+            printf '%s\n' "${synthetic_tree}" > ../synthetic-tree.txt
+            rm -rf .git
+          )
+          synthetic_tree="$(cat synthetic-tree.txt)"
 
-          jq -n             --arg schema "arcata-source-capsule/v1"             --arg repository "${ARCATA_REPOSITORY}"             --arg base_sha "${BASE_SHA}"             --arg feature_sha "${FEATURE_SHA}"             --arg synthetic_tree "${synthetic_tree}"             --rawfile feature_blobs ../feature-blobs.tsv             '{schema:$schema,repository:$repository,base_sha:$base_sha,feature_sha:$feature_sha,synthetic_tree_sha:$synthetic_tree,feature_blobs_tsv:$feature_blobs}'             > ../manifest.json
+          jq -n             --arg schema "arcata-source-capsule/v1"             --arg repository "${ARCATA_REPOSITORY}"             --arg base_sha "${BASE_SHA}"             --arg feature_sha "${FEATURE_SHA}"             --arg synthetic_tree "${synthetic_tree}"             --rawfile feature_blobs feature-blobs.tsv             '{schema:$schema,repository:$repository,base_sha:$base_sha,feature_sha:$feature_sha,synthetic_tree_sha:$synthetic_tree,feature_blobs_tsv:$feature_blobs}'             > manifest.json
 
-          rm -rf .git
-          cd ..
           tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner             -czf arcata-source.tar.gz -C source .
           sha256sum arcata-source.tar.gz > arcata-source.tar.gz.sha256
           sha256sum manifest.json > manifest.json.sha256
@@ -71,5 +76,6 @@ jobs:
             manifest.json
             manifest.json.sha256
             feature-blobs.tsv
+            synthetic-tree.txt
           if-no-files-found: error
           retention-days: 1
