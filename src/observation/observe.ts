@@ -20,12 +20,8 @@ import {
   observeCertifiedGitHubCommitStatus,
   type GitHubJsonGet,
 } from '../providers/github/certified-status.ts';
-import { observeCertifiedGitHubRead } from '../providers/github/certified-read.ts';
-import { observeCertifiedGitHubRepository } from '../providers/github/certified-repository.ts';
-import {
-  evaluateCertifiedGitHubCommitAncestry,
-  evaluateCertifiedGitHubPullRequestIdentity,
-} from '../providers/github/certified-predicates.ts';
+import { observeCertifiedGitHubPullRequestIdentity } from '../providers/github/certified-pr.ts';
+import { observeCertifiedGitHubCommitAncestry } from '../providers/github/certified-ancestry.ts';
 import {
   githubGet,
   githubGetAsync,
@@ -283,69 +279,33 @@ function observeGitHubPullRequestBranchUpdated(
   clock?: () => string,
 ): Observation {
   const common = githubPullRequestBranchUpdatedCommon(p);
-  const readClock = clock ?? (() => new Date().toISOString());
-  const expected = {
-    node_id: p.pull_node_id,
-    state: 'open',
-    head_sha: p.expected_previous_head_sha,
-    base_ref: p.base_ref,
-    base_sha: p.expected_base_sha,
-  };
-  const repository = observeCertifiedGitHubRepository(token, {
+  const result = observeCertifiedGitHubPullRequestIdentity(token, {
     repositoryId: p.repository_id,
     repositoryFullName: p.repository_full_name,
+    pullNumber: p.pull_number,
+    expected: {
+      node_id: p.pull_node_id,
+      state: 'open',
+      head_sha: p.expected_previous_head_sha,
+      base_ref: p.base_ref,
+      base_sha: p.expected_base_sha,
+    },
     get,
-    clock: readClock,
-    observerId: 'github-pr-identity/v1',
+    ...(clock ? { clock } : {}),
   });
-  const repositoryFullName = repository.fact.object.full_name;
-  const pullRead = observeCertifiedGitHubRead(token, {
-    repositoryFullName,
-    operation: 'pull_request',
-    parameters: { pull_number: p.pull_number },
-    get,
-    clock: readClock,
-    observerId: 'github-pr-identity/v1',
-  });
-  if (pullRead.state !== 'observed') {
+  if (result.state === 'INDETERMINATE') {
+    return {
+      ...common,
+      mutation_certainty: 'uncertain',
+      observation_error: result.observation_error ?? result.reason,
+    };
+  }
+  if (!result.actual || !result.repository_full_name || !result.evidence) {
     return githubPullRequestBranchUpdatedError(p, 'GITHUB_PR_BRANCH_UPDATE_OBSERVATION_INCOMPLETE');
   }
-  const evaluated = evaluateCertifiedGitHubPullRequestIdentity(
-    pullRead.value,
-    p.pull_number,
-    expected,
-  );
-  const actual = evaluated.actual;
-  const genericPullEvidence = pullRead.evidence;
-  const pullEvidence = {
-    provider: genericPullEvidence.provider,
-    api_version: genericPullEvidence.api_version,
-    schema_sha256: genericPullEvidence.schema_sha256,
-    schema_source_commit: genericPullEvidence.schema_source_commit,
-    observer: genericPullEvidence.observer,
-    repository_id: p.repository_id,
-    requested_repository_full_name: p.repository_full_name,
-    repository: repository.evidence,
-    operation_key: genericPullEvidence.operation_key,
-    operation_id: genericPullEvidence.operation_id,
-    observed_at: genericPullEvidence.observed_at,
-    request_path: genericPullEvidence.request_path,
-    parameters: genericPullEvidence.parameters,
-    required_permissions: genericPullEvidence.required_permissions,
-    collection: genericPullEvidence.collection,
-    negative_evidence_authoritative: genericPullEvidence.negative_evidence_authoritative,
-    validated_paths: genericPullEvidence.validated_paths,
-    optional_absent_paths: genericPullEvidence.optional_absent_paths,
-    pull_number: p.pull_number,
-    pull_id: actual.id,
-    node_id: actual.node_id,
-    state: actual.state,
-    head_sha: actual.head_sha,
-    base_ref: actual.base_ref,
-    base_sha: actual.base_sha,
-  };
+  const actual = result.actual;
   const stable =
-    repositoryFullName.toLowerCase() === p.repository_full_name.toLowerCase() &&
+    result.repository_full_name.toLowerCase() === p.repository_full_name.toLowerCase() &&
     actual.node_id === p.pull_node_id &&
     actual.base_ref === p.base_ref;
   if (!stable) {
@@ -354,7 +314,7 @@ function observeGitHubPullRequestBranchUpdated(
       actual_head_sha: actual.head_sha,
       mutation_certainty: 'uncertain',
       observation_error: 'GITHUB_PR_BRANCH_UPDATE_COORDINATE_DRIFT',
-      provider_evidence: { pull_request: pullEvidence },
+      provider_evidence: { pull_request: result.evidence },
     };
   }
   if (sameGitHubObjectId(actual.head_sha, p.expected_previous_head_sha)) {
@@ -362,56 +322,26 @@ function observeGitHubPullRequestBranchUpdated(
       ...common,
       actual_head_sha: actual.head_sha,
       mutation_certainty: 'absent',
-      provider_evidence: { pull_request: pullEvidence },
+      provider_evidence: { pull_request: result.evidence },
     };
   }
 
-  const observeAncestry = (ancestorSha: string) => {
-    const read = observeCertifiedGitHubRead(token, {
-      repositoryFullName,
-      operation: 'compare_commits',
-      parameters: { basehead: `${ancestorSha}...${actual.head_sha}` },
-      get,
-      clock: readClock,
-      observerId: 'github-pull-request-branch-updated/v1',
-    });
-    if (read.state !== 'observed') {
-      throw new Error('GITHUB_COMMIT_ANCESTRY_UNEXPECTED_COLLECTION_OBSERVATION');
-    }
-    const predicate = evaluateCertifiedGitHubCommitAncestry(read.value, ancestorSha);
-    return {
-      state: predicate.relation,
-      evidence: {
-        provider: read.evidence.provider,
-        api_version: read.evidence.api_version,
-        schema_sha256: read.evidence.schema_sha256,
-        schema_source_commit: read.evidence.schema_source_commit,
-        observer: read.evidence.observer,
-        requested_repository_full_name: read.evidence.requested_repository_full_name,
-        operation_key: read.evidence.operation_key,
-        operation_id: read.evidence.operation_id,
-        observed_at: read.evidence.observed_at,
-        request_path: read.evidence.request_path,
-        parameters: read.evidence.parameters,
-        required_permissions: read.evidence.required_permissions,
-        collection: read.evidence.collection,
-        negative_evidence_authoritative: read.evidence.negative_evidence_authoritative,
-        validated_paths: read.evidence.validated_paths,
-        optional_absent_paths: read.evidence.optional_absent_paths,
-        ancestor_sha: ancestorSha,
-        descendant_sha: actual.head_sha,
-        status: predicate.status,
-        ahead_by: predicate.ahead_by,
-        behind_by: predicate.behind_by,
-        merge_base_sha: predicate.merge_base_sha,
-        relation: predicate.relation,
-      },
-    };
-  };
-  const previousHeadAncestry = observeAncestry(p.expected_previous_head_sha);
-  const baseAncestry = observeAncestry(p.expected_base_sha);
+  const previousHeadAncestry = observeCertifiedGitHubCommitAncestry(token, {
+    repositoryFullName: result.repository_full_name,
+    ancestorSha: p.expected_previous_head_sha,
+    descendantSha: actual.head_sha,
+    get,
+    ...(clock ? { clock } : {}),
+  });
+  const baseAncestry = observeCertifiedGitHubCommitAncestry(token, {
+    repositoryFullName: result.repository_full_name,
+    ancestorSha: p.expected_base_sha,
+    descendantSha: actual.head_sha,
+    get,
+    ...(clock ? { clock } : {}),
+  });
   const providerEvidence = {
-    pull_request: pullEvidence,
+    pull_request: result.evidence,
     previous_head_ancestry: previousHeadAncestry.evidence,
     base_ancestry: baseAncestry.evidence,
   };

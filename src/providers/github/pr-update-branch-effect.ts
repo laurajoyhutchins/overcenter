@@ -2,9 +2,7 @@ import type { KernelCore } from '../../authority/engine.ts';
 import type { ExecutionPermit } from '../../model.ts';
 import { GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT } from '../../effect-adapter.ts';
 import { GITHUB_API_VERSION } from './contract.ts';
-import { observeCertifiedGitHubRead } from './certified-read.ts';
-import { observeCertifiedGitHubRepository } from './certified-repository.ts';
-import { evaluateCertifiedGitHubPullRequestIdentity } from './certified-predicates.ts';
+import { observeCertifiedGitHubPullRequestIdentity } from './certified-pr.ts';
 import { githubGetAsync, runGitHubReadObserverAsync, type GitHubJsonGetAsync } from './rest.ts';
 
 export { GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT } from '../../effect-adapter.ts';
@@ -58,40 +56,25 @@ export async function performGitHubPullRequestUpdateBranchEffect(
   const p = authority.postcondition;
   const identity = await runGitHubReadObserverAsync(
     token,
-    (syncGet) => {
-      const repository = observeCertifiedGitHubRepository(token, {
+    (syncGet) =>
+      observeCertifiedGitHubPullRequestIdentity(token, {
         repositoryId: p.repository_id,
         repositoryFullName: p.repository_full_name,
-        get: syncGet,
-        clock,
-        observerId: 'github-pr-identity/v1',
-      });
-      const read = observeCertifiedGitHubRead(token, {
-        repositoryFullName: repository.fact.object.full_name,
-        operation: 'pull_request',
-        parameters: { pull_number: p.pull_number },
-        get: syncGet,
-        clock,
-        observerId: 'github-pr-identity/v1',
-      });
-      if (read.state !== 'observed') throw new Error('GITHUB_PR_UPDATE_BRANCH_IDENTITY_INCOMPLETE');
-      return {
-        repository_full_name: repository.fact.object.full_name,
-        ...evaluateCertifiedGitHubPullRequestIdentity(read.value, p.pull_number, {
+        pullNumber: p.pull_number,
+        expected: {
           node_id: p.pull_node_id,
           state: 'open',
           head_sha: p.expected_previous_head_sha,
           base_ref: p.base_ref,
           base_sha: p.expected_base_sha,
-        }),
-      };
-    },
+        },
+        get: syncGet,
+        clock,
+      }),
     get,
   );
-  if (identity.differences.length !== 0) {
-    throw new Error(
-      `GITHUB_PR_UPDATE_BRANCH_IDENTITY_NOT_CURRENT:${identity.differences.join(',')}`,
-    );
+  if (identity.state !== 'CURRENT' || !identity.repository_full_name) {
+    throw new Error(`GITHUB_PR_UPDATE_BRANCH_IDENTITY_NOT_CURRENT:${identity.reason}`);
   }
   const [owner, repo] = identity.repository_full_name.split('/');
   if (!owner || !repo) throw new Error('GITHUB_PR_UPDATE_BRANCH_REPOSITORY_INVALID');

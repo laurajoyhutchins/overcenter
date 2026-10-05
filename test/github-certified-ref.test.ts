@@ -1,90 +1,124 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-
-import { evaluateCertifiedGitHubRef } from '../src/providers/github/certified-predicates.ts';
-import { observeCertifiedGitHubRead } from '../src/providers/github/certified-read.ts';
-import { observeCertifiedGitHubRepository } from '../src/providers/github/certified-repository.ts';
+import { observeCertifiedGitHubRefFence } from '../src/providers/github/certified-ref.ts';
 import type { GitHubJsonGet } from '../src/providers/github/rest.ts';
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
 
-function repository(id = 42) {
+function repository(overrides: Record<string, unknown> = {}) {
   return {
-    id,
-    node_id: `R_${id}`,
+    id: 42,
+    node_id: 'R_42',
     full_name: 'acme/widget',
     name: 'widget',
     owner: { login: 'acme' },
+    ...overrides,
   };
 }
 
-function provider(refBody: unknown, repositoryId = 42): { get: GitHubJsonGet; calls: string[] } {
+function provider({
+  repositoryBody = repository(),
+  refBody = { ref: 'refs/heads/main', object: { type: 'commit', sha: SHA_A } },
+}: {
+  repositoryBody?: unknown;
+  refBody?: unknown;
+} = {}): { get: GitHubJsonGet; calls: string[] } {
   const calls: string[] = [];
-  return {
-    calls,
-    get: (_token, path) => {
-      calls.push(path);
-      if (path === '/repos/acme/widget') return repository(repositoryId);
-      if (path === '/repos/acme/widget/git/ref/heads%2Fmain') return refBody;
-      throw new Error(`unexpected provider path: ${path}`);
-    },
+  const get: GitHubJsonGet = (_token, path) => {
+    calls.push(path);
+    if (path === '/repos/acme/widget') return repositoryBody;
+    if (path === '/repos/acme/widget/git/ref/heads%2Fmain') return refBody;
+    throw new Error(`unexpected provider path: ${path}`);
   };
+  return { get, calls };
 }
 
-function certifiedRef(get: GitHubJsonGet) {
-  const repositoryObservation = observeCertifiedGitHubRepository('token', {
+test('certified ref fence proves exact current binding', () => {
+  const p = provider();
+  const result = observeCertifiedGitHubRefFence('token', {
     repositoryId: 42,
     repositoryFullName: 'acme/widget',
-    get,
-    observerId: 'github-ref-fence/v1',
+    ref: 'heads/main',
+    expectedSha: SHA_A,
+    get: p.get,
+    clock: () => '2026-09-18T20:00:00.000Z',
   });
-  return observeCertifiedGitHubRead('token', {
-    repositoryFullName: repositoryObservation.fact.object.full_name,
-    operation: 'ref',
-    parameters: { ref: 'heads/main' },
-    get,
-    observerId: 'github-ref-fence/v1',
-  });
-}
 
-test('certified ref is certified read plus exact-binding predicate', () => {
-  const p = provider({ ref: 'refs/heads/main', object: { type: 'commit', sha: SHA_A } });
-  const read = certifiedRef(p.get);
-  assert.equal(read.state, 'observed');
-  const predicate = evaluateCertifiedGitHubRef(read.value, 'refs/heads/main', SHA_A);
-
-  assert.equal(predicate.current, true);
-  assert.equal(predicate.actual_sha, SHA_A);
+  assert.equal(result.state, 'CURRENT');
+  assert.equal(result.reason, 'AUTHORITATIVE_BINDING_MATCHES');
+  assert.equal(result.ref, 'refs/heads/main');
+  assert.equal(result.actual_sha, SHA_A);
+  assert.equal(result.repository_full_name, 'acme/widget');
+  assert.equal(result.evidence?.repository.operation_id, 'repos/get');
+  assert.equal(result.evidence?.operation_id, 'git/get-ref');
   assert.deepEqual(p.calls, ['/repos/acme/widget', '/repos/acme/widget/git/ref/heads%2Fmain']);
 });
 
-test('authoritative ref drift is a false predicate, not indeterminate evidence', () => {
-  const p = provider({ ref: 'refs/heads/main', object: { type: 'commit', sha: SHA_A } });
-  const predicate = evaluateCertifiedGitHubRef(certifiedRef(p.get).value, 'refs/heads/main', SHA_B);
-  assert.equal(predicate.current, false);
-  assert.equal(predicate.actual_sha, SHA_A);
+test('certified ref fence reports authoritative revision drift as stale', () => {
+  const p = provider();
+  const result = observeCertifiedGitHubRefFence('token', {
+    repositoryId: 42,
+    repositoryFullName: 'acme/widget',
+    ref: 'refs/heads/main',
+    expectedSha: SHA_B,
+    get: p.get,
+    clock: () => '2026-09-18T20:01:00.000Z',
+  });
+
+  assert.equal(result.state, 'STALE');
+  assert.equal(result.reason, 'AUTHORITATIVE_BINDING_DIFFERS');
+  assert.equal(result.expected_sha, SHA_B);
+  assert.equal(result.actual_sha, SHA_A);
 });
 
-test('repository identity mismatch fails before the ref read', () => {
-  const p = provider({ ref: 'refs/heads/main', object: { type: 'commit', sha: SHA_A } }, 43);
-  assert.throws(() => certifiedRef(p.get), /GITHUB_REPOSITORY_IDENTITY_MISMATCH/);
+test('repository identity mismatch fails closed instead of becoming stale', () => {
+  const p = provider({ repositoryBody: repository({ id: 43 }) });
+  const result = observeCertifiedGitHubRefFence('token', {
+    repositoryId: 42,
+    repositoryFullName: 'acme/widget',
+    ref: 'heads/main',
+    expectedSha: SHA_A,
+    get: p.get,
+  });
+
+  assert.equal(result.state, 'INDETERMINATE');
+  assert.equal(result.reason, 'OBSERVATION_FAILED');
+  assert.equal(result.observation_error, 'GITHUB_REPOSITORY_IDENTITY_MISMATCH');
+  assert.equal(result.actual_sha, undefined);
   assert.deepEqual(p.calls, ['/repos/acme/widget']);
 });
 
-test('malformed ref response fails structural certification', () => {
-  const p = provider({ ref: 'refs/heads/main', object: { type: 'commit' } });
-  assert.throws(() => certifiedRef(p.get), /RESPONSE_SLICE_REQUIRED_FIELD_MISSING:object\.sha/);
+test('malformed ref response fails closed', () => {
+  const p = provider({ refBody: { ref: 'refs/heads/main', object: { type: 'commit' } } });
+  const result = observeCertifiedGitHubRefFence('token', {
+    repositoryId: 42,
+    repositoryFullName: 'acme/widget',
+    ref: 'heads/main',
+    expectedSha: SHA_A,
+    get: p.get,
+  });
+
+  assert.equal(result.state, 'INDETERMINATE');
+  assert.equal(result.reason, 'OBSERVATION_FAILED');
+  assert.match(
+    String(result.observation_error),
+    /RESPONSE_SLICE_REQUIRED_FIELD_MISSING:object\.sha/,
+  );
 });
 
-test('invalid expected SHA is rejected by the predicate', () => {
+test('invalid expected SHA is rejected before provider access', () => {
+  const p = provider();
   assert.throws(
     () =>
-      evaluateCertifiedGitHubRef(
-        { ref: 'refs/heads/main', object: { type: 'commit', sha: SHA_A } },
-        'refs/heads/main',
-        'main',
-      ),
+      observeCertifiedGitHubRefFence('token', {
+        repositoryId: 42,
+        repositoryFullName: 'acme/widget',
+        ref: 'heads/main',
+        expectedSha: 'main',
+        get: p.get,
+      }),
     /GITHUB_REF_EXPECTED_SHA_INVALID/,
   );
+  assert.deepEqual(p.calls, []);
 });

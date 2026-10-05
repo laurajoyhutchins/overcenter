@@ -1,6 +1,5 @@
-import { evaluateCertifiedGitHubCommitAncestry } from './certified-predicates.ts';
 import { observeCertifiedGitHubRead } from './certified-read.ts';
-import { isGitHubObjectId, type GitHubJsonGet } from './rest.ts';
+import { isGitHubObjectId, sameGitHubObjectId, type GitHubJsonGet } from './rest.ts';
 
 export interface CertifiedGitHubCommitAncestryEvidence {
   provider: 'github';
@@ -58,9 +57,33 @@ export function observeCertifiedGitHubCommitAncestry(
   if (read.state !== 'observed') {
     throw new Error('GITHUB_COMMIT_ANCESTRY_UNEXPECTED_COLLECTION_OBSERVATION');
   }
-  const evaluated = evaluateCertifiedGitHubCommitAncestry(read.value, ancestorSha);
+  const value = read.value as {
+    status: 'ahead' | 'behind' | 'diverged' | 'identical';
+    ahead_by: number;
+    behind_by: number;
+    base_commit: { sha: string };
+    merge_base_commit: { sha: string };
+  };
+  if (
+    !['ahead', 'behind', 'diverged', 'identical'].includes(value.status) ||
+    !Number.isSafeInteger(value.ahead_by) ||
+    value.ahead_by < 0 ||
+    !Number.isSafeInteger(value.behind_by) ||
+    value.behind_by < 0 ||
+    !isGitHubObjectId(value.base_commit?.sha) ||
+    !sameGitHubObjectId(value.base_commit.sha, ancestorSha) ||
+    !isGitHubObjectId(value.merge_base_commit?.sha)
+  ) {
+    throw new Error('GITHUB_COMMIT_ANCESTRY_OBSERVATION_INVALID');
+  }
+  const relation =
+    (value.status === 'ahead' || value.status === 'identical') &&
+    value.behind_by === 0 &&
+    sameGitHubObjectId(value.merge_base_commit.sha, ancestorSha)
+      ? ('ancestor' as const)
+      : ('not-ancestor' as const);
   return {
-    state: evaluated.relation,
+    state: relation,
     evidence: {
       provider: read.evidence.provider,
       api_version: read.evidence.api_version,
@@ -73,11 +96,11 @@ export function observeCertifiedGitHubCommitAncestry(
       request_path: read.evidence.request_path,
       ancestor_sha: ancestorSha,
       descendant_sha: descendantSha,
-      status: evaluated.status,
-      ahead_by: evaluated.ahead_by,
-      behind_by: evaluated.behind_by,
-      merge_base_sha: evaluated.merge_base_sha,
-      relation: evaluated.relation,
+      status: value.status,
+      ahead_by: value.ahead_by,
+      behind_by: value.behind_by,
+      merge_base_sha: value.merge_base_commit.sha,
+      relation,
       validated_paths: read.evidence.validated_paths,
       optional_absent_paths: read.evidence.optional_absent_paths,
     },
