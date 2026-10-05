@@ -98,10 +98,18 @@ const launcherWorkflow = readFileSync(
   new URL('../.github/workflows/gcp-runner-launch.yml', import.meta.url),
   'utf8',
 );
+const launcherScript = readFileSync(
+  new URL('../infra/gcp/launch-ephemeral-github-runner.sh', import.meta.url),
+  'utf8',
+);
 
 test('launcher admission derives repository authority from the autoscaler config', () => {
   assert.match(launcherWorkflow, /config\/gcp-runner-autoscaler\.json/);
   assert.doesNotMatch(launcherWorkflow, /laurajoyhutchins\/arcata:1402666660/);
   assert.doesNotMatch(launcherWorkflow, /laurajoyhutchins\/overcenter:1354872053/);
   assert.doesNotMatch(launcherWorkflow, /laurajoyhutchins\/azelficoast:1384608118/);
+  assert.match(launcherScript, /config\/gcp-runner-autoscaler\.json/);
+  assert.doesNotMatch(launcherScript, /laurajoyhutchins\/arcata:1402666660/);
+  assert.doesNotMatch(launcherScript, /laurajoyhutchins\/overcenter:1354872053/);
+  assert.doesNotMatch(launcherScript, /laurajoyhutchins\/azelficoast:1384608118/);
 });
