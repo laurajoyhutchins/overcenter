@@ -52,14 +52,21 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/work/gcp-cloud-run-cloud-sql-bootstrap"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          case "${TARGET_REPOSITORY}:${TARGET_REPOSITORY_ID}" in
-            "laurajoyhutchins/arcata:1402666660"|"laurajoyhutchins/overcenter:1354872053")
-              ;;
-            *)
-              echo "repository is outside the runner allowlist" >&2
-              exit 2
-              ;;
-          esac
+          python3 - "$TARGET_REPOSITORY" "$TARGET_REPOSITORY_ID" <<'PY'
+          import json
+          import sys
+
+          repository, repository_id = sys.argv[1:]
+          with open("config/gcp-runner-autoscaler.json", encoding="utf-8") as handle:
+              config = json.load(handle)
+
+          bindings = {
+              (str(item.get("full_name") or ""), str(item.get("repository_id") or ""))
+              for item in config.get("repositories", [])
+          }
+          if (repository, repository_id) not in bindings:
+              raise SystemExit("repository is outside the runner allowlist")
+          PY
           [[ "$TARGET_JOB_ID" =~ ^[0-9]+$ ]]
 
       - name: Authenticate to Google Cloud

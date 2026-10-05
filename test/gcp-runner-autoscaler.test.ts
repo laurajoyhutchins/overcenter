@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -24,6 +25,11 @@ const validConfig = {
       repository_id: 1_402_666_660,
       owner_id: 219_002_713,
     },
+    {
+      full_name: 'laurajoyhutchins/azelficoast',
+      repository_id: 1_384_608_118,
+      owner_id: 219_002_713,
+    },
   ],
 };
 
@@ -33,6 +39,8 @@ test('autoscaler config preserves immutable repository identities', () => {
   assert.equal(parsed.dispatch.owner_id, 219_002_713);
   assert.equal(parsed.repositories[0]?.repository_id, 1_402_666_660);
   assert.equal(parsed.repositories[0]?.owner_id, 219_002_713);
+  assert.equal(parsed.repositories[1]?.repository_id, 1_384_608_118);
+  assert.equal(parsed.repositories[1]?.owner_id, 219_002_713);
 });
 
 test('autoscaler config rejects duplicate repository authorities', () => {
@@ -84,4 +92,24 @@ test('only queued self-hosted jobs with the GCP label are eligible', () => {
     ),
     false,
   );
+});
+
+const launcherWorkflow = readFileSync(
+  new URL('../.github/workflows/gcp-runner-launch.yml', import.meta.url),
+  'utf8',
+);
+const launcherScript = readFileSync(
+  new URL('../infra/gcp/launch-ephemeral-github-runner.sh', import.meta.url),
+  'utf8',
+);
+
+test('launcher admission derives repository authority from the autoscaler config', () => {
+  assert.match(launcherWorkflow, /config\/gcp-runner-autoscaler\.json/);
+  assert.doesNotMatch(launcherWorkflow, /laurajoyhutchins\/arcata:1402666660/);
+  assert.doesNotMatch(launcherWorkflow, /laurajoyhutchins\/overcenter:1354872053/);
+  assert.doesNotMatch(launcherWorkflow, /laurajoyhutchins\/azelficoast:1384608118/);
+  assert.match(launcherScript, /config\/gcp-runner-autoscaler\.json/);
+  assert.doesNotMatch(launcherScript, /laurajoyhutchins\/arcata:1402666660/);
+  assert.doesNotMatch(launcherScript, /laurajoyhutchins\/overcenter:1354872053/);
+  assert.doesNotMatch(launcherScript, /laurajoyhutchins\/azelficoast:1384608118/);
 });

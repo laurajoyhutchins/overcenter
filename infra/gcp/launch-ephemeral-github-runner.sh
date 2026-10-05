@@ -8,14 +8,23 @@ set -euo pipefail
 : "${TARGET_JOB_ID:?TARGET_JOB_ID is required}"
 : "${RUNNER_IMAGE:?RUNNER_IMAGE is required}"
 
-case "${TARGET_REPOSITORY}:${TARGET_REPOSITORY_ID}" in
-  "laurajoyhutchins/arcata:1402666660"|"laurajoyhutchins/overcenter:1354872053")
-    ;;
-  *)
-    echo "repository is outside the GCP runner allowlist" >&2
-    exit 2
-    ;;
-esac
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+python3 - "$ROOT/config/gcp-runner-autoscaler.json" "$TARGET_REPOSITORY" "$TARGET_REPOSITORY_ID" <<'PY'
+import json
+import sys
+
+path, repository, repository_id = sys.argv[1:]
+with open(path, encoding="utf-8") as handle:
+    config = json.load(handle)
+
+bindings = {
+    (str(item.get("full_name") or ""), str(item.get("repository_id") or ""))
+    for item in config.get("repositories", [])
+}
+if (repository, repository_id) not in bindings:
+    raise SystemExit("repository is outside the GCP runner allowlist")
+PY
 
 if [[ ! "$TARGET_JOB_ID" =~ ^[0-9]+$ ]]; then
   echo "TARGET_JOB_ID must be numeric" >&2
