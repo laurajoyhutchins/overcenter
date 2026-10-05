@@ -107,7 +107,7 @@ export function materializePrivateSource(manifestValue: unknown, cacheRoot: stri
     if(hadDestination) renameSync(destination,previous);
     try { renameSync(temp,destination); }
     catch(error){ if(hadDestination) renameSync(previous,destination); throw error; }
-    if(hadDestination) rmSync(previous,{recursive:true,force:true});
+    if(hadDestination) { try { rmSync(previous,{recursive:true,force:true}); } catch {} }
   } catch(error){rmSync(temp,{recursive:true,force:true});throw error;}
 }
 
