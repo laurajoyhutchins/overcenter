@@ -54,8 +54,8 @@ function define(kernel: OvercenterKernel) {
       provider: 'github',
       repository_id: 42,
       repository_full_name: 'acme/widget',
-      head_ref: HEAD_REF,
-      expected_head_sha: HEAD,
+      ref: HEAD_REF,
+      commit_sha: HEAD,
       base_ref: 'main',
       expected_base_sha: BASE,
     },
@@ -112,7 +112,7 @@ test('PR publication fences exact refs, reserves before POST, and settles from c
     assert.equal(kernel.hasUnresolvedEffect(permit.id), false);
     assert.equal(settled.observed?.pull_number, 37);
     assert.equal(settled.observed?.actual_head_sha, HEAD);
-    assert.equal(settled.observed?.actual_base_sha, BASE);
+    assert.equal(settled.observed?.expected_base_sha, BASE);
   } finally {
     kernel.close();
     rmSync(root, { recursive: true, force: true });
