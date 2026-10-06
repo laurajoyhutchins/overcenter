@@ -3,7 +3,6 @@ set -euo pipefail
 
 : "${TARGET_REPOSITORY:?TARGET_REPOSITORY is required}"
 : "${TARGET_JOB_ID:?TARGET_JOB_ID is required}"
-: "${RUNNER_NAME:?RUNNER_NAME is required}"
 : "${RUNNER_LABEL:?RUNNER_LABEL is required}"
 
 if [[ -f /workspace/skip-runner ]]; then
@@ -23,8 +22,8 @@ if [[ ! "$RUNNER_LABEL" =~ ^[A-Za-z0-9_.-]+$ ]]; then
   echo "RUNNER_LABEL must be a canonical GitHub runner label" >&2
   exit 2
 fi
-if [[ ! -s /workspace/registration-token ]]; then
-  echo "runner registration token is missing" >&2
+if [[ ! -s /workspace/jit-config ]]; then
+  echo "runner JIT configuration is missing" >&2
   exit 3
 fi
 
@@ -51,21 +50,10 @@ do
   fi
 done
 
-registration_token="$(cat /workspace/registration-token)"
-rm -f /workspace/registration-token
+jit_config="$(cat /workspace/jit-config)"
+rm -f /workspace/jit-config
 
 cd /actions-runner
 rm -rf _work .runner .credentials .credentials_rsaparams
 
-./config.sh \
-  --url "https://github.com/${TARGET_REPOSITORY}" \
-  --token "$registration_token" \
-  --name "$RUNNER_NAME" \
-  --labels "$RUNNER_LABEL" \
-  --work "_work" \
-  --unattended \
-  --ephemeral \
-  --disableupdate
-
-unset registration_token
-exec ./run.sh
+exec ./run.sh --jitconfig "$jit_config"
