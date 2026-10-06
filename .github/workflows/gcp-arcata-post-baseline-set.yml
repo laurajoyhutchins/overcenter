@@ -1,0 +1,137 @@
+name: Arcata post-baseline open PR set
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-arcata-post-baseline-set.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+      - name: Verify exact open set on Cloud Build
+        shell: bash
+        run: |
+          set -uo pipefail
+          config="$RUNNER_TEMP/set.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 900s
+          steps:
+            - id: private-source
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env: [GITHUB_APP_ID=4616688, SOURCE_REVISION=${_REVISION}]
+              args:
+                - -e
+                - |
+                  const crypto=require('crypto'),fs=require('fs');
+                  const repo='laurajoyhutchins/arcata',rev=process.env.SOURCE_REVISION;
+                  const b64=v=>Buffer.from(JSON.stringify(v)).toString('base64url'),now=Math.floor(Date.now()/1000);
+                  const u=b64({alg:'RS256',typ:'JWT'})+'.'+b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const jwt=u+'.'+crypto.sign('RSA-SHA256',Buffer.from(u),process.env.GITHUB_APP_PRIVATE_KEY).toString('base64url');
+                  const base={Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'overcenter-arcata-set'};
+                  async function j(r,l){const t=await r.text();if(!r.ok)throw new Error(l+' HTTP '+r.status+': '+t.slice(0,300));return JSON.parse(t)}
+                  (async()=>{const i=await j(await fetch('https://api.github.com/repos/'+repo+'/installation',{headers:{...base,Authorization:'Bearer '+jwt}}),'install');
+                  const a=await j(await fetch('https://api.github.com/app/installations/'+i.id+'/access_tokens',{method:'POST',headers:{...base,Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify({repository_ids:[1402666660],permissions:{contents:'read'}})}),'token');
+                  const h={...base,Authorization:'Bearer '+a.token};const c=await j(await fetch('https://api.github.com/repos/'+repo+'/commits/'+rev,{headers:h}),'revision');if(c.sha!==rev)throw new Error('revision mismatch');
+                  const ar=await fetch('https://api.github.com/repos/'+repo+'/tarball/'+rev,{headers:h,redirect:'follow'});if(!ar.ok)throw new Error('archive '+ar.status);fs.writeFileSync('/workspace/source.tar.gz',Buffer.from(await ar.arrayBuffer()));})().catch(e=>{console.error(e);process.exit(1)});
+            - id: extract-source
+              name: python:3.13-bookworm
+              entrypoint: bash
+              args: ["-ceu", "python - <<'PY'\nfrom pathlib import Path\nimport shutil,tarfile\nu=Path('/workspace/u');s=Path('/workspace/source');shutil.rmtree(u,ignore_errors=True);shutil.rmtree(s,ignore_errors=True);u.mkdir()\nwith tarfile.open('/workspace/source.tar.gz','r:gz') as t:t.extractall(u,filter='data')\ne=list(u.iterdir());assert len(e)==1 and e[0].is_dir();shutil.move(str(e[0]),s)\nPY"]
+            - id: install-tools
+              name: python:3.13-bookworm
+              entrypoint: bash
+              args: ["-ceu", "cd /workspace/source\npython tools/verification_tools.py requirements > /workspace/req.txt\npython -m venv /workspace/venv\n/workspace/venv/bin/python -m pip install --disable-pip-version-check --no-input --no-compile --only-binary=:all: --no-deps --require-hashes -r /workspace/req.txt\n/workspace/venv/bin/python -m pip check"]
+            - id: check
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: bash
+              args: ["-ceu", "export PATH=/workspace/venv/bin:$$PATH; python tools/check.py"]
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options: { logging: NONE }
+          YAML
+          cat > "$RUNNER_TEMP/targets.tsv" <<'TARGETS'
+          98 7d7851a3941bf75c4a540cfe84a1d995224b807f
+          96 b006480a8ef1b3e7c9283eae9c79b55e40bccf2a
+          95 2e42ae4a1e290cd7ffca860924bfd49412928301
+          94 2aa668c8d5216737be3df989a95013f9f434e5d8
+          93 ded12a7ab909448ba522acca9d5113353bc2aa90
+          92 44e665a8ada6a4f58ff92aeca0ab0490677af370
+          91 691eb17e56b7f62beeadcc03c135cad24bd77914
+          90 8738d4e966b00590e19411b20c205bc9749903b5
+          89 06a3e144ed724c89aadb524d241d2a45a1f1c923
+          88 708368241cfb671f456ece2d8b3629e9176aa7a6
+          85 ad4ff3325bcb0fdeab6bf0800cc0326028cd03ff
+          84 eea412516f5561c0451082425d1a8ce850046363
+          82 5e178fde1f07145682538d201d804b3ce3daca1c
+          80 5669b06e9b21ed118596cb40f7540a4f84c3bcc2
+          24 7d0865a02e83404c59de531a3f8b7586043a07b9
+          20 357cf6153ac29f6bd46f246d1acf6394b9855f63
+          19 5a3e7f2f25dc833fb62f942c2a09f76e926b6c09
+          17 2a3065c1b548446b1f1cca91065386c8498a084d
+          15 9ee3cf6c261d37a949e99b205a44c5ac5c98125c
+          TARGETS
+          : > "$RUNNER_TEMP/builds.tsv"
+          while read -r pr sha; do
+            id="$(gcloud builds submit --async --no-source --project="$PROJECT_ID" --region="$REGION" --config="$config" --substitutions="_REVISION=$sha" --format='value(id)' 2>/dev/null || true)"
+            printf '%s\t%s\t%s\n' "$pr" "$sha" "$id" >> "$RUNNER_TEMP/builds.tsv"
+            echo "submitted #$pr $id"
+          done < "$RUNNER_TEMP/targets.tsv"
+          for _ in $(seq 1 400); do
+            pending=0
+            while IFS=$'\t' read -r pr sha id; do
+              [ -n "$id" ] || continue
+              s="$(gcloud builds describe "$id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)' 2>/dev/null || true)"
+              case "$s" in SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) ;; *) pending=1 ;; esac
+            done < "$RUNNER_TEMP/builds.tsv"
+            [ "$pending" -eq 0 ] && break
+            sleep 2
+          done
+          echo '## Arcata open PR exact-head GCP set' >> "$GITHUB_STEP_SUMMARY"
+          echo '| PR | head | result | phases |' >> "$GITHUB_STEP_SUMMARY"
+          echo '| ---: | --- | --- | --- |' >> "$GITHUB_STEP_SUMMARY"
+          while IFS=$'\t' read -r pr sha id; do
+            if [ -z "$id" ]; then
+              echo "| #$pr | \`$sha\` | \`SUBMIT_ERROR\` | |" | tee -a "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            json="$RUNNER_TEMP/$pr.json"
+            if ! gcloud builds describe "$id" --project="$PROJECT_ID" --region="$REGION" --format=json > "$json" 2>/dev/null; then
+              echo "| #$pr | \`$sha\` | \`DESCRIBE_ERROR\` | |" | tee -a "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            python - "$json" "$pr" "$sha" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json,sys
+          b=json.load(open(sys.argv[1],encoding='utf-8'))
+          phases=', '.join(f"{s.get('id')}={s.get('status')}" for s in b.get('steps',[]))
+          print(f"| #{sys.argv[2]} | `{sys.argv[3]}` | `{b.get('status')}` | `{phases}` |")
+          PY
+          done < "$RUNNER_TEMP/builds.tsv"
