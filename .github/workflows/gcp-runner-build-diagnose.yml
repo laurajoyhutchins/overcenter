@@ -74,8 +74,17 @@ jobs:
               if not encoded:
                   continue
               print(f"== buildStepOutputs[{index}] ==")
-              try:
-                  print(base64.b64decode(encoded).decode("utf-8", errors="replace"))
-              except Exception as exc:
-                  print(f"<decode failed: {exc}>")
+              print("raw:", repr(encoded))
+              padded = encoded + ("=" * ((-len(encoded)) % 4))
+              decoded = None
+              for decoder in (base64.b64decode, base64.urlsafe_b64decode):
+                  try:
+                      decoded = decoder(padded)
+                      break
+                  except Exception:
+                      pass
+              if decoded is None:
+                  print("<decode failed>")
+              else:
+                  print(decoded.decode("utf-8", errors="replace"))
           PY
