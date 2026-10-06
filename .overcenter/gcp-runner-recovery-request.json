@@ -1,4 +1,5 @@
 {
+  "schema": "overcenter-gcp-runner-recovery/v1",
   "runner_image": "us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner@sha256:51e724a0461b083976b91b3b209c96c1552e82923e5d258d4201b955304fb07e",
   "jobs": [
     {
@@ -8,6 +9,5 @@
       "job_id": 112038137618,
       "runner_label": "overcenter-gcp"
     }
-  ],
-  "schema": "overcenter-gcp-runner-recovery/v1"
+  ]
 }
