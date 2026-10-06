@@ -22,7 +22,6 @@ jobs:
     runs-on: ubuntu-slim
     timeout-minutes: 1
     permissions:
-      actions: read
       contents: write
     env:
       COMMAND_IMPLEMENTATION_SHA: ${{ github.sha }}
@@ -92,15 +91,6 @@ jobs:
           echo "candidate_run_id=$branch_run_id" >> "$GITHUB_OUTPUT"
           echo "candidate_kind=$candidate_kind" >> "$GITHUB_OUTPUT"
 
-      - name: Download source verification
-        if: ${{ github.run_attempt > 1 && steps.transport.outputs.candidate_kind == 'source-change' }}
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: overcenter-source-verification
-          path: source-verification
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ github.token }}
-
       - name: Invoke project.submit
         if: ${{ github.run_attempt > 1 }}
         id: invoke
@@ -113,9 +103,6 @@ jobs:
           OVERCENTER_COMMAND_RUN_ATTEMPT: ${{ github.run_attempt }}
           OVERCENTER_CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
           OVERCENTER_CANDIDATE_RUN_ID: ${{ steps.transport.outputs.candidate_run_id }}
-          OVERCENTER_CANDIDATE_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
-          OVERCENTER_CANDIDATE_WORKFLOW_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
-          OVERCENTER_SOURCE_VERIFICATION_PATH: ${{ github.workspace }}/source-verification/source-verification.json
           OVERCENTER_PROJECT_AUTHORITY_REF: refs/overcenter/state
           OVERCENTER_PROJECT_REMOTE: origin
         run: node --experimental-strip-types src/cli/project-submit.ts --receipt response/receipt.json

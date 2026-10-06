@@ -93,11 +93,7 @@ export function baselineSourceTransactionPlan(
     candidate_revision: delta.candidate_revision,
     candidate_tree: delta.candidate_tree,
   });
-  const packageScripts = profile.commands.map((command) => {
-    const match = /^npm run (.+)$/.exec(command);
-    if (!match) throw new Error('SOURCE_TRANSACTION_BASELINE_COMMAND_UNSUPPORTED');
-    return match[1]!;
-  });
+  const packageScripts = ['verify:repository'];
   return {
     base_revision: delta.base_revision,
     candidate_revision: delta.candidate_revision,

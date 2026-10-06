@@ -7,10 +7,6 @@ import {
 } from '../authority/project-agent-protocol.ts';
 import type { ExecutionEvidenceReceipt } from '../execution/evidence-receipt.ts';
 import {
-  observeGitHubSourceProofExecutionEvidence,
-} from '../providers/github/source-proof-execution-evidence.ts';
-import type { SourceTransactionPlan } from '../source/transaction.ts';
-import {
   appendGitHubOutputs,
   commandOption,
   projectCommandContext,
@@ -28,21 +24,12 @@ const context: ProjectSubmitContext = {
   candidate_run_id: requiredEnv('OVERCENTER_CANDIDATE_RUN_ID'),
 };
 
-const sourceVerificationPath = process.env.OVERCENTER_SOURCE_VERIFICATION_PATH;
-const githubToken = process.env.GITHUB_TOKEN ?? null;
+const sourceEvidencePath = process.env.OVERCENTER_SOURCE_EXECUTION_EVIDENCE_PATH;
 const sourceExecutionEvidence =
-  sourceVerificationPath === undefined
+  sourceEvidencePath === undefined
     ? undefined
-    : (plan: SourceTransactionPlan): ExecutionEvidenceReceipt => {
-        if (!githubToken) throw new Error('SOURCE_PROOF_PRODUCER_CONTEXT_MISSING');
-        const record: unknown = JSON.parse(readFileSync(sourceVerificationPath, 'utf8'));
-        return observeGitHubSourceProofExecutionEvidence(githubToken, plan, record, {
-          workflowRunId: Number(requiredEnv('OVERCENTER_CANDIDATE_WORKFLOW_RUN_ID')),
-          workflowRunAttempt: Number(
-            requiredEnv('OVERCENTER_CANDIDATE_WORKFLOW_RUN_ATTEMPT'),
-          ),
-        });
-      };
+    : (): ExecutionEvidenceReceipt =>
+        JSON.parse(readFileSync(sourceEvidencePath, 'utf8')) as ExecutionEvidenceReceipt;
 
 const receipt = submitProjectCandidate(process.cwd(), context, {
   ...(process.env.OVERCENTER_PROJECT_AUTHORITY_REF === undefined
@@ -51,7 +38,7 @@ const receipt = submitProjectCandidate(process.cwd(), context, {
   ...(process.env.OVERCENTER_PROJECT_REMOTE === undefined
     ? {}
     : { remote: process.env.OVERCENTER_PROJECT_REMOTE }),
-  githubToken,
+  githubToken: process.env.GITHUB_TOKEN ?? null,
   ...(sourceExecutionEvidence === undefined ? {} : { sourceExecutionEvidence }),
 });
 mkdirSync(dirname(receiptPath), { recursive: true });

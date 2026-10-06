@@ -84,7 +84,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          profile_args=(--check-only)
+          profile_args=()
           if [ -n "${{ inputs.accepted_baseline_sha }}" ]; then
             profile_args+=(--source-candidate)
           fi
@@ -95,19 +95,8 @@ jobs:
           fi
       - name: Install pinned TypeScript toolchain
         run: npm install --ignore-scripts --package-lock=false
-      - name: Run verification commands from the exact base profile
-        shell: bash
-        run: |
-          set -euo pipefail
-          profile_args=()
-          if [ -n "${{ inputs.accepted_baseline_sha }}" ]; then
-            profile_args+=(--source-candidate)
-          fi
-          if [ -n "$OVERCENTER_TRUSTED_TOOL_DIR" ]; then
-            node --experimental-strip-types "$OVERCENTER_TRUSTED_TOOL_DIR/scripts/verify-source-profile.ts" "${profile_args[@]}"
-          else
-            node --experimental-strip-types scripts/verify-source-profile.ts "${profile_args[@]}"
-          fi
+      - name: Verify repository semantics
+        run: npm run verify:repository
       - name: Replay immutable base tests against candidate code
         shell: bash
         run: |

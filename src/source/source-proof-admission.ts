@@ -10,7 +10,29 @@ import {
   sourceProofExecutionEvidenceDescriptor,
   sourceProofExecutionEvidenceRealization,
 } from './source-proof-evidence.ts';
-import type { AdmittedSourceProof, SourceProofContext } from './source-proof-record.ts';
+export interface AdmittedSourceProof {
+  schema: 'overcenter-admitted-source-proof/v3';
+  state: 'verified';
+  reason: null;
+  run_id: string;
+  candidate_sha: string;
+  base_sha: string;
+  tree_sha: string;
+  runtime_sha: string;
+  plan_digest: string;
+  verification_profile_id: string;
+  verification_profile_sha256: string;
+  execution_evidence_sha256: string;
+}
+
+export interface SourceProofContext {
+  repository_id: number;
+  repository_full_name: string;
+  runtime_sha: string;
+  verification_profile_id: string;
+  verification_profile_sha256: string;
+}
+
 import {
   sourceTransactionPlanDigest,
   validateSourceTransactionPlan,

@@ -83,21 +83,17 @@ test('candidate transport stays internal and inert until project.submit is invok
     submit,
     /OVERCENTER_CANDIDATE_RUN_ID: \$\{\{ steps\.transport\.outputs\.candidate_run_id \}\}/,
   );
-  assert.match(submit, /Download source verification/);
-  assert.match(submit, /overcenter-source-verification/);
+  assert.doesNotMatch(submit, /Download source verification/);
+  assert.doesNotMatch(submit, /overcenter-source-verification/);
   assert.match(submit, /project-submit\.ts --receipt response\/receipt\.json/);
   assert.doesNotMatch(submit, /issue_comment:|pull_request_review:|workflow_dispatch:/);
 });
 
-test('source candidate verification reuses exact evidence without repository write authority', () => {
-  assert.match(signal, /source-evidence:\n\s+name: Verify source candidate/);
-  assert.match(signal, /source-evidence:[\s\S]*permissions:\n\s+contents: read/);
-  assert.match(signal, /uses: \.\/\.github\/workflows\/tests\.yml/);
-  assert.match(signal, /expensive: true/);
-  assert.doesNotMatch(signal, /contents:\s*write|actions:\s*write/);
-  assert.match(signal, /source-record:[\s\S]*persist-credentials: false/);
-  assert.match(signal, /needs\.source-evidence\.result/);
-  assert.match(signal, /source-verification\/source-verification\.json/);
+test('candidate handoff does not schedule source evidence', () => {
+  assert.doesNotMatch(signal, /source-evidence:/);
+  assert.doesNotMatch(signal, /uses: \.\/\.github\/workflows\/tests\.yml/);
+  assert.doesNotMatch(signal, /source-record:/);
+  assert.doesNotMatch(signal, /source-verification\/source-verification\.json/);
 });
 
 test('routine operator commands require no GitHub App credential', () => {

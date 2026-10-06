@@ -1,16 +1,6 @@
 name: Overcenter internal · candidate handoff
 
 on:
-  workflow_dispatch:
-    inputs:
-      candidate_sha:
-        description: Exact source candidate revision to validate
-        required: false
-        type: string
-      runtime_sha:
-        description: Trusted runtime revision for source proof recording
-        required: false
-        type: string
   push:
     branches:
       - 'overcenter/candidate/**'
@@ -27,7 +17,6 @@ jobs:
     outputs:
       kind: ${{ steps.classify.outputs.kind }}
       run_id: ${{ steps.classify.outputs.run_id }}
-      base_sha: ${{ steps.classify.outputs.base_sha }}
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -62,7 +51,6 @@ jobs:
           fi
 
           test "$(git rev-list --parents -n1 "$GITHUB_SHA" | wc -w)" -eq 2
-          echo "base_sha=$(git rev-parse "$GITHUB_SHA^")" >> "$GITHUB_OUTPUT"
           echo "kind=$kind" >> "$GITHUB_OUTPUT"
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
@@ -77,75 +65,3 @@ jobs:
       - name: Emit no authority
         run: 'true'
 
-  source-evidence:
-    name: Verify source candidate
-    needs: classify
-    if: ${{ needs.classify.outputs.kind == 'source-change' }}
-    permissions:
-      contents: read
-    uses: ./.github/workflows/tests.yml
-    with:
-      expensive: true
-      accepted_baseline_sha: ${{ needs.classify.outputs.base_sha }}
-
-  source-record:
-    name: Record source verification
-    needs: [classify, source-evidence]
-    if: ${{ always() && needs.classify.outputs.kind == 'source-change' }}
-    runs-on: ubuntu-slim
-    timeout-minutes: 1
-    permissions:
-      contents: read
-      actions: read
-    env:
-      CANDIDATE_SHA: ${{ github.sha }}
-      CANDIDATE_RUN_ID: ${{ needs.classify.outputs.run_id }}
-      EVIDENCE_RESULT: ${{ needs.source-evidence.result }}
-    steps:
-      - name: Check out exact candidate
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ env.CANDIDATE_SHA }}
-          fetch-depth: 2
-          persist-credentials: false
-
-      - name: Validate trusted runtime dispatch
-        id: binding
-        shell: bash
-        env:
-          CANDIDATE_SHA_INPUT: ${{ inputs.candidate_sha }}
-          RUNTIME_SHA: ${{ inputs.runtime_sha }}
-        run: |
-          set -euo pipefail
-          [[ "$CANDIDATE_SHA_INPUT" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$RUNTIME_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$CANDIDATE_SHA_INPUT" = "$GITHUB_SHA"
-          echo "runtime_sha=$RUNTIME_SHA" >> "$GITHUB_OUTPUT"
-
-      - name: Check out bound trusted runtime
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ steps.binding.outputs.runtime_sha }}
-          path: trusted-runtime
-          persist-credentials: false
-
-      - name: Use runtime-pinned Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version-file: trusted-runtime/.node-version
-          package-manager-cache: false
-
-      - name: Record exact verification result
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          OVERCENTER_RUNTIME_SHA: ${{ steps.binding.outputs.runtime_sha }}
-        run: node --experimental-strip-types trusted-runtime/scripts/record-source-verification.ts
-
-      - name: Publish source verification
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: overcenter-source-verification
-          path: source-verification/source-verification.json
-          if-no-files-found: error
-          retention-days: 7
-          overwrite: true
