@@ -115,6 +115,8 @@ test('dedicated launcher identity preserves the deployment authority split', () 
 
   assert.match(bootstrap, /roles\/cloudbuild\.builds\.editor/);
   assert.match(bootstrap, /roles\/serviceusage\.serviceUsageConsumer/);
+  assert.match(bootstrap, /roles\/artifactregistry\.reader/);
+  assert.match(bootstrap, /gcloud artifacts repositories add-iam-policy-binding/);
   assert.match(bootstrap, /roles\/iam\.serviceAccountUser/);
   assert.match(bootstrap, /roles\/run\.invoker/);
   assert.match(bootstrap, /serviceAccount:\$\{LAUNCHER_SA\}/);
@@ -127,6 +129,8 @@ test('dedicated launcher identity preserves the deployment authority split', () 
     'roles/iam.serviceAccountAdmin',
     'roles/secretmanager.secretAccessor',
     'roles/run.admin',
+    'roles/artifactregistry.writer',
+    'roles/artifactregistry.admin',
   ]) {
     assert.equal(bootstrap.includes(forbidden), false, `bootstrap must not grant ${forbidden}`);
   }
