@@ -125,7 +125,7 @@ jobs:
           materializer_runner = (
               "printf '%s' \"" + materializer_expression +
               "\" | base64 -d > /tmp/materialize.ts; " +
-              "exec node --experimental-strip-types /tmp/materialize.ts"
+              "node --experimental-strip-types /tmp/materialize.ts"
           )
           materializer_outer = "\n".join([
               "set +e",
