@@ -72,8 +72,19 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   const script = args[1] ?? '';
   assert.match(script, /docker run --rm --network bridge/);
   assert.match(script, /RUNNER_LABEL=overcenter-gcp/);
-  assert.match(script, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
+  assert.match(script, /test -s \/workspace\/jit-config/);
+  assert.doesNotMatch(script, /registration-token/);
   assert.match(script, /@sha256:a{64}/);
+
+  const authorization = JSON.stringify(steps[0]);
+  assert.match(authorization, /generate-jitconfig/);
+  assert.match(authorization, /encoded_jit_config/);
+  assert.match(authorization, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
+  assert.match(
+    authorization,
+    /labels.*self-hosted.*Linux.*X64.*overcenter-gcp/,
+  );
+  assert.doesNotMatch(authorization, /registration-token/);
 
   const secrets = build.availableSecrets as {
     secretManager: Array<Record<string, unknown>>;
@@ -85,6 +96,18 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
       'overcenter-github-app-private-key/versions/latest',
   );
   assert.equal(JSON.stringify(build).includes('registration-token='), false);
+});
+
+test('runner image consumes one-time JIT configuration without persistent registration', () => {
+  const entrypoint = readFileSync(
+    new URL('../infra/gcp-runner-image/entrypoint.sh', import.meta.url),
+    'utf8',
+  );
+  assert.match(entrypoint, /test -s \/workspace\/jit-config/);
+  assert.match(entrypoint, /rm -f \/workspace\/jit-config/);
+  assert.match(entrypoint, /exec \.\/run\.sh --jitconfig "\$jit_config"/);
+  assert.doesNotMatch(entrypoint, /\.\/config\.sh/);
+  assert.doesNotMatch(entrypoint, /registration-token/);
 });
 
 
