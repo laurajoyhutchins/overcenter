@@ -79,4 +79,3 @@ jobs:
               except Exception as exc:
                   print(f"<decode failed: {exc}>")
           PY
-          gcloud logging read "resource.type=\"build\" AND resource.labels.build_id=\"$build_id\"" --project="$GCP_PROJECT_ID" --order=asc --limit=500 --format="value(textPayload)" || true
