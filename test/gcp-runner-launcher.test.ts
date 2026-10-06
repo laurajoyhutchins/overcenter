@@ -38,6 +38,11 @@ const environment: LauncherEnvironment = {
 test('launcher binds repository name, numeric identity, owner, job, and label', () => {
   const parsed = parseRunnerLaunchRequest(request);
   assert.deepEqual(matchRepositoryBinding(repositories, parsed), repositories[0]);
+  const exact = parseRunnerLaunchRequest({
+    ...request,
+    runner_label: 'overcenter-gcp-123456-check',
+  });
+  assert.deepEqual(matchRepositoryBinding(repositories, exact, 'overcenter-gcp'), repositories[0]);
   assert.throws(
     () => matchRepositoryBinding(repositories, { ...parsed, repository_id: 1 }),
     /repository identity mismatch/,
@@ -46,6 +51,31 @@ test('launcher binds repository name, numeric identity, owner, job, and label', 
     () => matchRepositoryBinding(repositories, parsed, 'different-runner'),
     /runner launch label mismatch/,
   );
+});
+
+test('launcher exact scheduling labels remain inside the configured namespace', () => {
+  const exact = parseRunnerLaunchRequest({
+    ...request,
+    runner_label: 'overcenter-gcp-123456-check',
+  });
+  assert.deepEqual(matchRepositoryBinding(repositories, exact, 'overcenter-gcp'), repositories[0]);
+  assert.throws(
+    () =>
+      matchRepositoryBinding(
+        repositories,
+        { ...exact, runner_label: 'overcenter-gcpish' },
+        'overcenter-gcp',
+      ),
+    /runner launch label mismatch/,
+  );
+
+  const build = createRunnerBuild(environment, exact);
+  const steps = build.steps as Array<Record<string, unknown>>;
+  const authorization = JSON.stringify(steps[0]);
+  const runnerArgs = steps[1]?.args as string[];
+  assert.match(authorization, /RUNNER_LABEL=overcenter-gcp-123456-check/);
+  assert.match(authorization, /labels: \['self-hosted', 'Linux', 'X64', runnerLabel\]/);
+  assert.match(runnerArgs[1] ?? '', /RUNNER_LABEL=overcenter-gcp-123456-check/);
 });
 
 test('launcher rejects stale workflow-dispatch-shaped requests', () => {
@@ -69,7 +99,7 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
 
   const args = steps[1]?.args as string[];
   const script = args[1] ?? '';
-  assert.match(script, /docker run --rm --network bridge/);
+  assert.match(script, /docker run --rm --network bridge --dns 8\.8\.8\.8 --dns 8\.8\.4\.4/);
   assert.match(script, /RUNNER_LABEL=overcenter-gcp/);
   assert.match(script, /test -s \/workspace\/jit-config/);
   assert.match(script, /runner-output\.log/);
