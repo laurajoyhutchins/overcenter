@@ -65,15 +65,17 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   assert.equal(build.queueTtl, '90s');
 
   const steps = build.steps as Array<Record<string, unknown>>;
-  assert.equal(steps.length, 2);
+  assert.equal(steps.length, 3);
   assert.equal(steps[0]?.id, 'authorize-job');
   assert.equal(steps[1]?.id, 'github-runner');
+  assert.equal(steps[2]?.id, 'verify-job-settlement');
 
   const args = steps[1]?.args as string[];
   const script = args[1] ?? '';
   assert.match(script, /docker run --rm --network bridge/);
   assert.match(script, /RUNNER_LABEL=overcenter-gcp/);
   assert.match(script, /test -s \/workspace\/jit-config/);
+  assert.match(script, /runner-attempted/);
   assert.match(script, /runner-output\.log/);
   assert.match(script, /\/builder\/outputs\/output/);
   assert.match(script, /runner-success/);
@@ -87,6 +89,14 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   assert.match(authorization, /RUNNER_LABEL=overcenter-gcp/);
   assert.match(authorization, /labels: \['self-hosted', 'Linux', 'X64', runnerLabel\]/);
   assert.doesNotMatch(authorization, /registration-token/);
+
+  const settlement = JSON.stringify(steps[2]);
+  assert.match(settlement, /workflow job settlement/);
+  assert.match(settlement, /job\.runner_name !== runnerName/);
+  assert.match(settlement, /job\.status !== 'completed'/);
+  assert.match(settlement, /repository_ids/);
+  assert.doesNotMatch(settlement, /administration/);
+  assert.doesNotMatch(settlement, /registration-token/);
 
   const secrets = build.availableSecrets as {
     secretManager: Array<Record<string, unknown>>;
