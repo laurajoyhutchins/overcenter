@@ -3,10 +3,10 @@
   "runner_image": "us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner@sha256:51e724a0461b083976b91b3b209c96c1552e82923e5d258d4201b955304fb07e",
   "jobs": [
     {
-      "repository": "laurajoyhutchins/arcata",
-      "repository_id": 1402666660,
+      "repository": "laurajoyhutchins/overcenter",
+      "repository_id": 1354872053,
       "owner_id": 219002713,
-      "job_id": 111981905536,
+      "job_id": 112038137618,
       "runner_label": "overcenter-gcp"
     }
   ]
