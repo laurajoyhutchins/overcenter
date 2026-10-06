@@ -71,4 +71,24 @@ jobs:
           main().catch(error => { console.error(error); process.exit(23); });
           '
           gcloud run jobs deploy overcenter-runtime-cloudbuild-probe             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --image="$CONTROL_IMAGE"             --service-account="$GCP_RUNTIME_SERVICE_ACCOUNT"             --command=node             --args="-e,$script"             --max-retries=0             --task-timeout=3m             --quiet
-          gcloud run jobs execute overcenter-runtime-cloudbuild-probe             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --wait             --quiet
+          set +e
+          gcloud run jobs execute overcenter-runtime-cloudbuild-probe \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --wait \
+            --quiet
+          execute_status=$?
+          set -e
+          execution_name="$(gcloud run jobs executions list \
+            --job=overcenter-runtime-cloudbuild-probe \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --sort-by='~metadata.creationTimestamp' \
+            --limit=1 \
+            --format='value(metadata.name)')"
+          test -n "$execution_name"
+          gcloud run jobs executions describe "$execution_name" \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --format='yaml(metadata.name,status.conditions,status.failedCount,status.succeededCount,status.completionTime)'
+          exit "$execute_status"
