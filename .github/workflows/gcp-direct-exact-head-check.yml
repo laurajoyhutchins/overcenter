@@ -170,8 +170,9 @@ jobs:
           exit "$status"
           """
 
-          clone_script = clone_script.replace("$", "$")
-          check_script = check_script.replace("$", "$")
+          dollar = chr(36)
+          clone_script = clone_script.replace(dollar, dollar + dollar)
+          check_script = check_script.replace(dollar, dollar + dollar)
 
           config = {
               "serviceAccount": (
