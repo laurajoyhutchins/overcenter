@@ -94,10 +94,7 @@ function parseExecutionObservation(value: unknown): AssuranceEvidenceExecutionOb
       'GCP_EXECUTION_EVIDENCE_OBSERVATION_INCOMPLETE',
     ) as AssuranceEvidenceExecutionObservation['schema'],
     need_id: requiredString(value.need_id, 'GCP_EXECUTION_EVIDENCE_OBSERVATION_INCOMPLETE'),
-    need_sha256: requiredString(
-      value.need_sha256,
-      'GCP_EXECUTION_EVIDENCE_OBSERVATION_INCOMPLETE',
-    ),
+    need_sha256: requiredString(value.need_sha256, 'GCP_EXECUTION_EVIDENCE_OBSERVATION_INCOMPLETE'),
     revision: requiredString(value.revision, 'GCP_EXECUTION_EVIDENCE_OBSERVATION_INCOMPLETE'),
     recipe_sha256: requiredString(
       value.recipe_sha256,
@@ -120,10 +117,7 @@ function runnerContext(
 ): Pick<GcpExecutionEvidenceObservation, 'runner_name' | 'job_id' | 'target_repository'> {
   const runnerName = requiredString(env.RUNNER_NAME, 'GCP_RUNNER_NAME_REQUIRED');
   const jobId = requiredString(env.TARGET_JOB_ID, 'GCP_RUNNER_JOB_ID_REQUIRED');
-  const targetRepository = requiredString(
-    env.TARGET_REPOSITORY,
-    'GCP_RUNNER_REPOSITORY_REQUIRED',
-  );
+  const targetRepository = requiredString(env.TARGET_REPOSITORY, 'GCP_RUNNER_REPOSITORY_REQUIRED');
   if (!/^overcenter-gcp-[A-Za-z0-9_.-]+$/.test(runnerName)) {
     throw new Error('GCP_RUNNER_NAME_INVALID');
   }
@@ -174,11 +168,7 @@ export class GcpRunnerExecutionEvidenceExecutor implements GcpExecutionEvidenceE
       throw new Error('GCP_EXECUTION_EVIDENCE_RECIPE_MISMATCH');
     }
     const context = runnerContext(this.env);
-    const execution = observeAssuranceEvidenceRecipe(
-      this.repo,
-      expectedRecipe,
-      this.runScript,
-    );
+    const execution = observeAssuranceEvidenceRecipe(this.repo, expectedRecipe, this.runScript);
     return {
       provider: 'gcp',
       ...context,
