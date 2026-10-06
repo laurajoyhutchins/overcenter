@@ -14,13 +14,12 @@ const evidenceWorkflow = readFileSync(
   new URL('../.github/workflows/tests.yml', import.meta.url),
   'utf8',
 );
-const relationalAssuranceWorkflow = readFileSync(
-  new URL('../.github/workflows/assurance-evidence.yml', import.meta.url),
-  'utf8',
-);
 const verificationProfile = JSON.parse(
   readFileSync(new URL('../.overcenter/source-verification-profile.json', import.meta.url), 'utf8'),
-) as { commands: string[] };
+) as Record<string, unknown>;
+const packageJson = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+) as { scripts?: Record<string, string> };
 const projectAdvanceWorkflow = readFileSync(
   new URL('../.github/workflows/operator-project-advance.yml', import.meta.url),
   'utf8',
@@ -142,16 +141,6 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
     /evidence:\n\s+name: Candidate evidence/,
     'merge-gate evidence must share one full runner',
   );
-  assert.match(
-    evidenceWorkflow,
-    /runs-on: \$\{\{ fromJSON\(inputs\.expensive && '\["ubuntu-24\.04"\]' \|\| '\["self-hosted","overcenter-gcp"\]'\) \}\}/,
-    'cheap candidate evidence must use the GCP runner substrate while expensive proof stays hosted',
-  );
-  assert.match(
-    mergeGate,
-    /runs-on: \[self-hosted, overcenter-gcp\]/,
-    'merge-gate bookkeeping must not depend on GitHub-hosted capacity',
-  );
   for (const command of [
     'npm run proof:formal',
     'npm run proof:production-boundary',
@@ -159,13 +148,28 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
   ]) {
     assert.ok(evidenceWorkflow.includes(command), `candidate evidence is missing ${command}`);
   }
-  assert.ok(
-    verificationProfile.commands.includes('npm run test:unit'),
-    'the repository-owned candidate profile must run unit tests',
+  assert.equal(
+    Object.hasOwn(verificationProfile, 'commands'),
+    false,
+    'repository baseline policy must not schedule executable commands',
   );
   assert.ok(
     evidenceWorkflow.includes('verify-source-profile.ts'),
-    'candidate evidence must execute the exact-base verification profile',
+    'candidate evidence must validate the exact-base protected-input policy',
+  );
+  assert.doesNotMatch(
+    evidenceWorkflow,
+    /Run verification commands from the exact base profile/,
+    'GitHub Actions must not derive executable evidence from baseline profile commands',
+  );
+  assert.equal(
+    packageJson.scripts?.['verify:repository'],
+    'npm run lint && npm run typecheck && npm run test:unit',
+    'repository verification must remain a repository-owned executable contract',
+  );
+  assert.ok(
+    evidenceWorkflow.includes('npm run verify:repository'),
+    'candidate evidence must execute the substrate-neutral repository verifier',
   );
   assert.doesNotMatch(
     evidenceWorkflow,
@@ -179,57 +183,44 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
   );
 });
 
-test('relational hosted assurance is selected once from the trusted baseline', () => {
-  assert.match(
-    eventBlock(relationalAssuranceWorkflow, 'pull_request'),
-    /types: \[opened, synchronize, reopened, ready_for_review\]/,
-  );
-  assert.match(relationalAssuranceWorkflow, /path: trusted-planner/);
-  assert.match(
-    relationalAssuranceWorkflow,
-    /node --experimental-strip-types scripts\/plan-assurance-evidence\.ts "\$\{args\[@\]\}"/,
-  );
-  assert.equal(
-    relationalAssuranceWorkflow.match(/plan-assurance-evidence\.ts/g)?.length,
-    1,
-    'one planner invocation must select all hosted assurance evidence',
-  );
+test('GitHub workflows do not own assurance scheduling', () => {
+  const workflows = new URL('../.github/workflows/', import.meta.url);
+  const names = new Set(readdirSync(workflows));
 
-  const executors = [
-    '../.github/workflows/authority-flow-analysis.yml',
-    '../.github/workflows/authority-storage-decomposition.yml',
-    '../.github/workflows/distributed-authority-handoff.yml',
-    '../.github/workflows/distributed-authority-chaos.yml',
-    '../.github/workflows/substrate-capability-admission.yml',
-  ];
-  for (const path of executors) {
-    const source = readFileSync(new URL(path, import.meta.url), 'utf8');
-    assert.match(source, /\n  workflow_call:\n/);
-    assert.doesNotMatch(source, /\n  pull_request:\n/);
-    assert.doesNotMatch(source, /plan-assurance-evidence\.ts/);
-  }
+  assert.equal(names.has('assurance-evidence.yml'), false);
 
-  for (const evidenceId of [
-    'authority-flow-proof',
-    'authority-storage-proof',
-    'distributed-authority-handoff-proof',
-    'distributed-authority-chaos-proof',
-    'substrate-capability-admission-proof',
-  ]) {
-    assert.ok(
-      relationalAssuranceWorkflow.includes(evidenceId),
-      `missing selector for ${evidenceId}`,
+  for (const name of names) {
+    if (!name.endsWith('.yml')) continue;
+    const source = readFileSync(new URL(name, workflows), 'utf8');
+    assert.doesNotMatch(
+      source,
+      /plan-assurance-evidence\.ts/,
+      `${name} must not select assurance needs inside GitHub Actions`,
     );
   }
 
-  assert.match(
-    relationalAssuranceWorkflow,
-    /distributed-authority-handoff:[\s\S]*?permissions:\n\s+contents: write\n\s+statuses: write\n/,
-  );
-  assert.match(
-    relationalAssuranceWorkflow,
-    /distributed-authority-chaos:[\s\S]*?permissions:\n\s+contents: write\n/,
-  );
+  for (const redundant of [
+    'authority-flow-analysis.yml',
+    'authority-storage-decomposition.yml',
+    'computation-executor.yml',
+  ]) {
+    assert.equal(
+      names.has(redundant),
+      false,
+      `${redundant} must be realized through the generic executor boundary`,
+    );
+  }
+
+  for (const path of [
+    '../.github/workflows/distributed-authority-handoff.yml',
+    '../.github/workflows/distributed-authority-chaos.yml',
+    '../.github/workflows/substrate-capability-admission.yml',
+  ]) {
+    const source = readFileSync(new URL(path, import.meta.url), 'utf8');
+    assert.match(source, /\n  workflow_call:\n/);
+    assert.doesNotMatch(source, /\n  pull_request:\n/);
+  }
+
   assert.doesNotMatch(
     mergeGate,
     /statuses: write|contents: write/,
@@ -310,18 +301,14 @@ test('experiment workflows do not fan out on shared catalog metadata', () => {
   }
 });
 
-test('source candidate evidence uses the immutable claimed baseline rather than branch event history', () => {
+test('candidate handoff is transport-only and does not schedule verification', () => {
   const handoff = readFileSync(
     new URL('../.github/workflows/agent-candidate-signal.yml', import.meta.url),
     'utf8',
   );
-  assert.match(handoff, /accepted_baseline_sha: \$\{\{ needs.classify.outputs.base_sha \}\}/);
-  assert.match(handoff, /CANDIDATE_SHA_INPUT: \$\{\{ inputs.candidate_sha \}\}/);
-  assert.match(handoff, /test "\$CANDIDATE_SHA_INPUT" = "\$GITHUB_SHA"/);
-  assert.match(evidenceWorkflow, /BASE_SHA: \$\{\{ inputs.accepted_baseline_sha \|\|/);
-  assert.match(
-    evidenceWorkflow,
-    /inputs\.accepted_baseline_sha[\s\S]*--source-candidate/,
-    'source candidates must retain strict protected-input validation',
-  );
+  assert.match(handoff, /push:\n\s+branches:\n\s+- 'overcenter\/candidate\/\*\*'/);
+  assert.doesNotMatch(handoff, /workflow_dispatch:/);
+  assert.doesNotMatch(handoff, /source-evidence:/);
+  assert.doesNotMatch(handoff, /tests\.yml/);
+  assert.doesNotMatch(handoff, /accepted_baseline_sha/);
 });

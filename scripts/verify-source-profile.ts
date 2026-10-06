@@ -33,11 +33,3 @@ if (trusted !== submitted) {
   if (comparison.status !== 0) throw new Error('SOURCE_PROFILE_PROTECTED_PATH_CHANGED');
 }
 
-if (process.argv.includes('--check-only')) process.exit(0);
-
-for (const command of trusted.profile.commands) {
-  const [name, ...args] = command.split(' ');
-  const result = spawnSync(name!, args, { stdio: 'inherit', shell: false });
-  if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status ?? 1);
-}
