@@ -119,7 +119,7 @@ jobs:
               for index, chunk in enumerate(materializer_chunks)
           ]
           materializer_expression = "".join(
-              f"$MATERIALIZER_CHUNK_{index}"
+              f"$$MATERIALIZER_CHUNK_{index}"
               for index in range(len(materializer_chunks))
           )
           materializer_runner = (
