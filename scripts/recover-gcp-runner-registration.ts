@@ -25,14 +25,17 @@ function requireRequest(value: unknown): RecoveryRequest {
   if (body.schema !== 'overcenter-gcp-runner-registration-recovery/v1') {
     throw new TypeError('registration recovery request schema is unsupported');
   }
-  if (
-    typeof body.runner_image !== 'string' ||
-    !body.runner_image.startsWith(
+  const privateRunnerImage =
+    typeof body.runner_image === 'string' &&
+    body.runner_image.startsWith(
       'us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/',
-    ) ||
-    !/@sha256:[0-9a-f]{64}$/.test(body.runner_image)
-  ) {
-    throw new TypeError('runner image must be an immutable project digest');
+    ) &&
+    /@sha256:[0-9a-f]{64}$/.test(body.runner_image);
+  const boundedPublicRecoveryImage = body.runner_image === 'ubuntu:24.04';
+  if (!privateRunnerImage && !boundedPublicRecoveryImage) {
+    throw new TypeError(
+      'runner image must be an immutable project digest or the bounded ubuntu:24.04 recovery image',
+    );
   }
   if (!Array.isArray(body.jobs) || body.jobs.length < 1 || body.jobs.length > 4) {
     throw new TypeError('registration recovery request must contain between 1 and 4 jobs');
@@ -182,8 +185,31 @@ function createBuild(
   job: ReturnType<typeof parseRunnerLaunchRequest>,
 ): Record<string, unknown> {
   const runnerName = 'overcenter-gcp-' + String(job.job_id) + '-$BUILD_ID';
+  const publicRecovery = runnerImage === 'ubuntu:24.04';
+  const publicRecoveryBootstrap = publicRecovery
+    ? [
+        'export DEBIAN_FRONTEND=noninteractive',
+        'apt-get update -qq',
+        'apt-get install -y --no-install-recommends ca-certificates curl git iproute2 tar gzip',
+        'mkdir -p /actions-runner',
+        'cd /actions-runner',
+        'curl --fail --silent --show-error --location --retry 3 --output runner.tar.gz ' +
+          '"https://github.com/actions/runner/releases/download/v2.337.0/' +
+          'actions-runner-linux-x64-2.337.0.tar.gz"',
+        'printf "%s  %s\\n" ' +
+          '"70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613" ' +
+          '"runner.tar.gz" | sha256sum -c -',
+        'tar -xzf runner.tar.gz',
+        'rm runner.tar.gz',
+        './bin/installdependencies.sh',
+        'ip route replace blackhole 169.254.169.254/32',
+      ]
+    : ['cd /actions-runner'];
+
   const containerScript = [
     'set -euo pipefail',
+    ...publicRecoveryBootstrap,
+    'export RUNNER_ALLOW_RUNASROOT=1',
     'for variable in GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE GOOGLE_GHA_CREDS_PATH; do',
     '  printenv "$$variable" >/dev/null 2>&1 && exit 70 || true',
     'done',
@@ -201,6 +227,18 @@ function createBuild(
     'printf %s ' + encodedContainerScript +
     ' | base64 -d > /tmp/overcenter-runner.sh; exec bash /tmp/overcenter-runner.sh';
 
+  const dockerParts = [
+    'docker run --rm --network bridge',
+    publicRecovery ? '--cap-add=NET_ADMIN' : '',
+    '--volume /workspace:/workspace',
+    '--entrypoint bash',
+    runnerImage,
+    '-c',
+    JSON.stringify(runnerCommand),
+    '> /workspace/runner-registration-output.log 2>&1',
+    '|| true',
+  ].filter(Boolean);
+
   const dockerScript = [
     'if [ -f /workspace/skip-runner ]; then',
     '  echo "GitHub job is no longer queued; skipping worker launch."',
@@ -210,16 +248,7 @@ function createBuild(
     '  echo "runner registration token is missing" > /workspace/runner-registration-output.log',
     '  exit 0',
     'fi',
-    [
-      'docker run --rm --network bridge',
-      '--volume /workspace:/workspace',
-      '--entrypoint bash',
-      runnerImage,
-      '-c',
-      JSON.stringify(runnerCommand),
-      '> /workspace/runner-registration-output.log 2>&1',
-      '|| true',
-    ].join(' '),
+    dockerParts.join(' '),
   ].join('\n');
 
   return {
