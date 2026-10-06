@@ -216,7 +216,7 @@ async function main() {
       body: JSON.stringify({
         name: runnerName,
         runner_group_id: 1,
-        labels: ['self-hosted', 'Linux', 'X64', runnerLabel],
+        labels: Array.from(new Set(['self-hosted', 'Linux', 'X64', ...labels])).sort(),
         work_folder: '_work',
       }),
     }),
@@ -277,7 +277,7 @@ export function createRunnerBuild(
     'fi',
     'test -s /workspace/jit-config',
     [
-      'docker run --rm --network bridge',
+      'docker run --rm --network bridge --dns 8.8.8.8 --dns 8.8.4.4',
       '--volume /workspace:/workspace',
       '--env TARGET_REPOSITORY=' + request.repository,
       '--env TARGET_JOB_ID=' + String(request.job_id),
