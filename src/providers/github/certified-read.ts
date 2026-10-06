@@ -86,12 +86,90 @@ function validateParameters(
   }
 }
 
+/**
+ * Observe one schema-bound GitHub response slice.
+ *
+ * This is provider observation plumbing only. It does not bind a stable repository ID
+ * or prove the caller's granted permissions. Authority-grade callers should use
+ * observeCertifiedGitHubSemanticRead or a higher-level certified façade.
+ */
+export function observeGitHubSemanticSlice(
+  token: string,
+  {
+    repositoryFullName,
+    operation: operationName,
+    parameters = {},
+    get = githubGet,
+    clock = () => new Date().toISOString(),
+    observerId = 'github-semantic-read/v1',
+  }: {
+    repositoryFullName: string;
+    operation: GitHubGenericSemanticOperationName;
+    parameters?: Record<string, string | number | boolean>;
+    get?: GitHubJsonGet;
+    clock?: () => string;
+    observerId?: string;
+  },
+) {
+  validateParameters(operationName, parameters);
+  const { owner, repo } = githubRepositoryCoordinate(repositoryFullName);
+  const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
+  const semantic = GITHUB_OPERATION_SEMANTICS[operationName];
+  const request = materializeGitHubOperationRequest(operation, { owner, repo, ...parameters });
+  const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
+    token,
+    operation,
+    request,
+    fields: semantic.response_slice,
+    get,
+    clock,
+    observerId,
+  });
+  const value = projectResponseSlice(certified.outcome.value, semantic.response_slice);
+  const collection =
+    operation.pagination && semantic.response_slice.some((field) => field.path.includes('[]'))
+      ? {
+          kind: 'single-page' as const,
+          page: Number(
+            request.parameters[operation.pagination.page_parameter] ?? operation.pagination.first_page,
+          ),
+          page_size: Number(
+            request.parameters[operation.pagination.page_size_parameter] ??
+              operation.pagination.default_page_size,
+          ),
+          completeness: 'page-only' as const,
+        }
+      : null;
+  return {
+    state: collection ? 'page-observed' : 'observed',
+    value,
+    evidence: {
+      provider: 'github',
+      api_version: GITHUB_API_VERSION,
+      schema_sha256: GITHUB_OPENAPI_SHA256,
+      schema_source_commit: GITHUB_OPENAPI_SOURCE_COMMIT,
+      observer: { kind: 'git-kernel', id: observerId },
+      requested_repository_full_name: repositoryFullName,
+      operation_key: operationName,
+      operation_id: operation.operation_id,
+      observed_at: observedAt,
+      request_path: request.path,
+      parameters: request.parameters,
+      required_permissions: semantic.required_permissions,
+      collection,
+      negative_evidence_authoritative: false,
+      validated_paths: certified.structural_validation.validated_paths,
+      optional_absent_paths: certified.structural_validation.optional_absent_paths,
+    },
+  } as const;
+}
+
 export function observeCertifiedGitHubSemanticRead(
   token: string,
   {
     repositoryId,
     repositoryFullName,
-    operation: operationName,
+    operation,
     parameters = {},
     grantedPermissions,
     get = githubGet,
@@ -106,21 +184,20 @@ export function observeCertifiedGitHubSemanticRead(
     clock?: () => string;
   },
 ): CertifiedGitHubSemanticReadResult {
-  validateParameters(operationName, parameters);
+  validateParameters(operation, parameters);
   githubRepositoryCoordinate(repositoryFullName);
-  const operation = GITHUB_OBSERVATION_OPERATIONS[operationName];
-  const semantic = GITHUB_OPERATION_SEMANTICS[operationName];
+  const definition = GITHUB_OBSERVATION_OPERATIONS[operation];
+  const semantic = GITHUB_OPERATION_SEMANTICS[operation];
   const granted = new Set<GitHubRepositoryReadPermission>(grantedPermissions);
   const missing = semantic.required_permissions.filter((permission) => !granted.has(permission));
   if (missing.length > 0) {
     return {
       state: 'indeterminate',
-      operation_key: operationName,
-      operation_id: operation.operation_id,
+      operation_key: operation,
+      operation_id: definition.operation_id,
       observation_error: `GITHUB_SEMANTIC_READ_PERMISSION_NOT_GRANTED:${missing.join(',')}`,
     };
   }
-
   try {
     const repository = observeCertifiedGitHubRepository(token, {
       repositoryId,
@@ -129,64 +206,31 @@ export function observeCertifiedGitHubSemanticRead(
       clock,
       observerId: 'github-semantic-read/v1',
     });
-    const { owner, repo } = repository.fact.object;
-    const request = materializeGitHubOperationRequest(operation, { owner, repo, ...parameters });
-    const { observed_at: observedAt, certified } = observeCertifiedGitHubRead200({
-      token,
+    const read = observeGitHubSemanticSlice(token, {
+      repositoryFullName: repository.fact.object.full_name,
       operation,
-      request,
-      fields: semantic.response_slice,
+      parameters,
       get,
       clock,
       observerId: 'github-semantic-read/v1',
     });
-
-    const value = projectResponseSlice(certified.outcome.value, semantic.response_slice);
-    const collection = operation.pagination
-      ? {
-          kind: 'single-page' as const,
-          page: Number(
-            request.parameters[operation.pagination.page_parameter] ??
-              operation.pagination.first_page,
-          ),
-          page_size: Number(
-            request.parameters[operation.pagination.page_size_parameter] ??
-              operation.pagination.default_page_size,
-          ),
-          completeness: 'page-only' as const,
-        }
-      : null;
-
     return {
-      state: collection ? 'page-observed' : 'observed',
-      value,
+      state: read.state,
+      value: read.value,
       evidence: {
-        provider: 'github',
-        api_version: GITHUB_API_VERSION,
-        schema_sha256: GITHUB_OPENAPI_SHA256,
-        schema_source_commit: GITHUB_OPENAPI_SOURCE_COMMIT,
+        ...read.evidence,
         observer: { kind: 'git-kernel', id: 'github-semantic-read/v1' },
         repository_id: repositoryId,
         requested_repository_full_name: repositoryFullName,
         repository: repository.evidence,
-        operation_key: operationName,
-        operation_id: operation.operation_id,
-        observed_at: observedAt,
-        request_path: request.path,
-        parameters: request.parameters,
-        required_permissions: semantic.required_permissions,
-        collection,
-        negative_evidence_authoritative: false,
-        validated_paths: certified.structural_validation.validated_paths,
-        optional_absent_paths: certified.structural_validation.optional_absent_paths,
       },
     };
   } catch (error: unknown) {
     if (error instanceof GitHubAsyncReadRequired) throw error;
     return {
       state: 'indeterminate',
-      operation_key: operationName,
-      operation_id: operation.operation_id,
+      operation_key: operation,
+      operation_id: definition.operation_id,
       observation_error: error instanceof Error ? error.message : String(error),
     };
   }

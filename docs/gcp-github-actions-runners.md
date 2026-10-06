@@ -8,30 +8,36 @@ A repository opts in per job:
 runs-on: [self-hosted, overcenter-gcp]
 ```
 
-No repository-specific verifier request, SHA handoff, or runner-registration step belongs in the consumer workflow.
+No repository-specific verifier request, SHA handoff, runner-registration step, or launcher workflow belongs in the consumer repository.
 
 ## Control path
 
 1. The private `overcenter-github-runner-autoscaler` Cloud Run service polls the explicitly bound repositories for queued jobs requesting both `self-hosted` and `overcenter-gcp`.
-2. The autoscaler verifies immutable repository identity and dispatches `.github/workflows/gcp-runner-launch.yml` in Overcenter.
-3. The public controller authenticates to GCP through Workload Identity Federation and submits one Cloud Build.
-4. The build independently re-reads the GitHub job, rejects a repository or label mismatch, mints a short-lived repository runner registration token, and starts the pinned runner image.
+2. The autoscaler verifies immutable repository identity and invokes the private `overcenter-gcp-runner-launcher` Cloud Run service with the exact repository and queued job identity.
+3. The launcher submits one Cloud Build directly. It does not hold the GitHub App key.
+4. The build independently re-reads the GitHub job, rejects a repository or label mismatch, mints a short-lived repository runner-registration token, and starts the pinned runner image.
 5. The runner registers with `--ephemeral`, executes at most one GitHub Actions job, and exits. The Cloud Build worker then disappears.
 
-GitHub owns workflow scheduling, job state, step logs, cancellation, reruns, artifacts, and check presentation. GCP owns only the disposable compute substrate.
+GitHub owns workflow scheduling, job state, step logs, cancellation, reruns, artifacts, and check presentation. GCP owns only the disposable compute substrate. No GitHub-hosted runner participates in the steady-state launch path.
 
 ## Authority boundaries
 
 Repository admission is explicit in `config/gcp-runner-autoscaler.json` and includes GitHub repository and owner numeric IDs. Textual repository names alone are not authority.
 
-The autoscaler implementation lives under `src/transport` and runs privately as `overcenter-runtime` and has the GitHub App key only so it can observe Actions state and request the public launcher workflow. It does not submit Cloud Builds.
+The autoscaler implementation lives under `src/transport` and runs privately as `overcenter-runtime`. It has the GitHub App key so it can observe Actions state, but it has no Cloud Build submission authority.
 
-The launcher runs from the WIF-authorized Overcenter infrastructure ref and uses `overcenter-deployer` only to submit/read the build. The Cloud Build authorization step uses `overcenter-runtime` to read the existing GitHub App private key and mint a one-hour runner-registration token. The GitHub runner itself executes in a nested Docker container on the ordinary Docker bridge, not Cloud Build's credential-bearing `cloudbuild` network. Startup fails closed if a GCP credential environment variable or metadata token is reachable, and the registration-token file is deleted before job execution.
+The launcher runs privately as `overcenter-deployer`. It can submit Cloud Builds, but receives no GitHub credential. Cloud Run IAM admits only `overcenter-runtime` as its caller. The launch request repeats repository name, repository ID, owner ID, job ID, and runner label; the launcher checks those facts against the same immutable repository allowlist before creating compute.
 
-The runner image pins the GitHub Actions runner archive and SHA-256 digest. A deployment builds an image tagged to the exact controller Git revision. The launcher for that revision uses the matching image tag.
+The Cloud Build authorization step runs as `overcenter-runtime`, reads the existing GitHub App private key from Secret Manager, and independently revalidates the repository and queued job before minting a short-lived runner-registration token. The GitHub runner itself executes in a nested Docker container on the ordinary Docker bridge, not Cloud Build's credential-bearing `cloudbuild` network. Startup fails closed if a GCP credential environment variable or metadata token is reachable, and the registration-token file is deleted before job execution.
+
+The runner image pins the GitHub Actions runner archive and SHA-256 digest. Deployment resolves the built image to an immutable Artifact Registry digest, and the launcher uses that digest rather than a mutable tag.
 
 ## Operations
 
-The autoscaler is intentionally one warm private Cloud Run instance with CPU available between requests. It polls every ten seconds and suppresses duplicate dispatches for ten minutes. A process restart may cause a duplicate launcher, but each launcher re-reads GitHub job state before registering a runner; a job that is no longer queued becomes a no-op.
+The autoscaler is intentionally one warm private Cloud Run instance with CPU available between requests. It polls every ten seconds and suppresses duplicate launches for ten minutes. A process restart may cause a duplicate launch, but each build re-reads GitHub job state before registering a runner; a job that is no longer queued becomes a no-op.
 
-Deployment is explicit. Updating `.overcenter/gcp-runner-autoscaler-deploy-request` on the WIF-authorized infrastructure branch builds the exact runner image and deploys the exact autoscaler revision. The deployment fails closed if Cloud Run identity, source revision, instance bounds, or private exposure read back incorrectly.
+The launcher scales from zero and is private. It contains no GitHub secret and performs one operation: submit the exact runner build described by trusted software.
+
+Deployment is explicit. Updating `.overcenter/gcp-runner-autoscaler-deploy-request` on the WIF-authorized infrastructure branch builds the exact runner image, deploys the private launcher, grants only the runtime watcher permission to invoke it, and then deploys the exact autoscaler revision. The deployment reads back service identities, immutable runner digest, source revision, invoker policy, instance bounds, secret placement, and private exposure.
+
+The deployment workflow is bootstrap/update machinery only. Once the services are deployed, verification jobs do not depend on GitHub-hosted compute.
