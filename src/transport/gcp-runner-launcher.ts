@@ -362,7 +362,7 @@ export function createRunnerBuild(
             '  exit 81',
             'fi',
             'docker logout ' + environment.region + '-docker.pkg.dev >/dev/null 2>&1 || true',
-          ].join('\\n'),
+          ].join('\n'),
         ],
       },
       {
