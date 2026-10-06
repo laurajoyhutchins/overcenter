@@ -7,6 +7,7 @@ set -euo pipefail
 PROJECT_ID="${GCP_PROJECT_ID:-project-6b810532-a302-48dc-b56}"
 REGION="${GCP_REGION:-us-west1}"
 LAUNCHER_SERVICE="${GCP_LAUNCHER_SERVICE:-overcenter-gcp-runner-launcher}"
+RUNNER_IMAGE_REPOSITORY="${GCP_RUNNER_IMAGE_REPOSITORY:-cloud-run-source-deploy}"
 LAUNCHER_SA_NAME="overcenter-runner-launcher"
 LAUNCHER_SA="${LAUNCHER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 RUNTIME_SA="overcenter-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
@@ -53,6 +54,15 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --condition=None \
   --quiet >/dev/null
 
+# The bounded runtime identity pulls the immutable runner image but cannot push it.
+gcloud artifacts repositories add-iam-policy-binding "$RUNNER_IMAGE_REPOSITORY" \
+  --project="$PROJECT_ID" \
+  --location="$REGION" \
+  --member="serviceAccount:${RUNTIME_SA}" \
+  --role="roles/artifactregistry.reader" \
+  --condition=None \
+  --quiet >/dev/null
+
 # Each runner Cloud Build executes as the existing bounded runtime identity.
 gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
   --project="$PROJECT_ID" \
@@ -91,7 +101,8 @@ project_policy="$(mktemp)"
 runtime_policy="$(mktemp)"
 launcher_sa_policy="$(mktemp)"
 launcher_service_policy="$(mktemp)"
-trap 'rm -f "$project_policy" "$runtime_policy" "$launcher_sa_policy" "$launcher_service_policy"' EXIT
+runner_repository_policy="$(mktemp)"
+trap 'rm -f "$project_policy" "$runtime_policy" "$launcher_sa_policy" "$launcher_service_policy" "$runner_repository_policy"' EXIT
 
 gcloud projects get-iam-policy "$PROJECT_ID" --format=json > "$project_policy"
 gcloud iam service-accounts get-iam-policy "$RUNTIME_SA" \
@@ -100,8 +111,10 @@ gcloud iam service-accounts get-iam-policy "$LAUNCHER_SA" \
   --project="$PROJECT_ID" --format=json > "$launcher_sa_policy"
 gcloud run services get-iam-policy "$LAUNCHER_SERVICE" \
   --project="$PROJECT_ID" --region="$REGION" --format=json > "$launcher_service_policy"
+gcloud artifacts repositories get-iam-policy "$RUNNER_IMAGE_REPOSITORY" \
+  --project="$PROJECT_ID" --location="$REGION" --format=json > "$runner_repository_policy"
 
-python3 - "$project_policy" "$runtime_policy" "$launcher_sa_policy" "$launcher_service_policy" \
+python3 - "$project_policy" "$runtime_policy" "$launcher_sa_policy" "$launcher_service_policy" "$runner_repository_policy" \
   "$LAUNCHER_SA" "$RUNTIME_SA" "$DEPLOYER_SA" <<'PY'
 import json
 import sys
@@ -111,6 +124,7 @@ import sys
     runtime_path,
     launcher_sa_path,
     launcher_service_path,
+    runner_repository_path,
     launcher_sa,
     runtime_sa,
     deployer_sa,
@@ -130,6 +144,7 @@ project = load(project_path)
 runtime = load(runtime_path)
 launcher_sa_policy = load(launcher_sa_path)
 launcher_service = load(launcher_service_path)
+runner_repository = load(runner_repository_path)
 
 launcher_member = "serviceAccount:" + launcher_sa
 runtime_member = "serviceAccount:" + runtime_sa
@@ -147,6 +162,9 @@ if not has_binding(launcher_sa_policy, "roles/iam.serviceAccountUser", deployer_
 
 if not has_binding(launcher_service, "roles/run.invoker", runtime_member):
     raise SystemExit("runtime observer cannot invoke private launcher")
+
+if not has_binding(runner_repository, "roles/artifactregistry.reader", runtime_member):
+    raise SystemExit("runtime build identity cannot pull immutable runner image")
 
 print("Runner launcher IAM bootstrap readback: PASS")
 PY
