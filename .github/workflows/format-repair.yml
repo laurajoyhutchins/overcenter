@@ -1,0 +1,46 @@
+name: Repair TypeScript formatting
+
+on:
+  push:
+    branches:
+      - fix/gcp-runner-jit-config
+    paths:
+      - .overcenter/format-repair-request
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Format tracked TypeScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(
+            git ls-files '*.ts' biome.json package.json               | grep -v '^src/generated/'               | grep -v '^src/providers/github/operations\.generated\.ts$'
+          )
+          npx --yes '@biomejs/biome@2.5.14' format --write "${files[@]}"
+      - name: Commit deterministic formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No formatting changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- '*.ts' biome.json package.json
+          git commit -m "Format TypeScript"
+          git push origin HEAD:fix/gcp-runner-jit-config
