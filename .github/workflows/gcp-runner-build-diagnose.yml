@@ -1,4 +1,4 @@
-name: Diagnose GCP runner source build
+name: Diagnose GCP recovery builds
 
 on:
   push:
@@ -32,24 +32,18 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
           version: ">= 363.0.0"
-      - name: Inspect latest failed Cloud Build
+      - name: Inspect recovery Cloud Builds
         shell: bash
         run: |
           set -euo pipefail
-          build_id="$(gcloud builds list \
-            --project="$GCP_PROJECT_ID" \
-            --region="$GCP_REGION" \
-            --filter='status=FAILURE' \
-            --sort-by='~createTime' \
-            --limit=1 \
-            --format='value(id)')"
-          test -n "$build_id"
-          echo "Latest failed build: $build_id"
-          gcloud builds describe "$build_id" \
-            --project="$GCP_PROJECT_ID" \
-            --region="$GCP_REGION" \
-            --format='yaml(id,status,failureInfo,steps,images,source)'
-          echo "== log tail =="
-          gcloud builds log "$build_id" \
-            --project="$GCP_PROJECT_ID" \
-            --region="$GCP_REGION" 2>&1 | tail -n 160
+          for build_id in \
+            a9c674af-30a8-4e27-a93c-ba06c681fcaa \
+            8650d853-389d-4dbd-a4fc-471fc7da93af \
+            494c19da-b8ac-48cd-9364-830760e83ad4
+          do
+            echo "=== $build_id ==="
+            gcloud builds describe "$build_id" \
+              --project="$GCP_PROJECT_ID" \
+              --region="$GCP_REGION" \
+              --format='yaml(id,status,statusDetail,failureInfo,steps.id,steps.status,steps.exitCode,steps.timing)'
+          done
