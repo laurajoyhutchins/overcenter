@@ -22,6 +22,15 @@
         "scripts/verify-protected-source-recovery.ts"
       ],
       "reason": "Install a repository-owned owner-authorized protected-source recovery verifier without weakening ordinary source admission."
+    },
+    {
+      "base_sha": "ce2162b58ea9d81c365300aecab9c896288d31af",
+      "candidate_sha": "6d3c96bd70e659f6afa5dd09e8a93cc34fcb45f2",
+      "candidate_tree_sha": "0417f3ce14a15446ff3270abad432f4a71db2232",
+      "writable_paths": [
+        "scripts/verify-protected-source-recovery.ts"
+      ],
+      "reason": "Apply the exact formatter rewrite reported by the first proving merge-gate run."
     }
   ],
   "authority": "repository-owner authenticated compare-and-swap updates",
