@@ -8,20 +8,6 @@
       "owner_id": 219002713,
       "job_id": 111981905536,
       "runner_label": "overcenter-gcp"
-    },
-    {
-      "repository": "laurajoyhutchins/azelficoast",
-      "repository_id": 1384608118,
-      "owner_id": 219002713,
-      "job_id": 111982097627,
-      "runner_label": "overcenter-gcp"
-    },
-    {
-      "repository": "laurajoyhutchins/azelficoast",
-      "repository_id": 1384608118,
-      "owner_id": 219002713,
-      "job_id": 111982098081,
-      "runner_label": "overcenter-gcp"
     }
   ]
 }
