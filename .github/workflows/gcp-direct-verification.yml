@@ -67,185 +67,6 @@ jobs:
               output.write(f"revision={revision}\n")
           PY
 
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
-        with:
-          python-version: "3.13"
-
-      - name: Materialize exact Arcata verification tools
-        shell: bash
-        env:
-          REPOSITORY: ${{ steps.request.outputs.repository }}
-          REVISION: ${{ steps.request.outputs.revision }}
-        run: |
-          set -euo pipefail
-          bootstrap="$RUNNER_TEMP/gcp-direct-bootstrap"
-          capsule="$bootstrap/tool-capsule"
-          rm -rf "$bootstrap"
-          mkdir -p "$capsule/wheelhouse"
-
-          python - "$REPOSITORY" "$REVISION" "$capsule" <<'PY'
-          import base64
-          import hashlib
-          import json
-          import pathlib
-          import re
-          import sys
-          import urllib.parse
-          import urllib.request
-
-          repository, revision, capsule_raw = sys.argv[1:]
-          capsule = pathlib.Path(capsule_raw)
-          path = "tools/verification-tools.lock.json"
-          url = (
-              "https://api.github.com/repos/"
-              + repository
-              + "/contents/"
-              + path
-              + "?ref="
-              + urllib.parse.quote(revision, safe="")
-          )
-          request = urllib.request.Request(
-              url,
-              headers={
-                  "Accept": "application/vnd.github+json",
-                  "User-Agent": "overcenter-direct-gcp-tool-materializer",
-                  "X-GitHub-Api-Version": "2026-03-10",
-              },
-          )
-          with urllib.request.urlopen(request, timeout=30) as response:
-              body = json.load(response)
-
-          if body.get("type") != "file" or body.get("encoding") != "base64":
-              raise SystemExit("verification-tool lock response is not a base64 file")
-          content = base64.b64decode(str(body["content"]).replace("\n", ""))
-          blob_sha = hashlib.sha1(
-              f"blob {len(content)}\0".encode() + content
-          ).hexdigest()
-          if blob_sha != body.get("sha"):
-              raise SystemExit("verification-tool lock Git blob digest mismatch")
-
-          lock = json.loads(content)
-          if lock.get("schema") != "arcata-verification-tools/v1":
-              raise SystemExit("verification-tool lock schema mismatch")
-          if lock.get("target") != {
-              "python_version": "3.13",
-              "platform": "linux-x86-64",
-          }:
-              raise SystemExit("verification-tool target mismatch")
-          packages = lock.get("packages")
-          if not isinstance(packages, list) or not packages:
-              raise SystemExit("verification-tool package list is empty")
-
-          names = []
-          lines = []
-          authorized_hashes = []
-          for package in packages:
-              if set(package) != {"name", "version", "hashes"}:
-                  raise SystemExit("invalid verification-tool package record")
-              name = package["name"]
-              version = package["version"]
-              hashes = package["hashes"]
-              if not isinstance(name, str) or not re.fullmatch(
-                  r"[a-z0-9]+(?:-[a-z0-9]+)*", name
-              ):
-                  raise SystemExit("invalid verification-tool package name")
-              if not isinstance(version, str) or not version:
-                  raise SystemExit("invalid verification-tool package version")
-              if (
-                  not isinstance(hashes, list)
-                  or not hashes
-                  or any(
-                      not isinstance(item, str)
-                      or not re.fullmatch(r"[0-9a-f]{64}", item)
-                      for item in hashes
-                  )
-              ):
-                  raise SystemExit("invalid verification-tool package hashes")
-              names.append(name)
-              sorted_hashes = sorted(hashes)
-              lines.append(f"{name}=={version} \\")
-              for index, digest in enumerate(sorted_hashes):
-                  continuation = " \\" if index < len(sorted_hashes) - 1 else ""
-                  lines.append(f"    --hash=sha256:{digest}{continuation}")
-                  authorized_hashes.append(digest)
-
-          if names != sorted(names) or len(names) != len(set(names)):
-              raise SystemExit("verification-tool packages must be unique and sorted")
-
-          capsule.mkdir(parents=True, exist_ok=True)
-          (capsule / "lock.json").write_bytes(content)
-          (capsule / "requirements.txt").write_text(
-              "\n".join(lines) + "\n",
-              encoding="utf-8",
-          )
-          (capsule / "authority.json").write_text(
-              json.dumps(
-                  {
-                      "schema": "overcenter-direct-tool-capsule-authority/v1",
-                      "repository": repository,
-                      "revision": revision,
-                      "lock_path": path,
-                      "lock_blob_sha": blob_sha,
-                      "authorized_hashes": sorted(set(authorized_hashes)),
-                      "package_count": len(packages),
-                  },
-                  sort_keys=True,
-              )
-              + "\n",
-              encoding="utf-8",
-          )
-          PY
-
-          python -m pip download             --disable-pip-version-check             --only-binary=:all:             --no-deps             --require-hashes             --dest "$capsule/wheelhouse"             --requirement "$capsule/requirements.txt"
-
-          python - "$capsule" <<'PY'
-          import hashlib
-          import json
-          import pathlib
-          import sys
-
-          capsule = pathlib.Path(sys.argv[1])
-          authority = json.loads((capsule / "authority.json").read_text(encoding="utf-8"))
-          allowed = set(authority["authorized_hashes"])
-          wheels = sorted((capsule / "wheelhouse").iterdir())
-          if len(wheels) != authority["package_count"]:
-              raise SystemExit(
-                  f"tool capsule file count mismatch: {len(wheels)} != "
-                  f"{authority['package_count']}"
-              )
-          manifest = []
-          for wheel in wheels:
-              if not wheel.is_file():
-                  raise SystemExit("tool capsule contains a non-file wheelhouse entry")
-              digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
-              if digest not in allowed:
-                  raise SystemExit(f"unauthorized verification-tool digest: {wheel.name}")
-              manifest.append(
-                  {"filename": wheel.name, "sha256": digest, "size": wheel.stat().st_size}
-              )
-          (capsule / "manifest.json").write_text(
-              json.dumps(
-                  {
-                      "schema": "overcenter-direct-tool-capsule/v1",
-                      "files": manifest,
-                  },
-                  sort_keys=True,
-              )
-              + "\n",
-              encoding="utf-8",
-          )
-          print(
-              json.dumps(
-                  {
-                      "event": "verification_tool_capsule_materialized",
-                      "revision": authority["revision"],
-                      "lock_blob_sha": authority["lock_blob_sha"],
-                      "files": len(manifest),
-                  }
-              )
-          )
-          PY
-
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
@@ -263,6 +84,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          bootstrap="$RUNNER_TEMP/gcp-direct-bootstrap"
+          rm -rf "$bootstrap"
+          mkdir -p "$bootstrap"
           python3 - <<'PY'
           import base64
           import json
@@ -414,6 +238,177 @@ jobs:
                           *materializer_chunk_env,
                       ],
                       "args": ["-ceu", materializer_outer],
+                  },
+                  {
+                      "id": "materialize-verification-tools",
+                      "name": "python:3.13-bookworm",
+                      "entrypoint": "bash",
+                      "args": [
+                          "-ceu",
+                          """set -euo pipefail
+capsule=/workspace/tool-capsule
+rm -rf "$capsule"
+mkdir -p "$capsule/wheelhouse"
+python - "$capsule" <<'PYTOOLS'
+import hashlib
+import json
+import pathlib
+import re
+import sys
+
+capsule = pathlib.Path(sys.argv[1])
+source = pathlib.Path("/workspace/candidate-source")
+manifest = json.loads(
+    (source / ".overcenter-source-manifest.json").read_text(encoding="utf-8")
+)
+if manifest.get("schema") != "overcenter-github-tree-materialization/v1":
+    raise SystemExit("SOURCE_MANIFEST_SCHEMA_INVALID")
+
+lock_path = "tools/verification-tools.lock.json"
+entries = manifest.get("entries")
+if not isinstance(entries, list):
+    raise SystemExit("SOURCE_MANIFEST_ENTRIES_INVALID")
+matches = [
+    entry
+    for entry in entries
+    if isinstance(entry, dict) and entry.get("path") == lock_path
+]
+if len(matches) != 1:
+    raise SystemExit("VERIFICATION_TOOL_LOCK_MANIFEST_ENTRY_INVALID")
+entry = matches[0]
+
+content = (source / lock_path).read_bytes()
+blob_sha = hashlib.sha1(
+    f"blob {len(content)}\0".encode() + content
+).hexdigest()
+if blob_sha != entry.get("blob_sha"):
+    raise SystemExit("VERIFICATION_TOOL_LOCK_BLOB_DIGEST_MISMATCH")
+if hashlib.sha256(content).hexdigest() != entry.get("sha256"):
+    raise SystemExit("VERIFICATION_TOOL_LOCK_SHA256_MISMATCH")
+
+lock = json.loads(content)
+if lock.get("schema") != "arcata-verification-tools/v1":
+    raise SystemExit("VERIFICATION_TOOL_LOCK_SCHEMA_MISMATCH")
+if lock.get("target") != {
+    "python_version": "3.13",
+    "platform": "linux-x86-64",
+}:
+    raise SystemExit("VERIFICATION_TOOL_TARGET_MISMATCH")
+
+packages = lock.get("packages")
+if not isinstance(packages, list) or not packages:
+    raise SystemExit("VERIFICATION_TOOL_PACKAGE_LIST_EMPTY")
+
+names = []
+lines = []
+authorized_hashes = []
+for package in packages:
+    if set(package) != {"name", "version", "hashes"}:
+        raise SystemExit("VERIFICATION_TOOL_PACKAGE_RECORD_INVALID")
+    name = package["name"]
+    version = package["version"]
+    hashes = package["hashes"]
+    if not isinstance(name, str) or not re.fullmatch(
+        r"[a-z0-9]+(?:-[a-z0-9]+)*", name
+    ):
+        raise SystemExit("VERIFICATION_TOOL_PACKAGE_NAME_INVALID")
+    if not isinstance(version, str) or not version:
+        raise SystemExit("VERIFICATION_TOOL_PACKAGE_VERSION_INVALID")
+    if (
+        not isinstance(hashes, list)
+        or not hashes
+        or any(
+            not isinstance(item, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", item)
+            for item in hashes
+        )
+    ):
+        raise SystemExit("VERIFICATION_TOOL_PACKAGE_HASHES_INVALID")
+    names.append(name)
+    sorted_hashes = sorted(hashes)
+    lines.append(f"{name}=={version} \\")
+    for index, digest in enumerate(sorted_hashes):
+        continuation = " \\" if index < len(sorted_hashes) - 1 else ""
+        lines.append(f"    --hash=sha256:{digest}{continuation}")
+        authorized_hashes.append(digest)
+
+if names != sorted(names) or len(names) != len(set(names)):
+    raise SystemExit("VERIFICATION_TOOL_PACKAGES_NOT_UNIQUE_SORTED")
+
+(capsule / "lock.json").write_bytes(content)
+(capsule / "requirements.txt").write_text(
+    "\n".join(lines) + "\n",
+    encoding="utf-8",
+)
+(capsule / "authority.json").write_text(
+    json.dumps(
+        {
+            "schema": "overcenter-direct-tool-capsule-authority/v1",
+            "repository": manifest.get("repository"),
+            "revision": manifest.get("revision"),
+            "lock_path": lock_path,
+            "lock_blob_sha": blob_sha,
+            "authorized_hashes": sorted(set(authorized_hashes)),
+            "package_count": len(packages),
+        },
+        sort_keys=True,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PYTOOLS
+python -m pip download \
+  --disable-pip-version-check \
+  --only-binary=:all: \
+  --no-deps \
+  --require-hashes \
+  --dest "$capsule/wheelhouse" \
+  --requirement "$capsule/requirements.txt"
+python - "$capsule" <<'PYMANIFEST'
+import hashlib
+import json
+import pathlib
+import sys
+
+capsule = pathlib.Path(sys.argv[1])
+authority = json.loads((capsule / "authority.json").read_text(encoding="utf-8"))
+allowed = set(authority["authorized_hashes"])
+wheels = sorted((capsule / "wheelhouse").iterdir())
+if len(wheels) != authority["package_count"]:
+    raise SystemExit(
+        f"TOOL_CAPSULE_FILE_COUNT_MISMATCH:{len(wheels)}:"
+        f"{authority['package_count']}"
+    )
+files = []
+for wheel in wheels:
+    if not wheel.is_file():
+        raise SystemExit("TOOL_CAPSULE_NON_FILE_ENTRY")
+    digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+    if digest not in allowed:
+        raise SystemExit(f"TOOL_CAPSULE_UNAUTHORIZED_DIGEST:{wheel.name}")
+    files.append(
+        {"filename": wheel.name, "sha256": digest, "size": wheel.stat().st_size}
+    )
+(capsule / "manifest.json").write_text(
+    json.dumps(
+        {"schema": "overcenter-direct-tool-capsule/v1", "files": files},
+        sort_keys=True,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+print(
+    json.dumps(
+        {
+            "event": "verification_tool_capsule_materialized",
+            "revision": authority["revision"],
+            "lock_blob_sha": authority["lock_blob_sha"],
+            "files": len(files),
+        }
+    )
+)
+PYMANIFEST"""
+                      ],
                   },
                   {
                       "id": "verify-exact-head",
