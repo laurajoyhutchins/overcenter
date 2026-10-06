@@ -170,6 +170,113 @@ main().catch(error => {
 });
 `;
 
+const OBSERVE_JIT_SCRIPT = String.raw`
+const crypto = require('crypto');
+const fs = require('fs');
+
+const repo = process.env.TARGET_REPOSITORY;
+const expectedRepositoryId = Number(process.env.TARGET_REPOSITORY_ID);
+const jobId = Number(process.env.TARGET_JOB_ID);
+const runnerPrefix = process.env.RUNNER_NAME_PREFIX;
+const appId = process.env.GITHUB_APP_ID;
+
+const b64 = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+const now = Math.floor(Date.now() / 1000);
+const unsigned =
+  b64({ alg: 'RS256', typ: 'JWT' }) + '.' +
+  b64({ iat: now - 60, exp: now + 540, iss: appId });
+const signature = crypto
+  .sign('RSA-SHA256', Buffer.from(unsigned), process.env.GITHUB_APP_PRIVATE_KEY)
+  .toString('base64url');
+const appJwt = unsigned + '.' + signature;
+
+const baseHeaders = {
+  Accept: 'application/vnd.github+json',
+  'X-GitHub-Api-Version': '2026-03-10',
+  'User-Agent': 'overcenter-gcp-jit-observer',
+};
+
+async function json(response, label) {
+  const text = await response.text();
+  if (!response.ok) throw new Error(label + ' HTTP ' + response.status + ': ' + text.slice(0, 300));
+  return text ? JSON.parse(text) : {};
+}
+
+async function main() {
+  const installation = await json(
+    await fetch('https://api.github.com/repos/' + repo + '/installation', {
+      headers: { ...baseHeaders, Authorization: 'Bearer ' + appJwt },
+    }),
+    'installation lookup',
+  );
+  const access = await json(
+    await fetch(
+      'https://api.github.com/app/installations/' + installation.id + '/access_tokens',
+      {
+        method: 'POST',
+        headers: {
+          ...baseHeaders,
+          Authorization: 'Bearer ' + appJwt,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          repository_ids: [expectedRepositoryId],
+          permissions: { administration: 'write', actions: 'read' },
+        }),
+      },
+    ),
+    'installation token',
+  );
+  const headers = { ...baseHeaders, Authorization: 'Bearer ' + access.token };
+  const snapshots = [];
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    const job = await json(
+      await fetch('https://api.github.com/repos/' + repo + '/actions/jobs/' + jobId, { headers }),
+      'workflow job lookup',
+    );
+    const runners = await json(
+      await fetch('https://api.github.com/repos/' + repo + '/actions/runners?per_page=100', { headers }),
+      'runner list',
+    );
+    const matches = Array.isArray(runners.runners)
+      ? runners.runners
+          .filter(runner => String(runner.name || '').startsWith(runnerPrefix))
+          .map(runner => ({
+            id: runner.id,
+            name: runner.name,
+            status: runner.status,
+            busy: runner.busy,
+            labels: Array.isArray(runner.labels) ? runner.labels.map(label => label.name) : [],
+          }))
+      : [];
+    snapshots.push({
+      attempt,
+      job: {
+        id: job.id,
+        status: job.status,
+        conclusion: job.conclusion ?? null,
+        runner_id: job.runner_id ?? null,
+        runner_name: job.runner_name ?? null,
+        labels: job.labels ?? [],
+      },
+      runners: matches,
+    });
+    if (String(job.status) !== 'queued') break;
+    await new Promise(resolve => setTimeout(resolve, 5_000));
+  }
+  const output = JSON.stringify({ event: 'jit_observation', repo, job_id: jobId, snapshots }, null, 2) + '\n';
+  fs.writeFileSync('/workspace/jit-observer-output.log', output);
+  fs.mkdirSync('/builder/outputs', { recursive: true });
+  fs.writeFileSync('/builder/outputs/output', output);
+  process.stdout.write(output);
+}
+
+main().catch(error => {
+  console.error(String(error && error.stack || error));
+  process.exit(1);
+});
+`;
+
 const PREFETCH_RUNNER_SCRIPT = String.raw`
 const crypto = require('crypto');
 const fs = require('fs');
@@ -301,7 +408,23 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
         id: 'github-runner',
         name: 'gcr.io/cloud-builders/docker',
         entrypoint: 'bash',
+        waitFor: ['authorize-jit-job', 'prefetch-runner'],
         args: ['-ceu', dockerScript],
+      },
+      {
+        id: 'observe-jit-registration',
+        name: 'node:22-bookworm',
+        entrypoint: 'node',
+        waitFor: ['authorize-jit-job', 'prefetch-runner'],
+        secretEnv: ['GITHUB_APP_PRIVATE_KEY'],
+        env: [
+          'GITHUB_APP_ID=4616688',
+          'TARGET_REPOSITORY=' + job.repository,
+          'TARGET_REPOSITORY_ID=' + String(job.repository_id),
+          'TARGET_JOB_ID=' + String(job.job_id),
+          'RUNNER_NAME_PREFIX=overcenter-gcp-' + String(job.job_id) + '-',
+        ],
+        args: ['-e', OBSERVE_JIT_SCRIPT],
       },
       {
         id: 'capture-runner-output',
