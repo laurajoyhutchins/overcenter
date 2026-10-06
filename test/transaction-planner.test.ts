@@ -37,6 +37,7 @@ function fixture(t: TestContext, real = false) {
 const baseline = {
   baseline_id: 'repository-checks',
   baseline_sha256: 'a'.repeat(64),
+  baseline_package_scripts: ['lint', 'typecheck', 'test:unit'],
   validator_artifacts: ['src/source/transaction-planner.ts'],
 };
 
@@ -145,6 +146,22 @@ test('golden source edit derives the existing impacts and minimum model evidence
     },
   ]);
   assert.deepEqual(plan.evidence, golden.expected_minimum_evidence);
+  assert.deepEqual(
+    [...new Set(plan.evidence_frontiers.map((frontier) => frontier.revision))].sort(),
+    [base, head].sort(),
+  );
+  for (const frontier of plan.evidence_frontiers)
+    for (const candidate of frontier.candidates) assert.ok(candidate.package_scripts.length > 0);
+  assert.ok(
+    plan.evidence_frontiers.some(
+      (frontier) =>
+        frontier.revision === head &&
+        frontier.baseline_sha256 === baseline.baseline_sha256 &&
+        frontier.candidates.some(
+          (candidate) => candidate.evidence_id === 'baseline:repository-checks',
+        ),
+    ),
+  );
   assert.equal(plan.validation_mode, 'baseline');
   assert.deepEqual(plan.coverage_gaps, [
     { artifact_id: golden.candidate.path, reason: 'unresolved-dependency' },
