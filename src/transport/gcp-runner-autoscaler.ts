@@ -1,11 +1,13 @@
 import { createSign } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
 const GITHUB_API = 'https://api.github.com';
 const GITHUB_API_VERSION = '2026-03-10';
 const USER_AGENT = 'Overcenter-GCP-Runner-Autoscaler/1.0';
+const REPOSITORY_IDENTITY_REVERIFY_MS = 10 * 60_000;
+const GITHUB_READ_CONCURRENCY = 8;
+const LAUNCH_CONCURRENCY = 8;
 
 export type RepositoryBinding = Readonly<{
   full_name: string;
@@ -38,11 +40,8 @@ type WorkflowRun = Readonly<{
 }>;
 
 type PollState = {
-  running: boolean;
-  lastAttemptAt: string | null;
-  lastSuccessAt: string | null;
-  lastError: string | null;
   launched: Map<string, number>;
+  repositoryIdentityVerifiedAt: Map<number, number>;
 };
 
 function requirePositiveInteger(value: unknown, label: string): number {
@@ -256,6 +255,26 @@ export function isEligibleRunnerJob(job: WorkflowJob, runnerLabel: string): bool
   return labels.has('self-hosted') && labels.has(runnerLabel.toLowerCase());
 }
 
+async function mapConcurrent<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  work: (item: T) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      results[index] = await work(items[index]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 async function verifyRepositoryIdentity(
   repository: RepositoryBinding,
   token: string,
@@ -278,37 +297,74 @@ async function verifyRepositoryIdentity(
   }
 }
 
+async function verifyRepositoryIdentityIfStale(
+  repository: RepositoryBinding,
+  token: string,
+  state: PollState,
+  now: number,
+): Promise<void> {
+  const verifiedAt = state.repositoryIdentityVerifiedAt.get(repository.repository_id);
+  if (verifiedAt !== undefined && now - verifiedAt < REPOSITORY_IDENTITY_REVERIFY_MS) return;
+  await verifyRepositoryIdentity(repository, token);
+  state.repositoryIdentityVerifiedAt.set(repository.repository_id, now);
+}
+
+async function workflowRunsForStatus(
+  repository: RepositoryBinding,
+  token: string,
+  status: 'queued' | 'in_progress',
+): Promise<WorkflowRun[]> {
+  const runs: WorkflowRun[] = [];
+  for (let page = 1; ; page += 1) {
+    const body = await githubJson(
+      `/repos/${repository.full_name}/actions/runs?status=${status}&per_page=100&page=${page}`,
+      token,
+    );
+    const pageRuns = parseRuns(body);
+    runs.push(...pageRuns);
+    if (pageRuns.length < 100) break;
+  }
+  return runs;
+}
+
+async function workflowJobsForRun(
+  repository: RepositoryBinding,
+  token: string,
+  runId: number,
+  runnerLabel: string,
+): Promise<WorkflowJob[]> {
+  const jobs: WorkflowJob[] = [];
+  for (let page = 1; ; page += 1) {
+    const body = await githubJson(
+      `/repos/${repository.full_name}/actions/runs/${runId}/jobs?filter=latest&per_page=100&page=${page}`,
+      token,
+    );
+    const pageJobs = parseJobs(body);
+    jobs.push(...pageJobs.filter((job) => isEligibleRunnerJob(job, runnerLabel)));
+    if (pageJobs.length < 100) break;
+  }
+  return jobs;
+}
+
 async function queuedRunnerJobs(
   repository: RepositoryBinding,
   token: string,
   runnerLabel: string,
 ): Promise<WorkflowJob[]> {
-  const runIds = new Set<number>();
-  for (const status of ['queued', 'in_progress']) {
-    for (let page = 1; ; page += 1) {
-      const body = await githubJson(
-        `/repos/${repository.full_name}/actions/runs?status=${status}&per_page=100&page=${page}`,
-        token,
-      );
-      const runs = parseRuns(body);
-      for (const run of runs) runIds.add(run.id);
-      if (runs.length < 100) break;
-    }
-  }
-
-  const jobs: WorkflowJob[] = [];
-  for (const runId of runIds) {
-    for (let page = 1; ; page += 1) {
-      const body = await githubJson(
-        `/repos/${repository.full_name}/actions/runs/${runId}/jobs?filter=latest&per_page=100&page=${page}`,
-        token,
-      );
-      const pageJobs = parseJobs(body);
-      jobs.push(...pageJobs.filter((job) => isEligibleRunnerJob(job, runnerLabel)));
-      if (pageJobs.length < 100) break;
-    }
-  }
-  return jobs;
+  const runsByStatus = await Promise.all(
+    (['queued', 'in_progress'] as const).map((status) =>
+      workflowRunsForStatus(repository, token, status),
+    ),
+  );
+  const runIds = [...new Set(runsByStatus.flat().map((run) => run.id))].sort(
+    (left, right) => left - right,
+  );
+  const jobsByRun = await mapConcurrent(runIds, GITHUB_READ_CONCURRENCY, (runId) =>
+    workflowJobsForRun(repository, token, runId, runnerLabel),
+  );
+  const jobs = new Map<number, WorkflowJob>();
+  for (const job of jobsByRun.flat()) jobs.set(job.id, job);
+  return [...jobs.values()].sort((left, right) => left.id - right.id);
 }
 
 async function cloudRunIdentityToken(audience: string): Promise<string> {
@@ -327,15 +383,15 @@ async function cloudRunIdentityToken(audience: string): Promise<string> {
 
 async function launchRunner(
   launcherUrl: string,
+  launcherToken: string,
   config: RunnerAutoscalerConfig,
   sourceRepository: RepositoryBinding,
   job: WorkflowJob,
 ): Promise<void> {
-  const token = await cloudRunIdentityToken(launcherUrl);
   const response = await fetch(`${launcherUrl}/launch`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${launcherToken}`,
       'Content-Type': 'application/json',
       'User-Agent': USER_AGENT,
     },
@@ -361,64 +417,94 @@ function pruneLaunches(state: PollState, redispatchAfterMs: number, now: number)
   }
 }
 
+type RepositoryScan = Readonly<{
+  repository: RepositoryBinding;
+  jobs: readonly WorkflowJob[];
+}>;
+
+async function scanRepository(
+  client: GitHubAppClient,
+  repository: RepositoryBinding,
+  config: RunnerAutoscalerConfig,
+  state: PollState,
+  now: number,
+): Promise<RepositoryScan> {
+  const token = await client.installationToken(repository, { actions: 'read' });
+  await verifyRepositoryIdentityIfStale(repository, token, state, now);
+  return {
+    repository,
+    jobs: await queuedRunnerJobs(repository, token, config.runner_label),
+  };
+}
+
 async function pollOnce(
   client: GitHubAppClient,
   config: RunnerAutoscalerConfig,
   state: PollState,
   launcherUrl: string,
 ): Promise<void> {
-  if (state.running) return;
-  state.running = true;
   const now = Date.now();
-  state.lastAttemptAt = new Date(now).toISOString();
   pruneLaunches(state, config.redispatch_after_ms, now);
 
-  try {
-    for (const repository of config.repositories) {
-      const token = await client.installationToken(repository, {
-        actions: 'read',
-      });
-      await verifyRepositoryIdentity(repository, token);
-      const jobs = await queuedRunnerJobs(repository, token, config.runner_label);
-      for (const job of jobs) {
-        const key = `${repository.repository_id}:${job.id}`;
-        const prior = state.launched.get(key);
-        if (prior !== undefined && now - prior < config.redispatch_after_ms) continue;
-        await launchRunner(launcherUrl, config, repository, job);
-        state.launched.set(key, now);
-        console.log(
-          JSON.stringify({
-            event: 'runner_launched',
-            repository: repository.full_name,
-            repository_id: repository.repository_id,
-            job_id: job.id,
-          }),
-        );
-      }
+  const scans = await Promise.allSettled(
+    config.repositories.map((repository) => scanRepository(client, repository, config, state, now)),
+  );
+  const scanErrors: string[] = [];
+  const launchCandidates: Array<{ repository: RepositoryBinding; job: WorkflowJob }> = [];
+  for (const scan of scans) {
+    if (scan.status === 'rejected') {
+      scanErrors.push(String(scan.reason instanceof Error ? scan.reason.message : scan.reason));
+      continue;
     }
-    state.lastSuccessAt = new Date().toISOString();
-    state.lastError = null;
-  } catch (error) {
-    state.lastError = String(error instanceof Error ? error.message : error);
-    console.error(JSON.stringify({ event: 'poll_failed', error: state.lastError }));
-  } finally {
-    state.running = false;
+    for (const job of scan.value.jobs) {
+      const key = `${scan.value.repository.repository_id}:${job.id}`;
+      const prior = state.launched.get(key);
+      if (prior !== undefined && now - prior < config.redispatch_after_ms) continue;
+      launchCandidates.push({ repository: scan.value.repository, job });
+    }
   }
-}
 
-function healthResponse(state: PollState): string {
-  return JSON.stringify({
-    ok: state.lastError === null,
-    poll_running: state.running,
-    last_attempt_at: state.lastAttemptAt,
-    last_success_at: state.lastSuccessAt,
-    last_error: state.lastError,
-    launch_cache_size: state.launched.size,
-  });
+  const launchErrors: string[] = [];
+  if (launchCandidates.length > 0) {
+    const launcherToken = await cloudRunIdentityToken(launcherUrl);
+    const launches = await mapConcurrent(
+      launchCandidates,
+      LAUNCH_CONCURRENCY,
+      async ({ repository, job }) => {
+        try {
+          await launchRunner(launcherUrl, launcherToken, config, repository, job);
+          state.launched.set(`${repository.repository_id}:${job.id}`, now);
+          console.log(
+            JSON.stringify({
+              event: 'runner_launched',
+              repository: repository.full_name,
+              repository_id: repository.repository_id,
+              job_id: job.id,
+            }),
+          );
+          return null;
+        } catch (error) {
+          return String(error instanceof Error ? error.message : error);
+        }
+      },
+    );
+    launchErrors.push(...launches.filter((error): error is string => error !== null));
+  }
+
+  const errors = [...scanErrors, ...launchErrors];
+  if (errors.length > 0) {
+    console.error(
+      JSON.stringify({ event: 'poll_partial_failure', error: errors.join(' | ').slice(0, 2_048) }),
+    );
+  }
 }
 
 async function loadConfig(path: string): Promise<RunnerAutoscalerConfig> {
   return parseRunnerAutoscalerConfig(JSON.parse(await readFile(path, 'utf8')) as unknown);
+}
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 async function main(): Promise<void> {
@@ -433,46 +519,30 @@ async function main(): Promise<void> {
   if (!/^https:\/\/[^/]+$/.test(launcherUrl)) {
     throw new TypeError('OVERCENTER_RUNNER_LAUNCHER_URL must be an HTTPS origin');
   }
-  const port = Number(process.env.PORT ?? '8080');
-  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-    throw new TypeError('PORT must be a valid TCP port');
-  }
-
   const config = await loadConfig(configPath);
   const client = new GitHubAppClient(appId, privateKey);
   const state: PollState = {
-    running: false,
-    lastAttemptAt: null,
-    lastSuccessAt: null,
-    lastError: null,
     launched: new Map(),
+    repositoryIdentityVerifiedAt: new Map(),
   };
-
-  const server = createServer((request: IncomingMessage, response: ServerResponse) => {
-    if (request.method === 'GET' && request.url === '/health') {
-      response.statusCode = 200;
-      response.setHeader('content-type', 'application/json');
-      response.end(healthResponse(state));
-      return;
-    }
-    response.statusCode = 404;
-    response.end('not found');
-  });
-  await new Promise<void>((resolve) => server.listen(port, '0.0.0.0', resolve));
-
-  await pollOnce(client, config, state, launcherUrl);
-  const timer = setInterval(
-    () => void pollOnce(client, config, state, launcherUrl),
-    config.poll_interval_ms,
-  );
-  timer.unref();
-
+  let stopping = false;
   const shutdown = (): void => {
-    clearInterval(timer);
-    server.close(() => process.exit(0));
+    stopping = true;
   };
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
+
+  while (!stopping) {
+    const startedAt = Date.now();
+    try {
+      await pollOnce(client, config, state, launcherUrl);
+    } catch (error) {
+      const message = String(error instanceof Error ? error.message : error).slice(0, 2_048);
+      console.error(JSON.stringify({ event: 'poll_failed', error: message }));
+    }
+    const elapsed = Date.now() - startedAt;
+    await sleep(Math.max(0, config.poll_interval_ms - elapsed));
+  }
 }
 
 const entrypoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
