@@ -58,8 +58,7 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   const build = createRunnerBuild(environment, parseRunnerLaunchRequest(request));
   assert.equal(
     build.serviceAccount,
-    'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' +
-      environment.runtimeServiceAccount,
+    'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' + environment.runtimeServiceAccount,
   );
 
   const steps = build.steps as Array<Record<string, unknown>>;
@@ -69,10 +68,7 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
 
   const args = steps[1]?.args as string[];
   const script = args[1] ?? '';
-  assert.match(
-    script,
-    /docker run --rm --network bridge --dns 8\.8\.8\.8 --dns 8\.8\.4\.4/,
-  );
+  assert.match(script, /docker run --rm --network bridge --dns 8\.8\.8\.8 --dns 8\.8\.4\.4/);
   assert.match(
     script,
     /us-west1-docker\.pkg\.dev\/project-6b810532-a302-48dc-b56\/cloud-run-source-deploy\/overcenter-gcp-runner@sha256:/,
