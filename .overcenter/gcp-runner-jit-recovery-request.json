@@ -1,5 +1,4 @@
 {
-  "schema": "overcenter-gcp-runner-jit-recovery/v1",
   "jobs": [
     {
       "repository": "laurajoyhutchins/arcata",
@@ -8,5 +7,6 @@
       "job_id": 111981905536,
       "runner_label": "overcenter-gcp"
     }
-  ]
+  ],
+  "schema": "overcenter-gcp-runner-jit-recovery/v1"
 }
