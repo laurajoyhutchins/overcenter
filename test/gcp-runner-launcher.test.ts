@@ -62,6 +62,8 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
     'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' + environment.runtimeServiceAccount,
   );
 
+  assert.equal(build.queueTtl, '90s');
+
   const steps = build.steps as Array<Record<string, unknown>>;
   assert.equal(steps.length, 2);
   assert.equal(steps[0]?.id, 'authorize-job');
@@ -131,6 +133,13 @@ test('dedicated launcher identity preserves the deployment authority split', () 
   assert.match(deploy, /--service-account="\$LAUNCHER_SA"/);
   assert.match(deploy, /--service-account="\$RUNTIME_SA"/);
   assert.match(deploy, /--image="\$CONTROL_IMAGE_IMMUTABLE"/);
+  assert.match(deploy, /gcloud run worker-pools deploy "\$AUTOSCALER_WORKER_POOL"/);
+  assert.match(deploy, /--instances=0/);
+  assert.match(deploy, /gcloud run services delete "\$LEGACY_AUTOSCALER_SERVICE"/);
+  assert.match(deploy, /gcloud run worker-pools update "\$AUTOSCALER_WORKER_POOL"/);
+  assert.match(deploy, /--instances=1/);
+  assert.match(deploy, /Launcher:\s+private warm Cloud Run service/);
+  assert.doesNotMatch(deploy, /gcloud run deploy "\$AUTOSCALER_SERVICE"/);
   assert.doesNotMatch(deploy, /gcloud projects add-iam-policy-binding/);
   assert.doesNotMatch(deploy, /gcloud iam service-accounts add-iam-policy-binding/);
   assert.doesNotMatch(deploy, /gcloud run services add-iam-policy-binding/);
