@@ -137,11 +137,12 @@ jobs:
           clone_script = r"""
           set -euo pipefail
           token="$(cat /workspace/github-token)"
+          auth="$(printf 'x-access-token:%s' "$token" | base64 | tr -d '\n')"
           rm -rf /workspace/target
           mkdir -p /workspace/target
           cd /workspace/target
           git init -q
-          git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer $token"             fetch --quiet --no-tags --depth=1             "https://github.com/$TARGET_REPOSITORY.git" "$TARGET_REVISION"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" fetch --quiet --no-tags --depth=1 "https://github.com/$TARGET_REPOSITORY.git" "$TARGET_REVISION"
           git checkout --quiet --detach FETCH_HEAD
           test "$(git rev-parse HEAD)" = "$TARGET_REVISION"
           rm -f /workspace/github-token
