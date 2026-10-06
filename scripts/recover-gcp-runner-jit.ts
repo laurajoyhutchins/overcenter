@@ -268,9 +268,26 @@ async function main() {
   try {
     listenerTail = fs.readFileSync('/workspace/jit-runner-output.log', 'utf8').slice(-12000);
   } catch {}
+  let runnerDiagTail = '';
+  try {
+    const directory = '/workspace/runner-diag';
+    const files = fs.readdirSync(directory).sort();
+    runnerDiagTail = files
+      .slice(-4)
+      .map(name => '===== ' + name + ' =====\n' + fs.readFileSync(directory + '/' + name, 'utf8'))
+      .join('\n')
+      .slice(-24000);
+  } catch {}
   const output =
     JSON.stringify(
-      { event: 'jit_observation', repo, job_id: jobId, snapshots, listener_tail: listenerTail },
+      {
+        event: 'jit_observation',
+        repo,
+        job_id: jobId,
+        snapshots,
+        listener_tail: listenerTail,
+        runner_diag_tail: runnerDiagTail,
+      },
       null,
       2,
     ) + '\n';
@@ -360,8 +377,10 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
     ' | base64 -d > /tmp/overcenter-jit-runner.sh; exec bash /tmp/overcenter-jit-runner.sh';
   const dockerScript = [
     'set +e',
+    'mkdir -p /workspace/runner-diag',
     'docker run --rm --network bridge --cap-add=NET_ADMIN' +
       ' --volume /workspace:/workspace' +
+      ' --volume /workspace/runner-diag:/actions-runner/_diag' +
       ' --env TARGET_REPOSITORY=' + job.repository +
       ' --env TARGET_JOB_ID=' + String(job.job_id) +
       ' --env RUNNER_LABEL=' + job.runner_label +
