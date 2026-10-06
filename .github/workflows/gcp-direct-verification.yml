@@ -67,6 +67,185 @@ jobs:
               output.write(f"revision={revision}\n")
           PY
 
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.13"
+
+      - name: Materialize exact Arcata verification tools
+        shell: bash
+        env:
+          REPOSITORY: ${{ steps.request.outputs.repository }}
+          REVISION: ${{ steps.request.outputs.revision }}
+        run: |
+          set -euo pipefail
+          bootstrap="$RUNNER_TEMP/gcp-direct-bootstrap"
+          capsule="$bootstrap/tool-capsule"
+          rm -rf "$bootstrap"
+          mkdir -p "$capsule/wheelhouse"
+
+          python - "$REPOSITORY" "$REVISION" "$capsule" <<'PY'
+          import base64
+          import hashlib
+          import json
+          import pathlib
+          import re
+          import sys
+          import urllib.parse
+          import urllib.request
+
+          repository, revision, capsule_raw = sys.argv[1:]
+          capsule = pathlib.Path(capsule_raw)
+          path = "tools/verification-tools.lock.json"
+          url = (
+              "https://api.github.com/repos/"
+              + repository
+              + "/contents/"
+              + path
+              + "?ref="
+              + urllib.parse.quote(revision, safe="")
+          )
+          request = urllib.request.Request(
+              url,
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "User-Agent": "overcenter-direct-gcp-tool-materializer",
+                  "X-GitHub-Api-Version": "2026-03-10",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              body = json.load(response)
+
+          if body.get("type") != "file" or body.get("encoding") != "base64":
+              raise SystemExit("verification-tool lock response is not a base64 file")
+          content = base64.b64decode(str(body["content"]).replace("\n", ""))
+          blob_sha = hashlib.sha1(
+              f"blob {len(content)}\0".encode() + content
+          ).hexdigest()
+          if blob_sha != body.get("sha"):
+              raise SystemExit("verification-tool lock Git blob digest mismatch")
+
+          lock = json.loads(content)
+          if lock.get("schema") != "arcata-verification-tools/v1":
+              raise SystemExit("verification-tool lock schema mismatch")
+          if lock.get("target") != {
+              "python_version": "3.13",
+              "platform": "linux-x86-64",
+          }:
+              raise SystemExit("verification-tool target mismatch")
+          packages = lock.get("packages")
+          if not isinstance(packages, list) or not packages:
+              raise SystemExit("verification-tool package list is empty")
+
+          names = []
+          lines = []
+          authorized_hashes = []
+          for package in packages:
+              if set(package) != {"name", "version", "hashes"}:
+                  raise SystemExit("invalid verification-tool package record")
+              name = package["name"]
+              version = package["version"]
+              hashes = package["hashes"]
+              if not isinstance(name, str) or not re.fullmatch(
+                  r"[a-z0-9]+(?:-[a-z0-9]+)*", name
+              ):
+                  raise SystemExit("invalid verification-tool package name")
+              if not isinstance(version, str) or not version:
+                  raise SystemExit("invalid verification-tool package version")
+              if (
+                  not isinstance(hashes, list)
+                  or not hashes
+                  or any(
+                      not isinstance(item, str)
+                      or not re.fullmatch(r"[0-9a-f]{64}", item)
+                      for item in hashes
+                  )
+              ):
+                  raise SystemExit("invalid verification-tool package hashes")
+              names.append(name)
+              sorted_hashes = sorted(hashes)
+              lines.append(f"{name}=={version} \\")
+              for index, digest in enumerate(sorted_hashes):
+                  continuation = " \\" if index < len(sorted_hashes) - 1 else ""
+                  lines.append(f"    --hash=sha256:{digest}{continuation}")
+                  authorized_hashes.append(digest)
+
+          if names != sorted(names) or len(names) != len(set(names)):
+              raise SystemExit("verification-tool packages must be unique and sorted")
+
+          capsule.mkdir(parents=True, exist_ok=True)
+          (capsule / "lock.json").write_bytes(content)
+          (capsule / "requirements.txt").write_text(
+              "\n".join(lines) + "\n",
+              encoding="utf-8",
+          )
+          (capsule / "authority.json").write_text(
+              json.dumps(
+                  {
+                      "schema": "overcenter-direct-tool-capsule-authority/v1",
+                      "repository": repository,
+                      "revision": revision,
+                      "lock_path": path,
+                      "lock_blob_sha": blob_sha,
+                      "authorized_hashes": sorted(set(authorized_hashes)),
+                      "package_count": len(packages),
+                  },
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          python -m pip download             --disable-pip-version-check             --only-binary=:all:             --no-deps             --require-hashes             --dest "$capsule/wheelhouse"             --requirement "$capsule/requirements.txt"
+
+          python - "$capsule" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          capsule = pathlib.Path(sys.argv[1])
+          authority = json.loads((capsule / "authority.json").read_text(encoding="utf-8"))
+          allowed = set(authority["authorized_hashes"])
+          wheels = sorted((capsule / "wheelhouse").iterdir())
+          if len(wheels) != authority["package_count"]:
+              raise SystemExit(
+                  f"tool capsule file count mismatch: {len(wheels)} != "
+                  f"{authority['package_count']}"
+              )
+          manifest = []
+          for wheel in wheels:
+              if not wheel.is_file():
+                  raise SystemExit("tool capsule contains a non-file wheelhouse entry")
+              digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+              if digest not in allowed:
+                  raise SystemExit(f"unauthorized verification-tool digest: {wheel.name}")
+              manifest.append(
+                  {"filename": wheel.name, "sha256": digest, "size": wheel.stat().st_size}
+              )
+          (capsule / "manifest.json").write_text(
+              json.dumps(
+                  {
+                      "schema": "overcenter-direct-tool-capsule/v1",
+                      "files": manifest,
+                  },
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          print(
+              json.dumps(
+                  {
+                      "event": "verification_tool_capsule_materialized",
+                      "revision": authority["revision"],
+                      "lock_blob_sha": authority["lock_blob_sha"],
+                      "files": len(manifest),
+                  }
+              )
+          )
+          PY
+
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
@@ -181,8 +360,10 @@ jobs:
             --no-input \
             --no-compile \
             --only-binary=:all: \
+            --no-index \
             --no-deps \
             --require-hashes \
+            --find-links /tool-capsule/wheelhouse \
             --requirement /tmp/verification-tools.txt
           /tmp/verification-tools-env/bin/python -m pip check
           export PATH="/tmp/verification-tools-env/bin:$PATH"
@@ -203,7 +384,7 @@ jobs:
               "  exit 0",
               "fi",
               "set +e",
-              "docker run --rm --network bridge --cap-add=NET_ADMIN --volume /workspace/candidate-source:/candidate-source:ro --entrypoint bash python:3.13-bookworm -c "
+              "docker run --rm --network bridge --cap-add=NET_ADMIN --volume /workspace/candidate-source:/candidate-source:ro --volume /workspace/tool-capsule:/tool-capsule:ro --entrypoint bash python:3.13-bookworm -c "
               + json.dumps(runner)
               + " > /workspace/direct-verification.log 2>&1",
               "status=$?",
@@ -285,7 +466,7 @@ jobs:
         run: |
           set -euo pipefail
           build_id="$(
-            gcloud builds submit               --no-source               --async               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --config=/tmp/cloudbuild.json               --format='value(id)'
+            gcloud builds submit "$RUNNER_TEMP/gcp-direct-bootstrap"               --async               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --config=/tmp/cloudbuild.json               --format='value(id)'
           )"
           test -n "$build_id"
           echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
@@ -305,6 +486,7 @@ jobs:
           build_json="$RUNNER_TEMP/direct-gcp-build.json"
           gcloud builds describe "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --format=json > "$build_json"
           python3 - "$build_json" <<'PY'
+          import base64
           import json
           import sys
 
@@ -319,10 +501,23 @@ jobs:
               )
           outputs = (body.get("results") or {}).get("buildStepOutputs") or []
           for index, value in enumerate(outputs):
-              if value:
-                  print(f"buildStepOutputs[{index}] raw:", json.dumps(value, ensure_ascii=False))
+              if not value:
+                  continue
+              raw = str(value)
+              print(f"== buildStepOutputs[{index}] ==")
+              compact = "".join(raw.split())
+              if len(compact) % 4 != 1:
+                  try:
+                      decoded = base64.b64decode(
+                          compact + ("=" * ((-len(compact)) % 4)),
+                          validate=False,
+                      )
+                      print(decoded.decode("utf-8", errors="replace"))
+                      continue
+                  except Exception:
+                      pass
+              print(raw)
           PY
-          gcloud beta builds log "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --stream || true
           test "$status" = "SUCCESS"
 
       - name: Publish direct verification receipt
