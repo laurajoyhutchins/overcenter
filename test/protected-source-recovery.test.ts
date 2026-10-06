@@ -71,12 +71,7 @@ function authorize(
   return path;
 }
 
-function verify(
-  repo: string,
-  authorization: string,
-  base: string,
-  actor = 'owner',
-): ReturnType<typeof spawnSync> {
+function verify(repo: string, authorization: string, base: string, actor = 'owner') {
   return spawnSync(
     process.execPath,
     ['--experimental-strip-types', verifier, authorization, repo],
