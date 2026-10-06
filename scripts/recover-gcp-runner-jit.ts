@@ -232,17 +232,18 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
     'printf runner-dependencies > /workspace/jit-stage',
     './bin/installdependencies.sh >/dev/null || exit 94',
     'printf privilege-drop > /workspace/jit-stage',
-    'id runner >/dev/null 2>&1 || useradd --create-home --uid 1000 --shell /bin/bash runner || exit 95',
+    'getent group runner >/dev/null 2>&1 || groupadd --gid 10001 runner || exit 95',
+    'id runner >/dev/null 2>&1 || useradd --create-home --uid 10001 --gid 10001 --shell /bin/bash runner || exit 95',
     'mkdir -p /home/runner/_tool',
     'chown -R runner:runner /actions-runner /home/runner',
-    'jit_config="$(cat /workspace/jit-config)" || exit 95',
+    'jit_config="$(cat /workspace/jit-config)" || exit 101',
     'rm -f /workspace/jit-config',
     'export HOME=/home/runner',
     'export RUNNER_TOOL_CACHE=/home/runner/_tool',
-    'status="$(setpriv --reuid=1000 --regid=1000 --init-groups --no-new-privs curl --silent --output /dev/null --write-out "%{http_code}" --connect-timeout 1 --max-time 2 -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token || true)"',
+    'status="$(setpriv --reuid=10001 --regid=10001 --init-groups --no-new-privs curl --silent --output /dev/null --write-out "%{http_code}" --connect-timeout 1 --max-time 2 -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token || true)"',
     'test "$status" != 200 || exit 96',
     'printf listener-start > /workspace/jit-stage',
-    'exec setpriv --reuid=1000 --regid=1000 --init-groups --no-new-privs ./run.sh --jitconfig "$jit_config"',
+    'exec setpriv --reuid=10001 --regid=10001 --init-groups --no-new-privs ./run.sh --jitconfig "$jit_config"',
   ].join('\n');
 
   return {
