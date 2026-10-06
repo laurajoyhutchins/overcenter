@@ -244,10 +244,7 @@ test('GitHub transport identity can change without changing authority-facing evi
     expected,
   );
 
-  assert.deepEqual(
-    first.receipt,
-    executionEvidenceReceipt(descriptor, realization('satisfied')),
-  );
+  assert.deepEqual(first.receipt, executionEvidenceReceipt(descriptor, realization('satisfied')));
   assert.deepEqual(first.receipt, replay.receipt);
   assert.notDeepEqual(first.provenance, replay.provenance);
   assert.equal(first.provenance.provider, 'github');
