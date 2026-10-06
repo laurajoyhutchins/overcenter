@@ -1,0 +1,237 @@
+name: Direct GCP exact-head verification
+
+on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+    paths:
+      - .overcenter/gcp-direct-verification-request.json
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: direct-gcp-exact-head-verification
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
+      GCP_REGION: us-west1
+      GCP_WORKLOAD_IDENTITY_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      GCP_DEPLOY_SERVICE_ACCOUNT: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Prove submission authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/work/gcp-cloud-run-cloud-sql-bootstrap"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Compile bounded verification request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import json
+          import re
+
+          request_path = ".overcenter/gcp-direct-verification-request.json"
+          with open(request_path, encoding="utf-8") as handle:
+              request = json.load(handle)
+
+          if set(request) != {"schema", "repository", "revision", "profile"}:
+              raise SystemExit("invalid direct-verification request keys")
+          if request["schema"] != "overcenter-gcp-direct-verification/v1":
+              raise SystemExit("unsupported direct-verification request schema")
+          if request["repository"] != "laurajoyhutchins/arcata":
+              raise SystemExit("repository is not admitted for this verifier")
+          revision = str(request["revision"])
+          if not re.fullmatch(r"[0-9a-f]{40}", revision):
+              raise SystemExit("revision must be an exact 40-hex SHA")
+          if request["profile"] != "arcata-check":
+              raise SystemExit("unsupported verification profile")
+
+          repository = request["repository"]
+          inner = f"""set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          test "$(uname -m)" = "x86_64"
+          for variable in GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE GOOGLE_GHA_CREDS_PATH; do
+            if printenv "$variable" >/dev/null 2>&1; then
+              echo "ambient GCP credential variable reached candidate container: $variable" >&2
+              exit 70
+            fi
+          done
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ca-certificates curl git iproute2
+          ip route replace blackhole 169.254.169.254/32
+          for endpoint in \
+            http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
+            http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token
+          do
+            status="$(curl --silent --output /dev/null --write-out '%{{http_code}}' --connect-timeout 1 --max-time 2 -H 'Metadata-Flavor: Google' "$endpoint" || true)"
+            if [ "$status" = "200" ]; then
+              echo "GCP metadata credentials are reachable from candidate container" >&2
+              exit 71
+            fi
+          done
+          git init /tmp/arcata
+          git -C /tmp/arcata remote add origin https://github.com/{repository}.git
+          git -C /tmp/arcata fetch --no-tags --depth=1 origin {revision}
+          git -C /tmp/arcata checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/arcata rev-parse HEAD)" = "{revision}"
+          cd /tmp/arcata
+          python tools/verification_tools.py requirements > /tmp/verification-tools.txt
+          python -m venv /tmp/verification-tools-env
+          /tmp/verification-tools-env/bin/python -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            --no-compile \
+            --only-binary=:all: \
+            --no-deps \
+            --require-hashes \
+            --requirement /tmp/verification-tools.txt
+          /tmp/verification-tools-env/bin/python -m pip check
+          export PATH="/tmp/verification-tools-env/bin:$PATH"
+          python tools/check.py
+          """
+          encoded = base64.b64encode(inner.encode()).decode()
+          runner = "printf %s " + encoded + " | base64 -d > /tmp/verify.sh; exec bash /tmp/verify.sh"
+          outer = "\n".join([
+              "set +e",
+              "docker run --rm --network bridge --cap-add=NET_ADMIN --entrypoint bash python:3.13-bookworm -c "
+              + json.dumps(runner)
+              + " > /workspace/direct-verification.log 2>&1",
+              "status=$?",
+              "set -e",
+              'printf "%s\\n" "$status" > /workspace/direct-verification-exit-code',
+              "exit 0",
+          ])
+
+          build = {
+              "serviceAccount": (
+                  "projects/project-6b810532-a302-48dc-b56/serviceAccounts/"
+                  "overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com"
+              ),
+              "timeout": "1200s",
+              "steps": [
+                  {
+                      "id": "verify-exact-head",
+                      "name": "gcr.io/cloud-builders/docker",
+                      "entrypoint": "bash",
+                      "args": ["-ceu", outer],
+                  },
+                  {
+                      "id": "capture-verification-output",
+                      "name": "ubuntu:24.04",
+                      "entrypoint": "bash",
+                      "args": [
+                          "-ceu",
+                          'mkdir -p /builder/outputs; tail -c 96000 /workspace/direct-verification.log > /builder/outputs/output',
+                      ],
+                  },
+                  {
+                      "id": "require-verification-success",
+                      "name": "ubuntu:24.04",
+                      "entrypoint": "bash",
+                      "args": [
+                          "-ceu",
+                          'test -s /workspace/direct-verification-exit-code; status="$(cat /workspace/direct-verification-exit-code)"; test "$status" = "0"',
+                      ],
+                  },
+              ],
+              "options": {"logging": "CLOUD_LOGGING_ONLY"},
+          }
+          with open("/tmp/cloudbuild.json", "w", encoding="utf-8") as handle:
+              json.dump(build, handle)
+          with open("/tmp/request-summary", "w", encoding="utf-8") as handle:
+              handle.write(repository + " " + revision + " arcata-check\n")
+          PY
+          cat /tmp/request-summary
+
+      - name: Submit and observe GCP verification
+        id: submit
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_id="$(
+            gcloud builds submit               --no-source               --async               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --config=/tmp/cloudbuild.json               --format='value(id)'
+          )"
+          test -n "$build_id"
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
+          status=""
+          for _ in $(seq 1 180); do
+            status="$(
+              gcloud builds describe "$build_id"                 --project="$GCP_PROJECT_ID"                 --region="$GCP_REGION"                 --format='value(status)'
+            )"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED)
+                break
+                ;;
+            esac
+            sleep 5
+          done
+          echo "GCP build $build_id terminal status: $status"
+          build_json="$RUNNER_TEMP/direct-gcp-build.json"
+          gcloud builds describe "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --format=json > "$build_json"
+          python3 - "$build_json" <<'PY'
+          import base64
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              body = json.load(handle)
+          print("status:", body.get("status"))
+          print("failure:", (body.get("failureInfo") or {}).get("detail"))
+          for index, step in enumerate(body.get("steps") or []):
+              print(
+                  f"step[{index}] id={step.get('id')} status={step.get('status')} "
+                  f"exit={step.get('exitCode')}"
+              )
+          for index, encoded in enumerate((body.get("results") or {}).get("buildStepOutputs") or []):
+              if not encoded:
+                  continue
+              padded = encoded + ("=" * ((-len(encoded)) % 4))
+              print(f"== buildStepOutputs[{index}] ==")
+              print(base64.b64decode(padded).decode("utf-8", errors="replace"))
+          PY
+          test "$status" = "SUCCESS"
+
+      - name: Publish direct verification receipt
+        if: always()
+        shell: bash
+        env:
+          BUILD_ID: ${{ steps.submit.outputs.build_id }}
+        run: |
+          {
+            echo "## Direct GCP exact-head verification"
+            echo
+            echo "- request: `$(cat /tmp/request-summary 2>/dev/null || echo unavailable)`"
+            echo "- Cloud Build: `${BUILD_ID:-unavailable}`"
+            echo "- control revision: `$GITHUB_SHA`"
+          } >> "$GITHUB_STEP_SUMMARY"
