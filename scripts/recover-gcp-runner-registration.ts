@@ -249,8 +249,8 @@ function createBuild(
           '-ceu',
           [
             'cat /workspace/runner-registration-output.log',
-            'mkdir -p "$BUILDER_OUTPUT"',
-            'tail -c 48000 /workspace/runner-registration-output.log > "$BUILDER_OUTPUT/output"',
+            'mkdir -p "$(printenv BUILDER_OUTPUT)"',
+            'tail -c 48000 /workspace/runner-registration-output.log > "$(printenv BUILDER_OUTPUT)/output"',
           ].join('\\n'),
         ],
       },
