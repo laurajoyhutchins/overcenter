@@ -184,7 +184,7 @@ function createBuild(
   runnerImage: string,
   job: ReturnType<typeof parseRunnerLaunchRequest>,
 ): Record<string, unknown> {
-  const runnerName = 'overcenter-gcp-' + String(job.job_id) + '-$BUILD_ID';
+  const runnerName = 'overcenter-gcp-' + String(job.job_id) + '-recovery';
   const publicRecovery = runnerImage === 'ubuntu:24.04';
   const publicRecoveryBootstrap = publicRecovery
     ? [
@@ -231,12 +231,14 @@ function createBuild(
     'docker run --rm --network bridge',
     publicRecovery ? '--cap-add=NET_ADMIN' : '',
     '--volume /workspace:/workspace',
+    '--env TARGET_REPOSITORY=' + job.repository,
+    '--env TARGET_JOB_ID=' + String(job.job_id),
+    '--env RUNNER_LABEL=' + job.runner_label,
     '--entrypoint bash',
     runnerImage,
     '-c',
     JSON.stringify(runnerCommand),
     '> /workspace/runner-registration-output.log 2>&1',
-    '|| true',
   ].filter(Boolean);
 
   const dockerScript = [
@@ -277,7 +279,7 @@ function createBuild(
         name: 'gcr.io/cloud-builders/docker',
         entrypoint: 'bash',
         args: ['-ceu', dockerScript],
-        allowFailure: true,
+        allowFailure: false,
       },
       {
         id: 'capture-runner-output',
