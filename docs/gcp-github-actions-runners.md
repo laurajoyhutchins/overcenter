@@ -16,7 +16,8 @@ No repository-specific verifier request, SHA handoff, runner-registration step, 
 2. The autoscaler verifies immutable repository identity and invokes the private `overcenter-gcp-runner-launcher` Cloud Run service with the exact repository and queued job identity.
 3. The launcher submits one Cloud Build directly. It does not hold the GitHub App key.
 4. The build independently re-reads the GitHub job, rejects a repository or label mismatch, requests a one-time JIT configuration bound to the job/build-specific runner identity and labels, and starts the pinned runner image.
-5. The runner consumes that configuration through `run.sh --jitconfig`, executes at most one GitHub Actions job, and exits. The Cloud Build worker then disappears.
+5. The runner consumes that configuration through `run.sh --jitconfig`, executes at most one GitHub Actions job, and exits.
+6. A secret-bearing settlement step independently re-reads the exact GitHub job and requires the exact JIT runner name plus terminal job status. A clean runner-process exit without an actual GitHub job claim is therefore a substrate failure, not success. The Cloud Build worker then disappears.
 
 GitHub owns workflow scheduling, job state, step logs, cancellation, reruns, artifacts, and check presentation. GCP owns only the disposable compute substrate. No GitHub-hosted runner participates in the steady-state launch path.
 
