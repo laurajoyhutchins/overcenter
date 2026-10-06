@@ -24,10 +24,10 @@ jobs:
       WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
       DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
       ARCATA_REPOSITORY: laurajoyhutchins/arcata
-      ARCATA_BRANCH: refactor/staged-current-distribution
-      EXPECTED_HEAD: 25907380410cf63d02ad6eb2ce839d890eec8fdd
-      ALLOWED_PATH: integration/staged_network.py
-      COMMIT_MESSAGE: Format staged current distribution refactor
+      ARCATA_BRANCH: refactor/bounded-stage-phases
+      EXPECTED_HEAD: 14e222e9ff1e224a44d5cc22bbbdb3370a10db44
+      ALLOWED_PATH: integration/arc_angle_bounds.py
+      COMMIT_MESSAGE: Format bounded staged calculation refactor
 
     steps:
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
