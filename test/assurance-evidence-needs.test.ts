@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { canonicalDigest } from '../src/digest.ts';
 import { executionEvidenceReceipt } from '../src/execution/evidence-receipt.ts';
 import {
   ASSURANCE_EVIDENCE_NEED_SCHEMA,
@@ -73,15 +74,17 @@ function receiptFor(
   need: AssuranceEvidenceNeed,
   result: 'satisfied' | 'unsatisfied' = 'satisfied',
 ) {
-  return executionEvidenceReceipt(
-    {
-      identity: need.identity,
-      inputs: need.inputs,
-      outputs: { evidence_sha256: '3'.repeat(64) },
-      semantic_evidence: { verified: 'true' },
-    },
-    result,
-  );
+  const descriptor = {
+    need: { id: need.need_id, sha256: canonicalDigest(need) },
+    identity: need.identity,
+    inputs: need.inputs,
+  };
+  return executionEvidenceReceipt(descriptor, {
+    ...descriptor,
+    outputs: { evidence_sha256: '3'.repeat(64) },
+    semantic_evidence: { verified: 'true' },
+    observation: { result },
+  });
 }
 
 test('base and candidate requirements keep their exact assurance coordinates', () => {
@@ -166,15 +169,19 @@ test('stale-coordinate satisfied evidence contributes no support', () => {
   const candidate = evidence('shared-proof', ['proof:a']);
   const transaction = plan([frontier(CANDIDATE, ['proof:a'], [candidate])]);
   const need = deriveAssuranceEvidenceNeeds(transaction)[0]!;
-  const stale = executionEvidenceReceipt(
-    {
-      identity: { ...need.identity, revision: BASE },
-      inputs: { ...need.inputs, coordinate: `revision:${BASE}` },
-      outputs: { evidence_sha256: '3'.repeat(64) },
-      semantic_evidence: { verified: 'true' },
-    },
-    'satisfied',
-  );
+  const staleIdentity = { ...need.identity, revision: BASE };
+  const staleInputs = { ...need.inputs, coordinate: `revision:${BASE}` };
+  const staleNeed: AssuranceEvidenceNeed = {
+    schema: ASSURANCE_EVIDENCE_NEED_SCHEMA,
+    need_id: `assurance-evidence:${canonicalDigest({
+      schema: ASSURANCE_EVIDENCE_NEED_SCHEMA,
+      identity: staleIdentity,
+      inputs: staleInputs,
+    })}`,
+    identity: staleIdentity,
+    inputs: staleInputs,
+  };
+  const stale = receiptFor(staleNeed);
   assert.deepEqual(deriveAssuranceEvidenceNeeds(transaction, [stale]), [need]);
 });
 

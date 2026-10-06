@@ -722,7 +722,12 @@ test('project.submit refuses to publish a verified source candidate directly to 
             remote: 'origin',
             githubToken: 'fixture',
             transactionContext,
-            sourceExecutionEvidence: sourceProofEvidence(verificationPath, candidateSha, runId),
+            sourceExecutionEvidence: sourceProofEvidence(
+              plan,
+              verificationPath,
+              candidateSha,
+              runId,
+            ),
           },
         ),
       /PROJECT_SUBMIT_SOURCE_PUBLICATION_REQUIRES_PR_EFFECT/,
@@ -803,6 +808,7 @@ test('certified source verification rejection returns work to READY without movi
         githubToken: 'fixture',
         transactionContext,
         sourceExecutionEvidence: sourceProofEvidence(
+          plan,
           verificationPath,
           candidateSha,
           acquired.run_id,
@@ -1217,18 +1223,17 @@ function sourceProofProvider(
 }
 
 function sourceProofEvidence(
+  plan: SourceTransactionPlan,
   verificationPath: string,
   candidateSha: string,
   runId: string,
   evidenceConclusion: 'success' | 'failure' = 'success',
 ) {
   const get = sourceProofProvider(candidateSha, runId, evidenceConclusion);
-  return (plan: SourceTransactionPlan) => {
-    const record: unknown = JSON.parse(readFileSync(verificationPath, 'utf8'));
-    return observeGitHubSourceProofExecutionEvidence('fixture', plan, record, {
-      workflowRunId: 123,
-      workflowRunAttempt: 1,
-      get,
-    });
-  };
+  const record: unknown = JSON.parse(readFileSync(verificationPath, 'utf8'));
+  return observeGitHubSourceProofExecutionEvidence('fixture', plan, record, {
+    workflowRunId: 123,
+    workflowRunAttempt: 1,
+    get,
+  });
 }

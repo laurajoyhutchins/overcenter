@@ -111,13 +111,18 @@ test('transaction plans reject missing, extra, and unauthorized writes', () => {
 test('transaction identity covers repository, candidate, and baseline policy', () => {
   const original = sourceTransactionPlanDigest(plan());
   assert.notEqual(sourceTransactionPlanDigest({ ...plan(), repository_id: 43 }), original);
-  assert.notEqual(
-    sourceTransactionPlanDigest({
-      ...plan(),
-      assurance: { ...plan().assurance, baseline_sha256: '2'.repeat(64) },
-    }),
-    original,
-  );
+  const changedBaseline = '2'.repeat(64);
+  const changed = plan();
+  changed.assurance = {
+    ...changed.assurance,
+    baseline_sha256: changedBaseline,
+    evidence_frontiers: changed.assurance.evidence_frontiers.map((frontier) =>
+      frontier.revision === changed.assurance.candidate_revision
+        ? { ...frontier, baseline_sha256: changedBaseline }
+        : frontier,
+    ),
+  };
+  assert.notEqual(sourceTransactionPlanDigest(changed), original);
 });
 
 test('transaction plan is reconstructed from immutable candidate and runtime binding', (t) => {

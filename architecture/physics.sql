@@ -9,6 +9,7 @@ INSERT INTO artifact(artifact_id) VALUES
   ('.github/workflows/distributed-authority-chaos.yml'),
   ('.github/workflows/distributed-authority-handoff.yml'),
   ('.github/workflows/github-object-transport-proof.yml'),
+  ('.github/workflows/gcp-runner-autoscaler-deploy.yml'),
   ('.github/workflows/operator-project-advance.yml'),
   ('.github/workflows/operator-project-submit.yml'),
   ('.github/workflows/production-criticality-mutation-probe.yml'),
@@ -339,6 +340,7 @@ INSERT INTO evidence_uses_package_script(evidence_id, script_name) VALUES
 
 INSERT INTO capability(capability_id) VALUES
   ('github-actions/permission/contents/write'),
+  ('github-actions/permission/id-token/write'),
   ('github-actions/permission/pull-requests/write'),
   ('github-actions/permission/statuses/write');
 
@@ -373,6 +375,7 @@ INSERT INTO principal(principal_id) VALUES
   ('.github/workflows/distributed-authority-handoff.yml#reserve-effect'),
   ('.github/workflows/distributed-authority-handoff.yml#setup'),
   ('.github/workflows/github-object-transport-proof.yml#publish'),
+  ('.github/workflows/gcp-runner-autoscaler-deploy.yml#deploy'),
   ('.github/workflows/operator-project-advance.yml#command'),
   ('.github/workflows/operator-project-submit.yml#command'),
   ('.github/workflows/production-criticality-mutation-probe.yml#graph-obligation'),
@@ -403,6 +406,7 @@ INSERT INTO principal_defined_in_artifact(principal_id, artifact_id) VALUES
   ('.github/workflows/distributed-authority-handoff.yml#reserve-effect', '.github/workflows/distributed-authority-handoff.yml'),
   ('.github/workflows/distributed-authority-handoff.yml#setup', '.github/workflows/distributed-authority-handoff.yml'),
   ('.github/workflows/github-object-transport-proof.yml#publish', '.github/workflows/github-object-transport-proof.yml'),
+  ('.github/workflows/gcp-runner-autoscaler-deploy.yml#deploy', '.github/workflows/gcp-runner-autoscaler-deploy.yml'),
   ('.github/workflows/operator-project-advance.yml#command', '.github/workflows/operator-project-advance.yml'),
   ('.github/workflows/operator-project-submit.yml#command', '.github/workflows/operator-project-submit.yml'),
   ('.github/workflows/production-criticality-mutation-probe.yml#graph-obligation', '.github/workflows/production-criticality-mutation-probe.yml'),
@@ -442,6 +446,7 @@ INSERT INTO principal_has_capability(principal_id, capability_id) VALUES
   ('.github/workflows/distributed-authority-handoff.yml#setup', 'github-actions/permission/contents/write'),
   ('.github/workflows/distributed-authority-handoff.yml#setup', 'github-actions/permission/statuses/write'),
   ('.github/workflows/github-object-transport-proof.yml#publish', 'github-actions/permission/contents/write'),
+  ('.github/workflows/gcp-runner-autoscaler-deploy.yml#deploy', 'github-actions/permission/id-token/write'),
   ('.github/workflows/operator-project-advance.yml#command', 'github-actions/permission/contents/write'),
   ('.github/workflows/operator-project-submit.yml#command', 'github-actions/permission/contents/write'),
   ('.github/workflows/production-criticality-mutation-probe.yml#graph-obligation', 'github-actions/permission/contents/write'),

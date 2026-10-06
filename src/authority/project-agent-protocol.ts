@@ -122,10 +122,13 @@ interface AdvanceOptions extends ProtocolOptions {
   observationContext?: ObservationContext;
 }
 
-interface SubmitOptions extends ProtocolOptions {
-  candidatePath?: string;
+export interface SourceTransactionPlanOptions extends ProtocolOptions {
   transactionContext?: SourceTransactionContext;
-  sourceExecutionEvidence?: (plan: SourceTransactionPlan) => ExecutionEvidenceReceipt;
+}
+
+interface SubmitOptions extends SourceTransactionPlanOptions {
+  candidatePath?: string;
+  sourceExecutionEvidence?: ExecutionEvidenceReceipt;
 }
 
 const DEFAULT_AUTHORITY_REF = 'refs/overcenter/state';
@@ -643,6 +646,78 @@ function sourceSubmitReceipt(
   });
 }
 
+function claimedSourceTransactionPlan(
+  repo: string,
+  context: ProjectSubmitContext,
+  kernel: GitOvercenterKernel,
+  assigned: Work,
+  candidateSha: string,
+  transactionContext?: SourceTransactionContext,
+): {
+  plan: SourceTransactionPlan;
+  proofContext: SourceTransactionContext;
+} {
+  if (assigned.packet.kind !== 'source-change') {
+    throw new Error('PROJECT_SUBMIT_SOURCE_PLAN_NOT_SOURCE_CHANGE');
+  }
+  const claim = kernel.sourceClaimBinding(context.candidate_run_id);
+  const proofContext = transactionContext ?? sourceTransactionContextFromEnvironment();
+  if (
+    proofContext.repository_id !== context.repository_id ||
+    proofContext.repository_full_name !== context.repository_full_name ||
+    proofContext.runtime_sha !== context.command_source_sha.toLowerCase()
+  ) {
+    throw new Error('SOURCE_TRANSACTION_SUBMIT_MISMATCH');
+  }
+  return {
+    plan: buildSourceTransactionPlan({
+      repo,
+      taskValue: assigned.packet,
+      claim,
+      candidateSha,
+      context: proofContext,
+    }),
+    proofContext,
+  };
+}
+
+export function sourceTransactionPlanForProjectCandidate(
+  repo: string,
+  context: ProjectSubmitContext,
+  {
+    authorityRef = DEFAULT_AUTHORITY_REF,
+    remote = DEFAULT_REMOTE,
+    githubToken = null,
+    transactionContext,
+  }: SourceTransactionPlanOptions = {},
+): SourceTransactionPlan {
+  validateCommandContext(context);
+  assertNonEmptyCandidateRun(context.candidate_run_id);
+  const candidateSha = context.candidate_sha.toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(candidateSha)) {
+    throw new Error('PROJECT_SUBMIT_CANDIDATE_SHA_INVALID');
+  }
+
+  const kernel = new GitOvercenterKernel(repo, {
+    ref: authorityRef,
+    remote,
+    githubToken,
+  });
+  if (!kernel.head()) throw new Error('PROJECT_SUBMIT_AUTHORITY_MISSING');
+  const assigned = kernel.claimedWork(context.candidate_run_id);
+  const sourceRevision = kernel.claimedSourceRevision(context.candidate_run_id);
+  if (!sourceRevision) throw new Error('PROJECT_SUBMIT_SOURCE_REVISION_MISSING');
+
+  return claimedSourceTransactionPlan(
+    repo,
+    context,
+    kernel,
+    assigned,
+    candidateSha,
+    transactionContext,
+  ).plan;
+}
+
 export function submitProjectCandidate(
   repo: string,
   context: ProjectSubmitContext,
@@ -758,28 +833,21 @@ export function submitProjectCandidate(
     }
 
     try {
-      const proofContext = transactionContext ?? sourceTransactionContextFromEnvironment();
-      if (
-        proofContext.repository_id !== context.repository_id ||
-        proofContext.repository_full_name !== context.repository_full_name ||
-        proofContext.runtime_sha !== context.command_source_sha.toLowerCase()
-      )
-        throw new Error('SOURCE_TRANSACTION_SUBMIT_MISMATCH');
-      const plan = buildSourceTransactionPlan({
+      const { plan, proofContext } = claimedSourceTransactionPlan(
         repo,
-        taskValue: assigned.packet,
-        claim,
+        context,
+        kernel,
+        assigned,
         candidateSha,
-        context: proofContext,
-      });
+        transactionContext,
+      );
       const admittedProofContext = {
         ...proofContext,
         verification_profile_id: plan.verification_profile.profile.id,
         verification_profile_sha256: plan.verification_profile.sha256,
       };
-      const executionEvidence = sourceExecutionEvidence(plan);
       const proofWitness = admitSourceProofEvidence(plan, {
-        executionEvidence,
+        executionEvidence: sourceExecutionEvidence,
         context: admittedProofContext,
       });
       const proof = trustedSourceProof(proofWitness);
