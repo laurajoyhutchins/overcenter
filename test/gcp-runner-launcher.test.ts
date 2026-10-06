@@ -63,29 +63,21 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   );
 
   const steps = build.steps as Array<Record<string, unknown>>;
-  assert.equal(steps.length, 5);
+  assert.equal(steps.length, 2);
   assert.equal(steps[0]?.id, 'authorize-job');
-  assert.equal(steps[1]?.id, 'docker-network-smoke');
-  assert.equal(steps[2]?.id, 'artifact-registry-auth');
-  assert.equal(steps[3]?.id, 'pull-runner-image');
-  assert.equal(steps[4]?.id, 'github-runner');
+  assert.equal(steps[1]?.id, 'github-runner');
 
-  const smokeArgs = steps[1]?.args as string[];
-  assert.match(smokeArgs[1] ?? '', /docker run --rm --network bridge alpine:3\.20/);
-
-  const pullArgs = steps[3]?.args as string[];
-  const pullScript = pullArgs[1] ?? '';
-  assert.match(pullScript, /docker login/);
-  assert.match(pullScript, /oauth2accesstoken/);
-  assert.match(pullScript, /docker pull .*@sha256:a{64}/);
-  assert.match(pullScript, /rm -f \/workspace\/artifact-registry-token/);
-
-  const args = steps[4]?.args as string[];
+  const args = steps[1]?.args as string[];
   const script = args[1] ?? '';
-  assert.match(script, /docker run --pull=never --rm --network bridge/);
+  assert.match(script, /docker run --pull=always --rm --network bridge/);
+  assert.match(
+    script,
+    /docker\.io\/library\/ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55/,
+  );
   assert.match(script, /RUNNER_LABEL=overcenter-gcp/);
   assert.match(script, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
-  assert.match(script, /@sha256:a{64}/);
+  assert.match(script, /runner-bootstrap\.sh/);
+  assert.doesNotMatch(script, /docker login|artifact-registry-token/);
 
   const secrets = build.availableSecrets as {
     secretManager: Array<Record<string, unknown>>;
