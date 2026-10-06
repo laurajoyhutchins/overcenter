@@ -82,7 +82,8 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   assert.match(authorization, /generate-jitconfig/);
   assert.match(authorization, /encoded_jit_config/);
   assert.match(authorization, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
-  assert.match(authorization, /labels.*self-hosted.*Linux.*X64.*overcenter-gcp/);
+  assert.match(authorization, /RUNNER_LABEL=overcenter-gcp/);
+  assert.match(authorization, /labels: \['self-hosted', 'Linux', 'X64', runnerLabel\]/);
   assert.doesNotMatch(authorization, /registration-token/);
 
   const secrets = build.availableSecrets as {
@@ -102,7 +103,7 @@ test('runner image consumes one-time JIT configuration without persistent regist
     new URL('../infra/gcp-runner-image/entrypoint.sh', import.meta.url),
     'utf8',
   );
-  assert.match(entrypoint, /test -s \/workspace\/jit-config/);
+  assert.match(entrypoint, /\[\[ ! -s \/workspace\/jit-config \]\]/);
   assert.match(entrypoint, /rm -f \/workspace\/jit-config/);
   assert.match(entrypoint, /exec \.\/run\.sh --jitconfig "\$jit_config"/);
   assert.doesNotMatch(entrypoint, /\.\/config\.sh/);
