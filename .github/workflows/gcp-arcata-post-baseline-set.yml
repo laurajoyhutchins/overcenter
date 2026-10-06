@@ -101,9 +101,9 @@ jobs:
           TARGETS
           : > "$RUNNER_TEMP/builds.tsv"
           while read -r pr sha; do
-            id="$(gcloud builds submit --async --no-source --project="$PROJECT_ID" --region="$REGION" --config="$config" --substitutions="_REVISION=$sha" --format='value(id)' 2>/dev/null || true)"
+            id="$(gcloud builds submit --async --no-source --project="$PROJECT_ID" --region="$REGION" --config="$config" --substitutions="_REVISION=$sha" --format='value(id)' 2>"$RUNNER_TEMP/submit-$pr.err" || true)"
             printf '%s\t%s\t%s\n' "$pr" "$sha" "$id" >> "$RUNNER_TEMP/builds.tsv"
-            echo "submitted #$pr $id"
+            echo "submitted #$pr $id"; if [ -z "$id" ]; then cat "$RUNNER_TEMP/submit-$pr.err"; fi
           done < "$RUNNER_TEMP/targets.tsv"
           for _ in $(seq 1 400); do
             pending=0
