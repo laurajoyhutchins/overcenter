@@ -1,0 +1,206 @@
+name: Arcata main-root repair wave
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-arcata-main-root-repair.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+      MAIN_SHA: 31f6e77e4a9df2afe9e9eed3d4f5e1a2c2d6c5ed
+    steps:
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+      - name: Rebase, format, verify, and publish green roots
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/repair.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 1200s
+          steps:
+            - id: repair
+              name: python:3.13-bookworm
+              entrypoint: bash
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+                - TARGET_BRANCH=${_BRANCH}
+                - EXPECTED_HEAD=${_HEAD}
+                - OLD_BASE=${_OLD_BASE}
+                - NEW_BASE=${_NEW_BASE}
+              args:
+                - -c
+                - |
+                  set -uo pipefail
+                  finish() {
+                    printf '%s\n' "$1" | tail -c 60000 > /builder/outputs/output
+                    exit 0
+                  }
+                  apt-get update -qq >/dev/null 2>&1 || finish 'RESULT=INFRA_FAILURE apt-get-update'
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git nodejs >/dev/null 2>&1 || finish 'RESULT=INFRA_FAILURE apt-get-install'
+                  node - <<'NODE' || finish 'RESULT=AUTH_FAILURE'
+                  const crypto=require('crypto'),fs=require('fs');
+                  const repo='laurajoyhutchins/arcata',branch=process.env.TARGET_BRANCH,expected=process.env.EXPECTED_HEAD,newBase=process.env.NEW_BASE;
+                  const b64=v=>Buffer.from(JSON.stringify(v)).toString('base64url'),now=Math.floor(Date.now()/1000);
+                  const u=b64({alg:'RS256',typ:'JWT'})+'.'+b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const jwt=u+'.'+crypto.sign('RSA-SHA256',Buffer.from(u),process.env.GITHUB_APP_PRIVATE_KEY).toString('base64url');
+                  const h=t=>({Accept:'application/vnd.github+json',Authorization:'Bearer '+t,'X-GitHub-Api-Version':'2026-03-10','User-Agent':'overcenter-arcata-repair-wave'});
+                  async function j(r,l){const t=await r.text();if(!r.ok)throw new Error(l+' HTTP '+r.status+': '+t.slice(0,300));return JSON.parse(t)}
+                  (async()=>{
+                    const i=await j(await fetch('https://api.github.com/repos/'+repo+'/installation',{headers:h(jwt)}),'installation');
+                    const a=await j(await fetch('https://api.github.com/app/installations/'+i.id+'/access_tokens',{method:'POST',headers:{...h(jwt),'Content-Type':'application/json'},body:JSON.stringify({repository_ids:[1402666660],permissions:{contents:'write'}})}),'token');
+                    const p=branch.split('/').map(encodeURIComponent).join('/');
+                    const ref=await j(await fetch('https://api.github.com/repos/'+repo+'/git/ref/heads/'+p,{headers:h(a.token)}),'branch ref');
+                    if(ref.object.sha!==expected)throw new Error('branch exact-head lease mismatch: '+ref.object.sha);
+                    const main=await j(await fetch('https://api.github.com/repos/'+repo+'/git/ref/heads/main',{headers:h(a.token)}),'main ref');
+                    if(main.object.sha!==newBase)throw new Error('main exact-head lease mismatch: '+main.object.sha);
+                    fs.writeFileSync('/workspace/token',a.token,{mode:0o600});
+                  })().catch(e=>{console.error(String(e&&e.message||e));process.exit(1)});
+                  NODE
+                  token="$(cat /workspace/token)"
+                  auth="$(python - <<'PY'
+                  import base64
+                  from pathlib import Path
+                  print(base64.b64encode(f"x-access-token:{Path('/workspace/token').read_text()}".encode()).decode())
+                  PY
+                  )"
+                  root=/workspace/source
+                  mkdir -p "$root" && cd "$root"
+                  git init -q
+                  git remote add origin https://github.com/laurajoyhutchins/arcata.git
+                  if ! git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" fetch --no-tags origin \
+                    "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/candidate" \
+                    "+refs/heads/main:refs/remotes/origin/main" >/workspace/fetch.txt 2>&1; then
+                    finish "RESULT=FETCH_FAILURE\n$(cat /workspace/fetch.txt)"
+                  fi
+                  test "$(git rev-parse refs/remotes/origin/candidate)" = "$EXPECTED_HEAD" || finish 'RESULT=LEASE_FAILURE fetched candidate moved'
+                  test "$(git rev-parse refs/remotes/origin/main)" = "$NEW_BASE" || finish 'RESULT=LEASE_FAILURE fetched main moved'
+                  git checkout -q --detach "$EXPECTED_HEAD"
+                  git config user.name 'Overcenter GCP Repair'
+                  git config user.email 'noreply@users.noreply.github.com'
+                  if [ "$OLD_BASE" != "$NEW_BASE" ]; then
+                    if ! git rebase --onto "$NEW_BASE" "$OLD_BASE" "$EXPECTED_HEAD" >/workspace/rebase.txt 2>&1; then
+                      finish "RESULT=REBASE_CONFLICT\n$(tail -c 50000 /workspace/rebase.txt)"
+                    fi
+                  fi
+                  allowed=/workspace/allowed.txt
+                  git diff --name-only "$NEW_BASE"...HEAD | sort -u > "$allowed"
+                  if ! python tools/verification_tools.py requirements > /workspace/requirements.txt 2>/workspace/tools.err; then
+                    finish "RESULT=TOOL_CONTRACT_FAILURE\n$(cat /workspace/tools.err)"
+                  fi
+                  python -m venv /workspace/venv
+                  if ! /workspace/venv/bin/python -m pip install --disable-pip-version-check --no-input --no-compile --only-binary=:all: --no-deps --require-hashes -r /workspace/requirements.txt >/workspace/pip.txt 2>&1; then
+                    finish "RESULT=TOOL_INSTALL_FAILURE\n$(tail -c 50000 /workspace/pip.txt)"
+                  fi
+                  export PATH=/workspace/venv/bin:$PATH
+                  if ! ruff format . >/workspace/format.txt 2>&1; then
+                    finish "RESULT=FORMAT_FAILURE\n$(cat /workspace/format.txt)"
+                  fi
+                  git diff --name-only | sort -u > /workspace/formatted.txt
+                  if [ -s /workspace/formatted.txt ]; then
+                    unexpected="$(comm -23 /workspace/formatted.txt "$allowed")"
+                    if [ -n "$unexpected" ]; then
+                      finish "RESULT=WRITESET_FAILURE\n$unexpected"
+                    fi
+                    git add -- $(cat /workspace/formatted.txt)
+                    git commit -m 'Format candidate after verification baseline repair' >/workspace/commit.txt 2>&1
+                  fi
+                  set +e
+                  python tools/check.py > /workspace/check.txt 2>&1
+                  rc=$?
+                  set -e
+                  if [ "$rc" -ne 0 ]; then
+                    finish "RESULT=VERIFY_FAILURE\n$(tail -c 55000 /workspace/check.txt)"
+                  fi
+                  new_head="$(git rev-parse HEAD)"
+                  if ! git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin \
+                    "$new_head:refs/heads/$TARGET_BRANCH" \
+                    "--force-with-lease=refs/heads/$TARGET_BRANCH:$EXPECTED_HEAD" >/workspace/push.txt 2>&1; then
+                    finish "RESULT=PUSH_FAILURE\n$(cat /workspace/push.txt)"
+                  fi
+                  finish "RESULT=SUCCESS\nNEW_HEAD=$new_head\nFORMATTED=$(tr '\n' ',' < /workspace/formatted.txt)"
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options: { logging: NONE }
+          YAML
+
+          cat > "$RUNNER_TEMP/targets.tsv" <<'TARGETS'
+          101 feature/ieee-c57-91-transformer-loading 061f816a91c5360b54bc5194d77efc3327074eac 31f6e77e4a9df2afe9e9eed3d4f5e1a2c2d6c5ed
+          100 codex/ieee-harmonics-stack 059a622094e0811319f7294112d1c6d2455ddf80 31f6e77e4a9df2afe9e9eed3d4f5e1a2c2d6c5ed
+          98 codex/ieee-3002-7-motor-starting c1021d9d40fcfcda78ba2b97308484971bb95fc3 31f6e77e4a9df2afe9e9eed3d4f5e1a2c2d6c5ed
+          96 refactor/benchmark-comparison b006480a8ef1b3e7c9283eae9c79b55e40bccf2a 4a943347960da6ae929440ddaba01ef328d7866c
+          95 refactor/bounded-stage-phases 2e42ae4a1e290cd7ffca860924bfd49412928301 4a943347960da6ae929440ddaba01ef328d7866c
+          94 refactor/staged-current-distribution 2aa668c8d5216737be3df989a95013f9f434e5d8 4a943347960da6ae929440ddaba01ef328d7866c
+          93 refactor/load-flow-solver-boundaries ded12a7ab909448ba522acca9d5113353bc2aa90 4a943347960da6ae929440ddaba01ef328d7866c
+          89 codex/protection-switchgear-ontology 06a3e144ed724c89aadb524d241d2a45a1f1c923 4a943347960da6ae929440ddaba01ef328d7866c
+          88 refactor/verification-contract-ratchet 708368241cfb671f456ece2d8b3629e9176aa7a6 41747b1cff5659b7e44e161df6d9c074c0bbe07e
+          85 codex/short-circuit-strict-mypy ad4ff3325bcb0fdeab6bf0800cc0326028cd03ff 41747b1cff5659b7e44e161df6d9c074c0bbe07e
+          82 docs/audience-first-readme 5e178fde1f07145682538d201d804b3ce3daca1c 4a943347960da6ae929440ddaba01ef328d7866c
+          80 refactor/provenance-admission-consolidated 5669b06e9b21ed118596cb40f7540a4f84c3bcc2 67e11722c3c4b0396127ea9c6398fc0c91562a73
+          TARGETS
+          : > "$RUNNER_TEMP/builds.tsv"
+          while read -r pr branch head old_base; do
+            id="$(gcloud builds submit --async --no-source --project="$PROJECT_ID" --region="$REGION" --config="$config" \
+              --substitutions="_BRANCH=$branch,_HEAD=$head,_OLD_BASE=$old_base,_NEW_BASE=$MAIN_SHA" --format='value(id)')"
+            printf '%s\t%s\t%s\t%s\n' "$pr" "$branch" "$head" "$id" >> "$RUNNER_TEMP/builds.tsv"
+            echo "submitted #$pr $id"
+          done < "$RUNNER_TEMP/targets.tsv"
+          for _ in $(seq 1 500); do
+            pending=0
+            while IFS=$'\t' read -r pr branch head id; do
+              s="$(gcloud builds describe "$id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)' 2>/dev/null || true)"
+              case "$s" in SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) ;; *) pending=1 ;; esac
+            done < "$RUNNER_TEMP/builds.tsv"
+            [ "$pending" -eq 0 ] && break
+            sleep 2
+          done
+          echo '## Arcata main-root repair wave' >> "$GITHUB_STEP_SUMMARY"
+          echo '| PR | leased head | build | result | new head / diagnostic |' >> "$GITHUB_STEP_SUMMARY"
+          echo '| ---: | --- | --- | --- | --- |' >> "$GITHUB_STEP_SUMMARY"
+          while IFS=$'\t' read -r pr branch head id; do
+            json="$RUNNER_TEMP/$pr.json"
+            gcloud builds describe "$id" --project="$PROJECT_ID" --region="$REGION" --format=json > "$json"
+            python - "$json" "$pr" "$head" "$id" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import base64, json, sys
+          body=json.load(open(sys.argv[1],encoding='utf-8'))
+          raw=''
+          outputs=body.get('results',{}).get('buildStepOutputs',[])
+          for item in outputs:
+              if not item: continue
+              try:
+                  raw=base64.b64decode(item + '===').decode('utf-8','replace')
+              except Exception:
+                  raw=str(item)
+              if raw: break
+          lines=[line.strip() for line in raw.splitlines() if line.strip()]
+          result=next((line.split('=',1)[1] for line in lines if line.startswith('RESULT=')),'NO_OUTPUT')
+          new_head=next((line.split('=',1)[1] for line in lines if line.startswith('NEW_HEAD=')),'')
+          detail=new_head or ' / '.join(lines[1:4])[:300].replace('|','\\|')
+          print(f"| #{sys.argv[2]} | `{sys.argv[3]}` | `{sys.argv[4]}` | `{result}` | {detail} |")
+          PY
+          done < "$RUNNER_TEMP/builds.tsv"
