@@ -212,9 +212,6 @@ function createBuild(
       '> /workspace/runner-registration-output.log 2>&1',
       '|| true',
     ].join(' '),
-    'mkdir -p "$(printenv BUILDER_OUTPUT)"',
-    'tail -c 48000 /workspace/runner-registration-output.log > "$(printenv BUILDER_OUTPUT)/output"',
-    'cat /workspace/runner-registration-output.log',
   ].join('\n');
 
   return {
@@ -243,6 +240,19 @@ function createBuild(
         name: 'gcr.io/cloud-builders/docker',
         entrypoint: 'bash',
         args: ['-ceu', dockerScript],
+      },
+      {
+        id: 'capture-runner-output',
+        name: 'ubuntu:24.04',
+        entrypoint: 'bash',
+        args: [
+          '-ceu',
+          [
+            'cat /workspace/runner-registration-output.log',
+            'mkdir -p "$BUILDER_OUTPUT"',
+            'tail -c 48000 /workspace/runner-registration-output.log > "$BUILDER_OUTPUT/output"',
+          ].join('\\n'),
+        ],
       },
     ],
     availableSecrets: {
