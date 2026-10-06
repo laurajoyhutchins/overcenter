@@ -234,6 +234,103 @@ main().catch(error => {
 });
 `;
 
+
+const VERIFY_JOB_SETTLEMENT_SCRIPT = String.raw\`
+const crypto = require('crypto');
+const fs = require('fs');
+
+if (fs.existsSync('/workspace/skip-runner')) process.exit(0);
+
+const repo = process.env.TARGET_REPOSITORY;
+const expectedRepositoryId = Number(process.env.TARGET_REPOSITORY_ID);
+const jobId = Number(process.env.TARGET_JOB_ID);
+const runnerName = process.env.RUNNER_NAME;
+const appId = process.env.GITHUB_APP_ID;
+
+const b64 = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+const now = Math.floor(Date.now() / 1000);
+const header = b64({ alg: 'RS256', typ: 'JWT' });
+const payload = b64({ iat: now - 60, exp: now + 540, iss: appId });
+const unsigned = header + '.' + payload;
+const signature = crypto
+  .sign('RSA-SHA256', Buffer.from(unsigned), process.env.GITHUB_APP_PRIVATE_KEY)
+  .toString('base64url');
+const appJwt = unsigned + '.' + signature;
+
+const baseHeaders = {
+  Accept: 'application/vnd.github+json',
+  'X-GitHub-Api-Version': '2026-03-10',
+  'User-Agent': 'overcenter-gcp-runner-settlement',
+};
+
+async function json(response, label) {
+  const text = await response.text();
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {}
+  if (!response.ok) {
+    throw new Error(label + ' HTTP ' + response.status + ': ' + text.slice(0, 300));
+  }
+  return body;
+}
+
+async function main() {
+  const installation = await json(
+    await fetch('https://api.github.com/repos/' + repo + '/installation', {
+      headers: { ...baseHeaders, Authorization: 'Bearer ' + appJwt },
+    }),
+    'installation lookup',
+  );
+  const access = await json(
+    await fetch(
+      'https://api.github.com/app/installations/' + installation.id + '/access_tokens',
+      {
+        method: 'POST',
+        headers: {
+          ...baseHeaders,
+          Authorization: 'Bearer ' + appJwt,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          repository_ids: [expectedRepositoryId],
+          permissions: { actions: 'read' },
+        }),
+      },
+    ),
+    'installation token',
+  );
+  const job = await json(
+    await fetch('https://api.github.com/repos/' + repo + '/actions/jobs/' + jobId, {
+      headers: { ...baseHeaders, Authorization: 'Bearer ' + access.token },
+    }),
+    'workflow job settlement',
+  );
+
+  if (job.id !== jobId) {
+    throw new Error('workflow job settlement identity mismatch');
+  }
+  if (job.runner_name !== runnerName) {
+    throw new Error(
+      'workflow job was not claimed by expected runner: expected ' +
+        runnerName +
+        ', observed ' +
+        String(job.runner_name || '<none>'),
+    );
+  }
+  if (job.status !== 'completed') {
+    throw new Error(
+      'workflow job did not settle before runner exit: observed status ' + String(job.status),
+    );
+  }
+}
+
+main().catch(error => {
+  console.error(String((error && error.message) || error));
+  process.exit(1);
+});
+\`;
+
 function requireLauncherEnvironment(env: NodeJS.ProcessEnv): LauncherEnvironment {
   const projectId = String(env.GCP_PROJECT_ID ?? '').trim();
   const region = String(env.GCP_REGION ?? '').trim();
@@ -276,6 +373,7 @@ export function createRunnerBuild(
     '  exit 0',
     'fi',
     'test -s /workspace/jit-config',
+    'touch /workspace/runner-attempted',
     [
       'docker run --rm --network bridge',
       '--volume /workspace:/workspace',
@@ -311,6 +409,14 @@ export function createRunnerBuild(
         name: 'gcr.io/cloud-builders/docker',
         entrypoint: 'bash',
         args: ['-ceu', dockerScript],
+      },
+      {
+        id: 'verify-job-settlement',
+        name: 'node:22-bookworm',
+        entrypoint: 'node',
+        secretEnv: ['GITHUB_APP_PRIVATE_KEY'],
+        env: targetEnv,
+        args: ['-e', VERIFY_JOB_SETTLEMENT_SCRIPT],
       },
     ],
     availableSecrets: {
