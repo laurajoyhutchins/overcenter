@@ -1,0 +1,81 @@
+name: Build immutable GCP runner image
+
+on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+    paths:
+      - .overcenter/gcp-runner-image-build-request
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: build-gcp-runner-image
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    env:
+      GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
+      GCP_REGION: us-west1
+      GCP_WORKLOAD_IDENTITY_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      GCP_DEPLOY_SERVICE_ACCOUNT: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+      EXACT_REVISION: ${{ github.sha }}
+
+    steps:
+      - name: Check out exact runner revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Prove exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/work/gcp-cloud-run-cloud-sql-bootstrap"
+          test "$(git rev-parse HEAD)" = "$EXACT_REVISION"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Install Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Build and resolve immutable runner image
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/cloud-run-source-deploy/overcenter-gcp-runner"
+          tag="$repo:git-$EXACT_REVISION"
+          build_id="$(gcloud builds submit infra/gcp-runner-image             --async             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --tag="$tag"             --format='value(id)')"
+          test -n "$build_id"
+          echo "Cloud Build: $build_id"
+
+          status=""
+          for _ in $(seq 1 300); do
+            status="$(gcloud builds describe "$build_id"               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --format='value(status)')"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
+            esac
+            sleep 2
+          done
+          test "$status" = SUCCESS
+
+          digest="$(gcloud builds describe "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --format='value(results.images[0].digest)' | tail -n1)"
+          case "$digest" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 2 ;; esac
+          echo "Runner image: $repo@$digest"
