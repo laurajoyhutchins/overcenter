@@ -1,0 +1,92 @@
+name: Arcata open PR GCP status recovery
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-arcata-open-pr-status.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  status:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - name: Authenticate with Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Recover aggregate build status
+        shell: bash
+        run: |
+          set -uo pipefail
+          builds="$RUNNER_TEMP/arcata-open-pr-builds.tsv"
+          cat > "$builds" <<'BUILDS'
+          92 44e665a8ada6a4f58ff92aeca0ab0490677af370 c49b0e0c-bd06-4977-abcb-f5fb14f6fa98
+          91 691eb17e56b7f62beeadcc03c135cad24bd77914 746d7ad4-346a-4384-abda-2c0e7109f4f0
+          90 8738d4e966b00590e19411b20c205bc9749903b5 0bc3d25d-89cc-4ebb-8164-ae5140d73908
+          89 06a3e144ed724c89aadb524d241d2a45a1f1c923 0259f164-ced8-4e90-ad0e-d00d64b4262f
+          88 708368241cfb671f456ece2d8b3629e9176aa7a6 e8728652-e273-44aa-aa36-da9d7f78d071
+          85 0adafcddddf2ff769926b81ae4f13582015516d0 9e3f7fad-f595-42ae-952b-77dc488d5462
+          84 eea412516f5561c0451082425d1a8ce850046363 fbec0ded-4cb2-44a4-90a9-7124a0be1485
+          82 f1eda022a5c5b1ed71f9149c5977521a90ed1ea7 b0f7a1f3-da4d-460e-8d4d-c5b7f1cecdc6
+          80 5669b06e9b21ed118596cb40f7540a4f84c3bcc2 c7d7db25-6d3e-479c-b28e-df0466b2748e
+          24 7d0865a02e83404c59de531a3f8b7586043a07b9 6cecd9cc-2fb4-49e8-8495-f90de36eac8c
+          20 357cf6153ac29f6bd46f246d1acf6394b9855f63 fb1b06fe-3bf3-4b4a-b813-e38689fb2edc
+          19 5a3e7f2f25dc833fb62f942c2a09f76e926b6c09 1bcedd62-672e-4a0d-87d5-9ddd89783f2a
+          17 2a3065c1b548446b1f1cca91065386c8498a084d 5f33a48a-a88b-4626-954a-def8d0804060
+          15 9ee3cf6c261d37a949e99b205a44c5ac5c98125c 0d37481a-0168-4546-99c3-cfc0646328e2
+          BUILDS
+
+          {
+            echo "## Arcata open PR direct-GCP verification"
+            echo
+            echo "| PR | exact head | Cloud Build | status | phases |"
+            echo "| ---: | --- | --- | --- | --- |"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+          while read -r pr sha build_id; do
+            json="$RUNNER_TEMP/build-$pr.json"
+            if ! gcloud builds describe "$build_id" \
+              --project="$PROJECT_ID" \
+              --region="$REGION" \
+              --format=json > "$json" 2>"$RUNNER_TEMP/build-$pr.err"; then
+              printf '| #%s | `%s` | `%s` | `DESCRIBE_ERROR` | `%s` |\n' \
+                "$pr" "$sha" "$build_id" "$(tr '\n' ' ' < "$RUNNER_TEMP/build-$pr.err" | head -c 180)" \
+                | tee -a "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            python - "$json" "$pr" "$sha" "$build_id" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json
+          import sys
+          path, pr, sha, build_id = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              body = json.load(handle)
+          status = str(body.get("status") or "UNKNOWN")
+          phases = ", ".join(
+              f"{step.get('id') or 'unnamed'}={step.get('status') or 'UNKNOWN'}"
+              for step in body.get("steps", [])
+          )
+          print(f"| #{pr} | `{sha}` | `{build_id}` | `{status}` | `{phases}` |")
+          PY
+          done < "$builds"
