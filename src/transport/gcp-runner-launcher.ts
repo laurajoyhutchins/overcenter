@@ -276,6 +276,7 @@ export function createRunnerBuild(
     '  exit 0',
     'fi',
     'test -s /workspace/jit-config',
+    'set +e',
     [
       'docker run --rm --network bridge',
       '--volume /workspace:/workspace',
@@ -283,7 +284,13 @@ export function createRunnerBuild(
       '--env TARGET_JOB_ID=' + String(request.job_id),
       '--env RUNNER_LABEL=' + request.runner_label,
       environment.runnerImage,
+      '> /workspace/runner-output.log 2>&1',
     ].join(' '),
+    'runner_status=$?',
+    'set -e',
+    'tail -c 48000 /workspace/runner-output.log > "$BUILDER_OUTPUT/output"',
+    'cat /workspace/runner-output.log',
+    'exit "$runner_status"',
   ].join('\n');
 
   return {
