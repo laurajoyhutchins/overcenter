@@ -44,7 +44,9 @@ jobs:
               name: node:22-bookworm
               entrypoint: node
               secretEnv: [GITHUB_APP_PRIVATE_KEY]
-              env: [GITHUB_APP_ID=4616688, SOURCE_REVISION=${_REVISION}]
+              env:
+                - GITHUB_APP_ID=4616688
+                - SOURCE_REVISION=${_REVISION}
               args:
                 - -e
                 - |
