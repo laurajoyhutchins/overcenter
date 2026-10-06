@@ -82,7 +82,8 @@ export function observeCertifiedGitHubPullRequestIdentity(
     clock?: () => string;
   },
 ): CertifiedGitHubPullRequestIdentityResult {
-  if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) throw new Error('GITHUB_PR_NUMBER_INVALID');
+  if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0)
+    throw new Error('GITHUB_PR_NUMBER_INVALID');
   validateExpected(expected);
   try {
     const repository = observeCertifiedGitHubRepository(token, {

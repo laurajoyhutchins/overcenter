@@ -120,33 +120,35 @@ test('satisfied exact-coordinate evidence shrinks only that frontier', () => {
 });
 
 test('unsatisfied evidence contributes no support', () => {
-  const transaction = plan([
-    frontier(CANDIDATE, ['proof:a'], [evidence('a-proof', ['proof:a'])]),
-  ]);
+  const transaction = plan([frontier(CANDIDATE, ['proof:a'], [evidence('a-proof', ['proof:a'])])]);
   const need = deriveAssuranceEvidenceNeeds(transaction)[0]!;
-  assert.deepEqual(
-    deriveAssuranceEvidenceNeeds(transaction, [receiptFor(need, 'unsatisfied')]),
-    [need],
-  );
+  assert.deepEqual(deriveAssuranceEvidenceNeeds(transaction, [receiptFor(need, 'unsatisfied')]), [
+    need,
+  ]);
 });
 
 test('frontier is re-minimized after support instead of subtracting only the prior selection', () => {
   const firstPlan = plan([
-    frontier(BASE, ['proof:a', 'proof:b'], [
-      evidence('a-proof', ['proof:a']),
-      evidence('b-proof', ['proof:b']),
-    ]),
+    frontier(
+      BASE,
+      ['proof:a', 'proof:b'],
+      [evidence('a-proof', ['proof:a']), evidence('b-proof', ['proof:b'])],
+    ),
   ]);
   const aNeed = deriveAssuranceEvidenceNeeds(firstPlan).find(
     (need) => need.identity.evidence_id === 'a-proof',
   )!;
 
   const withAlternative = plan([
-    frontier(BASE, ['proof:a', 'proof:b'], [
-      evidence('a-proof', ['proof:a']),
-      evidence('b-proof', ['proof:b']),
-      evidence('shared-proof', ['proof:a', 'proof:b']),
-    ]),
+    frontier(
+      BASE,
+      ['proof:a', 'proof:b'],
+      [
+        evidence('a-proof', ['proof:a']),
+        evidence('b-proof', ['proof:b']),
+        evidence('shared-proof', ['proof:a', 'proof:b']),
+      ],
+    ),
   ]);
   assert.deepEqual(
     deriveAssuranceEvidenceNeeds(withAlternative).map((need) => need.identity.evidence_id),
@@ -208,16 +210,18 @@ test('baseline validation is an explicit candidate-bound neutral evidence need',
 
 test('equivalent frontier state produces the same canonically ordered needs', () => {
   const original = plan([
-    frontier(BASE, ['proof:a', 'proof:b'], [
-      evidence('a-proof', ['proof:a']),
-      evidence('b-proof', ['proof:b']),
-    ]),
+    frontier(
+      BASE,
+      ['proof:a', 'proof:b'],
+      [evidence('a-proof', ['proof:a']), evidence('b-proof', ['proof:b'])],
+    ),
   ]);
   const reordered = plan([
-    frontier(BASE, ['proof:b', 'proof:a'], [
-      evidence('b-proof', ['proof:b']),
-      evidence('a-proof', ['proof:a']),
-    ]),
+    frontier(
+      BASE,
+      ['proof:b', 'proof:a'],
+      [evidence('b-proof', ['proof:b']), evidence('a-proof', ['proof:a'])],
+    ),
   ]);
   assert.deepEqual(deriveAssuranceEvidenceNeeds(reordered), deriveAssuranceEvidenceNeeds(original));
 });

@@ -8,10 +8,7 @@ import {
   sourceTransactionContextFromEnvironment,
   type SourceTransactionContext,
 } from '../source/transaction-baseline.ts';
-import {
-  buildSourceTransactionPlan,
-  type SourceTransactionPlan,
-} from '../source/transaction.ts';
+import { buildSourceTransactionPlan, type SourceTransactionPlan } from '../source/transaction.ts';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';

@@ -1,7 +1,11 @@
-import { assertExactKeys, assertNonEmptyString, isData, isPositiveSafeInteger } from '../validation.ts';
+import {
+  assertExactKeys,
+  assertNonEmptyString,
+  isData,
+  isPositiveSafeInteger,
+} from '../validation.ts';
 
-export const SOURCE_PROOF_OBSERVATION_SCHEMA =
-  'overcenter-source-proof-observation/v1' as const;
+export const SOURCE_PROOF_OBSERVATION_SCHEMA = 'overcenter-source-proof-observation/v1' as const;
 
 export interface SourceProofObservedJob {
   id: number;
@@ -93,10 +97,7 @@ export function validateSourceProofObservation(value: unknown): SourceProofObser
       [],
       'SOURCE_PROOF_OBSERVATION_INVALID',
     );
-    if (
-      !isPositiveSafeInteger(job.id) ||
-      !isPositiveSafeInteger(job.run_id)
-    ) {
+    if (!isPositiveSafeInteger(job.id) || !isPositiveSafeInteger(job.run_id)) {
       throw new Error('SOURCE_PROOF_OBSERVATION_INVALID');
     }
     exactSha(job.head_sha, 'SOURCE_PROOF_OBSERVATION_INVALID');

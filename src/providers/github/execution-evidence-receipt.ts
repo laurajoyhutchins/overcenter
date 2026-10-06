@@ -178,8 +178,7 @@ export function adaptGitHubExecutionEvidence(
   const jobRunId = Number(job.run_id);
   const jobRunAttempt = Number(job.run_attempt);
   const repositoryId = observation.workflow_run.evidence.repository_id;
-  const repositoryFullName =
-    observation.workflow_run.evidence.requested_repository_full_name;
+  const repositoryFullName = observation.workflow_run.evidence.requested_repository_full_name;
 
   const runHead = requiredString(run, 'head_sha', 'GITHUB_EXECUTION_WORKFLOW_RUN_INVALID');
   const jobHead = requiredString(job, 'head_sha', 'GITHUB_EXECUTION_WORKFLOW_JOB_INVALID');

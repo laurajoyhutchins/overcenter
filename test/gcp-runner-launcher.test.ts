@@ -59,8 +59,7 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   const build = createRunnerBuild(environment, parseRunnerLaunchRequest(request));
   assert.equal(
     build.serviceAccount,
-    'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' +
-      environment.runtimeServiceAccount,
+    'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' + environment.runtimeServiceAccount,
   );
 
   const steps = build.steps as Array<Record<string, unknown>>;
@@ -80,10 +79,7 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   assert.match(authorization, /generate-jitconfig/);
   assert.match(authorization, /encoded_jit_config/);
   assert.match(authorization, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
-  assert.match(
-    authorization,
-    /labels.*self-hosted.*Linux.*X64.*overcenter-gcp/,
-  );
+  assert.match(authorization, /labels.*self-hosted.*Linux.*X64.*overcenter-gcp/);
   assert.doesNotMatch(authorization, /registration-token/);
 
   const secrets = build.availableSecrets as {
@@ -109,7 +105,6 @@ test('runner image consumes one-time JIT configuration without persistent regist
   assert.doesNotMatch(entrypoint, /\.\/config\.sh/);
   assert.doesNotMatch(entrypoint, /registration-token/);
 });
-
 
 test('dedicated launcher identity preserves the deployment authority split', () => {
   const deploy = readFileSync(
