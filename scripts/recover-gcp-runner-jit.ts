@@ -264,7 +264,16 @@ async function main() {
     if (String(job.status) !== 'queued') break;
     await new Promise(resolve => setTimeout(resolve, 5_000));
   }
-  const output = JSON.stringify({ event: 'jit_observation', repo, job_id: jobId, snapshots }, null, 2) + '\n';
+  let listenerTail = '';
+  try {
+    listenerTail = fs.readFileSync('/workspace/jit-runner-output.log', 'utf8').slice(-12000);
+  } catch {}
+  const output =
+    JSON.stringify(
+      { event: 'jit_observation', repo, job_id: jobId, snapshots, listener_tail: listenerTail },
+      null,
+      2,
+    ) + '\n';
   fs.writeFileSync('/workspace/jit-observer-output.log', output);
   fs.mkdirSync('/builder/outputs', { recursive: true });
   fs.writeFileSync('/builder/outputs/output', output);
