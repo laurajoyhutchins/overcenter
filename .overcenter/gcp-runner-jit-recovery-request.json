@@ -1,12 +1,12 @@
 {
-  "schema": "overcenter-gcp-runner-jit-recovery/v1",
-  "jobs": [
-    {
-      "repository": "laurajoyhutchins/overcenter",
-      "repository_id": 1354872053,
-      "owner_id": 219002713,
-      "job_id": 112092987584,
-      "runner_label": "overcenter-gcp"
-    }
-  ]
+    "schema": "overcenter-gcp-runner-jit-recovery/v1",
+    "jobs": [
+        {
+            "repository": "laurajoyhutchins/overcenter",
+            "repository_id": 1354872053,
+            "owner_id": 219002713,
+            "job_id": 112092987584,
+            "runner_label": "overcenter-gcp"
+        }
+    ]
 }
