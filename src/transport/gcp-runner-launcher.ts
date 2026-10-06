@@ -296,6 +296,7 @@ export function createRunnerBuild(
     serviceAccount:
       'projects/' + environment.projectId + '/serviceAccounts/' + environment.runtimeServiceAccount,
     timeout: '1200s',
+    queueTtl: '90s',
     steps: [
       {
         id: 'authorize-job',
