@@ -228,7 +228,7 @@ function createBuild(
     ' | base64 -d > /tmp/overcenter-runner.sh; exec bash /tmp/overcenter-runner.sh';
 
   const dockerParts = [
-    'docker run --rm --network bridge',
+    'docker run --rm --network host',
     publicRecovery ? '--cap-add=NET_ADMIN' : '',
     '--volume /workspace:/workspace',
     '--env TARGET_REPOSITORY=' + job.repository,
