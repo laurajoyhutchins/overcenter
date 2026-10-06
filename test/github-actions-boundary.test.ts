@@ -144,13 +144,13 @@ test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
   );
   assert.match(
     evidenceWorkflow,
-    /runs-on: \$\{\{ fromJSON\(inputs\.expensive && '\["ubuntu-24\.04"\]' \|\| '\["self-hosted","overcenter-gcp"\]'\) \}\}/,
-    'cheap candidate evidence must use the GCP runner substrate while expensive proof stays hosted',
+    /runs-on: \$\{\{ fromJSON\(inputs\.expensive && '\["ubuntu-24\.04"\]' \|\| '\["ubuntu-24\.04-arm"\]'\) \}\}/,
+    'cheap candidate evidence must use the public ARM64 fallback while expensive proof stays x64 hosted',
   );
   assert.match(
     mergeGate,
-    /runs-on: \[self-hosted, overcenter-gcp\]/,
-    'merge-gate bookkeeping must not depend on GitHub-hosted capacity',
+    /runs-on: ubuntu-24\.04-arm/,
+    'merge-gate bookkeeping must use the public ARM64 fallback while GCP recovers',
   );
   for (const command of [
     'npm run proof:formal',
