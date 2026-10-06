@@ -256,7 +256,7 @@ jobs:
                       "entrypoint": "bash",
                       "args": [
                           "-ceu",
-                          """set +e
+                          r"""set +e
           (
           set -euo pipefail
           capsule=/workspace/tool-capsule
