@@ -1,15 +1,19 @@
-name: Diagnose GCP recovery builds
+name: Diagnose GCP recovery build
 
 on:
   push:
     branches:
       - work/gcp-cloud-run-cloud-sql-bootstrap
     paths:
-      - .github/workflows/gcp-runner-build-diagnose.yml
+      - .overcenter/gcp-runner-build-diagnose-request
 
 permissions:
   contents: read
   id-token: write
+
+concurrency:
+  group: diagnose-gcp-recovery-build
+  cancel-in-progress: true
 
 jobs:
   diagnose:
@@ -20,7 +24,13 @@ jobs:
       GCP_REGION: us-west1
       GCP_WORKLOAD_IDENTITY_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
       GCP_DEPLOY_SERVICE_ACCOUNT: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
@@ -32,18 +42,15 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
           version: ">= 363.0.0"
-      - name: Inspect recovery Cloud Builds
+      - name: Inspect requested recovery Cloud Build
         shell: bash
         run: |
           set -euo pipefail
-          for build_id in \
-            a9c674af-30a8-4e27-a93c-ba06c681fcaa \
-            8650d853-389d-4dbd-a4fc-471fc7da93af \
-            494c19da-b8ac-48cd-9364-830760e83ad4
-          do
-            echo "=== $build_id ==="
-            gcloud builds describe "$build_id" \
-              --project="$GCP_PROJECT_ID" \
-              --region="$GCP_REGION" \
-              --format='yaml(id,status,statusDetail,failureInfo,steps.id,steps.status,steps.exitCode,steps.timing)'
-          done
+          build_id="$(tr -d '[:space:]' < .overcenter/gcp-runner-build-diagnose-request)"
+          case "$build_id" in
+            ????????-????-????-????-????????????) ;;
+            *) echo "invalid build id: $build_id" >&2; exit 2 ;;
+          esac
+          gcloud builds describe "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --format='yaml(id,status,statusDetail,failureInfo,steps.id,steps.status,steps.exitCode,steps.timing)'
+          echo "== log tail =="
+          gcloud builds log "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION" 2>&1 | tail -n 180 || true
