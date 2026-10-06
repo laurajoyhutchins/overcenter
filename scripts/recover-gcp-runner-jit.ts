@@ -316,68 +316,18 @@ main().catch(error => {
 
 function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Record<string, unknown> {
   const runnerName = 'overcenter-gcp-' + String(job.job_id) + '-$BUILD_ID';
-  const containerScript = [
-    'set -uo pipefail',
-    'printf dependencies > /workspace/jit-stage',
-    'apt-get update -qq || exit 91',
-    'DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates curl git gzip iptables jq passwd python3 tar unzip util-linux || exit 91',
-    'printf metadata-firewall > /workspace/jit-stage',
-    'metadata_ips="$(getent ahostsv4 metadata.google.internal 2>/dev/null | awk \'{print $1}\' | sort -u || true)"',
-    'iptables -I OUTPUT -d 169.254.0.0/16 -j REJECT || exit 92',
-    'for ip in $metadata_ips; do iptables -I OUTPUT -d "$ip" -j REJECT || exit 92; done',
-    'printf "127.0.0.1 metadata.google.internal metadata\\n" >> /etc/hosts',
-    'printf metadata-check > /workspace/jit-stage',
-    'for variable in GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE GOOGLE_GHA_CREDS_PATH; do',
-    '  test -z "${!variable:-}" || exit 92',
-    'done',
-    'for endpoint in \\',
-    '  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \\',
-    '  "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token";',
-    'do',
-    '  status="$(curl --silent --output /dev/null --write-out "%{http_code}" --connect-timeout 1 --max-time 2 -H "Metadata-Flavor: Google" "$endpoint" || true)"',
-    '  test "$status" != 200 || exit 92',
-    'done',
-    'printf runner-download > /workspace/jit-stage',
-    'mkdir -p /actions-runner && cd /actions-runner || exit 93',
-    'test -s /workspace/actions-runner.tar.gz || exit 97',
-    'cp /workspace/actions-runner.tar.gz actions-runner.tar.gz || exit 97',
-    'echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum -c - || exit 98',
-    'rm -f /workspace/actions-runner.tar.gz',
-    'tar xzf actions-runner.tar.gz || exit 99',
-    'rm actions-runner.tar.gz',
-    'printf runner-dependencies > /workspace/jit-stage',
-    './bin/installdependencies.sh >/dev/null || exit 94',
-    'printf privilege-drop > /workspace/jit-stage',
-    'getent group runner >/dev/null 2>&1 || groupadd --gid 10001 runner || exit 95',
-    'id runner >/dev/null 2>&1 || useradd --create-home --uid 10001 --gid 10001 --shell /bin/bash runner || exit 95',
-    'mkdir -p /home/runner/_tool',
-    'chown -R runner:runner /actions-runner /home/runner',
-    'jit_config="$(cat /workspace/jit-config)" || exit 101',
-    'rm -f /workspace/jit-config',
-    'export HOME=/home/runner',
-    'export RUNNER_TOOL_CACHE=/home/runner/_tool',
-    'status="$(setpriv --reuid=10001 --regid=10001 --init-groups --no-new-privs curl --silent --output /dev/null --write-out "%{http_code}" --connect-timeout 1 --max-time 2 -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token || true)"',
-    'test "$status" != 200 || exit 96',
-    'printf listener-start > /workspace/jit-stage',
-    'exec setpriv --reuid=10001 --regid=10001 --init-groups --no-new-privs ./run.sh --jitconfig "$jit_config"',
-  ].join('\n');
-
-  const encodedContainerScript = Buffer.from(containerScript, 'utf8').toString('base64');
-  const runnerCommand =
-    'printf %s ' +
-    encodedContainerScript +
-    ' | base64 -d > /tmp/overcenter-jit-runner.sh; exec bash /tmp/overcenter-jit-runner.sh';
+  const runnerImage =
+    'us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/' +
+    'cloud-run-source-deploy/overcenter-gcp-runner@' +
+    'sha256:2f43d35387b7fb2a25b41bc09cafcfb396be375c8e3f9d921eeabd4a30098391';
   const dockerScript = [
     'set +e',
-    'docker run --rm --network bridge --cap-add=NET_ADMIN' +
+    'docker run --rm --network bridge' +
       ' --volume /workspace:/workspace' +
       ' --env TARGET_REPOSITORY=' + job.repository +
       ' --env TARGET_JOB_ID=' + String(job.job_id) +
       ' --env RUNNER_LABEL=' + job.runner_label +
-      ' --env RUNNER_NAME=' + runnerName +
-      ' --entrypoint bash' +
-      ' docker.io/library/ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55' +
-      ' -ceu ' + JSON.stringify(runnerCommand) +
+      ' ' + runnerImage +
       ' > /workspace/jit-runner-output.log 2>&1',
     'status=$?',
     'set -e',
@@ -408,23 +358,17 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
         args: ['-e', AUTHORIZE_JIT_SCRIPT],
       },
       {
-        id: 'prefetch-runner',
-        name: 'node:22-bookworm',
-        entrypoint: 'node',
-        args: ['-e', PREFETCH_RUNNER_SCRIPT],
-      },
-      {
         id: 'github-runner',
         name: 'gcr.io/cloud-builders/docker',
         entrypoint: 'bash',
-        waitFor: ['authorize-jit-job', 'prefetch-runner'],
+        waitFor: ['authorize-jit-job'],
         args: ['-ceu', dockerScript],
       },
       {
         id: 'observe-jit-registration',
         name: 'node:22-bookworm',
         entrypoint: 'node',
-        waitFor: ['authorize-jit-job', 'prefetch-runner'],
+        waitFor: ['authorize-jit-job'],
         secretEnv: ['GITHUB_APP_PRIVATE_KEY'],
         env: [
           'GITHUB_APP_ID=4616688',
