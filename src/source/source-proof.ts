@@ -1,7 +1,5 @@
 import type { GitHubJsonGet } from '../providers/github/rest.ts';
-import {
-  observeGitHubSourceProofExecutionEvidence,
-} from '../providers/github/source-proof-execution-evidence.ts';
+import { observeGitHubSourceProofExecutionEvidence } from '../providers/github/source-proof-execution-evidence.ts';
 import {
   admitSourceProofEvidence,
   type TrustedSourceProofWitness,
@@ -37,16 +35,11 @@ export function admitSourceProof(
     get: GitHubJsonGet;
   },
 ): TrustedSourceProofWitness {
-  const executionEvidence = observeGitHubSourceProofExecutionEvidence(
-    githubToken,
-    plan,
-    record,
-    {
-      workflowRunId: expectedWorkflowRunId,
-      workflowRunAttempt: expectedWorkflowRunAttempt,
-      get,
-    },
-  );
+  const executionEvidence = observeGitHubSourceProofExecutionEvidence(githubToken, plan, record, {
+    workflowRunId: expectedWorkflowRunId,
+    workflowRunAttempt: expectedWorkflowRunAttempt,
+    get,
+  });
   return admitSourceProofEvidence(plan, {
     executionEvidence,
     context,

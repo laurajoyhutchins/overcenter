@@ -58,8 +58,7 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   const build = createRunnerBuild(environment, parseRunnerLaunchRequest(request));
   assert.equal(
     build.serviceAccount,
-    'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' +
-      environment.runtimeServiceAccount,
+    'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' + environment.runtimeServiceAccount,
   );
 
   const steps = build.steps as Array<Record<string, unknown>>;

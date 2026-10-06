@@ -6,9 +6,7 @@ import {
   type ProjectSubmitContext,
 } from '../authority/project-agent-protocol.ts';
 import type { ExecutionEvidenceReceipt } from '../execution/evidence-receipt.ts';
-import {
-  observeGitHubSourceProofExecutionEvidence,
-} from '../providers/github/source-proof-execution-evidence.ts';
+import { observeGitHubSourceProofExecutionEvidence } from '../providers/github/source-proof-execution-evidence.ts';
 import type { SourceTransactionPlan } from '../source/transaction.ts';
 import {
   appendGitHubOutputs,
@@ -38,9 +36,7 @@ const sourceExecutionEvidence =
         const record: unknown = JSON.parse(readFileSync(sourceVerificationPath, 'utf8'));
         return observeGitHubSourceProofExecutionEvidence(githubToken, plan, record, {
           workflowRunId: Number(requiredEnv('OVERCENTER_CANDIDATE_WORKFLOW_RUN_ID')),
-          workflowRunAttempt: Number(
-            requiredEnv('OVERCENTER_CANDIDATE_WORKFLOW_RUN_ATTEMPT'),
-          ),
+          workflowRunAttempt: Number(requiredEnv('OVERCENTER_CANDIDATE_WORKFLOW_RUN_ATTEMPT')),
         });
       };
 
