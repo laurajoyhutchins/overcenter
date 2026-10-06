@@ -27,7 +27,7 @@ permissions:
 jobs:
   evidence:
     name: Candidate evidence
-    runs-on: ${{ fromJSON(inputs.expensive && '["ubuntu-24.04"]' || '["ubuntu-24.04-arm"]') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
