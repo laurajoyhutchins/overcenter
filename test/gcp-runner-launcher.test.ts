@@ -7,8 +7,10 @@ import { runInNewContext } from 'node:vm';
 
 import {
   createRunnerBuild,
+  findReusableRunnerBuild,
   matchRepositoryBinding,
   parseRunnerLaunchRequest,
+  runnerBuildTags,
   type LauncherEnvironment,
 } from '../src/transport/gcp-runner-launcher.ts';
 
@@ -123,7 +125,9 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
     build.serviceAccount,
     'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' + environment.runtimeServiceAccount,
   );
+  assert.equal(build.timeout, '3600s');
   assert.equal(build.queueTtl, '540s');
+  assert.deepEqual(build.tags, ['overcenter-runner', 'repository-1402666660', 'job-111891233183']);
   assert.deepEqual(build.options, { logging: 'CLOUD_LOGGING_ONLY' });
 
   const steps = build.steps as Array<Record<string, unknown>>;
@@ -159,6 +163,45 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
       'overcenter-github-app-private-key/versions/latest',
   );
   assert.equal(JSON.stringify(build).includes('registration-token='), false);
+});
+
+test('Cloud Build history durably suppresses duplicate live or successful runner builds', () => {
+  const tags = runnerBuildTags(parseRunnerLaunchRequest(request));
+  assert.equal(
+    findReusableRunnerBuild(
+      {
+        builds: [
+          { id: 'failed', status: 'FAILURE', tags },
+          { id: 'working', status: 'WORKING', tags },
+        ],
+      },
+      tags,
+    ),
+    'working',
+  );
+  assert.equal(
+    findReusableRunnerBuild({ builds: [{ id: 'success', status: 'SUCCESS', tags }] }, tags),
+    'success',
+  );
+  assert.equal(
+    findReusableRunnerBuild({ builds: [{ id: 'failed', status: 'FAILURE', tags }] }, tags),
+    null,
+  );
+  assert.equal(
+    findReusableRunnerBuild(
+      {
+        builds: [
+          {
+            id: 'wrong-job',
+            status: 'WORKING',
+            tags: ['overcenter-runner', 'repository-1402666660', 'job-999'],
+          },
+        ],
+      },
+      tags,
+    ),
+    null,
+  );
 });
 
 test('runner image consumes one-time JIT configuration without persistent registration', () => {

@@ -25,6 +25,48 @@ export type LauncherEnvironment = Readonly<{
   runnerImage: string;
 }>;
 
+type RunnerBuildSubmission = Readonly<{
+  buildId: string;
+  reused: boolean;
+}>;
+
+const REUSABLE_RUNNER_BUILD_STATUSES = new Set(['PENDING', 'QUEUED', 'WORKING', 'SUCCESS']);
+
+export function runnerBuildTags(request: RunnerLaunchRequest): readonly string[] {
+  return Object.freeze([
+    'overcenter-runner',
+    'repository-' + String(request.repository_id),
+    'job-' + String(request.job_id),
+  ]);
+}
+
+export function findReusableRunnerBuild(
+  value: unknown,
+  expectedTags: readonly string[],
+): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const builds = (value as Record<string, unknown>).builds;
+  if (!Array.isArray(builds)) return null;
+
+  for (const entry of builds) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const build = entry as Record<string, unknown>;
+    const id = String(build.id ?? '').trim();
+    const status = String(build.status ?? '').trim();
+    const tags = Array.isArray(build.tags)
+      ? new Set(build.tags.map((tag) => String(tag)))
+      : new Set();
+    if (
+      id &&
+      REUSABLE_RUNNER_BUILD_STATUSES.has(status) &&
+      expectedTags.every((tag) => tags.has(tag))
+    ) {
+      return id;
+    }
+  }
+  return null;
+}
+
 function requirePositiveInteger(value: unknown, label: string): number {
   if (!Number.isSafeInteger(value) || Number(value) < 1) {
     throw new TypeError(label + ' must be a positive integer');
@@ -295,8 +337,9 @@ export function createRunnerBuild(
   return {
     serviceAccount:
       'projects/' + environment.projectId + '/serviceAccounts/' + environment.runtimeServiceAccount,
-    timeout: '1200s',
+    timeout: '3600s',
     queueTtl: '540s',
+    tags: runnerBuildTags(request),
     steps: [
       {
         id: 'authorize-job',
@@ -345,11 +388,41 @@ async function metadataAccessToken(): Promise<string> {
   return token;
 }
 
+async function reusableRunnerBuildId(
+  environment: LauncherEnvironment,
+  request: RunnerLaunchRequest,
+  token: string,
+): Promise<string | null> {
+  const tags = runnerBuildTags(request);
+  const filter = tags.map((tag) => `tags='${tag}'`).join(' AND ');
+  const url =
+    CLOUD_BUILD_API +
+    '/projects/' +
+    encodeURIComponent(environment.projectId) +
+    '/locations/' +
+    encodeURIComponent(environment.region) +
+    '/builds?pageSize=20&filter=' +
+    encodeURIComponent(filter);
+  const response = await fetch(url, {
+    headers: { Authorization: 'Bearer ' + token },
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      'Cloud Build list failed with HTTP ' + response.status + ': ' + text.slice(0, 500),
+    );
+  }
+  return findReusableRunnerBuild(JSON.parse(text) as unknown, tags);
+}
+
 async function submitRunnerBuild(
   environment: LauncherEnvironment,
   request: RunnerLaunchRequest,
-): Promise<string> {
+): Promise<RunnerBuildSubmission> {
   const token = await metadataAccessToken();
+  const existingBuildId = await reusableRunnerBuildId(environment, request, token);
+  if (existingBuildId) return { buildId: existingBuildId, reused: true };
+
   const response = await fetch(
     CLOUD_BUILD_API +
       '/projects/' +
@@ -383,7 +456,7 @@ async function submitRunnerBuild(
       : {};
   const id = String(build.id ?? '').trim();
   if (!id) throw new Error('Cloud Build create response did not include a build id');
-  return id;
+  return { buildId: id, reused: false };
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
@@ -428,17 +501,17 @@ async function handleRequest(
   try {
     const launch = parseRunnerLaunchRequest(await readJsonBody(request));
     matchRepositoryBinding(config.repositories, launch, config.runner_label);
-    const buildId = await submitRunnerBuild(environment, launch);
+    const submission = await submitRunnerBuild(environment, launch);
     console.log(
       JSON.stringify({
-        event: 'runner_build_submitted',
+        event: submission.reused ? 'runner_build_reused' : 'runner_build_submitted',
         repository: launch.repository,
         repository_id: launch.repository_id,
         job_id: launch.job_id,
-        build_id: buildId,
+        build_id: submission.buildId,
       }),
     );
-    sendJson(response, 202, { build_id: buildId });
+    sendJson(response, 202, { build_id: submission.buildId, reused: submission.reused });
   } catch (error) {
     const message = String(error instanceof Error ? error.message : error);
     console.error(JSON.stringify({ event: 'runner_launch_failed', error: message }));
