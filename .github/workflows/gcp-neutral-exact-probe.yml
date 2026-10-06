@@ -1,0 +1,185 @@
+name: Exact-head GCP neutral evidence probe
+
+on:
+  push:
+    branches:
+      - verify/gcp-neutral-b69f7e26
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Derive canonical exact-head need
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      need_json: ${{ steps.need.outputs.need_json }}
+      need_id: ${{ steps.need.outputs.need_id }}
+      evidence_id: ${{ steps.need.outputs.evidence_id }}
+    steps:
+      - name: Check out exact executor revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: b69f7e26921a8ea9f1ee1272e2f66d481d0047d3
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install repository Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install pinned build toolchain
+        run: npm install --ignore-scripts --package-lock=false
+
+      - id: need
+        name: Derive candidate-bound neutral evidence need
+        shell: bash
+        env:
+          BASE_SHA: 6f2c96f319fd30153968701f98163520c5026cc8
+          SOURCE_SHA: b69f7e26921a8ea9f1ee1272e2f66d481d0047d3
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          import { observeRepositoryDelta } from './src/source/repository-delta.ts';
+          import { planSourceTransaction } from './src/source/transaction-planner.ts';
+          import { deriveAssuranceEvidenceNeeds } from './src/source/assurance-evidence-needs.ts';
+
+          const base = process.env.BASE_SHA;
+          const source = process.env.SOURCE_SHA;
+          if (!base || !source) throw new Error('probe coordinates missing');
+
+          const delta = observeRepositoryDelta('.', base, source);
+          const plan = planSourceTransaction('.', delta, {
+            baseline_id: null,
+            baseline_sha256: null,
+            baseline_package_scripts: [],
+            validator_artifacts: [],
+          });
+          const candidateNeeds = deriveAssuranceEvidenceNeeds(plan).filter(
+            (need) =>
+              need.identity.revision === source &&
+              need.inputs.uses_package_runtime === 'true',
+          );
+          const need =
+            candidateNeeds.find((item) => item.identity.evidence_id === 'authority-flow-proof') ??
+            candidateNeeds[0];
+          if (!need) {
+            throw new Error(
+              'NO_CANDIDATE_RUNTIME_ASSURANCE_NEED:' +
+                JSON.stringify({
+                  validation_mode: plan.validation_mode,
+                  coverage_gaps: plan.coverage_gaps,
+                  all_needs: deriveAssuranceEvidenceNeeds(plan).map((item) => item.identity),
+                }),
+            );
+          }
+
+          appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            [
+              'need_json=' + JSON.stringify(need),
+              'need_id=' + need.need_id,
+              'evidence_id=' + need.identity.evidence_id,
+              '',
+            ].join('\n'),
+          );
+          console.log(
+            JSON.stringify({
+              validation_mode: plan.validation_mode,
+              coverage_gaps: plan.coverage_gaps,
+              selected_need: need,
+            }),
+          );
+          NODE
+
+      - name: Record selected need
+        shell: bash
+        env:
+          NEED_ID: ${{ steps.need.outputs.need_id }}
+          EVIDENCE_ID: ${{ steps.need.outputs.evidence_id }}
+        run: |
+          {
+            echo "## Exact-head GCP probe"
+            echo
+            echo "- source: `b69f7e26921a8ea9f1ee1272e2f66d481d0047d3`"
+            echo "- base: `6f2c96f319fd30153968701f98163520c5026cc8`"
+            echo "- evidence: `$EVIDENCE_ID`"
+            echo "- need: `$NEED_ID`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  gcp:
+    name: Realize exact-head neutral evidence on GCP
+    needs: plan
+    runs-on: [self-hosted, overcenter-gcp]
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact executor revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: b69f7e26921a8ea9f1ee1272e2f66d481d0047d3
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install repository Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install pinned build toolchain
+        run: npm install --ignore-scripts --package-lock=false
+
+      - name: Verify exact checkout and live JIT runner binding
+        shell: bash
+        env:
+          SOURCE_SHA: b69f7e26921a8ea9f1ee1272e2f66d481d0047d3
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          [[ "${RUNNER_NAME:-}" =~ ^overcenter-gcp-[0-9]+-[A-Za-z0-9_-]+$ ]]
+          [[ "${TARGET_JOB_ID:-}" =~ ^[0-9]+$ ]]
+          test "${TARGET_REPOSITORY:-}" = "laurajoyhutchins/overcenter"
+          printf 'live_runner=%s target_job=%s target_repository=%s\n'             "$RUNNER_NAME" "$TARGET_JOB_ID" "$TARGET_REPOSITORY"
+
+      - name: Execute neutral evidence recipe
+        shell: bash
+        env:
+          NEED_JSON: ${{ needs.plan.outputs.need_json }}
+        run: |
+          set -euo pipefail
+          need="$RUNNER_TEMP/overcenter-assurance-evidence-need.json"
+          log="$RUNNER_TEMP/overcenter-gcp-realization.log"
+          result="$RUNNER_TEMP/overcenter-gcp-realization.json"
+          printf '%s\n' "$NEED_JSON" > "$need"
+          node --experimental-strip-types scripts/realize-assurance-evidence-need.ts "$need" | tee "$log"
+          tail -n 1 "$log" > "$result"
+          node --input-type=module - "$result" <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const path = process.argv[2];
+          const value = JSON.parse(readFileSync(path, 'utf8'));
+          if (value.state !== 'observed') throw new Error('GCP_REALIZATION_NOT_OBSERVED');
+          if (value.receipt?.observation?.result !== 'satisfied') {
+            throw new Error('GCP_REALIZATION_NOT_SATISFIED');
+          }
+          if (value.provenance?.provider !== 'gcp') throw new Error('GCP_PROVENANCE_MISSING');
+          if (!/^overcenter-gcp-[0-9]+-[A-Za-z0-9_-]+$/.test(value.provenance.runner_name ?? '')) {
+            throw new Error('GCP_RUNNER_PROVENANCE_INVALID');
+          }
+          if (value.provenance.target_repository !== 'laurajoyhutchins/overcenter') {
+            throw new Error('GCP_REPOSITORY_PROVENANCE_INVALID');
+          }
+          console.log(
+            JSON.stringify({
+              exact_head: 'b69f7e26921a8ea9f1ee1272e2f66d481d0047d3',
+              state: value.state,
+              result: value.receipt.observation.result,
+              need: value.receipt.need,
+              identity: value.receipt.identity,
+              outputs: value.receipt.outputs,
+              semantic_evidence: value.receipt.semantic_evidence,
+              provenance: value.provenance,
+            }),
+          );
+          NODE
