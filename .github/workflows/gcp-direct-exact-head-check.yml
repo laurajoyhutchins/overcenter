@@ -1,0 +1,272 @@
+name: Direct GCP exact-head check
+
+on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+    paths:
+      - .overcenter/gcp-direct-exact-head-request.json
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: direct-gcp-exact-head-check
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    env:
+      GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
+      GCP_REGION: us-west1
+      GCP_WORKLOAD_IDENTITY_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      GCP_DEPLOY_SERVICE_ACCOUNT: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Submit and observe exact-head GCP verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/direct-gcp-check.json"
+          python3 - ".overcenter/gcp-direct-exact-head-request.json" "$config" <<'PY'
+          import json
+          import sys
+
+          request_path, output_path = sys.argv[1:]
+          with open(request_path, encoding="utf-8") as handle:
+              request = json.load(handle)
+
+          expected_keys = {"schema", "repository", "repository_id", "owner_id", "revision"}
+          if set(request) != expected_keys:
+              raise SystemExit("direct GCP request keys are invalid")
+          if request["schema"] != "overcenter-direct-gcp-exact-head/v1":
+              raise SystemExit("direct GCP request schema is invalid")
+          if request["repository"] != "laurajoyhutchins/arcata":
+              raise SystemExit("direct GCP target repository is not admitted")
+          if request["repository_id"] != 1402666660 or request["owner_id"] != 219002713:
+              raise SystemExit("direct GCP target identity mismatch")
+          revision = str(request["revision"])
+          if len(revision) != 40 or any(c not in "0123456789abcdef" for c in revision):
+              raise SystemExit("direct GCP target revision is invalid")
+
+          authorize = r"""
+          const crypto = require('crypto');
+          const fs = require('fs');
+
+          const repo = process.env.TARGET_REPOSITORY;
+          const expectedRepositoryId = Number(process.env.TARGET_REPOSITORY_ID);
+          const expectedOwnerId = Number(process.env.TARGET_OWNER_ID);
+          const appId = process.env.GITHUB_APP_ID;
+          const b64 = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+          const now = Math.floor(Date.now() / 1000);
+          const unsigned =
+            b64({alg:'RS256',typ:'JWT'}) + '.' +
+            b64({iat:now-60,exp:now+540,iss:appId});
+          const signature = crypto
+            .sign('RSA-SHA256', Buffer.from(unsigned), process.env.GITHUB_APP_PRIVATE_KEY)
+            .toString('base64url');
+          const appJwt = unsigned + '.' + signature;
+          const baseHeaders = {
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2026-03-10',
+            'User-Agent': 'overcenter-direct-gcp-exact-head',
+          };
+          async function json(response, label) {
+            const text = await response.text();
+            if (!response.ok) throw new Error(label + ' HTTP ' + response.status + ': ' + text.slice(0,300));
+            return text ? JSON.parse(text) : {};
+          }
+          async function main() {
+            const installation = await json(
+              await fetch('https://api.github.com/repos/' + repo + '/installation', {
+                headers: {...baseHeaders, Authorization:'Bearer ' + appJwt},
+              }),
+              'installation lookup',
+            );
+            const access = await json(
+              await fetch('https://api.github.com/app/installations/' + installation.id + '/access_tokens', {
+                method:'POST',
+                headers:{...baseHeaders, Authorization:'Bearer ' + appJwt, 'Content-Type':'application/json'},
+                body:JSON.stringify({
+                  repository_ids:[expectedRepositoryId],
+                  permissions:{contents:'read'},
+                }),
+              }),
+              'installation token',
+            );
+            const headers = {...baseHeaders, Authorization:'Bearer ' + access.token};
+            const identity = await json(
+              await fetch('https://api.github.com/repos/' + repo, {headers}),
+              'repository identity',
+            );
+            if (
+              Number(identity.id) !== expectedRepositoryId ||
+              Number(identity.owner && identity.owner.id) !== expectedOwnerId ||
+              String(identity.full_name || '').toLowerCase() !== repo.toLowerCase()
+            ) throw new Error('repository identity mismatch');
+            fs.writeFileSync('/workspace/github-token', String(access.token), {mode:0o600});
+          }
+          main().catch(error => {
+            console.error(String(error && error.message || error));
+            process.exit(1);
+          });
+          """
+
+          clone_script = r"""
+          set -euo pipefail
+          token="$(cat /workspace/github-token)"
+          rm -rf /workspace/target
+          mkdir -p /workspace/target
+          cd /workspace/target
+          git init -q
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer $token"             fetch --quiet --no-tags --depth=1             "https://github.com/$TARGET_REPOSITORY.git" "$TARGET_REVISION"
+          git checkout --quiet --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$TARGET_REVISION"
+          rm -f /workspace/github-token
+          printf '%s\n' "$TARGET_REVISION" > /workspace/verified-revision
+          """
+
+          check_script = r"""
+          set -euo pipefail
+          cd /workspace/target
+          test "$(cat /workspace/verified-revision)" = "$TARGET_REVISION"
+          apt-get update -qq
+          apt-get install -y -qq git >/dev/null
+          python --version
+          python tools/verification_tools.py requirements > /tmp/verification-tools.txt
+          python -m venv /tmp/verification-tools
+          /tmp/verification-tools/bin/python -m pip install             --disable-pip-version-check             --no-input             --no-compile             --only-binary=:all:             --no-deps             --require-hashes             --requirement /tmp/verification-tools.txt
+          /tmp/verification-tools/bin/python -m pip check
+
+          set +e
+          PATH="/tmp/verification-tools/bin:$PATH"             /tmp/verification-tools/bin/python tools/check.py             > /workspace/check.log 2>&1
+          status=$?
+          set -e
+          mkdir -p /builder/outputs
+          tail -c 48000 /workspace/check.log > /builder/outputs/output
+          cat /workspace/check.log
+          exit "$status"
+          """
+
+          config = {
+              "serviceAccount": (
+                  "projects/project-6b810532-a302-48dc-b56/serviceAccounts/"
+                  "overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com"
+              ),
+              "timeout": "1200s",
+              "steps": [
+                  {
+                      "id": "authorize-source",
+                      "name": "node:22-bookworm",
+                      "entrypoint": "node",
+                      "secretEnv": ["GITHUB_APP_PRIVATE_KEY"],
+                      "env": [
+                          "GITHUB_APP_ID=4616688",
+                          f"TARGET_REPOSITORY={request['repository']}",
+                          f"TARGET_REPOSITORY_ID={request['repository_id']}",
+                          f"TARGET_OWNER_ID={request['owner_id']}",
+                      ],
+                      "args": ["-e", authorize],
+                  },
+                  {
+                      "id": "checkout-exact-head",
+                      "name": "gcr.io/cloud-builders/git",
+                      "entrypoint": "bash",
+                      "env": [
+                          f"TARGET_REPOSITORY={request['repository']}",
+                          f"TARGET_REVISION={revision}",
+                      ],
+                      "args": ["-ceu", clone_script],
+                  },
+                  {
+                      "id": "tools-check",
+                      "name": "python:3.13-bookworm",
+                      "entrypoint": "bash",
+                      "env": [f"TARGET_REVISION={revision}"],
+                      "args": ["-ceu", check_script],
+                  },
+              ],
+              "availableSecrets": {
+                  "secretManager": [{
+                      "versionName": (
+                          "projects/project-6b810532-a302-48dc-b56/secrets/"
+                          "overcenter-github-app-private-key/versions/latest"
+                      ),
+                      "env": "GITHUB_APP_PRIVATE_KEY",
+                  }]
+              },
+              "options": {"logging": "CLOUD_LOGGING_ONLY"},
+          }
+          with open(output_path, "w", encoding="utf-8") as handle:
+              json.dump(config, handle)
+          PY
+
+          build_id="$(
+            gcloud builds submit               --no-source               --async               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --config="$config"               --format='value(id)'
+          )"
+          test -n "$build_id"
+          echo "GCP build: $build_id"
+
+          status=""
+          for _ in $(seq 1 300); do
+            status="$(
+              gcloud builds describe "$build_id"                 --project="$GCP_PROJECT_ID"                 --region="$GCP_REGION"                 --format='value(status)'
+            )"
+            case "$status" in
+              SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;;
+            esac
+            sleep 2
+          done
+
+          build_json="$RUNNER_TEMP/build-result.json"
+          gcloud builds describe "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --format=json > "$build_json"
+
+          python3 - "$build_json" <<'PY'
+          import base64
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              body = json.load(handle)
+          print("status:", body.get("status"))
+          print("failure:", (body.get("failureInfo") or {}).get("detail"))
+          for index, step in enumerate(body.get("steps") or []):
+              print(
+                  f"step[{index}] id={step.get('id')} status={step.get('status')} "
+                  f"exit={step.get('exitCode')}"
+              )
+          outputs = (body.get("results") or {}).get("buildStepOutputs") or []
+          for index, encoded in enumerate(outputs):
+              if not encoded:
+                  continue
+              padded = encoded + ("=" * ((-len(encoded)) % 4))
+              try:
+                  decoded = base64.b64decode(padded)
+              except Exception:
+                  decoded = base64.urlsafe_b64decode(padded)
+              print(f"== buildStepOutputs[{index}] ==")
+              print(decoded.decode("utf-8", errors="replace"))
+          PY
+
+          test "$status" = "SUCCESS"
