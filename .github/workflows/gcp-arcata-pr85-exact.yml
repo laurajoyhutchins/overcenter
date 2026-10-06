@@ -184,8 +184,7 @@ jobs:
               args:
                 - -ceu
                 - |
-                  export PATH="/workspace/verification-tools/bin:$PATH"
-                  ruff format --check .
+                  /workspace/verification-tools/bin/ruff format --check .
 
             - id: ruff-lint
               name: python:3.13-bookworm
@@ -194,8 +193,7 @@ jobs:
               args:
                 - -ceu
                 - |
-                  export PATH="/workspace/verification-tools/bin:$PATH"
-                  ruff check .
+                  /workspace/verification-tools/bin/ruff check .
 
             - id: mypy
               name: python:3.13-bookworm
@@ -204,14 +202,20 @@ jobs:
               args:
                 - -ceu
                 - |
-                  export PATH="/workspace/verification-tools/bin:$PATH"
-                  export MYPYPATH="$(python - <<'PY'
-                  from tools.repo_config import SOURCE_ROOTS
+                  /workspace/verification-tools/bin/python - <<'PY'
                   import os
-                  print(os.pathsep.join(str(path) for path in SOURCE_ROOTS.values()))
+                  import subprocess
+                  import sys
+                  from tools.repo_config import SOURCE_ROOTS
+                  env = dict(os.environ)
+                  env["MYPYPATH"] = os.pathsep.join(str(path) for path in SOURCE_ROOTS.values())
+                  raise SystemExit(
+                      subprocess.call(
+                          [sys.executable, "-m", "mypy", "packages", "integration"],
+                          env=env,
+                      )
+                  )
                   PY
-                  )"
-                  python -m mypy packages integration
 
             - id: tests
               name: python:3.13-bookworm
@@ -220,8 +224,7 @@ jobs:
               args:
                 - -ceu
                 - |
-                  export PATH="/workspace/verification-tools/bin:$PATH"
-                  python tools/test_all.py
+                  /workspace/verification-tools/bin/python tools/test_all.py
 
           availableSecrets:
             secretManager:
