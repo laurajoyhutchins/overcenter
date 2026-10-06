@@ -1,0 +1,134 @@
+name: Arcata repair diagnostics output
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-arcata-repair-output.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+      - name: Capture GCP verifier output
+        shell: bash
+        run: |
+          set -uo pipefail
+          config="$RUNNER_TEMP/arcata-repair-output.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 900s
+          steps:
+            - id: private-source
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+                - SOURCE_REVISION=${_REVISION}
+              args:
+                - -e
+                - |
+                  const crypto=require("crypto"),fs=require("fs");
+                  const repository="laurajoyhutchins/arcata",revision=process.env.SOURCE_REVISION;
+                  const b64=v=>Buffer.from(JSON.stringify(v)).toString("base64url"),now=Math.floor(Date.now()/1000);
+                  const u=b64({alg:"RS256",typ:"JWT"})+"."+b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const jwt=u+"."+crypto.sign("RSA-SHA256",Buffer.from(u),process.env.GITHUB_APP_PRIVATE_KEY).toString("base64url");
+                  const base={Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","User-Agent":"overcenter-arcata-repair-output"};
+                  async function j(r,l){const t=await r.text();if(!r.ok)throw new Error(l+" HTTP "+r.status+": "+t.slice(0,300));return JSON.parse(t)}
+                  (async()=>{
+                    const i=await j(await fetch("https://api.github.com/repos/"+repository+"/installation",{headers:{...base,Authorization:"Bearer "+jwt}}),"installation");
+                    const a=await j(await fetch("https://api.github.com/app/installations/"+i.id+"/access_tokens",{method:"POST",headers:{...base,Authorization:"Bearer "+jwt,"Content-Type":"application/json"},body:JSON.stringify({repository_ids:[1402666660],permissions:{contents:"read"}})}),"token");
+                    const h={...base,Authorization:"Bearer "+a.token};
+                    const c=await j(await fetch("https://api.github.com/repos/"+repository+"/commits/"+revision,{headers:h}),"revision");
+                    if(c.sha!==revision)throw new Error("revision mismatch");
+                    const ar=await fetch("https://api.github.com/repos/"+repository+"/tarball/"+revision,{headers:h,redirect:"follow"});
+                    if(!ar.ok)throw new Error("archive HTTP "+ar.status);
+                    fs.writeFileSync("/workspace/source.tar.gz",Buffer.from(await ar.arrayBuffer()),{mode:0o600});
+                  })().catch(e=>{console.error(String(e&&e.message||e));process.exit(1)});
+            - id: extract-source
+              name: python:3.13-bookworm
+              entrypoint: bash
+              args: ["-ceu", "python - <<'PY'\nfrom pathlib import Path\nimport shutil,tarfile\nu=Path('/workspace/u'); s=Path('/workspace/source')\nshutil.rmtree(u,ignore_errors=True); shutil.rmtree(s,ignore_errors=True); u.mkdir()\nwith tarfile.open('/workspace/source.tar.gz','r:gz') as t: t.extractall(u,filter='data')\ne=list(u.iterdir())\nif len(e)!=1 or not e[0].is_dir(): raise SystemExit('unexpected archive layout')\nshutil.move(str(e[0]),s)\nPY"]
+            - id: install-tools
+              name: python:3.13-bookworm
+              entrypoint: bash
+              args: ["-ceu", "cd /workspace/source\npython tools/verification_tools.py requirements > /workspace/verification-tools.txt\npython -m venv /workspace/verification-tools\n/workspace/verification-tools/bin/python -m pip install --disable-pip-version-check --no-input --no-compile --only-binary=:all: --no-deps --require-hashes --requirement /workspace/verification-tools.txt\n/workspace/verification-tools/bin/python -m pip check"]
+            - id: check
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: bash
+              args:
+                - -c
+                - |
+                  export PATH=/workspace/verification-tools/bin:$$PATH
+                  set +e
+                  python tools/check.py > /workspace/check-output.txt 2>&1
+                  rc=$$?
+                  tail -c 60000 /workspace/check-output.txt > /builder/outputs/output
+                  cat /workspace/check-output.txt
+                  exit $$rc
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: NONE
+          YAML
+
+          cat > "$RUNNER_TEMP/targets.tsv" <<'TARGETS'
+          89 06a3e144ed724c89aadb524d241d2a45a1f1c923
+          93 93ff81c0a3a7c8c7837a8f0ca0ed16e46a5b2e3d
+          85 0adafcddddf2ff769926b81ae4f13582015516d0
+          82 f1eda022a5c5b1ed71f9149c5977521a90ed1ea7
+          TARGETS
+          : > "$RUNNER_TEMP/builds.tsv"
+          while read -r pr sha; do
+            id="$(gcloud builds submit --async --no-source --project="$PROJECT_ID" --region="$REGION" --config="$config" --substitutions="_REVISION=$sha" --format='value(id)' 2>/dev/null || true)"
+            printf '%s\t%s\t%s\n' "$pr" "$sha" "$id" >> "$RUNNER_TEMP/builds.tsv"
+          done < "$RUNNER_TEMP/targets.tsv"
+          for _ in $(seq 1 400); do
+            pending=0
+            while IFS=$'\t' read -r pr sha id; do
+              s="$(gcloud builds describe "$id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)' 2>/dev/null || true)"
+              case "$s" in SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) ;; *) pending=1 ;; esac
+            done < "$RUNNER_TEMP/builds.tsv"
+            [ "$pending" -eq 0 ] && break
+            sleep 2
+          done
+          while IFS=$'\t' read -r pr sha id; do
+            json="$RUNNER_TEMP/$pr.json"
+            gcloud builds describe "$id" --project="$PROJECT_ID" --region="$REGION" --format=json > "$json"
+            python - "$json" "$pr" <<'PY'
+          import base64,json,sys
+          body=json.load(open(sys.argv[1],encoding='utf-8'))
+          outputs=body.get('results',{}).get('buildStepOutputs',[])
+          print(f'===== PR #{sys.argv[2]} STATUS {body.get("status")} =====')
+          for raw in outputs:
+              if not raw: continue
+              try: text=base64.b64decode(raw).decode('utf-8','replace')
+              except Exception: continue
+              if text.strip(): print(text)
+          PY
+          done < "$RUNNER_TEMP/builds.tsv"
