@@ -148,6 +148,7 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
     'impacts',
     'proof_plans',
     'evidence',
+    'evidence_frontiers',
     'coverage_gaps',
     'validation_mode',
     'baseline_id',
@@ -220,6 +221,75 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
     }
   };
   validateEvidence(assurance.evidence);
+
+  if (!Array.isArray(assurance.evidence_frontiers)) throw new Error(INVALID);
+  for (const frontier of assurance.evidence_frontiers) {
+    const item = record(frontier, [
+      'coordinate',
+      'revision',
+      'model_sha256',
+      'dependency_sha256',
+      'baseline_sha256',
+      'required_propositions',
+      'candidates',
+    ]);
+    assertNonEmptyString(item.coordinate, INVALID);
+    sha(item.revision);
+    if (
+      item.coordinate !== `revision:${item.revision}` ||
+      (item.revision !== assurance.base_revision &&
+        item.revision !== assurance.candidate_revision) ||
+      !isSha256Hex(item.model_sha256) ||
+      !isSha256Hex(item.dependency_sha256)
+    )
+      throw new Error(INVALID);
+    if (item.baseline_sha256 !== null && !isSha256Hex(item.baseline_sha256))
+      throw new Error(INVALID);
+    strings(item.required_propositions);
+    if (!Array.isArray(item.candidates)) throw new Error(INVALID);
+    const required = new Set(item.required_propositions);
+    for (const candidate of item.candidates) {
+      const entry = record(candidate, [
+        'evidence_id',
+        'proposition_ids',
+        'obligation_ids',
+        'artifact_ids',
+        'package_scripts',
+        'uses_package_runtime',
+      ]);
+      assertNonEmptyString(entry.evidence_id, INVALID);
+      strings(entry.proposition_ids);
+      strings(entry.obligation_ids);
+      paths(entry.artifact_ids);
+      strings(entry.package_scripts);
+      if (
+        entry.package_scripts.length === 0 ||
+        typeof entry.uses_package_runtime !== 'boolean' ||
+        entry.proposition_ids.some((proposition) => !required.has(proposition))
+      )
+        throw new Error(INVALID);
+    }
+    for (const proposition of item.required_propositions)
+      if (
+        !item.candidates.some(
+          (candidate) =>
+            isData(candidate) &&
+            Array.isArray(candidate.proposition_ids) &&
+            candidate.proposition_ids.includes(proposition),
+        )
+      )
+        throw new Error(INVALID);
+  }
+  if (
+    assurance.validation_mode === 'baseline' &&
+    !assurance.evidence_frontiers.some(
+      (frontier) =>
+        isData(frontier) &&
+        frontier.revision === assurance.candidate_revision &&
+        frontier.baseline_sha256 === assurance.baseline_sha256,
+    )
+  )
+    throw new Error(INVALID);
 
   for (const proofPlan of assurance.proof_plans) {
     const item = record(proofPlan, [
