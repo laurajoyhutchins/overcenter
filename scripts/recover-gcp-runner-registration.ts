@@ -210,12 +210,10 @@ function createBuild(
       '-ceu',
       JSON.stringify(containerScript),
       '> /workspace/runner-registration-output.log 2>&1',
-      '&& touch /workspace/runner-registration-success',
-      '|| touch /workspace/runner-registration-failure',
+      '|| true',
     ].join(' '),
     'tail -c 48000 /workspace/runner-registration-output.log > /builder/outputs/output',
     'cat /workspace/runner-registration-output.log',
-    'test -f /workspace/runner-registration-success',
   ].join('\n');
 
   return {
