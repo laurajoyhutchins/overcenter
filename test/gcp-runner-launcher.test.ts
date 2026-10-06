@@ -14,7 +14,7 @@ const request = {
   repository_id: 1_402_666_660,
   owner_id: 219_002_713,
   job_id: 111_891_233_183,
-  runner_label: 'overcenter-gcp',
+  runner_label: 'overcenter-gcp-123456-check',
 };
 
 const repositories = [
@@ -38,6 +38,7 @@ const environment: LauncherEnvironment = {
 test('launcher binds repository name, numeric identity, owner, job, and label', () => {
   const parsed = parseRunnerLaunchRequest(request);
   assert.deepEqual(matchRepositoryBinding(repositories, parsed), repositories[0]);
+  assert.deepEqual(matchRepositoryBinding(repositories, parsed, 'overcenter-gcp'), repositories[0]);
   assert.throws(
     () => matchRepositoryBinding(repositories, { ...parsed, repository_id: 1 }),
     /repository identity mismatch/,
@@ -69,8 +70,8 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
 
   const args = steps[1]?.args as string[];
   const script = args[1] ?? '';
-  assert.match(script, /docker run --rm --network bridge/);
-  assert.match(script, /RUNNER_LABEL=overcenter-gcp/);
+  assert.match(script, /docker run --rm --network bridge --dns 8\.8\.8\.8 --dns 8\.8\.4\.4/);
+  assert.match(script, /RUNNER_LABEL=overcenter-gcp-123456-check/);
   assert.match(script, /test -s \/workspace\/jit-config/);
   assert.match(script, /runner-output\.log/);
   assert.match(script, /\/builder\/outputs\/output/);
@@ -82,8 +83,8 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   assert.match(authorization, /generate-jitconfig/);
   assert.match(authorization, /encoded_jit_config/);
   assert.match(authorization, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
-  assert.match(authorization, /RUNNER_LABEL=overcenter-gcp/);
-  assert.match(authorization, /labels: \['self-hosted', 'Linux', 'X64', runnerLabel\]/);
+  assert.match(authorization, /RUNNER_LABEL=overcenter-gcp-123456-check/);
+  assert.match(authorization, /labels: Array\.from\(labels\)\.sort\(\)/);
   assert.doesNotMatch(authorization, /registration-token/);
 
   const secrets = build.availableSecrets as {
