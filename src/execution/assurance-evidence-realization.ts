@@ -109,17 +109,18 @@ export function normalizeAssuranceEvidenceNeed(value: unknown): AssuranceEvidenc
   }
 
   if (!isData(value.inputs)) throw new Error('ASSURANCE_EVIDENCE_INPUTS_INVALID');
+  const rawInputs = value.inputs;
   assertExactKeys(
-    value.inputs,
+    rawInputs,
     REQUIRED_NEED_INPUT_KEYS,
     OPTIONAL_NEED_INPUT_KEYS,
     'ASSURANCE_EVIDENCE_INPUTS_INVALID',
   );
   const inputs = Object.fromEntries(
     [...REQUIRED_NEED_INPUT_KEYS, ...OPTIONAL_NEED_INPUT_KEYS]
-      .filter((key) => Object.hasOwn(value.inputs, key))
+      .filter((key) => Object.hasOwn(rawInputs, key))
       .map((key) => {
-        const member = value.inputs[key];
+        const member = rawInputs[key];
         assertNonEmptyString(member, `ASSURANCE_EVIDENCE_INPUT_INVALID:${key}`);
         return [key, member];
       }),
@@ -138,7 +139,9 @@ export function normalizeAssuranceEvidenceNeed(value: unknown): AssuranceEvidenc
     throw new Error('ASSURANCE_EVIDENCE_PACKAGE_RUNTIME_INVALID');
   }
   for (const key of ['proposition_ids', 'obligation_ids', 'artifact_ids', 'package_scripts'] as const) {
-    canonicalStringArray(inputs[key], `ASSURANCE_EVIDENCE_INPUT_INVALID:${key}`);
+    const serialized = inputs[key];
+    assertNonEmptyString(serialized, `ASSURANCE_EVIDENCE_INPUT_INVALID:${key}`);
+    canonicalStringArray(serialized, `ASSURANCE_EVIDENCE_INPUT_INVALID:${key}`);
   }
 
   const identity = {
@@ -193,8 +196,10 @@ export function deriveAssuranceEvidenceRecipe(
   needValue: AssuranceEvidenceNeed,
 ): AssuranceEvidenceRecipe {
   const need = normalizeAssuranceEvidenceNeed(needValue);
+  const packageScripts = need.inputs.package_scripts;
+  assertNonEmptyString(packageScripts, 'ASSURANCE_EVIDENCE_PACKAGE_SCRIPTS_INVALID');
   const requestedScripts = canonicalStringArray(
-    need.inputs.package_scripts,
+    packageScripts,
     'ASSURANCE_EVIDENCE_PACKAGE_SCRIPTS_INVALID',
   );
   if (need.inputs.uses_package_runtime !== 'true' || requestedScripts.length === 0) {
