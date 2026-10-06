@@ -284,7 +284,7 @@ jobs:
               waitFor: ["install-tools"]
               dir: source
               entrypoint: /workspace/verification-tools/bin/ruff
-              args: ["format", "--check", "."]
+              args: ["format", "--check", "--diff", "."]
 
             - id: ruff-lint
               name: python:3.13-bookworm
@@ -411,7 +411,7 @@ jobs:
                 env: GITHUB_APP_PRIVATE_KEY
 
           options:
-            logging: NONE
+            logging: CLOUD_LOGGING_ONLY
           YAML
 
           BUILD_ID="$(
@@ -478,5 +478,9 @@ jobs:
 
           if [ "$STATUS" != "SUCCESS" ]; then
             echo "Exact-head verification finished with Cloud Build status: $STATUS" >&2
+            gcloud builds log "$BUILD_ID" \
+              --project="$PROJECT_ID" \
+              --region="$REGION" \
+              --stream || true
             exit 1
           fi
