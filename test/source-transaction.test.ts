@@ -42,9 +42,18 @@ function plan(): SourceTransactionPlan {
     candidate_sha: 'c'.repeat(40),
     candidate_tree: 'd'.repeat(40),
     verification_profile: { profile, sha256: sourceVerificationProfileBinding(profile).sha256 },
+    write_envelope: {
+      allowed_roots: [],
+      exact_paths: ['extra.ts', 'value.ts'],
+      denied_roots: [],
+      denied_paths: [],
+      max_changed_files: null,
+      max_changed_bytes: null,
+    },
     authorized_write_set: ['value.ts', 'extra.ts'],
     expected_write_set: ['value.ts'],
     observed_write_set: ['value.ts'],
+    observed_write_bytes: 12,
     assurance: {
       base_revision: 'b'.repeat(40),
       candidate_revision: 'c'.repeat(40),
@@ -155,6 +164,8 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
     )}\n`,
   );
   writeFileSync(join(repo, 'value.ts'), 'export const value = 1;\n');
+  mkdirSync(join(repo, 'test'), { recursive: true });
+  writeFileSync(join(repo, 'test/known.test.ts'), 'assert.ok(true);\n');
   git('add', '-A');
   git('commit', '-qm', 'base');
   const base = git('rev-parse', 'HEAD');
@@ -165,6 +176,7 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
     runtime_sha: 'a'.repeat(40),
   };
   writeFileSync(join(repo, 'value.ts'), 'export const value = 2;\n');
+  writeFileSync(join(repo, 'test/new.test.ts'), 'assert.ok(false);\n');
   git('add', '-A');
   git('commit', '-qm', 'candidate');
   const candidate = git('rev-parse', 'HEAD');
@@ -178,7 +190,15 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
     schema: 'overcenter-source-task/v1',
     kind: 'source-change',
     objective: 'Update value',
-    writable_paths: ['value.ts'],
+    writable_paths: [],
+    write_envelope: {
+      allowed_roots: ['.'],
+      exact_paths: [],
+      denied_roots: ['.git'],
+      denied_paths: ['README.md'],
+      max_changed_files: 2,
+      max_changed_bytes: 100,
+    },
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
   };
 
@@ -197,7 +217,8 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
     context,
   });
   assert.deepEqual(second, first);
-  assert.deepEqual(first.observed_write_set, ['value.ts']);
+  assert.deepEqual(first.expected_write_set, ['test/new.test.ts', 'value.ts']);
+  assert.deepEqual(first.observed_write_set, ['test/new.test.ts', 'value.ts']);
   assert.equal(first.verification_profile.profile.id, 'fixture');
   assert.match(first.verification_profile.sha256, /^[0-9a-f]{64}$/);
   validateSourceTransactionTask(first, task);
@@ -205,12 +226,19 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
     () =>
       buildSourceTransactionPlan({
         repo,
-        taskValue: { ...task, writable_paths: ['value.ts', 'extra.ts'] },
+        taskValue: {
+          ...task,
+          writable_paths: [],
+          write_envelope: {
+            ...task.write_envelope,
+            allowed_roots: ['src'],
+          },
+        },
         claim,
         candidateSha: candidate,
         context,
       }),
-    /SOURCE_TRANSACTION_DIVERGED/,
+    /SOURCE_PROPOSAL_SCOPE_VIOLATION/,
   );
   const alternateRuntime = buildSourceTransactionPlan({
     repo,
@@ -224,7 +252,12 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
     sourceTransactionPlanDigest(first),
   );
   assert.throws(
-    () => validateSourceTransactionTask(first, { ...task, writable_paths: ['other.ts'] }),
+    () =>
+      validateSourceTransactionTask(first, {
+        ...task,
+        writable_paths: [],
+        write_envelope: { ...task.write_envelope, allowed_roots: ['other'] },
+      }),
     /SOURCE_TRANSACTION_TASK_MISMATCH/,
   );
 });

@@ -16,9 +16,24 @@ export interface SourceTaskPacket extends Record<string, unknown> {
   kind: 'source-change';
   objective: string;
   writable_paths: string[];
+  write_envelope?: SourceWriteEnvelope;
   effect_contract: typeof GITHUB_SOURCE_INTEGRATION_EFFECT;
   acceptance?: SourceTaskAcceptance;
   context?: Record<string, unknown>;
+}
+
+export interface SourceWriteEnvelope {
+  allowed_roots: string[];
+  exact_paths: string[];
+  denied_roots: string[];
+  denied_paths: string[];
+  max_changed_files: number | null;
+  max_changed_bytes: number | null;
+}
+
+export interface SourceWriteDeltaEntry {
+  path: string;
+  changed_bytes: number;
 }
 
 export interface SourceClaimBinding {
@@ -89,6 +104,133 @@ function validSourceWritablePath(value: unknown): value is string {
   return validRepositoryPath(value) && !controlPlanePath(value);
 }
 
+function validScopeRoot(value: unknown): value is string {
+  return value === '.' || validRepositoryPath(value);
+}
+
+function canonicalPaths(value: unknown, valid: (value: unknown) => value is string): string[] {
+  if (!Array.isArray(value) || value.some((path) => !valid(path))) {
+    throw new Error('SOURCE_TASK_WRITE_ENVELOPE_INVALID');
+  }
+  const paths = value as string[];
+  if (new Set(paths).size !== paths.length) {
+    throw new Error('SOURCE_TASK_WRITE_ENVELOPE_INVALID');
+  }
+  return [...paths].sort();
+}
+
+function normalizedWriteEnvelope(
+  writablePaths: readonly string[],
+  value: unknown,
+): SourceWriteEnvelope {
+  if (value === undefined) {
+    return {
+      allowed_roots: [],
+      exact_paths: [...writablePaths].sort(),
+      denied_roots: [],
+      denied_paths: [],
+      max_changed_files: null,
+      max_changed_bytes: null,
+    };
+  }
+  if (!isData(value)) throw new Error('SOURCE_TASK_WRITE_ENVELOPE_INVALID');
+  assertExactKeys(
+    value,
+    [
+      'allowed_roots',
+      'exact_paths',
+      'denied_roots',
+      'denied_paths',
+      'max_changed_files',
+      'max_changed_bytes',
+    ],
+    [],
+    'SOURCE_TASK_WRITE_ENVELOPE_INVALID',
+  );
+  const allowedRoots = canonicalPaths(value.allowed_roots, validScopeRoot);
+  const exactPaths = canonicalPaths(value.exact_paths, validSourceWritablePath);
+  const deniedRoots = canonicalPaths(value.denied_roots, validScopeRoot);
+  const deniedPaths = canonicalPaths(value.denied_paths, validRepositoryPath);
+  const legacyExact =
+    allowedRoots.length === 0 &&
+    exactPaths.length > 0 &&
+    deniedRoots.length === 0 &&
+    deniedPaths.length === 0 &&
+    value.max_changed_files === null &&
+    value.max_changed_bytes === null;
+  if (
+    !legacyExact &&
+    (!Number.isSafeInteger(value.max_changed_files) ||
+      (value.max_changed_files as number) <= 0 ||
+      !Number.isSafeInteger(value.max_changed_bytes) ||
+      (value.max_changed_bytes as number) <= 0)
+  ) {
+    throw new Error('SOURCE_TASK_WRITE_ENVELOPE_BUDGET_INVALID');
+  }
+  if (!allowedRoots.length && !exactPaths.length) {
+    throw new Error('SOURCE_TASK_WRITE_ENVELOPE_EMPTY');
+  }
+  return {
+    allowed_roots: allowedRoots,
+    exact_paths: exactPaths,
+    denied_roots: deniedRoots,
+    denied_paths: deniedPaths,
+    max_changed_files: value.max_changed_files as number,
+    max_changed_bytes: value.max_changed_bytes as number,
+  };
+}
+
+export function normalizeSourceWriteEnvelope(taskValue: unknown): SourceWriteEnvelope {
+  if (!isData(taskValue) || !Array.isArray(taskValue.writable_paths)) {
+    throw new Error('SOURCE_TASK_INVALID');
+  }
+  return normalizedWriteEnvelope(
+    taskValue.writable_paths as string[],
+    taskValue.write_envelope,
+  );
+}
+
+function pathWithinRoot(path: string, root: string): boolean {
+  return root === '.' || path === root || path.startsWith(`${root}/`);
+}
+
+export function assertSourceWriteEnvelope(
+  taskValue: unknown,
+  deltaEntries: readonly SourceWriteDeltaEntry[],
+  protectedPaths: readonly string[],
+): string[] {
+  const envelope = normalizeSourceWriteEnvelope(taskValue);
+  if (!deltaEntries.length) throw new Error('SOURCE_CANDIDATE_EMPTY');
+  if (
+    envelope.max_changed_files !== null &&
+    deltaEntries.length > envelope.max_changed_files
+  ) {
+    throw new Error('SOURCE_WRITE_ENVELOPE_FILE_BUDGET_EXCEEDED');
+  }
+  let changedBytes = 0;
+  for (const entry of deltaEntries) {
+    if (!validRepositoryPath(entry.path) || !Number.isSafeInteger(entry.changed_bytes) || entry.changed_bytes < 0) {
+      throw new Error('SOURCE_WRITE_ENVELOPE_DELTA_INVALID');
+    }
+    changedBytes += entry.changed_bytes;
+    if (!Number.isSafeInteger(changedBytes)) throw new Error('SOURCE_WRITE_ENVELOPE_DELTA_INVALID');
+    if (protectedPaths.some((root) => pathWithinRoot(entry.path, root))) {
+      throw new Error('SOURCE_CONTROL_PLANE_MUTATION_FORBIDDEN');
+    }
+    const allowed =
+      envelope.exact_paths.includes(entry.path) ||
+      envelope.allowed_roots.some((root) => pathWithinRoot(entry.path, root));
+    const denied =
+      envelope.denied_paths.includes(entry.path) ||
+      envelope.denied_roots.some((root) => pathWithinRoot(entry.path, root));
+    if (!allowed || denied) throw new Error(`SOURCE_PROPOSAL_SCOPE_VIOLATION:${entry.path}`);
+  }
+  if (envelope.max_changed_bytes !== null && changedBytes > envelope.max_changed_bytes) {
+    throw new Error('SOURCE_WRITE_ENVELOPE_BYTE_BUDGET_EXCEEDED');
+  }
+  return deltaEntries.map((entry) => entry.path).sort();
+}
+
 function exactSha(value: unknown, error: string): asserts value is string {
   if (typeof value !== 'string' || !/^[0-9a-f]{40}$/.test(value)) throw new Error(error);
 }
@@ -107,7 +249,7 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   assertExactKeys(
     value,
     ['schema', 'kind', 'objective', 'writable_paths'],
-    ['effect_contract', 'acceptance', 'context'],
+    ['effect_contract', 'acceptance', 'context', 'write_envelope'],
     'SOURCE_TASK_INVALID',
   );
   if (value.schema !== SOURCE_TASK_SCHEMA) throw new Error('SOURCE_TASK_SCHEMA_MISMATCH');
@@ -120,7 +262,7 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
     throw new Error('SOURCE_TASK_EFFECT_CONTRACT_INVALID');
   }
 
-  if (!Array.isArray(value.writable_paths) || value.writable_paths.length === 0) {
+  if (!Array.isArray(value.writable_paths)) {
     throw new Error('SOURCE_TASK_WRITABLE_PATHS_INVALID');
   }
   if (!value.writable_paths.every(validSourceWritablePath)) {
@@ -128,6 +270,13 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   }
   if (new Set(value.writable_paths).size !== value.writable_paths.length) {
     throw new Error('SOURCE_TASK_WRITABLE_PATH_DUPLICATE');
+  }
+  const writeEnvelope = normalizedWriteEnvelope(value.writable_paths, value.write_envelope);
+  if (value.write_envelope !== undefined && value.writable_paths.length !== 0) {
+    throw new Error('SOURCE_TASK_WRITE_ENVELOPE_AMBIGUOUS');
+  }
+  if (value.write_envelope === undefined && value.writable_paths.length === 0) {
+    throw new Error('SOURCE_TASK_WRITABLE_PATHS_INVALID');
   }
 
   let acceptance: SourceTaskAcceptance | undefined;
@@ -160,6 +309,7 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
     kind: 'source-change',
     objective: value.objective,
     writable_paths: [...value.writable_paths].sort(),
+    ...(value.write_envelope === undefined ? {} : { write_envelope: writeEnvelope }),
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
     ...(acceptance ? { acceptance } : {}),
     ...(value.context === undefined ? {} : { context: structuredClone(value.context) }),
@@ -250,6 +400,7 @@ export function validateSourceProposal(
   claim: SourceClaimBinding,
 ): SourceProposal {
   const task = validateSourceTaskPacket(taskValue);
+  const writeEnvelope = normalizeSourceWriteEnvelope(task);
   if (!isData(value)) throw new Error('SOURCE_PROPOSAL_INVALID');
   assertExactKeys(
     value,
@@ -282,7 +433,13 @@ export function validateSourceProposal(
     if (!validSourceWritablePath(candidate.path)) {
       throw new Error(`SOURCE_PROPOSAL_PATH_INVALID:${index}`);
     }
-    if (!task.writable_paths.includes(candidate.path)) {
+    const allowed =
+      writeEnvelope.exact_paths.includes(candidate.path) ||
+      writeEnvelope.allowed_roots.some((root) => pathWithinRoot(candidate.path, root));
+    const denied =
+      writeEnvelope.denied_paths.includes(candidate.path) ||
+      writeEnvelope.denied_roots.some((root) => pathWithinRoot(candidate.path, root));
+    if (!allowed || denied) {
       throw new Error(`SOURCE_PROPOSAL_SCOPE_VIOLATION:${candidate.path}`);
     }
     if (candidate.content_base64 !== null && !canonicalBase64(candidate.content_base64)) {

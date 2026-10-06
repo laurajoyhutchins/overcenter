@@ -15,9 +15,12 @@ import {
   type SourceTransactionContext,
 } from './transaction-baseline.ts';
 import {
+  assertSourceWriteEnvelope,
+  normalizeSourceWriteEnvelope,
   validateSourceTaskPacket,
   bindSourceClaim,
   type SourceClaimBinding,
+  type SourceWriteEnvelope,
 } from './source-obligation.ts';
 import {
   readSourceVerificationProfile,
@@ -37,9 +40,11 @@ export interface SourceTransactionPlan {
   candidate_sha: string;
   candidate_tree: string;
   verification_profile: { profile: SourceVerificationProfile; sha256: string };
+  write_envelope: SourceWriteEnvelope;
   authorized_write_set: string[];
   expected_write_set: string[];
   observed_write_set: string[];
+  observed_write_bytes: number;
   assurance: TransactionAssurancePlan;
 }
 
@@ -94,9 +99,11 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
     'candidate_sha',
     'candidate_tree',
     'verification_profile',
+    'write_envelope',
     'authorized_write_set',
     'expected_write_set',
     'observed_write_set',
+    'observed_write_bytes',
     'assurance',
   ]);
   if (
@@ -115,6 +122,12 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
   const verifiedProfile = validateSourceVerificationProfile(profile.profile);
   const profileBinding = sourceVerificationProfileBinding(verifiedProfile);
   if (profile.sha256 !== profileBinding.sha256) throw new Error(INVALID);
+  const writeEnvelope = normalizeSourceWriteEnvelope({
+    writable_paths: (plan.authorized_write_set as string[] | undefined) ?? [],
+    write_envelope: plan.write_envelope,
+  });
+  if (!samePaths(plan.authorized_write_set as string[], writeEnvelope.exact_paths))
+    throw new Error(INVALID);
   const claim = record(plan.claim, ['obligation_key', 'run_id', 'claimed_revision', 'source_sha']);
   for (const key of ['obligation_key', 'run_id', 'claimed_revision'])
     assertNonEmptyString(claim[key], INVALID);
@@ -129,14 +142,31 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
   paths(plan.authorized_write_set);
   paths(plan.expected_write_set);
   paths(plan.observed_write_set);
-  const authorized = plan.authorized_write_set;
-  if (
-    !plan.expected_write_set.length ||
-    plan.expected_write_set.some((path) => !authorized.includes(path))
-  )
-    throw new Error('SOURCE_TRANSACTION_SCOPE');
+  if (!plan.expected_write_set.length) throw new Error('SOURCE_TRANSACTION_SCOPE');
   if (!samePaths(plan.expected_write_set, plan.observed_write_set))
     throw new Error('SOURCE_TRANSACTION_DIVERGED');
+  if (!Number.isSafeInteger(plan.observed_write_bytes) || plan.observed_write_bytes < 0)
+    throw new Error(INVALID);
+  try {
+    assertSourceWriteEnvelope(
+      {
+        writable_paths: plan.authorized_write_set,
+        write_envelope: writeEnvelope,
+      },
+      plan.expected_write_set.map((path, index) => ({
+        path,
+        changed_bytes: index === 0 ? plan.observed_write_bytes : 0,
+      })),
+      verifiedProfile.protected_paths,
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith('SOURCE_PROPOSAL_SCOPE_VIOLATION:')
+    )
+      throw new Error('SOURCE_TRANSACTION_SCOPE');
+    throw error;
+  }
 
   const assurance = record(plan.assurance, [
     'base_revision',
@@ -314,7 +344,10 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
     }
   }
 
-  return structuredClone(plan) as unknown as SourceTransactionPlan;
+  return {
+    ...structuredClone(plan),
+    write_envelope: writeEnvelope,
+  } as unknown as SourceTransactionPlan;
 }
 
 export function sourceTransactionPlanDigest(plan: SourceTransactionPlan): string {
@@ -336,7 +369,8 @@ export function validateSourceTransactionTask(
   if (
     (task.verification_profile_id !== undefined &&
       task.verification_profile_id !== plan.verification_profile.profile.id) ||
-    !samePaths(plan.authorized_write_set, task.writable_paths ?? [])
+    !samePaths(plan.authorized_write_set, task.writable_paths ?? []) ||
+    canonicalDigest(plan.write_envelope) !== canonicalDigest(normalizeSourceWriteEnvelope(task))
   )
     throw new Error('SOURCE_TRANSACTION_TASK_MISMATCH');
 }
@@ -375,6 +409,22 @@ export function buildSourceTransactionPlan({
     throw new Error('SOURCE_TRANSACTION_PROFILE_MISMATCH');
   const delta = observeRepositoryDelta(repo, claim.source_sha, candidateSha);
   assertSupportedSourceDelta(delta);
+  const changedDelta = delta.entries.map((entry) => ({
+      path: entry.path,
+      changed_bytes: entry.after
+        ? Number(
+            execFileSync('git', ['-C', repo, 'cat-file', '-s', entry.after.object_id], {
+              encoding: 'utf8',
+            }).trim(),
+          )
+        : 0,
+    }));
+  const expectedWriteSet = assertSourceWriteEnvelope(
+    task,
+    changedDelta,
+    profile.profile.protected_paths,
+  );
+  const observedWriteBytes = changedDelta.reduce((sum, entry) => sum + entry.changed_bytes, 0);
   const assurance = baselineSourceTransactionPlan(repo, delta, profile.profile);
   if (assurance.validation_mode === 'unsupported')
     throw new Error('SOURCE_TRANSACTION_RECONCILIATION_REQUIRED');
@@ -389,9 +439,11 @@ export function buildSourceTransactionPlan({
     candidate_sha: candidateSha,
     candidate_tree: delta.candidate_tree,
     verification_profile: { profile: profile.profile, sha256: profile.sha256 },
+    write_envelope: normalizeSourceWriteEnvelope(task),
     authorized_write_set: task.writable_paths,
-    expected_write_set: task.writable_paths,
-    observed_write_set: delta.entries.map((entry) => entry.path),
+    expected_write_set: expectedWriteSet,
+    observed_write_set: expectedWriteSet,
+    observed_write_bytes: observedWriteBytes,
     assurance,
   });
   validateSourceTransactionTask(plan, task);
