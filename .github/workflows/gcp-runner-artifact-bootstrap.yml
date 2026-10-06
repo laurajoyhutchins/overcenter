@@ -1,0 +1,78 @@
+name: Bootstrap runner Artifact Registry read
+
+on:
+  push:
+    branches:
+      - work/gcp-cloud-run-cloud-sql-bootstrap
+    paths:
+      - .github/workflows/gcp-runner-artifact-bootstrap.yml
+      - .overcenter/gcp-runner-artifact-bootstrap-request
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-runner-artifact-bootstrap
+  cancel-in-progress: true
+
+jobs:
+  grant:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    env:
+      GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
+      GCP_REGION: us-west1
+      GCP_WORKLOAD_IDENTITY_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      GCP_DEPLOY_SERVICE_ACCOUNT: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+      GCP_RUNTIME_SERVICE_ACCOUNT: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+      GCP_ARTIFACT_REPOSITORY: cloud-run-source-deploy
+    steps:
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Grant runtime read access to runner image repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          member="serviceAccount:${GCP_RUNTIME_SERVICE_ACCOUNT}"
+          gcloud artifacts repositories add-iam-policy-binding "$GCP_ARTIFACT_REPOSITORY" \
+            --project="$GCP_PROJECT_ID" \
+            --location="$GCP_REGION" \
+            --member="$member" \
+            --role="roles/artifactregistry.reader" \
+            --condition=None \
+            --quiet >/dev/null
+
+          policy="$RUNNER_TEMP/artifact-policy.json"
+          gcloud artifacts repositories get-iam-policy "$GCP_ARTIFACT_REPOSITORY" \
+            --project="$GCP_PROJECT_ID" \
+            --location="$GCP_REGION" \
+            --format=json > "$policy"
+
+          python3 - "$policy" "$member" <<'PY'
+          import json
+          import sys
+
+          path, member = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              policy = json.load(handle)
+          ok = any(
+              binding.get("role") == "roles/artifactregistry.reader"
+              and member in binding.get("members", [])
+              for binding in policy.get("bindings", [])
+          )
+          if not ok:
+              raise SystemExit("runtime Artifact Registry reader binding did not read back")
+          print("runtime Artifact Registry reader binding verified")
+          PY
