@@ -96,6 +96,33 @@ export function matchRepositoryBinding(
   return binding;
 }
 
+const ARTIFACT_AUTH_SCRIPT = String.raw`
+const fs = require('fs');
+
+async function main() {
+  if (fs.existsSync('/workspace/skip-runner')) return;
+  const response = await fetch(
+    'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
+    { headers: { 'Metadata-Flavor': 'Google' } },
+  );
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      'metadata access token HTTP ' + response.status + ': ' + text.slice(0, 200),
+    );
+  }
+  const body = JSON.parse(text);
+  const token = String(body.access_token || '').trim();
+  if (!token) throw new Error('metadata access token response was incomplete');
+  fs.writeFileSync('/workspace/artifact-registry-token', token, { mode: 0o600 });
+}
+
+main().catch(error => {
+  console.error(String((error && error.message) || error));
+  process.exit(85);
+});
+`;
+
 const AUTHORIZE_JOB_SCRIPT = String.raw`
 const crypto = require('crypto');
 const fs = require('fs');
@@ -310,12 +337,32 @@ export function createRunnerBuild(
         ],
       },
       {
+        id: 'artifact-registry-auth',
+        name: 'node:22-bookworm',
+        entrypoint: 'node',
+        args: ['-e', ARTIFACT_AUTH_SCRIPT],
+      },
+      {
         id: 'pull-runner-image',
         name: 'gcr.io/cloud-builders/docker',
         entrypoint: 'bash',
         args: [
           '-ceu',
-          'docker pull ' + environment.runnerImage + ' >/dev/null || exit 81',
+          [
+            'if [ -f /workspace/skip-runner ]; then exit 0; fi',
+            'test -s /workspace/artifact-registry-token',
+            'if ! cat /workspace/artifact-registry-token | docker login',
+            '  -u oauth2accesstoken --password-stdin https://${environment.region}-docker.pkg.dev >/dev/null 2>&1; then',
+            '  rm -f /workspace/artifact-registry-token',
+            '  exit 84',
+            'fi',
+            'rm -f /workspace/artifact-registry-token',
+            'if ! docker pull ' + environment.runnerImage + ' >/dev/null; then',
+            '  docker logout ${environment.region}-docker.pkg.dev >/dev/null 2>&1 || true',
+            '  exit 81',
+            'fi',
+            'docker logout ${environment.region}-docker.pkg.dev >/dev/null 2>&1 || true',
+          ].join('\\n'),
         ],
       },
       {
