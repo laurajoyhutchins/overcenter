@@ -51,6 +51,31 @@ jobs:
             ????????-????-????-????-????????????) ;;
             *) echo "invalid build id: $build_id" >&2; exit 2 ;;
           esac
-          gcloud builds describe "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --format='yaml(id,status,statusDetail,failureInfo,steps.id,steps.status,steps.exitCode,steps.timing)'
-          echo "== log tail =="
-          gcloud builds log "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION" 2>&1 | tail -n 180 || true
+          build_json="$RUNNER_TEMP/build.json"
+          gcloud builds describe "$build_id" --project="$GCP_PROJECT_ID" --region="$GCP_REGION" --format=json > "$build_json"
+          python3 - "$build_json" <<'PY'
+          import base64
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              body = json.load(handle)
+
+          print("status:", body.get("status"))
+          print("failure:", (body.get("failureInfo") or {}).get("detail"))
+          for index, step in enumerate(body.get("steps") or []):
+              print(
+                  f"step[{index}] id={step.get('id')} status={step.get('status')} "
+                  f"exit={step.get('exitCode')}"
+              )
+
+          outputs = (body.get("results") or {}).get("buildStepOutputs") or []
+          for index, encoded in enumerate(outputs):
+              if not encoded:
+                  continue
+              print(f"== buildStepOutputs[{index}] ==")
+              try:
+                  print(base64.b64decode(encoded).decode("utf-8", errors="replace"))
+              except Exception as exc:
+                  print(f"<decode failed: {exc}>")
+          PY
