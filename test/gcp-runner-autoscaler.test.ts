@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   isEligibleRunnerJob,
   parseRunnerAutoscalerConfig,
+  runnerSchedulingLabel,
 } from '../src/transport/gcp-runner-autoscaler.ts';
 
 const validConfig = {
@@ -63,24 +64,32 @@ test('autoscaler config rejects duplicate repository authorities', () => {
   assert.throws(() => parseRunnerAutoscalerConfig(duplicate), /duplicate repository binding/);
 });
 
-test('only queued self-hosted jobs with the GCP label are eligible', () => {
+test('queued jobs resolve one exact GCP scheduling label', () => {
+  const exact = {
+    id: 1,
+    status: 'queued',
+    labels: ['self-hosted', 'overcenter-gcp-123456-check'],
+  };
+  assert.equal(runnerSchedulingLabel(exact, 'overcenter-gcp'), 'overcenter-gcp-123456-check');
+  assert.equal(isEligibleRunnerJob(exact, 'overcenter-gcp'), true);
+
   assert.equal(
-    isEligibleRunnerJob(
+    runnerSchedulingLabel(
       {
-        id: 1,
+        id: 2,
         status: 'queued',
-        labels: ['self-hosted', 'Linux', 'X64', 'overcenter-gcp'],
+        labels: ['self-hosted', 'overcenter-gcp'],
       },
       'overcenter-gcp',
     ),
-    true,
+    'overcenter-gcp',
   );
   assert.equal(
     isEligibleRunnerJob(
       {
-        id: 2,
+        id: 3,
         status: 'in_progress',
-        labels: ['self-hosted', 'overcenter-gcp'],
+        labels: ['self-hosted', 'overcenter-gcp-123456-check'],
       },
       'overcenter-gcp',
     ),
@@ -89,7 +98,29 @@ test('only queued self-hosted jobs with the GCP label are eligible', () => {
   assert.equal(
     isEligibleRunnerJob(
       {
-        id: 3,
+        id: 4,
+        status: 'queued',
+        labels: ['self-hosted', 'overcenter-gcp', 'overcenter-gcp-123456-check'],
+      },
+      'overcenter-gcp',
+    ),
+    false,
+  );
+  assert.equal(
+    isEligibleRunnerJob(
+      {
+        id: 5,
+        status: 'queued',
+        labels: ['self-hosted', 'overcenter-gcpish'],
+      },
+      'overcenter-gcp',
+    ),
+    false,
+  );
+  assert.equal(
+    isEligibleRunnerJob(
+      {
+        id: 6,
         status: 'queued',
         labels: ['ubuntu-latest'],
       },
