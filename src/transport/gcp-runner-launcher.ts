@@ -105,6 +105,7 @@ const expectedRepositoryId = Number(process.env.TARGET_REPOSITORY_ID);
 const expectedOwnerId = Number(process.env.TARGET_OWNER_ID);
 const jobId = Number(process.env.TARGET_JOB_ID);
 const runnerLabel = process.env.RUNNER_LABEL;
+const runnerName = process.env.RUNNER_NAME;
 const appId = process.env.GITHUB_APP_ID;
 
 const b64 = value => Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -207,17 +208,27 @@ async function main() {
     return;
   }
 
-  const registration = await json(
-    await fetch('https://api.github.com/repos/' + repo + '/actions/runners/registration-token', {
-      method: 'POST',
-      headers,
-    }),
-    'runner registration token',
-  );
-  if (!registration || typeof registration.token !== 'string' || !registration.token) {
-    throw new Error('runner registration token response was incomplete');
+  if (!runnerName || !/^overcenter-gcp-[0-9]+-[A-Za-z0-9_-]+$/.test(runnerName)) {
+    throw new Error('runner name is not bound to the queued job and build');
   }
-  fs.writeFileSync('/workspace/registration-token', registration.token, { mode: 0o600 });
+
+  const jit = await json(
+    await fetch('https://api.github.com/repos/' + repo + '/actions/runners/generate-jitconfig', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: runnerName,
+        runner_group_id: 1,
+        labels: ['self-hosted', 'Linux', 'X64', runnerLabel],
+        work_folder: '_work',
+      }),
+    }),
+    'runner JIT configuration',
+  );
+  if (!jit || typeof jit.encoded_jit_config !== 'string' || !jit.encoded_jit_config) {
+    throw new Error('runner JIT configuration response was incomplete');
+  }
+  fs.writeFileSync('/workspace/jit-config', jit.encoded_jit_config, { mode: 0o600 });
 }
 
 main().catch(error => {
@@ -265,6 +276,7 @@ export function createRunnerBuild(
     'TARGET_OWNER_ID=' + String(request.owner_id),
     'TARGET_JOB_ID=' + String(request.job_id),
     'RUNNER_LABEL=' + request.runner_label,
+    'RUNNER_NAME=overcenter-gcp-' + String(request.job_id) + '-$BUILD_ID',
   ];
 
   const dockerScript = [
@@ -272,14 +284,13 @@ export function createRunnerBuild(
     '  echo "GitHub job is no longer queued; skipping worker launch."',
     '  exit 0',
     'fi',
-    'test -s /workspace/registration-token',
+    'test -s /workspace/jit-config',
     [
       'docker run --rm --network bridge',
       '--volume /workspace:/workspace',
       '--env TARGET_REPOSITORY=' + request.repository,
       '--env TARGET_JOB_ID=' + String(request.job_id),
       '--env RUNNER_LABEL=' + request.runner_label,
-      '--env RUNNER_NAME=overcenter-gcp-' + String(request.job_id) + '-$BUILD_ID',
       environment.runnerImage,
     ].join(' '),
   ].join('\n');
