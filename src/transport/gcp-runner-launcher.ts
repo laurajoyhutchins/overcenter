@@ -235,7 +235,7 @@ main().catch(error => {
 `;
 
 
-const VERIFY_JOB_SETTLEMENT_SCRIPT = String.raw\`
+const VERIFY_JOB_SETTLEMENT_SCRIPT = String.raw`
 const crypto = require('crypto');
 const fs = require('fs');
 
@@ -329,7 +329,7 @@ main().catch(error => {
   console.error(String((error && error.message) || error));
   process.exit(1);
 });
-\`;
+`;
 
 function requireLauncherEnvironment(env: NodeJS.ProcessEnv): LauncherEnvironment {
   const projectId = String(env.GCP_PROJECT_ID ?? '').trim();
