@@ -32,7 +32,7 @@ import type { TransactionAssurancePlan } from './transaction-planner.ts';
 
 export interface SourceTransactionPlan {
   schema: 'overcenter-source-transaction';
-  schema_version: 2;
+  schema_version: 3;
   repository_id: number;
   repository_full_name: string;
   runtime_sha: string;
@@ -108,7 +108,7 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
   ]);
   if (
     plan.schema !== 'overcenter-source-transaction' ||
-    plan.schema_version !== 2 ||
+    plan.schema_version !== 3 ||
     !isPositiveSafeInteger(plan.repository_id) ||
     typeof plan.repository_full_name !== 'string' ||
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(plan.repository_full_name)
@@ -352,7 +352,7 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
 
 export function sourceTransactionPlanDigest(plan: SourceTransactionPlan): string {
   return canonicalDigest({
-    domain: 'overcenter-source-transaction/v2',
+    domain: 'overcenter-source-transaction/v3',
     plan: validateSourceTransactionPlan(plan),
   });
 }
@@ -409,16 +409,18 @@ export function buildSourceTransactionPlan({
     throw new Error('SOURCE_TRANSACTION_PROFILE_MISMATCH');
   const delta = observeRepositoryDelta(repo, claim.source_sha, candidateSha);
   assertSupportedSourceDelta(delta);
+  const blobSize = (objectId: string | undefined) =>
+    objectId
+      ? Number(
+          execFileSync('git', ['-C', repo, 'cat-file', '-s', objectId], {
+            encoding: 'utf8',
+          }).trim(),
+        )
+      : 0;
   const changedDelta = delta.entries.map((entry) => ({
-      path: entry.path,
-      changed_bytes: entry.after
-        ? Number(
-            execFileSync('git', ['-C', repo, 'cat-file', '-s', entry.after.object_id], {
-              encoding: 'utf8',
-            }).trim(),
-          )
-        : 0,
-    }));
+    path: entry.path,
+    changed_bytes: blobSize(entry.before?.object_id) + blobSize(entry.after?.object_id),
+  }));
   const expectedWriteSet = assertSourceWriteEnvelope(
     task,
     changedDelta,
@@ -431,7 +433,7 @@ export function buildSourceTransactionPlan({
 
   const plan = validateSourceTransactionPlan({
     schema: 'overcenter-source-transaction',
-    schema_version: 2,
+    schema_version: 3,
     repository_id: context.repository_id,
     repository_full_name: context.repository_full_name,
     runtime_sha: context.runtime_sha,

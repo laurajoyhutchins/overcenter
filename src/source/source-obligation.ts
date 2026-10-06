@@ -33,6 +33,7 @@ export interface SourceWriteEnvelope {
 
 export interface SourceWriteDeltaEntry {
   path: string;
+  /** Sum of the before and after Git blob sizes for this changed path. */
   changed_bytes: number;
 }
 

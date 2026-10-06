@@ -217,12 +217,14 @@ export function inspectSourceCandidate(
   const profile = readSourceVerificationProfile(repo, claim.source_sha).profile;
   const changedPaths = assertSourceWriteEnvelope(
     task,
-    delta.entries.map((entry) => ({
-      path: entry.path,
-      changed_bytes: entry.after
-        ? Number(git(repo, ['cat-file', '-s', entry.after.object_id]))
-        : 0,
-    })),
+    delta.entries.map((entry) => {
+      const size = (objectId: string | undefined) =>
+        objectId ? Number(git(repo, ['cat-file', '-s', objectId])) : 0;
+      return {
+        path: entry.path,
+        changed_bytes: size(entry.before?.object_id) + size(entry.after?.object_id),
+      };
+    }),
     profile.protected_paths,
   );
 

@@ -29,7 +29,7 @@ const profile = {
 function plan(): SourceTransactionPlan {
   return {
     schema: 'overcenter-source-transaction',
-    schema_version: 2,
+    schema_version: 3,
     repository_id: 42,
     repository_full_name: 'acme/widget',
     runtime_sha: 'a'.repeat(40),
@@ -194,7 +194,7 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
     write_envelope: {
       allowed_roots: ['.'],
       exact_paths: [],
-      denied_roots: ['.git'],
+      denied_roots: ['docs/generated'],
       denied_paths: ['README.md'],
       max_changed_files: 2,
       max_changed_bytes: 100,
