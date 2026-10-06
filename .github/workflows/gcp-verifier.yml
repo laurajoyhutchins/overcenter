@@ -479,7 +479,7 @@ jobs:
           if [ "$STATUS" != "SUCCESS" ]; then
             echo "Exact-head verification finished with Cloud Build status: $STATUS" >&2
             gcloud --quiet components install beta >/dev/null
-            gcloud beta builds log "$BUILD_ID" \
+            gcloud --quiet beta builds log "$BUILD_ID" \
               --project="$PROJECT_ID" \
               --region="$REGION" \
               --stream || true
