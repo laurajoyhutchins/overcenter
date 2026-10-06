@@ -2,10 +2,10 @@
   "schema": "overcenter-gcp-runner-jit-recovery/v1",
   "jobs": [
     {
-      "repository": "laurajoyhutchins/arcata",
-      "repository_id": 1402666660,
+      "repository": "laurajoyhutchins/overcenter",
+      "repository_id": 1354872053,
       "owner_id": 219002713,
-      "job_id": 112068736540,
+      "job_id": 112092987584,
       "runner_label": "overcenter-gcp"
     }
   ]
