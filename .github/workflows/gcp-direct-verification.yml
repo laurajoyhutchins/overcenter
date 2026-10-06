@@ -67,20 +67,6 @@ jobs:
               output.write(f"revision={revision}\n")
           PY
 
-      - name: Fetch exact Arcata source
-        shell: bash
-        env:
-          REPOSITORY: ${{ steps.request.outputs.repository }}
-          REVISION: ${{ steps.request.outputs.revision }}
-        run: |
-          set -euo pipefail
-          rm -rf direct-candidate
-          git init direct-candidate
-          git -C direct-candidate remote add origin "https://github.com/$REPOSITORY.git"
-          git -C direct-candidate fetch --no-tags --depth=1 origin "$REVISION"
-          git -C direct-candidate checkout --detach FETCH_HEAD
-          test "$(git -C direct-candidate rev-parse HEAD)" = "$REVISION"
-
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
@@ -96,18 +82,8 @@ jobs:
 
       - name: Compile bounded verification request
         shell: bash
-        env:
-          REVISION: ${{ steps.request.outputs.revision }}
         run: |
           set -euo pipefail
-          test "$(git -C direct-candidate rev-parse HEAD)" = "$REVISION"
-          source_dir="$RUNNER_TEMP/gcp-direct-source"
-          rm -rf "$source_dir"
-          mkdir -p "$source_dir"
-          git -C direct-candidate archive --format=tar "$REVISION" > "$source_dir/arcata.tar"
-          archive_sha="$(sha256sum "$source_dir/arcata.tar" | cut -d' ' -f1)"
-          test -n "$archive_sha"
-          export DIRECT_ARCHIVE_SHA="$archive_sha"
           python3 - <<'PY'
           import base64
           import json
@@ -131,9 +107,22 @@ jobs:
               raise SystemExit("unsupported verification profile")
 
           repository = request["repository"]
-          archive_sha = os.environ["DIRECT_ARCHIVE_SHA"]
-          if not re.fullmatch(r"[0-9a-f]{64}", archive_sha):
-              raise SystemExit("candidate archive digest is invalid")
+          with open("scripts/materialize-github-tree-for-verification.ts", encoding="utf-8") as handle:
+              materializer_source = handle.read()
+          materializer_encoded = base64.b64encode(materializer_source.encode()).decode()
+          materializer_runner = (
+              "printf %s " + materializer_encoded +
+              " | base64 -d > /tmp/materialize.ts; " +
+              "exec node --experimental-strip-types /tmp/materialize.ts"
+          )
+          materializer_outer = "\n".join([
+              "set +e",
+              materializer_runner + " > /workspace/materialization.log 2>&1",
+              "status=$?",
+              "set -e",
+              'printf "%s\\n" "$status" > /workspace/materialization-exit-code',
+              "exit 0",
+          ])
           inner = f"""set -euo pipefail
           export DEBIAN_FRONTEND=noninteractive
           test "$(uname -m)" = "x86_64"
@@ -144,7 +133,7 @@ jobs:
             fi
           done
           apt-get update -qq
-          apt-get install -y --no-install-recommends ca-certificates curl git iproute2
+          apt-get install -y --no-install-recommends ca-certificates curl iproute2
           ip route replace blackhole 169.254.169.254/32
           for endpoint in \
             http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
@@ -156,9 +145,22 @@ jobs:
               exit 71
             fi
           done
-          test "$(sha256sum /candidate/arcata.tar | cut -d' ' -f1)" = "{archive_sha}"
+          python - "{revision}" "{repository}" <<'PYVERIFY'
+          import json
+          import sys
+          manifest = json.load(open("/candidate-source/.overcenter-source-manifest.json", encoding="utf-8"))
+          if manifest.get("schema") != "overcenter-github-tree-materialization/v1":
+              raise SystemExit("SOURCE_MANIFEST_SCHEMA_INVALID")
+          if manifest.get("revision") != sys.argv[1]:
+              raise SystemExit("SOURCE_MANIFEST_REVISION_MISMATCH")
+          if manifest.get("repository") != sys.argv[2]:
+              raise SystemExit("SOURCE_MANIFEST_REPOSITORY_MISMATCH")
+          if not isinstance(manifest.get("entries"), list) or not manifest["entries"]:
+              raise SystemExit("SOURCE_MANIFEST_EMPTY")
+          PYVERIFY
           mkdir -p /tmp/arcata
-          tar -xf /candidate/arcata.tar -C /tmp/arcata
+          cp -a /candidate-source/. /tmp/arcata/
+          rm -f /tmp/arcata/.overcenter-source-manifest.json
           cd /tmp/arcata
           python tools/verification_tools.py requirements > /tmp/verification-tools.txt
           python -m venv /tmp/verification-tools-env
@@ -177,8 +179,19 @@ jobs:
           encoded = base64.b64encode(inner.encode()).decode()
           runner = "printf %s " + encoded + " | base64 -d > /tmp/verify.sh; exec bash /tmp/verify.sh"
           outer = "\n".join([
+              "if [ ! -s /workspace/materialization-exit-code ]; then",
+              '  echo "source materialization exit code missing" > /workspace/direct-verification.log',
+              '  printf "80\\n" > /workspace/direct-verification-exit-code',
+              "  exit 0",
+              "fi",
+              'materialization_status="$(cat /workspace/materialization-exit-code)"',
+              'if [ "$materialization_status" != "0" ]; then',
+              "  cat /workspace/materialization.log > /workspace/direct-verification.log || true",
+              '  printf "%s\\n" "$materialization_status" > /workspace/direct-verification-exit-code',
+              "  exit 0",
+              "fi",
               "set +e",
-              "docker run --rm --network bridge --cap-add=NET_ADMIN --volume /workspace:/candidate:ro --entrypoint bash python:3.13-bookworm -c "
+              "docker run --rm --network bridge --cap-add=NET_ADMIN --volume /workspace/candidate-source:/candidate-source:ro --entrypoint bash python:3.13-bookworm -c "
               + json.dumps(runner)
               + " > /workspace/direct-verification.log 2>&1",
               "status=$?",
@@ -195,6 +208,20 @@ jobs:
               "timeout": "1200s",
               "steps": [
                   {
+                      "id": "materialize-exact-source",
+                      "name": "node:22-bookworm",
+                      "entrypoint": "bash",
+                      "secretEnv": ["GITHUB_APP_PRIVATE_KEY"],
+                      "env": [
+                          "GITHUB_APP_ID=4616688",
+                          "TARGET_REPOSITORY=" + repository,
+                          "TARGET_REPOSITORY_ID=1402666660",
+                          "TARGET_OWNER_ID=219002713",
+                          "TARGET_REVISION=" + revision,
+                      ],
+                      "args": ["-ceu", materializer_outer],
+                  },
+                  {
                       "id": "verify-exact-head",
                       "name": "gcr.io/cloud-builders/docker",
                       "entrypoint": "bash",
@@ -206,7 +233,7 @@ jobs:
                       "entrypoint": "bash",
                       "args": [
                           "-ceu",
-                          'mkdir -p /builder/outputs; tail -c 96000 /workspace/direct-verification.log > /builder/outputs/output',
+                          'mkdir -p /builder/outputs; { cat /workspace/materialization.log 2>/dev/null || true; cat /workspace/direct-verification.log 2>/dev/null || true; } | tail -c 96000 > /builder/outputs/output',
                       ],
                   },
                   {
@@ -219,6 +246,17 @@ jobs:
                       ],
                   },
               ],
+              "availableSecrets": {
+                  "secretManager": [
+                      {
+                          "versionName": (
+                              "projects/project-6b810532-a302-48dc-b56/secrets/"
+                              "overcenter-github-app-private-key/versions/latest"
+                          ),
+                          "env": "GITHUB_APP_PRIVATE_KEY",
+                      }
+                  ]
+              },
               "options": {"logging": "CLOUD_LOGGING_ONLY"},
           }
           with open("/tmp/cloudbuild.json", "w", encoding="utf-8") as handle:
@@ -234,7 +272,7 @@ jobs:
         run: |
           set -euo pipefail
           build_id="$(
-            gcloud builds submit "$RUNNER_TEMP/gcp-direct-source"               --async               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --config=/tmp/cloudbuild.json               --format='value(id)'
+            gcloud builds submit               --no-source               --async               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --config=/tmp/cloudbuild.json               --format='value(id)'
           )"
           test -n "$build_id"
           echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
