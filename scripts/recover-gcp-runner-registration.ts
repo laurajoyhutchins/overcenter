@@ -257,11 +257,11 @@ function createBuild(
         args: [
           '-ceu',
           [
-            'mkdir -p "$BUILDER_OUTPUT"',
+            'mkdir -p "/builder/outputs"',
             'if [ -f /workspace/runner-registration-output.log ]; then',
-            '  tail -c 48000 /workspace/runner-registration-output.log > "$BUILDER_OUTPUT/output"',
+            '  tail -c 48000 /workspace/runner-registration-output.log > "/builder/outputs/output"',
             'else',
-            '  { echo "runner registration output missing"; ls -la /workspace; } > "$BUILDER_OUTPUT/output"',
+            '  { echo "runner registration output missing"; ls -la /workspace; } > "/builder/outputs/output"',
             'fi',
           ].join('\n'),
         ],
