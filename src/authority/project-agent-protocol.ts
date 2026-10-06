@@ -1,14 +1,17 @@
+import type { ExecutionEvidenceReceipt } from '../execution/evidence-receipt.ts';
 import {
-  admitSourceProof,
+  admitSourceProofEvidence,
   SourceProofRejected,
   trustedSourceProof,
-} from '../source/source-proof.ts';
-import { githubGet } from '../providers/github/rest.ts';
+} from '../source/source-proof-admission.ts';
 import {
   sourceTransactionContextFromEnvironment,
   type SourceTransactionContext,
 } from '../source/transaction-baseline.ts';
-import { buildSourceTransactionPlan } from '../source/transaction.ts';
+import {
+  buildSourceTransactionPlan,
+  type SourceTransactionPlan,
+} from '../source/transaction.ts';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -81,8 +84,6 @@ export interface ProjectAdvanceReceipt {
 }
 
 export interface ProjectSubmitContext extends ProjectCommandContext {
-  candidate_workflow_run_id?: number;
-  candidate_workflow_run_attempt?: number;
   candidate_sha: string;
   candidate_run_id: string;
 }
@@ -126,9 +127,8 @@ interface AdvanceOptions extends ProtocolOptions {
 
 interface SubmitOptions extends ProtocolOptions {
   candidatePath?: string;
-  sourceVerificationPath?: string;
   transactionContext?: SourceTransactionContext;
-  observationContext?: Omit<ObservationContext, 'githubToken'>;
+  sourceExecutionEvidence?: (plan: SourceTransactionPlan) => ExecutionEvidenceReceipt;
 }
 
 const DEFAULT_AUTHORITY_REF = 'refs/overcenter/state';
@@ -654,9 +654,8 @@ export function submitProjectCandidate(
     remote = DEFAULT_REMOTE,
     githubToken = null,
     candidatePath = DEFAULT_CANDIDATE_PATH,
-    sourceVerificationPath,
     transactionContext,
-    observationContext = {},
+    sourceExecutionEvidence,
   }: SubmitOptions = {},
 ): ProjectSubmitReceipt {
   validateCommandContext(context);
@@ -745,7 +744,7 @@ export function submitProjectCandidate(
     }
 
     const permit = kernel.acquireExecution(runId);
-    if (!sourceVerificationPath) {
+    if (!sourceExecutionEvidence) {
       const recovered = kernel.recoverInterrupted(permit, {
         source_verification: { reason: 'SOURCE_VERIFICATION_MISSING', candidate_sha: candidateSha },
       });
@@ -781,23 +780,11 @@ export function submitProjectCandidate(
         verification_profile_id: plan.verification_profile.profile.id,
         verification_profile_sha256: plan.verification_profile.sha256,
       };
-      if (
-        !githubToken ||
-        !context.candidate_workflow_run_id ||
-        !context.candidate_workflow_run_attempt
-      )
-        throw new Error('SOURCE_PROOF_PRODUCER_CONTEXT_MISSING');
-      const proofWitness = admitSourceProof(
-        plan,
-        JSON.parse(readFileSync(sourceVerificationPath, 'utf8')),
-        {
-          githubToken,
-          expectedWorkflowRunId: context.candidate_workflow_run_id,
-          expectedWorkflowRunAttempt: context.candidate_workflow_run_attempt,
-          context: admittedProofContext,
-          get: observationContext.githubGet ?? githubGet,
-        },
-      );
+      const executionEvidence = sourceExecutionEvidence(plan);
+      const proofWitness = admitSourceProofEvidence(plan, {
+        executionEvidence,
+        context: admittedProofContext,
+      });
       const proof = trustedSourceProof(proofWitness);
       void proof;
     } catch (error: unknown) {
