@@ -177,7 +177,10 @@ function main(): void {
   if (ancestry.length !== 2 || ancestry[1] !== authorization.base_sha) {
     fail('PROTECTED_SOURCE_RECOVERY_DIRECT_CHILD_REQUIRED');
   }
-  if (git(candidateRepo, 'rev-parse', `${authorization.candidate_sha}^{tree}`) !== authorization.candidate_tree_sha) {
+  if (
+    git(candidateRepo, 'rev-parse', `${authorization.candidate_sha}^{tree}`) !==
+    authorization.candidate_tree_sha
+  ) {
     fail('PROTECTED_SOURCE_RECOVERY_TREE_MISMATCH');
   }
 
@@ -193,8 +196,8 @@ function main(): void {
     fail('PROTECTED_SOURCE_RECOVERY_WRITE_SET_MISMATCH');
   }
 
-  const protectedPaths = readSourceVerificationProfile(candidateRepo, authorization.base_sha).profile
-    .protected_paths;
+  const protectedPaths = readSourceVerificationProfile(candidateRepo, authorization.base_sha)
+    .profile.protected_paths;
   for (const path of observedPaths) {
     if (!protectedPaths.some((root) => within(root, path))) {
       fail(`PROTECTED_SOURCE_RECOVERY_UNPROTECTED_PATH:${path}`);
