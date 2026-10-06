@@ -177,15 +177,51 @@ jobs:
                     --requirement /workspace/verification-tools.txt
                   /workspace/verification-tools/bin/python -m pip check
 
-            - id: arcata-check
+            - id: ruff-format
               name: python:3.13-bookworm
               dir: source
               entrypoint: bash
               args:
                 - -ceu
                 - |
-                  export PATH="/workspace/verification-tools/bin:$$PATH"
-                  python tools/check.py
+                  export PATH="/workspace/verification-tools/bin:$PATH"
+                  ruff format --check .
+
+            - id: ruff-lint
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  export PATH="/workspace/verification-tools/bin:$PATH"
+                  ruff check .
+
+            - id: mypy
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  export PATH="/workspace/verification-tools/bin:$PATH"
+                  export MYPYPATH="$(python - <<'PY'
+                  from tools.repo_config import SOURCE_ROOTS
+                  import os
+                  print(os.pathsep.join(str(path) for path in SOURCE_ROOTS.values()))
+                  PY
+                  )"
+                  python -m mypy packages integration
+
+            - id: tests
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  export PATH="/workspace/verification-tools/bin:$PATH"
+                  python tools/test_all.py
 
           availableSecrets:
             secretManager:
