@@ -1,8 +1,4 @@
 import { fixture, commandContext } from './support/project-agent-fixture.ts';
-import { sourceProofRecord } from '../src/source/source-proof-record.ts';
-import {
-  observeGitHubSourceProofExecutionEvidence,
-} from '../src/providers/github/source-proof-execution-evidence.ts';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -26,18 +22,8 @@ import {
 import { compileProjectIntent } from '../src/authority/project-intent.ts';
 import { brokerAssignedSourceProposal } from '../src/source/source-broker.ts';
 import { SOURCE_PROPOSAL_SCHEMA } from '../src/source/source-obligation.ts';
-import {
-  buildSourceTransactionPlan,
-  type SourceTransactionPlan,
-} from '../src/source/transaction.ts';
 
 const AUTHORITY_REF = 'refs/overcenter/test-project-agent';
-const transactionContext = {
-  repository_id: 42,
-  repository_full_name: 'acme/widget',
-  runtime_sha: 'a'.repeat(40),
-};
-
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
 }
@@ -651,7 +637,7 @@ test('generic source proposal broker reproduces a worker revision tree exactly',
   }
 });
 
-test('project.submit refuses to publish a verified source candidate directly to main', () => {
+test('project.submit fails closed until neutral source evidence is admitted', () => {
   const f = fixture();
   try {
     const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
@@ -680,7 +666,7 @@ test('project.submit refuses to publish a verified source candidate directly to 
         files: [
           {
             path: 'src/feature.txt',
-            content_base64: Buffer.from('feature:integrated\n').toString('base64'),
+            content_base64: Buffer.from('feature:pending-neutral-evidence\n').toString('base64'),
           },
         ],
       },
@@ -688,152 +674,38 @@ test('project.submit refuses to publish a verified source candidate directly to 
     );
     assert.equal(brokered.publication.state, 'PUBLISHED');
     const candidateSha = brokered.candidate.commit_sha;
-    const plan = buildSourceTransactionPlan({
-      repo: f.work,
-      taskValue: assignment.task,
-      claim,
-      candidateSha,
-      context: transactionContext,
-    });
-    const verificationPath = join(f.root, 'source-verification.json');
-    writeFileSync(
-      verificationPath,
-      JSON.stringify(
-        sourceProofRecord(
-          plan,
-          { workflow_run_id: 123, workflow_run_attempt: 1, job_id: 11 },
-          'success',
-        ),
-      ),
-    );
-
     const remoteMainBefore = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(
       /\s+/,
     )[0];
-    assert.throws(
-      () =>
-        submitProjectCandidate(
-          f.work,
-          {
-            ...commandContext(transactionContext.runtime_sha, 9100),
-            candidate_sha: candidateSha,
-            candidate_run_id: runId,
-          },
-          {
-            authorityRef: AUTHORITY_REF,
-            remote: 'origin',
-            githubToken: 'fixture',
-            transactionContext,
-            sourceExecutionEvidence: sourceProofEvidence(
-              verificationPath,
-              candidateSha,
-              runId,
-            ),
-          },
-        ),
-      /PROJECT_SUBMIT_SOURCE_PUBLICATION_REQUIRES_PR_EFFECT/,
+
+    const result = submitProjectCandidate(
+      f.work,
+      {
+        ...commandContext(sourceSha, 9100),
+        candidate_sha: candidateSha,
+        candidate_run_id: runId,
+      },
+      {
+        authorityRef: AUTHORITY_REF,
+        remote: 'origin',
+        githubToken: 'fixture',
+      },
     );
+
+    assert.equal(result.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(result.verified, false);
     const remoteMainAfter = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
     assert.equal(remoteMainAfter, remoteMainBefore);
+    const authoritative = new GitOvercenterKernel(f.work, {
+      remote: 'origin',
+      ref: AUTHORITY_REF,
+    });
+    assert.equal(authoritative.inspect()[0]?.status, 'RECOVERY_REQUIRED');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
   }
 });
-
-test(
-  'certified source verification rejection returns work to READY without moving source authority',
-  () => {
-    const f = fixture();
-    try {
-      const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
-      kernel.initialize();
-      const sourceSha = commitProjectIntent(f.work, [sourceIntent('source-work')]);
-      const acquired = advanceProjectForAgent(f.work, commandContext(sourceSha), {
-        outputDir: join(f.root, 'source-packet'),
-        authorityRef: AUTHORITY_REF,
-        remote: 'origin',
-      });
-      assert.ok(acquired.run_id);
-
-      const assignment = JSON.parse(
-        readFileSync(join(f.root, 'source-packet', 'assignment.json'), 'utf8'),
-      );
-      const claim = assignment.claim;
-      const brokered = brokerAssignedSourceProposal(
-        f.work,
-        assignment,
-        {
-          schema: SOURCE_PROPOSAL_SCHEMA,
-          run_id: claim.run_id,
-          claimed_revision: claim.claimed_revision,
-          claimed_source_sha: claim.source_sha,
-          files: [
-            {
-              path: 'src/feature.txt',
-              content_base64: Buffer.from('feature:rejected\n').toString('base64'),
-            },
-          ],
-        },
-        { authorityRef: AUTHORITY_REF, remote: 'origin' },
-      );
-      assert.equal(brokered.publication.state, 'PUBLISHED');
-      const candidateSha = brokered.candidate.commit_sha;
-      const plan = buildSourceTransactionPlan({
-        repo: f.work,
-        taskValue: assignment.task,
-        claim,
-        candidateSha,
-        context: transactionContext,
-      });
-      const verificationPath = join(f.root, 'source-verification.json');
-      writeFileSync(
-        verificationPath,
-        JSON.stringify(
-          sourceProofRecord(
-            plan,
-            { workflow_run_id: 123, workflow_run_attempt: 1, job_id: 11 },
-            'failure',
-          ),
-        ),
-      );
-
-      const result = submitProjectCandidate(
-        f.work,
-        {
-          ...commandContext(transactionContext.runtime_sha, 9200),
-          candidate_sha: candidateSha,
-          candidate_run_id: acquired.run_id,
-        },
-        {
-          authorityRef: AUTHORITY_REF,
-          remote: 'origin',
-          githubToken: 'fixture',
-          transactionContext,
-          sourceExecutionEvidence: sourceProofEvidence(
-            verificationPath,
-            candidateSha,
-            acquired.run_id,
-            'failure',
-          ),
-        },
-      );
-
-      assert.equal(result.disposition, 'READY');
-      assert.equal(result.verified, false);
-      const remoteMain = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
-      assert.equal(remoteMain, sourceSha);
-      const authoritative = new GitOvercenterKernel(f.work, {
-        remote: 'origin',
-        ref: AUTHORITY_REF,
-      });
-      assert.equal(authoritative.inspect()[0]?.status, 'READY');
-    } finally {
-      rmSync(f.root, { recursive: true, force: true });
-      rmSync(f.postconditionRoot, { recursive: true, force: true });
-    }
-  },
-);
 
 test('project.advance requires native client bytes before claiming reasoning work', () => {
   const f = fixture();
@@ -1142,102 +1014,3 @@ test('ambiguous reserved source mutation blocks otherwise READY agent work', () 
   }
 });
 
-function sourceProofProvider(
-  candidateSha: string,
-  runId: string,
-  evidenceConclusion: 'success' | 'failure' = 'success',
-) {
-  const repository = {
-    id: 42,
-    node_id: 'R_42',
-    full_name: 'acme/widget',
-    name: 'widget',
-    owner: { login: 'acme' },
-  };
-  const run = {
-    id: 123,
-    node_id: 'WFR_123',
-    workflow_id: 88,
-    run_number: 12,
-    run_attempt: 1,
-    name: 'Source verification',
-    path: '.github/workflows/agent-candidate-signal.yml',
-    head_sha: candidateSha,
-    head_branch: `overcenter/candidate/${runId}`,
-    event: 'workflow_dispatch',
-    status: 'completed',
-    conclusion: evidenceConclusion,
-    created_at: '2026-10-05T18:00:00Z',
-    updated_at: '2026-10-05T18:05:00Z',
-    repository: { id: 42 },
-    head_repository: { id: 42 },
-  };
-  const evidenceJob = {
-    id: 10,
-    run_id: 123,
-    run_attempt: 1,
-    node_id: 'WFRJ_10',
-    head_sha: candidateSha,
-    name: 'Verify source candidate / Candidate evidence',
-    status: 'completed',
-    conclusion: evidenceConclusion,
-    started_at: '2026-10-05T18:01:00Z',
-    completed_at: '2026-10-05T18:04:00Z',
-  };
-  const recordJob = {
-    id: 11,
-    run_id: 123,
-    run_attempt: 1,
-    node_id: 'WFRJ_11',
-    head_sha: candidateSha,
-    name: 'Record source verification',
-    status: 'completed',
-    conclusion: 'success',
-    started_at: '2026-10-05T18:04:00Z',
-    completed_at: '2026-10-05T18:05:00Z',
-  };
-  return (_token: string, path: string): unknown => {
-    if (path === '/repos/acme/widget') return repository;
-    if (path.endsWith('/actions/runs/123')) return run;
-    if (path.endsWith('/actions/jobs/11')) return recordJob;
-    if (path.endsWith('/attempts/1/jobs?per_page=100')) {
-      return { jobs: [evidenceJob, recordJob] };
-    }
-    if (path.endsWith('/artifacts?per_page=100')) {
-      return {
-        artifacts: [
-          {
-            id: 12,
-            name: 'overcenter-source-verification',
-            expired: false,
-            digest: `sha256:${'f'.repeat(64)}`,
-            workflow_run: {
-              id: 123,
-              repository_id: 42,
-              head_repository_id: 42,
-              head_sha: candidateSha,
-            },
-          },
-        ],
-      };
-    }
-    throw new Error(`unexpected provider path:${path}`);
-  };
-}
-
-function sourceProofEvidence(
-  verificationPath: string,
-  candidateSha: string,
-  runId: string,
-  evidenceConclusion: 'success' | 'failure' = 'success',
-) {
-  const get = sourceProofProvider(candidateSha, runId, evidenceConclusion);
-  return (plan: SourceTransactionPlan) => {
-    const record: unknown = JSON.parse(readFileSync(verificationPath, 'utf8'));
-    return observeGitHubSourceProofExecutionEvidence('fixture', plan, record, {
-      workflowRunId: 123,
-      workflowRunAttempt: 1,
-      get,
-    });
-  };
-}

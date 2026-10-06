@@ -13,12 +13,8 @@ const profileModule = await import('../src/source/source-verification-profile.ts
 
 function profile(id = 'fixture/v1') {
   return {
-    schema: 'overcenter-source-verification-profile/v1',
+    schema: 'overcenter-source-verification-profile/v2',
     id,
-    workflow_path: '.github/workflows/verify.yml',
-    required_evidence_jobs: ['Verify candidate / Candidate evidence'],
-    record_job: 'Record source verification',
-    commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
     protected_paths: ['.github', '.overcenter', 'package.json', 'scripts'],
     baseline_test_roots: ['test', 'experiments/semantic-scaling'],
   };

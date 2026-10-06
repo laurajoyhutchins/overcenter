@@ -5,15 +5,11 @@ import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts'
 export const SOURCE_VERIFICATION_PROFILE_PATH =
   '.overcenter/source-verification-profile.json' as const;
 export const SOURCE_VERIFICATION_PROFILE_SCHEMA =
-  'overcenter-source-verification-profile/v1' as const;
+  'overcenter-source-verification-profile/v2' as const;
 
 export interface SourceVerificationProfile {
   schema: typeof SOURCE_VERIFICATION_PROFILE_SCHEMA;
   id: string;
-  workflow_path: string;
-  required_evidence_jobs: string[];
-  record_job: string;
-  commands: string[];
   protected_paths: string[];
   baseline_test_roots: string[];
 }
@@ -65,34 +61,13 @@ export function validateSourceVerificationProfile(value: unknown): SourceVerific
   if (!isData(value)) throw new Error('SOURCE_VERIFICATION_PROFILE_INVALID');
   assertExactKeys(
     value,
-    [
-      'schema',
-      'id',
-      'workflow_path',
-      'required_evidence_jobs',
-      'record_job',
-      'commands',
-      'protected_paths',
-      'baseline_test_roots',
-    ],
+    ['schema', 'id', 'protected_paths', 'baseline_test_roots'],
     [],
     'SOURCE_VERIFICATION_PROFILE_INVALID',
   );
   if (value.schema !== SOURCE_VERIFICATION_PROFILE_SCHEMA)
     throw new Error('SOURCE_VERIFICATION_PROFILE_SCHEMA_MISMATCH');
   assertNonEmptyString(value.id, 'SOURCE_VERIFICATION_PROFILE_ID_INVALID');
-  assertNonEmptyString(value.workflow_path, 'SOURCE_VERIFICATION_PROFILE_WORKFLOW_INVALID');
-  if (!repositoryPath(value.workflow_path) || !value.workflow_path.startsWith('.github/workflows/'))
-    throw new Error('SOURCE_VERIFICATION_PROFILE_WORKFLOW_INVALID');
-  assertNonEmptyString(value.record_job, 'SOURCE_VERIFICATION_PROFILE_JOB_INVALID');
-  const requiredJobs = stringList(
-    value.required_evidence_jobs,
-    'SOURCE_VERIFICATION_PROFILE_JOBS_INVALID',
-  ).sort();
-  const commands = stringList(value.commands, 'SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID');
-  const supportedCommands = new Set(['npm run lint', 'npm run typecheck', 'npm run test:unit']);
-  if (commands.some((command) => !supportedCommands.has(command)))
-    throw new Error('SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID');
   const protectedPaths = stringList(
     value.protected_paths,
     'SOURCE_VERIFICATION_PROFILE_PROTECTED_PATHS_INVALID',
@@ -108,10 +83,6 @@ export function validateSourceVerificationProfile(value: unknown): SourceVerific
   return {
     schema: SOURCE_VERIFICATION_PROFILE_SCHEMA,
     id: value.id,
-    workflow_path: value.workflow_path,
-    required_evidence_jobs: requiredJobs,
-    record_job: value.record_job,
-    commands,
     protected_paths: protectedPaths,
     baseline_test_roots: baselineTestRoots,
   };
@@ -123,7 +94,7 @@ export function sourceVerificationProfileBinding(
   const profile = validateSourceVerificationProfile(profileValue);
   return {
     id: profile.id,
-    sha256: canonicalDigest({ domain: 'overcenter-source-verification-profile/v1', profile }),
+    sha256: canonicalDigest({ domain: 'overcenter-source-verification-profile/v2', profile }),
   };
 }
 
