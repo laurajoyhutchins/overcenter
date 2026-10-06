@@ -170,6 +170,34 @@ main().catch(error => {
 });
 `;
 
+const PREFETCH_RUNNER_SCRIPT = String.raw`
+const crypto = require('crypto');
+const fs = require('fs');
+
+async function main() {
+  const url =
+    'https://github.com/actions/runner/releases/download/v2.337.0/' +
+    'actions-runner-linux-x64-2.337.0.tar.gz';
+  const expected =
+    '70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613';
+  const response = await fetch(url, { redirect: 'follow' });
+  if (!response.ok) {
+    throw new Error('runner download HTTP ' + response.status);
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  const digest = crypto.createHash('sha256').update(bytes).digest('hex');
+  if (digest !== expected) {
+    throw new Error('runner download digest mismatch');
+  }
+  fs.writeFileSync('/workspace/actions-runner.tar.gz', bytes, { mode: 0o644 });
+}
+
+main().catch(error => {
+  console.error(String(error && error.message || error));
+  process.exit(97);
+});
+`;
+
 function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Record<string, unknown> {
   const runnerName = 'overcenter-gcp-' + String(job.job_id) + '-$BUILD_ID';
   const containerScript = [
@@ -195,8 +223,10 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
     'done',
     'printf runner-download > /workspace/jit-stage',
     'mkdir -p /actions-runner && cd /actions-runner || exit 93',
-    'curl -fsSLo actions-runner.tar.gz https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-x64-2.337.0.tar.gz || exit 97',
+    'test -s /workspace/actions-runner.tar.gz || exit 97',
+    'cp /workspace/actions-runner.tar.gz actions-runner.tar.gz || exit 97',
     'echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum -c - || exit 98',
+    'rm -f /workspace/actions-runner.tar.gz',
     'tar xzf actions-runner.tar.gz || exit 99',
     'rm actions-runner.tar.gz',
     'printf runner-dependencies > /workspace/jit-stage',
@@ -236,6 +266,12 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
           'RUNNER_NAME=' + runnerName,
         ],
         args: ['-e', AUTHORIZE_JIT_SCRIPT],
+      },
+      {
+        id: 'prefetch-runner',
+        name: 'node:22-bookworm',
+        entrypoint: 'node',
+        args: ['-e', PREFETCH_RUNNER_SCRIPT],
       },
       {
         id: 'github-runner',
