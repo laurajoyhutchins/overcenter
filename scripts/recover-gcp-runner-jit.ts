@@ -316,18 +316,57 @@ main().catch(error => {
 
 function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Record<string, unknown> {
   const runnerName = 'overcenter-gcp-' + String(job.job_id) + '-$BUILD_ID';
-  const runnerImage =
-    'us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/' +
-    'cloud-run-source-deploy/overcenter-gcp-runner@' +
-    'sha256:2f43d35387b7fb2a25b41bc09cafcfb396be375c8e3f9d921eeabd4a30098391';
+  const prepareImageScript = [
+    'set -euo pipefail',
+    'test -s /workspace/actions-runner.tar.gz',
+    "cat > /workspace/jit-runner.Dockerfile <<'DOCKERFILE'",
+    'FROM ubuntu:24.04',
+    'ENV DEBIAN_FRONTEND=noninteractive',
+    'ENV RUNNER_ALLOW_RUNASROOT=1',
+    'RUN apt-get update -qq && apt-get install -y -qq ca-certificates curl git gzip iptables jq passwd python3 tar unzip util-linux && rm -rf /var/lib/apt/lists/*',
+    'WORKDIR /actions-runner',
+    'COPY actions-runner.tar.gz /actions-runner/actions-runner.tar.gz',
+    'RUN echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum -c - && tar xzf actions-runner.tar.gz && rm actions-runner.tar.gz && ./bin/installdependencies.sh >/dev/null',
+    'DOCKERFILE',
+    'docker build --quiet --tag overcenter-gcp-jit-local:latest --file /workspace/jit-runner.Dockerfile /workspace',
+  ].join('\n');
+
+  const containerScript = [
+    'set -euo pipefail',
+    'iptables -I OUTPUT -d 169.254.0.0/16 -j REJECT',
+    'metadata_ips="$(getent ahostsv4 metadata.google.internal 2>/dev/null | awk \'{print $1}\' | sort -u || true)"',
+    'for ip in $metadata_ips; do iptables -I OUTPUT -d "$ip" -j REJECT; done',
+    'printf "127.0.0.1 metadata.google.internal metadata\\n" >> /etc/hosts',
+    'for variable in GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE GOOGLE_GHA_CREDS_PATH; do',
+    '  test -z "\${!variable:-}" || { echo "ambient GCP credential variable reached runner: $variable" >&2; exit 70; }',
+    'done',
+    'for endpoint in \\',
+    '  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \\',
+    '  "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token";',
+    'do',
+    '  status="$(curl --silent --output /dev/null --write-out "%{http_code}" --connect-timeout 1 --max-time 2 -H "Metadata-Flavor: Google" "$endpoint" || true)"',
+    '  test "$status" != 200 || { echo "GCP metadata credentials are reachable from runner network" >&2; exit 71; }',
+    'done',
+    'jit_config="$(cat /workspace/jit-config)"',
+    'rm -f /workspace/jit-config',
+    'cd /actions-runner',
+    'rm -rf _work .runner .credentials .credentials_rsaparams',
+    'exec ./run.sh --jitconfig "$jit_config"',
+  ].join('\n');
+  const encodedContainerScript = Buffer.from(containerScript, 'utf8').toString('base64');
+  const runnerCommand =
+    'printf %s ' +
+    encodedContainerScript +
+    ' | base64 -d > /tmp/overcenter-jit-runner.sh; exec bash /tmp/overcenter-jit-runner.sh';
   const dockerScript = [
     'set +e',
-    'docker run --rm --network bridge' +
+    'docker run --rm --network bridge --cap-add=NET_ADMIN' +
       ' --volume /workspace:/workspace' +
       ' --env TARGET_REPOSITORY=' + job.repository +
       ' --env TARGET_JOB_ID=' + String(job.job_id) +
       ' --env RUNNER_LABEL=' + job.runner_label +
-      ' ' + runnerImage +
+      ' --entrypoint bash overcenter-gcp-jit-local:latest -ceu ' +
+      JSON.stringify(runnerCommand) +
       ' > /workspace/jit-runner-output.log 2>&1',
     'status=$?',
     'set -e',
@@ -341,6 +380,18 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
       'overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com',
     timeout: '1200s',
     steps: [
+      {
+        id: 'prefetch-runner',
+        name: 'node:22-bookworm',
+        entrypoint: 'node',
+        args: ['-e', PREFETCH_RUNNER_SCRIPT],
+      },
+      {
+        id: 'prepare-runner-image',
+        name: 'gcr.io/cloud-builders/docker',
+        entrypoint: 'bash',
+        args: ['-ceu', prepareImageScript],
+      },
       {
         id: 'authorize-jit-job',
         name: 'node:22-bookworm',
