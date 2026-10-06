@@ -77,8 +77,12 @@ export function matchRepositoryBinding(
   request: RunnerLaunchRequest,
   expectedRunnerLabel?: string,
 ): RepositoryBinding {
-  if (expectedRunnerLabel !== undefined && request.runner_label !== expectedRunnerLabel) {
-    throw new Error('runner launch label mismatch');
+  if (expectedRunnerLabel !== undefined) {
+    const actual = request.runner_label.toLowerCase();
+    const expected = expectedRunnerLabel.toLowerCase();
+    if (actual !== expected && !actual.startsWith(expected + '-')) {
+      throw new Error('runner launch label mismatch');
+    }
   }
   const binding = repositories.find(
     (candidate) => candidate.full_name.toLowerCase() === request.repository.toLowerCase(),
@@ -194,7 +198,8 @@ async function main() {
     }),
     'workflow job lookup',
   );
-  const labels = new Set(Array.isArray(job.labels) ? job.labels.map(String) : []);
+  const jobLabels = Array.isArray(job.labels) ? job.labels.map(String) : [];
+  const labels = new Set(jobLabels);
   if (
     job.id !== jobId ||
     job.status !== 'queued' ||
@@ -216,7 +221,7 @@ async function main() {
       body: JSON.stringify({
         name: runnerName,
         runner_group_id: 1,
-        labels: ['self-hosted', 'Linux', 'X64', runnerLabel],
+        labels: Array.from(labels).sort(),
         work_folder: '_work',
       }),
     }),
@@ -277,7 +282,7 @@ export function createRunnerBuild(
     'fi',
     'test -s /workspace/jit-config',
     [
-      'docker run --rm --network bridge',
+      'docker run --rm --network bridge --dns 8.8.8.8 --dns 8.8.4.4',
       '--volume /workspace:/workspace',
       '--env TARGET_REPOSITORY=' + request.repository,
       '--env TARGET_JOB_ID=' + String(request.job_id),
