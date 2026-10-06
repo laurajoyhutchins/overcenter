@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           config="$RUNNER_TEMP/repair.yaml"
-          cat > "$config" <<'YAML'
+          cat > "$$config" <<'YAML'
           serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
           timeout: 1200s
           steps:
@@ -88,26 +88,26 @@ jobs:
                   PY
                   )"
                   root=/workspace/source
-                  mkdir -p "$root" && cd "$root"
+                  mkdir -p "$$root" && cd "$$root"
                   git init -q
                   git remote add origin https://github.com/laurajoyhutchins/arcata.git
-                  if ! git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" fetch --no-tags origin \
-                    "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/candidate" \
+                  if ! git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $$auth" fetch --no-tags origin \
+                    "+refs/heads/$$TARGET_BRANCH:refs/remotes/origin/candidate" \
                     "+refs/heads/main:refs/remotes/origin/main" >/workspace/fetch.txt 2>&1; then
                     finish "RESULT=FETCH_FAILURE\n$(cat /workspace/fetch.txt)"
                   fi
-                  test "$(git rev-parse refs/remotes/origin/candidate)" = "$EXPECTED_HEAD" || finish 'RESULT=LEASE_FAILURE fetched candidate moved'
-                  test "$(git rev-parse refs/remotes/origin/main)" = "$NEW_BASE" || finish 'RESULT=LEASE_FAILURE fetched main moved'
-                  git checkout -q --detach "$EXPECTED_HEAD"
+                  test "$(git rev-parse refs/remotes/origin/candidate)" = "$$EXPECTED_HEAD" || finish 'RESULT=LEASE_FAILURE fetched candidate moved'
+                  test "$(git rev-parse refs/remotes/origin/main)" = "$$NEW_BASE" || finish 'RESULT=LEASE_FAILURE fetched main moved'
+                  git checkout -q --detach "$$EXPECTED_HEAD"
                   git config user.name 'Overcenter GCP Repair'
                   git config user.email 'noreply@users.noreply.github.com'
-                  if [ "$OLD_BASE" != "$NEW_BASE" ]; then
-                    if ! git rebase --onto "$NEW_BASE" "$OLD_BASE" "$EXPECTED_HEAD" >/workspace/rebase.txt 2>&1; then
+                  if [ "$$OLD_BASE" != "$$NEW_BASE" ]; then
+                    if ! git rebase --onto "$$NEW_BASE" "$$OLD_BASE" "$$EXPECTED_HEAD" >/workspace/rebase.txt 2>&1; then
                       finish "RESULT=REBASE_CONFLICT\n$(tail -c 50000 /workspace/rebase.txt)"
                     fi
                   fi
                   allowed=/workspace/allowed.txt
-                  git diff --name-only "$NEW_BASE"...HEAD | sort -u > "$allowed"
+                  git diff --name-only "$$NEW_BASE"...HEAD | sort -u > "$$allowed"
                   if ! python tools/verification_tools.py requirements > /workspace/requirements.txt 2>/workspace/tools.err; then
                     finish "RESULT=TOOL_CONTRACT_FAILURE\n$(cat /workspace/tools.err)"
                   fi
@@ -115,15 +115,15 @@ jobs:
                   if ! /workspace/venv/bin/python -m pip install --disable-pip-version-check --no-input --no-compile --only-binary=:all: --no-deps --require-hashes -r /workspace/requirements.txt >/workspace/pip.txt 2>&1; then
                     finish "RESULT=TOOL_INSTALL_FAILURE\n$(tail -c 50000 /workspace/pip.txt)"
                   fi
-                  export PATH=/workspace/venv/bin:$PATH
+                  export PATH=/workspace/venv/bin:$$PATH
                   if ! ruff format . >/workspace/format.txt 2>&1; then
                     finish "RESULT=FORMAT_FAILURE\n$(cat /workspace/format.txt)"
                   fi
                   git diff --name-only | sort -u > /workspace/formatted.txt
                   if [ -s /workspace/formatted.txt ]; then
-                    unexpected="$(comm -23 /workspace/formatted.txt "$allowed")"
-                    if [ -n "$unexpected" ]; then
-                      finish "RESULT=WRITESET_FAILURE\n$unexpected"
+                    unexpected="$(comm -23 /workspace/formatted.txt "$$allowed")"
+                    if [ -n "$$unexpected" ]; then
+                      finish "RESULT=WRITESET_FAILURE\n$$unexpected"
                     fi
                     git add -- $(cat /workspace/formatted.txt)
                     git commit -m 'Format candidate after verification baseline repair' >/workspace/commit.txt 2>&1
@@ -132,16 +132,16 @@ jobs:
                   python tools/check.py > /workspace/check.txt 2>&1
                   rc=$?
                   set -e
-                  if [ "$rc" -ne 0 ]; then
+                  if [ "$$rc" -ne 0 ]; then
                     finish "RESULT=VERIFY_FAILURE\n$(tail -c 55000 /workspace/check.txt)"
                   fi
                   new_head="$(git rev-parse HEAD)"
-                  if ! git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin \
-                    "$new_head:refs/heads/$TARGET_BRANCH" \
-                    "--force-with-lease=refs/heads/$TARGET_BRANCH:$EXPECTED_HEAD" >/workspace/push.txt 2>&1; then
+                  if ! git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $$auth" push origin \
+                    "$$new_head:refs/heads/$$TARGET_BRANCH" \
+                    "--force-with-lease=refs/heads/$$TARGET_BRANCH:$$EXPECTED_HEAD" >/workspace/push.txt 2>&1; then
                     finish "RESULT=PUSH_FAILURE\n$(cat /workspace/push.txt)"
                   fi
-                  finish "RESULT=SUCCESS\nNEW_HEAD=$new_head\nFORMATTED=$(tr '\n' ',' < /workspace/formatted.txt)"
+                  finish "RESULT=SUCCESS\nNEW_HEAD=$$new_head\nFORMATTED=$(tr '\n' ',' < /workspace/formatted.txt)"
           availableSecrets:
             secretManager:
               - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
