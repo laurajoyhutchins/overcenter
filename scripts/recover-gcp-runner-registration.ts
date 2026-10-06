@@ -212,6 +212,7 @@ function createBuild(
       '> /workspace/runner-registration-output.log 2>&1',
       '|| true',
     ].join(' '),
+    'mkdir -p /builder/outputs',
     'tail -c 48000 /workspace/runner-registration-output.log > /builder/outputs/output',
     'cat /workspace/runner-registration-output.log',
   ].join('\n');
