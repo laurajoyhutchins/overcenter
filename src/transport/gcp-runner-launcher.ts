@@ -96,31 +96,80 @@ export function matchRepositoryBinding(
   return binding;
 }
 
-const ARTIFACT_AUTH_SCRIPT = String.raw`
-const fs = require('fs');
+const PUBLIC_RUNNER_BASE =
+  'docker.io/library/ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55';
 
-async function main() {
-  if (fs.existsSync('/workspace/skip-runner')) return;
-  const response = await fetch(
-    'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
-    { headers: { 'Metadata-Flavor': 'Google' } },
-  );
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(
-      'metadata access token HTTP ' + response.status + ': ' + text.slice(0, 200),
-    );
-  }
-  const body = JSON.parse(text);
-  const token = String(body.access_token || '').trim();
-  if (!token) throw new Error('metadata access token response was incomplete');
-  fs.writeFileSync('/workspace/artifact-registry-token', token, { mode: 0o600 });
-}
+const RUNNER_BOOTSTRAP_SCRIPT = String.raw`#!/usr/bin/env bash
+set -euo pipefail
 
-main().catch(error => {
-  console.error(String((error && error.message) || error));
-  process.exit(85);
-});
+: "\${TARGET_REPOSITORY:?TARGET_REPOSITORY is required}"
+: "\${TARGET_JOB_ID:?TARGET_JOB_ID is required}"
+: "\${RUNNER_NAME:?RUNNER_NAME is required}"
+: "\${RUNNER_LABEL:?RUNNER_LABEL is required}"
+
+export DEBIAN_FRONTEND=noninteractive
+export RUNNER_ALLOW_RUNASROOT=1
+export CARGO_HOME=/opt/cargo
+export RUSTUP_HOME=/opt/rustup
+export PATH="/opt/cargo/bin:\${PATH}"
+
+apt-get update -qq
+apt-get install -y -qq ca-certificates curl git gzip jq python3 sudo tar unzip
+rm -rf /var/lib/apt/lists/*
+
+for endpoint in \
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+  "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token"
+do
+  status="$(
+    curl --silent --output /dev/null --write-out '%{http_code}' \
+      --connect-timeout 1 --max-time 2 \
+      -H 'Metadata-Flavor: Google' \
+      "$endpoint" || true
+  )"
+  if [[ "$status" = "200" ]]; then
+    rm -f /workspace/registration-token
+    echo "GCP metadata credentials are reachable from runner network" >&2
+    exit 71
+  fi
+done
+
+test -s /workspace/registration-token
+
+mkdir -p /actions-runner
+cd /actions-runner
+curl --fail --silent --show-error --location \
+  --output actions-runner.tar.gz \
+  "https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-x64-2.337.0.tar.gz"
+echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum --check --strict
+tar xzf actions-runner.tar.gz
+rm actions-runner.tar.gz
+./bin/installdependencies.sh >/dev/null
+
+curl --fail --silent --show-error --location \
+  --output /tmp/rustup-init \
+  "https://static.rust-lang.org/rustup/archive/1.28.2/x86_64-unknown-linux-gnu/rustup-init"
+echo "20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c  /tmp/rustup-init" | sha256sum --check --strict
+chmod 0755 /tmp/rustup-init
+/tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain none
+rm /tmp/rustup-init
+rustup --version
+
+registration_token="$(cat /workspace/registration-token)"
+rm -f /workspace/registration-token
+
+./config.sh \
+  --url "https://github.com/\${TARGET_REPOSITORY}" \
+  --token "$registration_token" \
+  --name "$RUNNER_NAME" \
+  --labels "$RUNNER_LABEL" \
+  --work "_work" \
+  --unattended \
+  --ephemeral \
+  --disableupdate
+
+unset registration_token
+exec ./run.sh
 `;
 
 const AUTHORIZE_JOB_SCRIPT = String.raw`
@@ -293,6 +342,7 @@ export function createRunnerBuild(
     'TARGET_JOB_ID=' + String(request.job_id),
     'RUNNER_LABEL=' + request.runner_label,
   ];
+  const bootstrapBase64 = Buffer.from(RUNNER_BOOTSTRAP_SCRIPT, 'utf8').toString('base64');
 
   const dockerScript = [
     'if [ -f /workspace/skip-runner ]; then',
@@ -300,15 +350,19 @@ export function createRunnerBuild(
     '  exit 0',
     'fi',
     'test -s /workspace/registration-token',
+    'printf %s ' + bootstrapBase64 + ' | base64 -d > /workspace/runner-bootstrap.sh',
+    'chmod 0700 /workspace/runner-bootstrap.sh',
     [
-      'docker run --pull=never --rm --network bridge',
+      'docker run --pull=always --rm --network bridge',
       '--volume /workspace:/workspace',
       '--env TARGET_REPOSITORY=' + request.repository,
       '--env TARGET_JOB_ID=' + String(request.job_id),
       '--env RUNNER_LABEL=' + request.runner_label,
       '--env RUNNER_NAME=overcenter-gcp-' + String(request.job_id) + '-$BUILD_ID',
-      environment.runnerImage,
+      PUBLIC_RUNNER_BASE,
+      'bash /workspace/runner-bootstrap.sh',
     ].join(' '),
+    'rm -f /workspace/runner-bootstrap.sh',
   ].join('\n');
 
   return {
@@ -326,44 +380,6 @@ export function createRunnerBuild(
         secretEnv: ['GITHUB_APP_PRIVATE_KEY'],
         env: targetEnv,
         args: ['-e', AUTHORIZE_JOB_SCRIPT],
-      },
-      {
-        id: 'docker-network-smoke',
-        name: 'gcr.io/cloud-builders/docker',
-        entrypoint: 'bash',
-        args: [
-          '-ceu',
-          'docker run --rm --network bridge alpine:3.20 /bin/true || exit 83',
-        ],
-      },
-      {
-        id: 'artifact-registry-auth',
-        name: 'node:22-bookworm',
-        entrypoint: 'node',
-        args: ['-e', ARTIFACT_AUTH_SCRIPT],
-      },
-      {
-        id: 'pull-runner-image',
-        name: 'gcr.io/cloud-builders/docker',
-        entrypoint: 'bash',
-        args: [
-          '-ceu',
-          [
-            'if [ -f /workspace/skip-runner ]; then exit 0; fi',
-            'test -s /workspace/artifact-registry-token',
-            'if ! cat /workspace/artifact-registry-token | docker login',
-            '  -u oauth2accesstoken --password-stdin https://' + environment.region + '-docker.pkg.dev >/dev/null 2>&1; then',
-            '  rm -f /workspace/artifact-registry-token',
-            '  exit 84',
-            'fi',
-            'rm -f /workspace/artifact-registry-token',
-            'if ! docker pull ' + environment.runnerImage + ' >/dev/null; then',
-            '  docker logout ' + environment.region + '-docker.pkg.dev >/dev/null 2>&1 || true',
-            '  exit 81',
-            'fi',
-            'docker logout ' + environment.region + '-docker.pkg.dev >/dev/null 2>&1 || true',
-          ].join('\n'),
-        ],
       },
       {
         id: 'github-runner',
