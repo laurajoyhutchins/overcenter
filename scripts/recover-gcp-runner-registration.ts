@@ -196,6 +196,11 @@ function createBuild(
     'exec ./run.sh',
   ].join('\n');
 
+  const encodedContainerScript = Buffer.from(containerScript, 'utf8').toString('base64');
+  const runnerCommand =
+    'printf %s ' + encodedContainerScript +
+    ' | base64 -d > /tmp/overcenter-runner.sh; exec bash /tmp/overcenter-runner.sh';
+
   const dockerScript = [
     'if [ -f /workspace/skip-runner ]; then',
     '  echo "GitHub job is no longer queued; skipping worker launch."',
@@ -210,8 +215,8 @@ function createBuild(
       '--volume /workspace:/workspace',
       '--entrypoint bash',
       runnerImage,
-      '-ceu',
-      JSON.stringify(containerScript),
+      '-c',
+      JSON.stringify(runnerCommand),
       '> /workspace/runner-registration-output.log 2>&1',
       '|| true',
     ].join(' '),
@@ -252,9 +257,12 @@ function createBuild(
         args: [
           '-ceu',
           [
-            'cat /workspace/runner-registration-output.log',
-            'mkdir -p "$(printenv BUILDER_OUTPUT)"',
-            'tail -c 48000 /workspace/runner-registration-output.log > "$(printenv BUILDER_OUTPUT)/output"',
+            'mkdir -p "$BUILDER_OUTPUT"',
+            'if [ -f /workspace/runner-registration-output.log ]; then',
+            '  tail -c 48000 /workspace/runner-registration-output.log > "$BUILDER_OUTPUT/output"',
+            'else',
+            '  { echo "runner registration output missing"; ls -la /workspace; } > "$BUILDER_OUTPUT/output"',
+            'fi',
           ].join('\n'),
         ],
       },
