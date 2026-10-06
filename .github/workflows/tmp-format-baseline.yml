@@ -1,0 +1,69 @@
+name: Temporary format baseline
+
+on:
+  push:
+    branches:
+      - fix/format-baseline-20261005
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Format exact failing baseline files
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes "@biomejs/biome@2.5.14" format --write \
+            src/authority/project-agent-protocol.ts \
+            src/cli/project-submit.ts \
+            src/execution/evidence-receipt.ts \
+            src/providers/github/certified-pr.ts \
+            src/providers/github/certified-read.ts \
+            src/providers/github/certified-ref.ts \
+            src/providers/github/execution-evidence-receipt.ts \
+            src/source/source-proof-observation.ts \
+            src/source/source-proof.ts \
+            src/transport/gcp-runner-autoscaler.ts \
+            src/transport/gcp-runner-launcher.ts \
+            test/assurance-evidence-needs.test.ts \
+            test/execution-evidence-receipt.test.ts \
+            test/gcp-runner-launcher.test.ts \
+            test/project-agent-protocol.test.ts \
+            test/source-proof.test.ts
+      - name: Commit formatter output
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/authority/project-agent-protocol.ts \
+            src/cli/project-submit.ts \
+            src/execution/evidence-receipt.ts \
+            src/providers/github/certified-pr.ts \
+            src/providers/github/certified-read.ts \
+            src/providers/github/certified-ref.ts \
+            src/providers/github/execution-evidence-receipt.ts \
+            src/source/source-proof-observation.ts \
+            src/source/source-proof.ts \
+            src/transport/gcp-runner-autoscaler.ts \
+            src/transport/gcp-runner-launcher.ts \
+            test/assurance-evidence-needs.test.ts \
+            test/execution-evidence-receipt.test.ts \
+            test/gcp-runner-launcher.test.ts \
+            test/project-agent-protocol.test.ts \
+            test/source-proof.test.ts
+          if git diff --cached --quiet; then
+            echo "No formatter changes"
+            exit 0
+          fi
+          git commit -m "Format repository baseline"
+          git push origin "HEAD:$GITHUB_REF_NAME"
