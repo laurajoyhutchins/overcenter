@@ -7,9 +7,7 @@ import test from 'node:test';
 
 import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../src/effect-adapter.ts';
 import { executionEvidenceReceiptDigest } from '../src/execution/evidence-receipt.ts';
-import {
-  observeGitHubSourceProofExecutionEvidence,
-} from '../src/providers/github/source-proof-execution-evidence.ts';
+import { observeGitHubSourceProofExecutionEvidence } from '../src/providers/github/source-proof-execution-evidence.ts';
 import {
   admitSourceProof,
   SourceProofRejected,
