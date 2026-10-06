@@ -112,6 +112,21 @@ test('runner image consumes one-time JIT configuration without persistent regist
   assert.doesNotMatch(entrypoint, /registration-token/);
 });
 
+test('autoscaler is a bounded background worker rather than a request-serving service', () => {
+  const autoscaler = readFileSync(
+    new URL('../src/transport/gcp-runner-autoscaler.ts', import.meta.url),
+    'utf8',
+  );
+
+  assert.doesNotMatch(autoscaler, /createServer/);
+  assert.doesNotMatch(autoscaler, /setInterval/);
+  assert.match(autoscaler, /REPOSITORY_IDENTITY_REVERIFY_MS = 10 \* 60_000/);
+  assert.match(autoscaler, /GITHUB_READ_CONCURRENCY = 8/);
+  assert.match(autoscaler, /LAUNCH_CONCURRENCY = 8/);
+  assert.match(autoscaler, /Promise\.allSettled/);
+  assert.match(autoscaler, /const launcherToken = await cloudRunIdentityToken\(launcherUrl\)/);
+});
+
 test('dedicated launcher identity preserves the deployment authority split', () => {
   const deploy = readFileSync(
     new URL('../infra/gcp/deploy-runner-autoscaler.sh', import.meta.url),
