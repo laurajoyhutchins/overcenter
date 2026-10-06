@@ -26,15 +26,19 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: laurajoyhutchins/arcata
+          ref: ${{ env.ARCATA_REVISION }}
+          path: arcata-diagnostic
+          persist-credentials: false
+
       - name: Show pinned Ruff formatter diff
         shell: bash
+        working-directory: arcata-diagnostic
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check --no-input ruff==0.13.2
-          mkdir -p "$RUNNER_TEMP/arcata/tools"
-          curl -fsSL "https://raw.githubusercontent.com/laurajoyhutchins/arcata/$ARCATA_REVISION/pyproject.toml"             -o "$RUNNER_TEMP/arcata/pyproject.toml"
-          curl -fsSL "https://raw.githubusercontent.com/laurajoyhutchins/arcata/$ARCATA_REVISION/tools/freeze_sequence_kernels.py"             -o "$RUNNER_TEMP/arcata/tools/freeze_sequence_kernels.py"
-          cd "$RUNNER_TEMP/arcata"
           ruff format --diff tools/freeze_sequence_kernels.py || true
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
