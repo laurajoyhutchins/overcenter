@@ -61,6 +61,8 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
     build.serviceAccount,
     'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' + environment.runtimeServiceAccount,
   );
+  assert.equal(build.queueTtl, '540s');
+  assert.deepEqual(build.options, { logging: 'CLOUD_LOGGING_ONLY' });
 
   const steps = build.steps as Array<Record<string, unknown>>;
   assert.equal(steps.length, 2);
@@ -69,7 +71,7 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
 
   const args = steps[1]?.args as string[];
   const script = args[1] ?? '';
-  assert.match(script, /docker run --rm --network bridge/);
+  assert.match(script, /docker run --rm --network bridge --dns 8\.8\.8\.8 --dns 8\.8\.4\.4/);
   assert.match(script, /RUNNER_LABEL=overcenter-gcp/);
   assert.match(script, /test -s \/workspace\/jit-config/);
   assert.match(script, /runner-output\.log/);

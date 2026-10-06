@@ -277,7 +277,7 @@ export function createRunnerBuild(
     'fi',
     'test -s /workspace/jit-config',
     [
-      'docker run --rm --network bridge',
+      'docker run --rm --network bridge --dns 8.8.8.8 --dns 8.8.4.4',
       '--volume /workspace:/workspace',
       '--env TARGET_REPOSITORY=' + request.repository,
       '--env TARGET_JOB_ID=' + String(request.job_id),
@@ -296,6 +296,7 @@ export function createRunnerBuild(
     serviceAccount:
       'projects/' + environment.projectId + '/serviceAccounts/' + environment.runtimeServiceAccount,
     timeout: '1200s',
+    queueTtl: '540s',
     steps: [
       {
         id: 'authorize-job',
