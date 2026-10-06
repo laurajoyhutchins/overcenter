@@ -353,7 +353,7 @@ export function createRunnerBuild(
     'printf %s ' + bootstrapBase64 + ' | base64 -d > /workspace/runner-bootstrap.sh',
     'chmod 0700 /workspace/runner-bootstrap.sh',
     [
-      'docker run --pull=always --rm --network bridge --dns 8.8.8.8 --dns 8.8.4.4',
+      'docker run --pull=always --rm --network bridge',
       '--volume /workspace:/workspace',
       '--env TARGET_REPOSITORY=' + request.repository,
       '--env TARGET_JOB_ID=' + String(request.job_id),
