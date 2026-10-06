@@ -34,21 +34,30 @@ for variable in GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_CREDENTIAL_FILE_OVE
   fi
 done
 
-for endpoint in \
-  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+metadata_endpoints=(
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
   "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token"
-do
-  status="$(
+)
+metadata_status_dir="$(mktemp -d)"
+trap 'rm -rf "$metadata_status_dir"' EXIT
+for index in "${!metadata_endpoints[@]}"; do
+  endpoint="${metadata_endpoints[$index]}"
+  (
     curl --silent --output /dev/null --write-out '%{http_code}' \
       --connect-timeout 1 --max-time 2 \
       -H 'Metadata-Flavor: Google' \
-      "$endpoint" || true
-  )"
-  if [[ "$status" = "200" ]]; then
+      "$endpoint" > "$metadata_status_dir/$index" || true
+  ) &
+done
+wait
+for status_file in "$metadata_status_dir"/*; do
+  if [[ "$(cat "$status_file")" = "200" ]]; then
     echo "GCP metadata credentials are reachable from runner network" >&2
     exit 71
   fi
 done
+rm -rf "$metadata_status_dir"
+trap - EXIT
 
 jit_config="$(cat /workspace/jit-config)"
 rm -f /workspace/jit-config

@@ -141,8 +141,9 @@ gcloud run deploy "$LAUNCHER_SERVICE" \
   --args="--experimental-strip-types,src/transport/gcp-runner-launcher.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
   --no-allow-unauthenticated \
-  --min-instances=0 \
-  --max-instances=8 \
+  --min=1 \
+  --max=1 \
+  --cpu-boost \
   --cpu=1 \
   --memory=256Mi \
   --quiet
@@ -161,6 +162,12 @@ import sys
 path, expected_sa, runner_sa, runner_image, control_image, expected_revision = sys.argv[1:]
 with open(path, encoding="utf-8") as handle:
     body = json.load(handle)
+
+service_annotations = (body.get("metadata") or {}).get("annotations") or {}
+if str(service_annotations.get("run.googleapis.com/minScale") or "") != "1":
+    raise SystemExit("runner launcher service minimum instances readback mismatch")
+if str(service_annotations.get("run.googleapis.com/maxScale") or "") != "1":
+    raise SystemExit("runner launcher service maximum instances readback mismatch")
 
 template = ((body.get("spec") or {}).get("template") or {})
 spec = template.get("spec") or {}
@@ -236,8 +243,8 @@ gcloud run deploy "$AUTOSCALER_SERVICE" \
   --args="--experimental-strip-types,src/transport/gcp-runner-autoscaler.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
   --no-allow-unauthenticated \
-  --min-instances=1 \
-  --max-instances=1 \
+  --min=1 \
+  --max=1 \
   --no-cpu-throttling \
   --cpu=1 \
   --memory=512Mi \
@@ -281,11 +288,13 @@ private_key = env.get("GITHUB_APP_PRIVATE_KEY") or {}
 if "valueFrom" not in private_key:
     raise SystemExit("autoscaler GitHub App key is not secret-backed")
 
-annotations = (template.get("metadata") or {}).get("annotations") or {}
-max_scale = str(annotations.get("autoscaling.knative.dev/maxScale") or "")
-min_scale = str(annotations.get("autoscaling.knative.dev/minScale") or "")
+service_annotations = (body.get("metadata") or {}).get("annotations") or {}
+max_scale = str(service_annotations.get("run.googleapis.com/maxScale") or "")
+min_scale = str(service_annotations.get("run.googleapis.com/minScale") or "")
 if max_scale != "1" or min_scale != "1":
-    raise SystemExit(f"autoscaler instance bounds mismatch: min={min_scale!r} max={max_scale!r}")
+    raise SystemExit(
+        f"autoscaler service instance bounds mismatch: min={min_scale!r} max={max_scale!r}"
+    )
 
 if any("cloudsql" in json.dumps(value).lower() for value in (spec.get("volumes") or [])):
     raise SystemExit("autoscaler must not have a Cloud SQL attachment")

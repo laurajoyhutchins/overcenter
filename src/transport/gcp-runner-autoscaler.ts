@@ -284,17 +284,22 @@ async function queuedRunnerJobs(
   runnerLabel: string,
 ): Promise<WorkflowJob[]> {
   const runIds = new Set<number>();
-  for (const status of ['queued', 'in_progress']) {
-    for (let page = 1; ; page += 1) {
-      const body = await githubJson(
-        `/repos/${repository.full_name}/actions/runs?status=${status}&per_page=100&page=${page}`,
-        token,
-      );
-      const runs = parseRuns(body);
-      for (const run of runs) runIds.add(run.id);
-      if (runs.length < 100) break;
-    }
-  }
+  const runsByStatus = await Promise.all(
+    (['queued', 'in_progress'] as const).map(async (status) => {
+      const ids: number[] = [];
+      for (let page = 1; ; page += 1) {
+        const body = await githubJson(
+          `/repos/${repository.full_name}/actions/runs?status=${status}&per_page=100&page=${page}`,
+          token,
+        );
+        const runs = parseRuns(body);
+        ids.push(...runs.map((run) => run.id));
+        if (runs.length < 100) break;
+      }
+      return ids;
+    }),
+  );
+  for (const ids of runsByStatus) for (const runId of ids) runIds.add(runId);
 
   const jobs: WorkflowJob[] = [];
   for (const runId of runIds) {
@@ -327,15 +332,15 @@ async function cloudRunIdentityToken(audience: string): Promise<string> {
 
 async function launchRunner(
   launcherUrl: string,
+  identityToken: string,
   config: RunnerAutoscalerConfig,
   sourceRepository: RepositoryBinding,
   job: WorkflowJob,
 ): Promise<void> {
-  const token = await cloudRunIdentityToken(launcherUrl);
   const response = await fetch(`${launcherUrl}/launch`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${identityToken}`,
       'Content-Type': 'application/json',
       'User-Agent': USER_AGENT,
     },
@@ -374,30 +379,64 @@ async function pollOnce(
   pruneLaunches(state, config.redispatch_after_ms, now);
 
   try {
-    for (const repository of config.repositories) {
-      const token = await client.installationToken(repository, {
-        actions: 'read',
-      });
-      await verifyRepositoryIdentity(repository, token);
-      const jobs = await queuedRunnerJobs(repository, token, config.runner_label);
-      for (const job of jobs) {
-        const key = `${repository.repository_id}:${job.id}`;
-        const prior = state.launched.get(key);
-        if (prior !== undefined && now - prior < config.redispatch_after_ms) continue;
-        await launchRunner(launcherUrl, config, repository, job);
-        state.launched.set(key, now);
-        console.log(
-          JSON.stringify({
-            event: 'runner_launched',
-            repository: repository.full_name,
-            repository_id: repository.repository_id,
-            job_id: job.id,
-          }),
-        );
+    const scans = await Promise.all(
+      config.repositories.map(async (repository) => {
+        try {
+          const token = await client.installationToken(repository, { actions: 'read' });
+          await verifyRepositoryIdentity(repository, token);
+          const jobs = await queuedRunnerJobs(repository, token, config.runner_label);
+          return { repository, jobs, error: null as string | null };
+        } catch (error) {
+          return {
+            repository,
+            jobs: [] as WorkflowJob[],
+            error: String(error instanceof Error ? error.message : error),
+          };
+        }
+      }),
+    );
+    const errors = scans.flatMap(({ repository, error }) =>
+      error === null ? [] : [`${repository.full_name}: ${error}`],
+    );
+    const launchable = scans.flatMap(({ repository, jobs }) =>
+      jobs
+        .filter((job) => {
+          const prior = state.launched.get(`${repository.repository_id}:${job.id}`);
+          return prior === undefined || now - prior >= config.redispatch_after_ms;
+        })
+        .map((job) => ({ repository, job })),
+    );
+
+    if (launchable.length > 0) {
+      const identityToken = await cloudRunIdentityToken(launcherUrl);
+      for (const { repository, job } of launchable) {
+        try {
+          await launchRunner(launcherUrl, identityToken, config, repository, job);
+          state.launched.set(`${repository.repository_id}:${job.id}`, now);
+          console.log(
+            JSON.stringify({
+              event: 'runner_launched',
+              repository: repository.full_name,
+              repository_id: repository.repository_id,
+              job_id: job.id,
+            }),
+          );
+        } catch (error) {
+          errors.push(
+            `${repository.full_name} job ${job.id}: ${String(
+              error instanceof Error ? error.message : error,
+            )}`,
+          );
+        }
       }
     }
-    state.lastSuccessAt = new Date().toISOString();
-    state.lastError = null;
+    if (errors.length === 0) {
+      state.lastSuccessAt = new Date().toISOString();
+      state.lastError = null;
+    } else {
+      state.lastError = errors.join(' | ');
+      console.error(JSON.stringify({ event: 'poll_partial_failure', errors }));
+    }
   } catch (error) {
     state.lastError = String(error instanceof Error ? error.message : error);
     console.error(JSON.stringify({ event: 'poll_failed', error: state.lastError }));
