@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -84,4 +85,52 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
       'overcenter-github-app-private-key/versions/latest',
   );
   assert.equal(JSON.stringify(build).includes('registration-token='), false);
+});
+
+
+test('dedicated launcher identity preserves the deployment authority split', () => {
+  const deploy = readFileSync(
+    new URL('../infra/gcp/deploy-runner-autoscaler.sh', import.meta.url),
+    'utf8',
+  );
+  const bootstrap = readFileSync(
+    new URL('../infra/gcp/bootstrap-runner-launcher-iam.sh', import.meta.url),
+    'utf8',
+  );
+  const controlImage = readFileSync(
+    new URL('../infra/gcp-runner-control/Dockerfile', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    deploy,
+    /LAUNCHER_SA="overcenter-runner-launcher@\$\{PROJECT_ID\}\.iam\.gserviceaccount\.com"/,
+  );
+  assert.match(deploy, /--service-account="\$LAUNCHER_SA"/);
+  assert.match(deploy, /--service-account="\$RUNTIME_SA"/);
+  assert.match(deploy, /--image="\$CONTROL_IMAGE_IMMUTABLE"/);
+  assert.doesNotMatch(deploy, /gcloud projects add-iam-policy-binding/);
+  assert.doesNotMatch(deploy, /gcloud iam service-accounts add-iam-policy-binding/);
+  assert.doesNotMatch(deploy, /gcloud run services add-iam-policy-binding/);
+
+  assert.match(bootstrap, /roles\/cloudbuild\.builds\.editor/);
+  assert.match(bootstrap, /roles\/serviceusage\.serviceUsageConsumer/);
+  assert.match(bootstrap, /roles\/iam\.serviceAccountUser/);
+  assert.match(bootstrap, /roles\/run\.invoker/);
+  assert.match(bootstrap, /serviceAccount:\$\{LAUNCHER_SA\}/);
+  assert.match(bootstrap, /serviceAccount:\$\{RUNTIME_SA\}/);
+  assert.match(bootstrap, /serviceAccount:\$\{DEPLOYER_SA\}/);
+
+  for (const forbidden of [
+    'roles/owner',
+    'roles/editor',
+    'roles/iam.serviceAccountAdmin',
+    'roles/secretmanager.secretAccessor',
+    'roles/run.admin',
+  ]) {
+    assert.equal(bootstrap.includes(forbidden), false, `bootstrap must not grant ${forbidden}`);
+  }
+
+  assert.match(controlImage, /^FROM node:22\.16\.0-bookworm-slim/m);
+  assert.match(controlImage, /^USER node$/m);
 });
