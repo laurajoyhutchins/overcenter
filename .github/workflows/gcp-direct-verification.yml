@@ -39,6 +39,48 @@ jobs:
           test "$GITHUB_REF" = "refs/heads/work/gcp-cloud-run-cloud-sql-bootstrap"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
+      - id: request
+        name: Resolve exact verification request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          with open(".overcenter/gcp-direct-verification-request.json", encoding="utf-8") as handle:
+              request = json.load(handle)
+          if set(request) != {"schema", "repository", "revision", "profile"}:
+              raise SystemExit("invalid direct-verification request keys")
+          if request["schema"] != "overcenter-gcp-direct-verification/v1":
+              raise SystemExit("unsupported direct-verification request schema")
+          if request["repository"] != "laurajoyhutchins/arcata":
+              raise SystemExit("repository is not admitted for this verifier")
+          revision = str(request["revision"])
+          if not re.fullmatch(r"[0-9a-f]{40}", revision):
+              raise SystemExit("revision must be an exact 40-hex SHA")
+          if request["profile"] != "arcata-check":
+              raise SystemExit("unsupported verification profile")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"repository={request['repository']}\n")
+              output.write(f"revision={revision}\n")
+          PY
+
+      - name: Fetch exact Arcata source
+        shell: bash
+        env:
+          REPOSITORY: ${{ steps.request.outputs.repository }}
+          REVISION: ${{ steps.request.outputs.revision }}
+        run: |
+          set -euo pipefail
+          rm -rf direct-candidate
+          git init direct-candidate
+          git -C direct-candidate remote add origin "https://github.com/$REPOSITORY.git"
+          git -C direct-candidate fetch --no-tags --depth=1 origin "$REVISION"
+          git -C direct-candidate checkout --detach FETCH_HEAD
+          test "$(git -C direct-candidate rev-parse HEAD)" = "$REVISION"
+
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
@@ -54,11 +96,22 @@ jobs:
 
       - name: Compile bounded verification request
         shell: bash
+        env:
+          REVISION: ${{ steps.request.outputs.revision }}
         run: |
           set -euo pipefail
+          test "$(git -C direct-candidate rev-parse HEAD)" = "$REVISION"
+          source_dir="$RUNNER_TEMP/gcp-direct-source"
+          rm -rf "$source_dir"
+          mkdir -p "$source_dir"
+          git -C direct-candidate archive --format=tar "$REVISION" > "$source_dir/arcata.tar"
+          archive_sha="$(sha256sum "$source_dir/arcata.tar" | cut -d' ' -f1)"
+          test -n "$archive_sha"
+          export DIRECT_ARCHIVE_SHA="$archive_sha"
           python3 - <<'PY'
           import base64
           import json
+          import os
           import re
 
           request_path = ".overcenter/gcp-direct-verification-request.json"
@@ -78,6 +131,9 @@ jobs:
               raise SystemExit("unsupported verification profile")
 
           repository = request["repository"]
+          archive_sha = os.environ["DIRECT_ARCHIVE_SHA"]
+          if not re.fullmatch(r"[0-9a-f]{64}", archive_sha):
+              raise SystemExit("candidate archive digest is invalid")
           inner = f"""set -euo pipefail
           export DEBIAN_FRONTEND=noninteractive
           test "$(uname -m)" = "x86_64"
@@ -100,11 +156,9 @@ jobs:
               exit 71
             fi
           done
-          git init /tmp/arcata
-          git -C /tmp/arcata remote add origin https://github.com/{repository}.git
-          git -C /tmp/arcata fetch --no-tags --depth=1 origin {revision}
-          git -C /tmp/arcata checkout --detach FETCH_HEAD
-          test "$(git -C /tmp/arcata rev-parse HEAD)" = "{revision}"
+          test "$(sha256sum /candidate/arcata.tar | cut -d' ' -f1)" = "{archive_sha}"
+          mkdir -p /tmp/arcata
+          tar -xf /candidate/arcata.tar -C /tmp/arcata
           cd /tmp/arcata
           python tools/verification_tools.py requirements > /tmp/verification-tools.txt
           python -m venv /tmp/verification-tools-env
@@ -124,7 +178,7 @@ jobs:
           runner = "printf %s " + encoded + " | base64 -d > /tmp/verify.sh; exec bash /tmp/verify.sh"
           outer = "\n".join([
               "set +e",
-              "docker run --rm --network bridge --cap-add=NET_ADMIN --entrypoint bash python:3.13-bookworm -c "
+              "docker run --rm --network bridge --cap-add=NET_ADMIN --volume /workspace:/candidate:ro --entrypoint bash python:3.13-bookworm -c "
               + json.dumps(runner)
               + " > /workspace/direct-verification.log 2>&1",
               "status=$?",
@@ -180,7 +234,7 @@ jobs:
         run: |
           set -euo pipefail
           build_id="$(
-            gcloud builds submit               --no-source               --async               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --config=/tmp/cloudbuild.json               --format='value(id)'
+            gcloud builds submit "$RUNNER_TEMP/gcp-direct-source"               --async               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --config=/tmp/cloudbuild.json               --format='value(id)'
           )"
           test -n "$build_id"
           echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
@@ -231,7 +285,7 @@ jobs:
           {
             echo "## Direct GCP exact-head verification"
             echo
-            echo "- request: `$(cat /tmp/request-summary 2>/dev/null || echo unavailable)`"
-            echo "- Cloud Build: `${BUILD_ID:-unavailable}`"
-            echo "- control revision: `$GITHUB_SHA`"
+            echo "- request: $(cat /tmp/request-summary 2>/dev/null || echo unavailable)"
+            echo "- Cloud Build: ${BUILD_ID:-unavailable}"
+            echo "- control revision: $GITHUB_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
