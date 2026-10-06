@@ -139,275 +139,275 @@ jobs:
               "exit 0",
           ])
           inner = f"""set -euo pipefail
-          export DEBIAN_FRONTEND=noninteractive
-          test "$(uname -m)" = "x86_64"
-          for variable in GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE GOOGLE_GHA_CREDS_PATH; do
-            if printenv "$variable" >/dev/null 2>&1; then
-              echo "ambient GCP credential variable reached candidate container: $variable" >&2
-              exit 70
-            fi
-          done
-          apt-get update -qq
-          apt-get install -y --no-install-recommends ca-certificates curl iproute2
-          ip route replace blackhole 169.254.169.254/32
-          for endpoint in \
-            http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
-            http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token
-          do
-            status="$(curl --silent --output /dev/null --write-out '%{{http_code}}' --connect-timeout 1 --max-time 2 -H 'Metadata-Flavor: Google' "$endpoint" || true)"
-            if [ "$status" = "200" ]; then
-              echo "GCP metadata credentials are reachable from candidate container" >&2
-              exit 71
-            fi
-          done
-          python - "{revision}" "{repository}" <<'PYVERIFY'
+                    export DEBIAN_FRONTEND=noninteractive
+                    test "$(uname -m)" = "x86_64"
+                    for variable in GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE GOOGLE_GHA_CREDS_PATH; do
+                      if printenv "$variable" >/dev/null 2>&1; then
+                        echo "ambient GCP credential variable reached candidate container: $variable" >&2
+                        exit 70
+                      fi
+                    done
+                    apt-get update -qq
+                    apt-get install -y --no-install-recommends ca-certificates curl iproute2
+                    ip route replace blackhole 169.254.169.254/32
+                    for endpoint in \
+                      http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
+                      http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token
+                    do
+                      status="$(curl --silent --output /dev/null --write-out '%{{http_code}}' --connect-timeout 1 --max-time 2 -H 'Metadata-Flavor: Google' "$endpoint" || true)"
+                      if [ "$status" = "200" ]; then
+                        echo "GCP metadata credentials are reachable from candidate container" >&2
+                        exit 71
+                      fi
+                    done
+                    python - "{revision}" "{repository}" <<'PYVERIFY'
+                    import json
+                    import sys
+                    manifest = json.load(open("/candidate-source/.overcenter-source-manifest.json", encoding="utf-8"))
+                    if manifest.get("schema") != "overcenter-github-tree-materialization/v1":
+                        raise SystemExit("SOURCE_MANIFEST_SCHEMA_INVALID")
+                    if manifest.get("revision") != sys.argv[1]:
+                        raise SystemExit("SOURCE_MANIFEST_REVISION_MISMATCH")
+                    if manifest.get("repository") != sys.argv[2]:
+                        raise SystemExit("SOURCE_MANIFEST_REPOSITORY_MISMATCH")
+                    if not isinstance(manifest.get("entries"), list) or not manifest["entries"]:
+                        raise SystemExit("SOURCE_MANIFEST_EMPTY")
+                    PYVERIFY
+                    mkdir -p /tmp/arcata
+                    cp -a /candidate-source/. /tmp/arcata/
+                    rm -f /tmp/arcata/.overcenter-source-manifest.json
+                    cd /tmp/arcata
+                    python tools/verification_tools.py requirements > /tmp/verification-tools.txt
+                    python -m venv /tmp/verification-tools-env
+                    /tmp/verification-tools-env/bin/python -m pip install \
+                      --disable-pip-version-check \
+                      --no-input \
+                      --no-compile \
+                      --only-binary=:all: \
+                      --no-index \
+                      --no-deps \
+                      --require-hashes \
+                      --find-links /tool-capsule/wheelhouse \
+                      --requirement /tmp/verification-tools.txt
+                    /tmp/verification-tools-env/bin/python -m pip check
+                    export PATH="/tmp/verification-tools-env/bin:$PATH"
+                    python tools/check.py
+                    """
+                    encoded = base64.b64encode(inner.encode()).decode()
+                    runner = "printf %s " + encoded + " | base64 -d > /tmp/verify.sh; exec bash /tmp/verify.sh"
+                    outer = "\n".join([
+                        "if [ ! -s /workspace/materialization-exit-code ]; then",
+                        '  echo "source materialization exit code missing" > /workspace/direct-verification.log',
+                        '  printf "80\\n" > /workspace/direct-verification-exit-code',
+                        "  exit 0",
+                        "fi",
+                        'materialization_status="$(cat /workspace/materialization-exit-code)"',
+                        'if [ "$materialization_status" != "0" ]; then',
+                        "  cat /workspace/materialization.log > /workspace/direct-verification.log || true",
+                        '  printf "%s\\n" "$materialization_status" > /workspace/direct-verification-exit-code',
+                        "  exit 0",
+                        "fi",
+                        "set +e",
+                        "docker run --rm --network bridge --cap-add=NET_ADMIN --volume /workspace/candidate-source:/candidate-source:ro --volume /workspace/tool-capsule:/tool-capsule:ro --entrypoint bash python:3.13-bookworm -c "
+                        + json.dumps(runner)
+                        + " > /workspace/direct-verification.log 2>&1",
+                        "status=$?",
+                        "set -e",
+                        'printf "%s\\n" "$status" > /workspace/direct-verification-exit-code',
+                        "exit 0",
+                    ])
+          
+                    build = {
+                        "serviceAccount": (
+                            "projects/project-6b810532-a302-48dc-b56/serviceAccounts/"
+                            "overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com"
+                        ),
+                        "timeout": "1200s",
+                        "steps": [
+                            {
+                                "id": "materialize-exact-source",
+                                "name": "node:22-bookworm",
+                                "entrypoint": "bash",
+                                "secretEnv": ["GITHUB_APP_PRIVATE_KEY"],
+                                "env": [
+                                    "GITHUB_APP_ID=4616688",
+                                    "TARGET_REPOSITORY=" + repository,
+                                    "TARGET_REPOSITORY_ID=1402666660",
+                                    "TARGET_OWNER_ID=219002713",
+                                    "TARGET_REVISION=" + revision,
+                                    *materializer_chunk_env,
+                                ],
+                                "args": ["-ceu", materializer_outer],
+                            },
+                            {
+                                "id": "materialize-verification-tools",
+                                "name": "python:3.13-bookworm",
+                                "entrypoint": "bash",
+                                "args": [
+                                    "-ceu",
+                                    """set -euo pipefail
+          capsule=/workspace/tool-capsule
+          rm -rf "$capsule"
+          mkdir -p "$capsule/wheelhouse"
+          python - "$capsule" <<'PYTOOLS'
+          import hashlib
           import json
+          import pathlib
+          import re
           import sys
-          manifest = json.load(open("/candidate-source/.overcenter-source-manifest.json", encoding="utf-8"))
+          
+          capsule = pathlib.Path(sys.argv[1])
+          source = pathlib.Path("/workspace/candidate-source")
+          manifest = json.loads(
+              (source / ".overcenter-source-manifest.json").read_text(encoding="utf-8")
+          )
           if manifest.get("schema") != "overcenter-github-tree-materialization/v1":
               raise SystemExit("SOURCE_MANIFEST_SCHEMA_INVALID")
-          if manifest.get("revision") != sys.argv[1]:
-              raise SystemExit("SOURCE_MANIFEST_REVISION_MISMATCH")
-          if manifest.get("repository") != sys.argv[2]:
-              raise SystemExit("SOURCE_MANIFEST_REPOSITORY_MISMATCH")
-          if not isinstance(manifest.get("entries"), list) or not manifest["entries"]:
-              raise SystemExit("SOURCE_MANIFEST_EMPTY")
-          PYVERIFY
-          mkdir -p /tmp/arcata
-          cp -a /candidate-source/. /tmp/arcata/
-          rm -f /tmp/arcata/.overcenter-source-manifest.json
-          cd /tmp/arcata
-          python tools/verification_tools.py requirements > /tmp/verification-tools.txt
-          python -m venv /tmp/verification-tools-env
-          /tmp/verification-tools-env/bin/python -m pip install \
+          
+          lock_path = "tools/verification-tools.lock.json"
+          entries = manifest.get("entries")
+          if not isinstance(entries, list):
+              raise SystemExit("SOURCE_MANIFEST_ENTRIES_INVALID")
+          matches = [
+              entry
+              for entry in entries
+              if isinstance(entry, dict) and entry.get("path") == lock_path
+          ]
+          if len(matches) != 1:
+              raise SystemExit("VERIFICATION_TOOL_LOCK_MANIFEST_ENTRY_INVALID")
+          entry = matches[0]
+          
+          content = (source / lock_path).read_bytes()
+          blob_sha = hashlib.sha1(
+              f"blob {len(content)}\0".encode() + content
+          ).hexdigest()
+          if blob_sha != entry.get("blob_sha"):
+              raise SystemExit("VERIFICATION_TOOL_LOCK_BLOB_DIGEST_MISMATCH")
+          if hashlib.sha256(content).hexdigest() != entry.get("sha256"):
+              raise SystemExit("VERIFICATION_TOOL_LOCK_SHA256_MISMATCH")
+          
+          lock = json.loads(content)
+          if lock.get("schema") != "arcata-verification-tools/v1":
+              raise SystemExit("VERIFICATION_TOOL_LOCK_SCHEMA_MISMATCH")
+          if lock.get("target") != {
+              "python_version": "3.13",
+              "platform": "linux-x86-64",
+          }:
+              raise SystemExit("VERIFICATION_TOOL_TARGET_MISMATCH")
+          
+          packages = lock.get("packages")
+          if not isinstance(packages, list) or not packages:
+              raise SystemExit("VERIFICATION_TOOL_PACKAGE_LIST_EMPTY")
+          
+          names = []
+          lines = []
+          authorized_hashes = []
+          for package in packages:
+              if set(package) != {"name", "version", "hashes"}:
+                  raise SystemExit("VERIFICATION_TOOL_PACKAGE_RECORD_INVALID")
+              name = package["name"]
+              version = package["version"]
+              hashes = package["hashes"]
+              if not isinstance(name, str) or not re.fullmatch(
+                  r"[a-z0-9]+(?:-[a-z0-9]+)*", name
+              ):
+                  raise SystemExit("VERIFICATION_TOOL_PACKAGE_NAME_INVALID")
+              if not isinstance(version, str) or not version:
+                  raise SystemExit("VERIFICATION_TOOL_PACKAGE_VERSION_INVALID")
+              if (
+                  not isinstance(hashes, list)
+                  or not hashes
+                  or any(
+                      not isinstance(item, str)
+                      or not re.fullmatch(r"[0-9a-f]{64}", item)
+                      for item in hashes
+                  )
+              ):
+                  raise SystemExit("VERIFICATION_TOOL_PACKAGE_HASHES_INVALID")
+              names.append(name)
+              sorted_hashes = sorted(hashes)
+              lines.append(f"{name}=={version} \\")
+              for index, digest in enumerate(sorted_hashes):
+                  continuation = " \\" if index < len(sorted_hashes) - 1 else ""
+                  lines.append(f"    --hash=sha256:{digest}{continuation}")
+                  authorized_hashes.append(digest)
+          
+          if names != sorted(names) or len(names) != len(set(names)):
+              raise SystemExit("VERIFICATION_TOOL_PACKAGES_NOT_UNIQUE_SORTED")
+          
+          (capsule / "lock.json").write_bytes(content)
+          (capsule / "requirements.txt").write_text(
+              "\n".join(lines) + "\n",
+              encoding="utf-8",
+          )
+          (capsule / "authority.json").write_text(
+              json.dumps(
+                  {
+                      "schema": "overcenter-direct-tool-capsule-authority/v1",
+                      "repository": manifest.get("repository"),
+                      "revision": manifest.get("revision"),
+                      "lock_path": lock_path,
+                      "lock_blob_sha": blob_sha,
+                      "authorized_hashes": sorted(set(authorized_hashes)),
+                      "package_count": len(packages),
+                  },
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PYTOOLS
+          python -m pip download \
             --disable-pip-version-check \
-            --no-input \
-            --no-compile \
             --only-binary=:all: \
-            --no-index \
             --no-deps \
             --require-hashes \
-            --find-links /tool-capsule/wheelhouse \
-            --requirement /tmp/verification-tools.txt
-          /tmp/verification-tools-env/bin/python -m pip check
-          export PATH="/tmp/verification-tools-env/bin:$PATH"
-          python tools/check.py
-          """
-          encoded = base64.b64encode(inner.encode()).decode()
-          runner = "printf %s " + encoded + " | base64 -d > /tmp/verify.sh; exec bash /tmp/verify.sh"
-          outer = "\n".join([
-              "if [ ! -s /workspace/materialization-exit-code ]; then",
-              '  echo "source materialization exit code missing" > /workspace/direct-verification.log',
-              '  printf "80\\n" > /workspace/direct-verification-exit-code',
-              "  exit 0",
-              "fi",
-              'materialization_status="$(cat /workspace/materialization-exit-code)"',
-              'if [ "$materialization_status" != "0" ]; then',
-              "  cat /workspace/materialization.log > /workspace/direct-verification.log || true",
-              '  printf "%s\\n" "$materialization_status" > /workspace/direct-verification-exit-code',
-              "  exit 0",
-              "fi",
-              "set +e",
-              "docker run --rm --network bridge --cap-add=NET_ADMIN --volume /workspace/candidate-source:/candidate-source:ro --volume /workspace/tool-capsule:/tool-capsule:ro --entrypoint bash python:3.13-bookworm -c "
-              + json.dumps(runner)
-              + " > /workspace/direct-verification.log 2>&1",
-              "status=$?",
-              "set -e",
-              'printf "%s\\n" "$status" > /workspace/direct-verification-exit-code',
-              "exit 0",
-          ])
-
-          build = {
-              "serviceAccount": (
-                  "projects/project-6b810532-a302-48dc-b56/serviceAccounts/"
-                  "overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com"
-              ),
-              "timeout": "1200s",
-              "steps": [
+            --dest "$capsule/wheelhouse" \
+            --requirement "$capsule/requirements.txt"
+          python - "$capsule" <<'PYMANIFEST'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+          
+          capsule = pathlib.Path(sys.argv[1])
+          authority = json.loads((capsule / "authority.json").read_text(encoding="utf-8"))
+          allowed = set(authority["authorized_hashes"])
+          wheels = sorted((capsule / "wheelhouse").iterdir())
+          if len(wheels) != authority["package_count"]:
+              raise SystemExit(
+                  f"TOOL_CAPSULE_FILE_COUNT_MISMATCH:{len(wheels)}:"
+                  f"{authority['package_count']}"
+              )
+          files = []
+          for wheel in wheels:
+              if not wheel.is_file():
+                  raise SystemExit("TOOL_CAPSULE_NON_FILE_ENTRY")
+              digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+              if digest not in allowed:
+                  raise SystemExit(f"TOOL_CAPSULE_UNAUTHORIZED_DIGEST:{wheel.name}")
+              files.append(
+                  {"filename": wheel.name, "sha256": digest, "size": wheel.stat().st_size}
+              )
+          (capsule / "manifest.json").write_text(
+              json.dumps(
+                  {"schema": "overcenter-direct-tool-capsule/v1", "files": files},
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          print(
+              json.dumps(
                   {
-                      "id": "materialize-exact-source",
-                      "name": "node:22-bookworm",
-                      "entrypoint": "bash",
-                      "secretEnv": ["GITHUB_APP_PRIVATE_KEY"],
-                      "env": [
-                          "GITHUB_APP_ID=4616688",
-                          "TARGET_REPOSITORY=" + repository,
-                          "TARGET_REPOSITORY_ID=1402666660",
-                          "TARGET_OWNER_ID=219002713",
-                          "TARGET_REVISION=" + revision,
-                          *materializer_chunk_env,
-                      ],
-                      "args": ["-ceu", materializer_outer],
-                  },
-                  {
-                      "id": "materialize-verification-tools",
-                      "name": "python:3.13-bookworm",
-                      "entrypoint": "bash",
-                      "args": [
-                          "-ceu",
-                          """set -euo pipefail
-capsule=/workspace/tool-capsule
-rm -rf "$capsule"
-mkdir -p "$capsule/wheelhouse"
-python - "$capsule" <<'PYTOOLS'
-import hashlib
-import json
-import pathlib
-import re
-import sys
-
-capsule = pathlib.Path(sys.argv[1])
-source = pathlib.Path("/workspace/candidate-source")
-manifest = json.loads(
-    (source / ".overcenter-source-manifest.json").read_text(encoding="utf-8")
-)
-if manifest.get("schema") != "overcenter-github-tree-materialization/v1":
-    raise SystemExit("SOURCE_MANIFEST_SCHEMA_INVALID")
-
-lock_path = "tools/verification-tools.lock.json"
-entries = manifest.get("entries")
-if not isinstance(entries, list):
-    raise SystemExit("SOURCE_MANIFEST_ENTRIES_INVALID")
-matches = [
-    entry
-    for entry in entries
-    if isinstance(entry, dict) and entry.get("path") == lock_path
-]
-if len(matches) != 1:
-    raise SystemExit("VERIFICATION_TOOL_LOCK_MANIFEST_ENTRY_INVALID")
-entry = matches[0]
-
-content = (source / lock_path).read_bytes()
-blob_sha = hashlib.sha1(
-    f"blob {len(content)}\0".encode() + content
-).hexdigest()
-if blob_sha != entry.get("blob_sha"):
-    raise SystemExit("VERIFICATION_TOOL_LOCK_BLOB_DIGEST_MISMATCH")
-if hashlib.sha256(content).hexdigest() != entry.get("sha256"):
-    raise SystemExit("VERIFICATION_TOOL_LOCK_SHA256_MISMATCH")
-
-lock = json.loads(content)
-if lock.get("schema") != "arcata-verification-tools/v1":
-    raise SystemExit("VERIFICATION_TOOL_LOCK_SCHEMA_MISMATCH")
-if lock.get("target") != {
-    "python_version": "3.13",
-    "platform": "linux-x86-64",
-}:
-    raise SystemExit("VERIFICATION_TOOL_TARGET_MISMATCH")
-
-packages = lock.get("packages")
-if not isinstance(packages, list) or not packages:
-    raise SystemExit("VERIFICATION_TOOL_PACKAGE_LIST_EMPTY")
-
-names = []
-lines = []
-authorized_hashes = []
-for package in packages:
-    if set(package) != {"name", "version", "hashes"}:
-        raise SystemExit("VERIFICATION_TOOL_PACKAGE_RECORD_INVALID")
-    name = package["name"]
-    version = package["version"]
-    hashes = package["hashes"]
-    if not isinstance(name, str) or not re.fullmatch(
-        r"[a-z0-9]+(?:-[a-z0-9]+)*", name
-    ):
-        raise SystemExit("VERIFICATION_TOOL_PACKAGE_NAME_INVALID")
-    if not isinstance(version, str) or not version:
-        raise SystemExit("VERIFICATION_TOOL_PACKAGE_VERSION_INVALID")
-    if (
-        not isinstance(hashes, list)
-        or not hashes
-        or any(
-            not isinstance(item, str)
-            or not re.fullmatch(r"[0-9a-f]{64}", item)
-            for item in hashes
-        )
-    ):
-        raise SystemExit("VERIFICATION_TOOL_PACKAGE_HASHES_INVALID")
-    names.append(name)
-    sorted_hashes = sorted(hashes)
-    lines.append(f"{name}=={version} \\")
-    for index, digest in enumerate(sorted_hashes):
-        continuation = " \\" if index < len(sorted_hashes) - 1 else ""
-        lines.append(f"    --hash=sha256:{digest}{continuation}")
-        authorized_hashes.append(digest)
-
-if names != sorted(names) or len(names) != len(set(names)):
-    raise SystemExit("VERIFICATION_TOOL_PACKAGES_NOT_UNIQUE_SORTED")
-
-(capsule / "lock.json").write_bytes(content)
-(capsule / "requirements.txt").write_text(
-    "\n".join(lines) + "\n",
-    encoding="utf-8",
-)
-(capsule / "authority.json").write_text(
-    json.dumps(
-        {
-            "schema": "overcenter-direct-tool-capsule-authority/v1",
-            "repository": manifest.get("repository"),
-            "revision": manifest.get("revision"),
-            "lock_path": lock_path,
-            "lock_blob_sha": blob_sha,
-            "authorized_hashes": sorted(set(authorized_hashes)),
-            "package_count": len(packages),
-        },
-        sort_keys=True,
-    )
-    + "\n",
-    encoding="utf-8",
-)
-PYTOOLS
-python -m pip download \
-  --disable-pip-version-check \
-  --only-binary=:all: \
-  --no-deps \
-  --require-hashes \
-  --dest "$capsule/wheelhouse" \
-  --requirement "$capsule/requirements.txt"
-python - "$capsule" <<'PYMANIFEST'
-import hashlib
-import json
-import pathlib
-import sys
-
-capsule = pathlib.Path(sys.argv[1])
-authority = json.loads((capsule / "authority.json").read_text(encoding="utf-8"))
-allowed = set(authority["authorized_hashes"])
-wheels = sorted((capsule / "wheelhouse").iterdir())
-if len(wheels) != authority["package_count"]:
-    raise SystemExit(
-        f"TOOL_CAPSULE_FILE_COUNT_MISMATCH:{len(wheels)}:"
-        f"{authority['package_count']}"
-    )
-files = []
-for wheel in wheels:
-    if not wheel.is_file():
-        raise SystemExit("TOOL_CAPSULE_NON_FILE_ENTRY")
-    digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
-    if digest not in allowed:
-        raise SystemExit(f"TOOL_CAPSULE_UNAUTHORIZED_DIGEST:{wheel.name}")
-    files.append(
-        {"filename": wheel.name, "sha256": digest, "size": wheel.stat().st_size}
-    )
-(capsule / "manifest.json").write_text(
-    json.dumps(
-        {"schema": "overcenter-direct-tool-capsule/v1", "files": files},
-        sort_keys=True,
-    )
-    + "\n",
-    encoding="utf-8",
-)
-print(
-    json.dumps(
-        {
-            "event": "verification_tool_capsule_materialized",
-            "revision": authority["revision"],
-            "lock_blob_sha": authority["lock_blob_sha"],
-            "files": len(files),
-        }
-    )
-)
-PYMANIFEST"""
+                      "event": "verification_tool_capsule_materialized",
+                      "revision": authority["revision"],
+                      "lock_blob_sha": authority["lock_blob_sha"],
+                      "files": len(files),
+                  }
+              )
+          )
+          PYMANIFEST"""
                       ],
                   },
                   {
