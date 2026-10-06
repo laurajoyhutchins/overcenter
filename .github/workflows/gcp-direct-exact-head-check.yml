@@ -170,6 +170,9 @@ jobs:
           exit "$status"
           """
 
+          clone_script = clone_script.replace("$", "$")
+          check_script = check_script.replace("$", "$")
+
           config = {
               "serviceAccount": (
                   "projects/project-6b810532-a302-48dc-b56/serviceAccounts/"
