@@ -280,7 +280,7 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
           'run',
           '--rm',
           '--network',
-          'cloudbuild',
+          'bridge',
           '--cap-add',
           'NET_ADMIN',
           '--volume',
