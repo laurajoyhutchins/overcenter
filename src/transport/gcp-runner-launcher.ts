@@ -113,8 +113,8 @@ export CARGO_HOME=/opt/cargo
 export RUSTUP_HOME=/opt/rustup
 export PATH="/opt/cargo/bin:\${PATH}"
 
-apt-get update -qq
-apt-get install -y -qq ca-certificates curl git gzip jq python3 sudo tar unzip
+if ! apt-get update -qq; then exit 72; fi
+if ! apt-get install -y -qq ca-certificates curl git gzip jq python3 sudo tar unzip; then exit 73; fi
 rm -rf /var/lib/apt/lists/*
 
 for endpoint in \
@@ -138,27 +138,27 @@ test -s /workspace/registration-token
 
 mkdir -p /actions-runner
 cd /actions-runner
-curl --fail --silent --show-error --location \
+if ! curl --fail --silent --show-error --location \
   --output actions-runner.tar.gz \
-  "https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-x64-2.337.0.tar.gz"
-echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum --check --strict
-tar xzf actions-runner.tar.gz
+  "https://github.com/actions/runner/releases/download/v2.337.0/actions-runner-linux-x64-2.337.0.tar.gz"; then exit 74; fi
+if ! echo "70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  actions-runner.tar.gz" | sha256sum --check --strict; then exit 75; fi
+if ! tar xzf actions-runner.tar.gz; then exit 76; fi
 rm actions-runner.tar.gz
-./bin/installdependencies.sh >/dev/null
+if ! ./bin/installdependencies.sh >/dev/null; then exit 77; fi
 
-curl --fail --silent --show-error --location \
+if ! curl --fail --silent --show-error --location \
   --output /tmp/rustup-init \
-  "https://static.rust-lang.org/rustup/archive/1.28.2/x86_64-unknown-linux-gnu/rustup-init"
-echo "20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c  /tmp/rustup-init" | sha256sum --check --strict
+  "https://static.rust-lang.org/rustup/archive/1.28.2/x86_64-unknown-linux-gnu/rustup-init"; then exit 78; fi
+if ! echo "20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c  /tmp/rustup-init" | sha256sum --check --strict; then exit 79; fi
 chmod 0755 /tmp/rustup-init
-/tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain none
+if ! /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain none; then exit 80; fi
 rm /tmp/rustup-init
-rustup --version
+if ! rustup --version >/dev/null; then exit 81; fi
 
 registration_token="$(cat /workspace/registration-token)"
 rm -f /workspace/registration-token
 
-./config.sh \
+if ! ./config.sh \
   --url "https://github.com/\${TARGET_REPOSITORY}" \
   --token "$registration_token" \
   --name "$RUNNER_NAME" \
@@ -166,7 +166,7 @@ rm -f /workspace/registration-token
   --work "_work" \
   --unattended \
   --ephemeral \
-  --disableupdate
+  --disableupdate; then exit 82; fi
 
 unset registration_token
 exec ./run.sh
