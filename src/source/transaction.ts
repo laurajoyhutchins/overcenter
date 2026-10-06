@@ -160,10 +160,7 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
       verifiedProfile.protected_paths,
     );
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.startsWith('SOURCE_PROPOSAL_SCOPE_VIOLATION:')
-    )
+    if (error instanceof Error && error.message.startsWith('SOURCE_PROPOSAL_SCOPE_VIOLATION:'))
       throw new Error('SOURCE_TRANSACTION_SCOPE');
     throw error;
   }

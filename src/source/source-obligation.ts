@@ -185,10 +185,7 @@ export function normalizeSourceWriteEnvelope(taskValue: unknown): SourceWriteEnv
   if (!isData(taskValue) || !Array.isArray(taskValue.writable_paths)) {
     throw new Error('SOURCE_TASK_INVALID');
   }
-  return normalizedWriteEnvelope(
-    taskValue.writable_paths as string[],
-    taskValue.write_envelope,
-  );
+  return normalizedWriteEnvelope(taskValue.writable_paths as string[], taskValue.write_envelope);
 }
 
 function pathWithinRoot(path: string, root: string): boolean {
@@ -202,15 +199,16 @@ export function assertSourceWriteEnvelope(
 ): string[] {
   const envelope = normalizeSourceWriteEnvelope(taskValue);
   if (!deltaEntries.length) throw new Error('SOURCE_CANDIDATE_EMPTY');
-  if (
-    envelope.max_changed_files !== null &&
-    deltaEntries.length > envelope.max_changed_files
-  ) {
+  if (envelope.max_changed_files !== null && deltaEntries.length > envelope.max_changed_files) {
     throw new Error('SOURCE_WRITE_ENVELOPE_FILE_BUDGET_EXCEEDED');
   }
   let changedBytes = 0;
   for (const entry of deltaEntries) {
-    if (!validRepositoryPath(entry.path) || !Number.isSafeInteger(entry.changed_bytes) || entry.changed_bytes < 0) {
+    if (
+      !validRepositoryPath(entry.path) ||
+      !Number.isSafeInteger(entry.changed_bytes) ||
+      entry.changed_bytes < 0
+    ) {
       throw new Error('SOURCE_WRITE_ENVELOPE_DELTA_INVALID');
     }
     changedBytes += entry.changed_bytes;

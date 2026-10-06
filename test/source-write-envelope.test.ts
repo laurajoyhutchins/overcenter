@@ -36,11 +36,7 @@ test('write-envelope deny rules take precedence over broad allowed roots', () =>
       assertSourceWriteEnvelope(task(), [{ path: 'src/generated/file.ts', changed_bytes: 1 }], []),
     /SOURCE_PROPOSAL_SCOPE_VIOLATION:src\/generated\/file\.ts/,
   );
-  assert.throws(
-    () =>
-      assertSourceWriteEnvelope(task(), [{ path: 'src/secrets.ts', changed_bytes: 1 }], []),
-    /SOURCE_PROPOSAL_SCOPE_VIOLATION:src\/secrets\.ts/,
-  );
+  assert.throws(() => assertSourceWriteEnvelope(task(), [{ path: 'src/secrets.ts', changed_bytes: 1 }], []), /SOURCE_PROPOSAL_SCOPE_VIOLATION:src\/secrets\.ts/);
 });
 
 test('repository verification protected paths override broad roots and exact paths', () => {
@@ -60,19 +56,19 @@ test('repository verification protected paths override broad roots and exact pat
 test('file and byte budgets fail closed on the observed changed delta', () => {
   assert.throws(
     () =>
-      assertSourceWriteEnvelope(task(), [
-        { path: 'src/a.ts', changed_bytes: 1 },
-        { path: 'src/b.ts', changed_bytes: 1 },
-        { path: 'src/c.ts', changed_bytes: 1 },
-        { path: 'src/d.ts', changed_bytes: 1 },
-      ], []),
+      assertSourceWriteEnvelope(
+        task(),
+        [
+          { path: 'src/a.ts', changed_bytes: 1 },
+          { path: 'src/b.ts', changed_bytes: 1 },
+          { path: 'src/c.ts', changed_bytes: 1 },
+          { path: 'src/d.ts', changed_bytes: 1 },
+        ],
+        [],
+      ),
     /SOURCE_WRITE_ENVELOPE_FILE_BUDGET_EXCEEDED/,
   );
-  assert.throws(
-    () =>
-      assertSourceWriteEnvelope(task(), [{ path: 'src/a.ts', changed_bytes: 33 }], []),
-    /SOURCE_WRITE_ENVELOPE_BYTE_BUDGET_EXCEEDED/,
-  );
+  assert.throws(() => assertSourceWriteEnvelope(task(), [{ path: 'src/a.ts', changed_bytes: 33 }], []), /SOURCE_WRITE_ENVELOPE_BYTE_BUDGET_EXCEEDED/);
 });
 
 test('write-envelope ordering is canonical and changes to its limits change identity', () => {
