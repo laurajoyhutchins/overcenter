@@ -1,0 +1,109 @@
+name: Arcata repair diagnostic probe
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-arcata-repair-probe.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+      - name: Probe PR 89
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/probe.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 600s
+          steps:
+            - id: source-and-check
+              name: python:3.13-bookworm
+              entrypoint: bash
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+              args:
+                - -c
+                - |
+                  set -uo pipefail
+                  apt-get update -qq >/dev/null 2>&1
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates nodejs >/dev/null 2>&1
+                  node - <<'NODE'
+                  const crypto=require('crypto'),fs=require('fs');
+                  const repo='laurajoyhutchins/arcata',rev='06a3e144ed724c89aadb524d241d2a45a1f1c923';
+                  const b64=v=>Buffer.from(JSON.stringify(v)).toString('base64url'),now=Math.floor(Date.now()/1000);
+                  const u=b64({alg:'RS256',typ:'JWT'})+'.'+b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const jwt=u+'.'+crypto.sign('RSA-SHA256',Buffer.from(u),process.env.GITHUB_APP_PRIVATE_KEY).toString('base64url');
+                  const base={Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'overcenter-probe'};
+                  async function j(r,l){const t=await r.text();if(!r.ok)throw new Error(l+' HTTP '+r.status+': '+t.slice(0,300));return JSON.parse(t)}
+                  (async()=>{const i=await j(await fetch('https://api.github.com/repos/'+repo+'/installation',{headers:{...base,Authorization:'Bearer '+jwt}}),'install');
+                  const a=await j(await fetch('https://api.github.com/app/installations/'+i.id+'/access_tokens',{method:'POST',headers:{...base,Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify({repository_ids:[1402666660],permissions:{contents:'read'}})}),'token');
+                  const h={...base,Authorization:'Bearer '+a.token}; const ar=await fetch('https://api.github.com/repos/'+repo+'/tarball/'+rev,{headers:h,redirect:'follow'});
+                  if(!ar.ok)throw new Error('archive '+ar.status); fs.writeFileSync('/workspace/source.tar.gz',Buffer.from(await ar.arrayBuffer()));})().catch(e=>{console.error(e);process.exit(1)});
+                  NODE
+                  python - <<'PY'
+                  from pathlib import Path
+                  import shutil,tarfile
+                  u=Path('/workspace/u'); s=Path('/workspace/source')
+                  shutil.rmtree(u,ignore_errors=True); shutil.rmtree(s,ignore_errors=True); u.mkdir()
+                  with tarfile.open('/workspace/source.tar.gz','r:gz') as t: t.extractall(u,filter='data')
+                  e=list(u.iterdir()); shutil.move(str(e[0]),s)
+                  PY
+                  cd /workspace/source
+                  python tools/verification_tools.py requirements > /workspace/req.txt
+                  python -m venv /workspace/venv
+                  /workspace/venv/bin/python -m pip install --disable-pip-version-check --no-input --no-compile --only-binary=:all: --no-deps --require-hashes -r /workspace/req.txt >/dev/null 2>&1
+                  export PATH=/workspace/venv/bin:$$PATH
+                  set +e
+                  python tools/check.py > /workspace/check.txt 2>&1
+                  rc=$$?
+                  { echo "VERIFIER_RC=$$rc"; cat /workspace/check.txt; } | tail -c 60000 > /builder/outputs/output
+                  exit 0
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: NONE
+          YAML
+          id="$(gcloud builds submit --async --no-source --project="$PROJECT_ID" --region="$REGION" --config="$config" --format='value(id)')"
+          echo "BUILD_ID=$id"
+          for _ in $(seq 1 300); do
+            s="$(gcloud builds describe "$id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)')"
+            case "$s" in SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;; esac
+            sleep 2
+          done
+          gcloud builds describe "$id" --project="$PROJECT_ID" --region="$REGION" --format=json > "$RUNNER_TEMP/build.json"
+          python - "$RUNNER_TEMP/build.json" <<'PY'
+          import base64,json,sys
+          b=json.load(open(sys.argv[1],encoding='utf-8'))
+          print('STATUS='+str(b.get('status')))
+          print('RESULTS='+json.dumps(b.get('results',{}),sort_keys=True))
+          for raw in b.get('results',{}).get('buildStepOutputs',[]):
+              if raw:
+                  print(base64.b64decode(raw).decode('utf-8','replace'))
+          PY
