@@ -1,0 +1,162 @@
+name: Owner-authorized protected source recovery
+
+run-name: Recover protected source at ${{ inputs.candidate_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: Exact accepted main revision
+        required: true
+        type: string
+      candidate_sha:
+        description: Exact one-parent recovery candidate
+        required: true
+        type: string
+      candidate_tree_sha:
+        description: Exact candidate tree
+        required: true
+        type: string
+      writable_paths_json:
+        description: Canonical JSON array of the exact protected paths changed
+        required: true
+        type: string
+      reason:
+        description: Why protected-source recovery is required
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  verify:
+    name: Verify owner-authorized recovery
+    runs-on: [self-hosted, overcenter-gcp]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      BASE_SHA: ${{ inputs.base_sha }}
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      CANDIDATE_TREE_SHA: ${{ inputs.candidate_tree_sha }}
+      WRITABLE_PATHS_JSON: ${{ inputs.writable_paths_json }}
+      RECOVERY_REASON: ${{ inputs.reason }}
+    steps:
+      - name: Bind owner and accepted base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_REF" = "refs/heads/main"
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_TREE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$BASE_SHA" = "$GITHUB_SHA"
+
+      - name: Check out accepted verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.base_sha }}
+          fetch-depth: 0
+          path: trusted-runtime
+          persist-credentials: false
+
+      - name: Check out exact recovery candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+
+      - name: Use accepted Node.js runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: trusted-runtime/.node-version
+          package-manager-cache: false
+
+      - name: Materialize owner authorization
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          const writablePaths = JSON.parse(process.env.WRITABLE_PATHS_JSON ?? '');
+          if (!Array.isArray(writablePaths)) throw new Error('PROTECTED_SOURCE_RECOVERY_WRITE_SET_INVALID');
+          writeFileSync(
+            process.env.RUNNER_TEMP + '/protected-source-recovery-authorization.json',
+            JSON.stringify(
+              {
+                schema: 'overcenter-protected-source-recovery-authorization/v1',
+                repository_full_name: process.env.GITHUB_REPOSITORY,
+                base_sha: process.env.BASE_SHA,
+                candidate_sha: process.env.CANDIDATE_SHA,
+                candidate_tree_sha: process.env.CANDIDATE_TREE_SHA,
+                writable_paths: writablePaths,
+                reason: process.env.RECOVERY_REASON,
+                authorized_by: process.env.GITHUB_ACTOR,
+              },
+              null,
+              2,
+            ) + '\n',
+          );
+          NODE
+
+      - name: Verify exact recovery envelope
+        shell: bash
+        env:
+          ACCEPTED_BASE_SHA: ${{ inputs.base_sha }}
+        run: |
+          node --experimental-strip-types \
+            trusted-runtime/scripts/verify-protected-source-recovery.ts \
+            "$RUNNER_TEMP/protected-source-recovery-authorization.json" \
+            "$GITHUB_WORKSPACE/candidate" \
+            > "$RUNNER_TEMP/protected-source-recovery-structural.json"
+
+      - name: Install pinned candidate toolchain
+        working-directory: candidate
+        run: npm install --ignore-scripts --package-lock=false
+
+      - name: Run accepted repository checks
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run lint
+          npm run typecheck
+          npm run test:unit
+          npm run check:tcb
+
+      - name: Mint exact recovery receipt
+        shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const authorization = JSON.parse(
+            readFileSync(process.env.RUNNER_TEMP + '/protected-source-recovery-authorization.json', 'utf8'),
+          );
+          const structural = JSON.parse(
+            readFileSync(process.env.RUNNER_TEMP + '/protected-source-recovery-structural.json', 'utf8'),
+          );
+          const receipt = {
+            schema: 'overcenter-protected-source-recovery-receipt/v1',
+            ...structural,
+            reason: authorization.reason,
+            verification: { lint: 'passed', typecheck: 'passed', unit: 'passed', tcb: 'passed' },
+            workflow_run_id: Number(process.env.RUN_ID),
+            workflow_run_attempt: Number(process.env.RUN_ATTEMPT),
+          };
+          const path = process.env.RUNNER_TEMP + '/protected-source-recovery-receipt.json';
+          writeFileSync(path, JSON.stringify(receipt, null, 2) + '\n');
+          process.stdout.write(JSON.stringify(receipt, null, 2) + '\n');
+          NODE
+
+      - name: Publish recovery receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: protected-source-recovery-receipt-${{ inputs.candidate_sha }}
+          path: ${{ runner.temp }}/protected-source-recovery-receipt.json
+          if-no-files-found: error
+          retention-days: 30
