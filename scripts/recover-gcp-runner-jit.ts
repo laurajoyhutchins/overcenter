@@ -213,7 +213,7 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
     'test "$status" != 200 || exit 96',
     'printf listener-start > /workspace/jit-stage',
     'exec setpriv --reuid=1000 --regid=1000 --init-groups --no-new-privs ./run.sh --jitconfig "$jit_config"',
-  ].join('\\n');
+  ].join('\n');
 
   return {
     serviceAccount:
