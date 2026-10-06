@@ -77,16 +77,20 @@ function verify(
   base: string,
   actor = 'owner',
 ): ReturnType<typeof spawnSync> {
-  return spawnSync(process.execPath, ['--experimental-strip-types', verifier, authorization, repo], {
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      GITHUB_REPOSITORY: 'owner/repo',
-      GITHUB_REPOSITORY_OWNER: 'owner',
-      GITHUB_ACTOR: actor,
-      ACCEPTED_BASE_SHA: base,
+  return spawnSync(
+    process.execPath,
+    ['--experimental-strip-types', verifier, authorization, repo],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_REPOSITORY: 'owner/repo',
+        GITHUB_REPOSITORY_OWNER: 'owner',
+        GITHUB_ACTOR: actor,
+        ACCEPTED_BASE_SHA: base,
+      },
     },
-  });
+  );
 }
 
 test('accepts the exact owner-authorized protected transition', (t) => {
