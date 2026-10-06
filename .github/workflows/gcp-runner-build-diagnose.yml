@@ -79,3 +79,4 @@ jobs:
               except Exception as exc:
                   print(f"<decode failed: {exc}>")
           PY
+          gcloud builds log "$build_id" --project="$GCP_PROJECT_ID" --region="$GCP_REGION" --stream || true
