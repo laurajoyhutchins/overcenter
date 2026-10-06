@@ -1,13 +1,13 @@
 {
-  "schema": "overcenter-gcp-runner-registration-recovery/v1",
-  "runner_image": "us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner@sha256:2f43d35387b7fb2a25b41bc09cafcfb396be375c8e3f9d921eeabd4a30098391",
-  "jobs": [
-    {
-      "repository": "laurajoyhutchins/arcata",
-      "repository_id": 1402666660,
-      "owner_id": 219002713,
-      "job_id": 112059827470,
-      "runner_label": "overcenter-gcp"
-    }
-  ]
+    "schema": "overcenter-gcp-runner-registration-recovery/v1",
+    "runner_image": "us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner@sha256:2f43d35387b7fb2a25b41bc09cafcfb396be375c8e3f9d921eeabd4a30098391",
+    "jobs": [
+        {
+            "repository": "laurajoyhutchins/arcata",
+            "repository_id": 1402666660,
+            "owner_id": 219002713,
+            "job_id": 112059827470,
+            "runner_label": "overcenter-gcp"
+        }
+    ]
 }
