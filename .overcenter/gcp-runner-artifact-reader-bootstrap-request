@@ -1,1 +1,2 @@
 grant overcenter-runtime repository-scoped reader for runner image
+retry after exact image pull failure
