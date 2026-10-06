@@ -301,6 +301,24 @@ export function createRunnerBuild(
         args: ['-e', AUTHORIZE_JOB_SCRIPT],
       },
       {
+        id: 'docker-network-smoke',
+        name: 'gcr.io/cloud-builders/docker',
+        entrypoint: 'bash',
+        args: [
+          '-ceu',
+          'docker run --rm --network bridge alpine:3.20 /bin/true || exit 83',
+        ],
+      },
+      {
+        id: 'pull-runner-image',
+        name: 'gcr.io/cloud-builders/docker',
+        entrypoint: 'bash',
+        args: [
+          '-ceu',
+          'docker pull ' + environment.runnerImage + ' >/dev/null || exit 81',
+        ],
+      },
+      {
         id: 'github-runner',
         name: 'gcr.io/cloud-builders/docker',
         entrypoint: 'bash',
