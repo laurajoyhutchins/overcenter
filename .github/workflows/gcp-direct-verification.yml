@@ -207,6 +207,17 @@ jobs:
               '  printf "%s\\n" "$materialization_status" > /workspace/direct-verification-exit-code',
               "  exit 0",
               "fi",
+              "if [ ! -s /workspace/tool-materialization-exit-code ]; then",
+              '  echo "tool materialization exit code missing" > /workspace/direct-verification.log',
+              '  printf "81\\n" > /workspace/direct-verification-exit-code',
+              "  exit 0",
+              "fi",
+              'tool_materialization_status="$(cat /workspace/tool-materialization-exit-code)"',
+              'if [ "$tool_materialization_status" != "0" ]; then',
+              "  cat /workspace/tool-materialization.log > /workspace/direct-verification.log || true",
+              '  printf "%s\\n" "$tool_materialization_status" > /workspace/direct-verification-exit-code',
+              "  exit 0",
+              "fi",
               "set +e",
               "docker run --rm --network bridge --cap-add=NET_ADMIN --volume /workspace/candidate-source:/candidate-source:ro --volume /workspace/tool-capsule:/tool-capsule:ro --entrypoint bash python:3.13-bookworm -c "
               + json.dumps(runner)
@@ -245,7 +256,9 @@ jobs:
                       "entrypoint": "bash",
                       "args": [
                           "-ceu",
-                          """set -euo pipefail
+                          """set +e
+          (
+          set -euo pipefail
           capsule=/workspace/tool-capsule
           rm -rf "$capsule"
           mkdir -p "$capsule/wheelhouse"
@@ -407,7 +420,13 @@ jobs:
                   }
               )
           )
-          PYMANIFEST"""
+          PYMANIFEST
+          ) > /workspace/tool-materialization.log 2>&1
+          status=$?
+          set -e
+          printf "%s\\n" "$status" > /workspace/tool-materialization-exit-code
+          cat /workspace/tool-materialization.log
+          exit 0"""
                       ],
                   },
                   {
@@ -422,7 +441,7 @@ jobs:
                       "entrypoint": "bash",
                       "args": [
                           "-ceu",
-                          'set -euo pipefail; captured=/workspace/captured-verification-output.log; { cat /workspace/materialization.log 2>/dev/null || true; cat /workspace/direct-verification.log 2>/dev/null || true; } | tail -c 96000 > "$captured"; cat "$captured"; mkdir -p /builder/outputs; cp "$captured" /builder/outputs/output',
+                          'set -euo pipefail; captured=/workspace/captured-verification-output.log; { cat /workspace/materialization.log 2>/dev/null || true; cat /workspace/tool-materialization.log 2>/dev/null || true; cat /workspace/direct-verification.log 2>/dev/null || true; } | tail -c 96000 > "$captured"; cat "$captured"; mkdir -p /builder/outputs; cp "$captured" /builder/outputs/output',
                       ],
                   },
                   {
