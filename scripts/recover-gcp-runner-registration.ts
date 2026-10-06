@@ -243,6 +243,7 @@ function createBuild(
         name: 'gcr.io/cloud-builders/docker',
         entrypoint: 'bash',
         args: ['-ceu', dockerScript],
+        allowFailure: true,
       },
       {
         id: 'capture-runner-output',
