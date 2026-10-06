@@ -461,7 +461,7 @@ jobs:
         run: |
           set -euo pipefail
           build_id="$(
-            gcloud builds submit "$RUNNER_TEMP/gcp-direct-bootstrap"               --async               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --config=/tmp/cloudbuild.json               --format='value(id)'
+            gcloud builds submit --no-source               --async               --project="$GCP_PROJECT_ID"               --region="$GCP_REGION"               --config=/tmp/cloudbuild.json               --format='value(id)'
           )"
           test -n "$build_id"
           echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
