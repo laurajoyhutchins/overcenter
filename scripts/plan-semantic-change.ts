@@ -84,6 +84,7 @@ export function planSemanticChange(
   policy: TrustedValidationPolicy = {
     baseline_id: null,
     baseline_sha256: null,
+    baseline_package_scripts: [],
     validator_artifacts: [],
   },
 ): SemanticChangePlan {
