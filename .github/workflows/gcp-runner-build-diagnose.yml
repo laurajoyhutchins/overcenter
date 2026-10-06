@@ -88,3 +88,4 @@ jobs:
               else:
                   print(decoded.decode("utf-8", errors="replace"))
           PY
+          gcloud beta builds log "$build_id" --project="$GCP_PROJECT_ID" --region="$GCP_REGION" --stream || true
