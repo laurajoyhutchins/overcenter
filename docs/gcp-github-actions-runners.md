@@ -12,7 +12,7 @@ No repository-specific verifier request, SHA handoff, runner-registration step, 
 
 ## Control path
 
-1. The private `overcenter-github-runner-autoscaler` Cloud Run service polls the explicitly bound repositories for queued jobs requesting both `self-hosted` and `overcenter-gcp`.
+1. The one-instance `overcenter-github-runner-poller` Cloud Run worker pool polls the explicitly bound repositories for queued jobs requesting both `self-hosted` and `overcenter-gcp`.
 2. The autoscaler verifies immutable repository identity and invokes the private `overcenter-gcp-runner-launcher` Cloud Run service with the exact repository and queued job identity.
 3. The launcher submits one Cloud Build directly. It does not hold the GitHub App key.
 4. The build independently re-reads the GitHub job, rejects a repository or label mismatch, requests a one-time JIT configuration bound to the job/build-specific runner identity and labels, and starts the pinned runner image.
@@ -24,7 +24,7 @@ GitHub owns workflow scheduling, job state, step logs, cancellation, reruns, art
 
 Repository admission is explicit in `config/gcp-runner-autoscaler.json` and includes GitHub repository and owner numeric IDs. Textual repository names alone are not authority.
 
-The autoscaler implementation lives under `src/transport` and runs privately as `overcenter-runtime`. It has the GitHub App key so it can observe Actions state, but it has no Cloud Build submission authority.
+The autoscaler implementation lives under `src/transport` and runs as a one-instance Cloud Run worker pool under `overcenter-runtime`. It has the GitHub App key so it can observe Actions state, but it has no Cloud Build submission authority and exposes no request-serving endpoint.
 
 The launcher runs privately as the dedicated `overcenter-runner-launcher` identity. It can submit Cloud Builds and act only as the bounded `overcenter-runtime` build identity, but receives no GitHub credential. The recurring `overcenter-deployer` identity may attach the launcher identity to Cloud Run but does not create service accounts or mutate IAM. Cloud Run IAM admits only `overcenter-runtime` as its caller. The launch request repeats repository name, repository ID, owner ID, job ID, and runner label; the launcher checks those facts against the same immutable repository allowlist before creating compute.
 
@@ -34,10 +34,10 @@ The runner image pins the GitHub Actions runner archive and SHA-256 digest. Depl
 
 ## Operations
 
-The autoscaler is intentionally one warm private Cloud Run instance with CPU available between requests. It polls every ten seconds and suppresses duplicate launches for ten minutes. A process restart may cause a duplicate launch, but each build re-reads GitHub job state before registering a runner; a job that is no longer queued becomes a no-op.
+The autoscaler is intentionally one continuously running Cloud Run worker-pool instance, which is the GCP resource intended for pull-based background work. It polls every ten seconds, scans repositories and active runs with bounded parallel reads, revalidates immutable repository identity periodically instead of on every poll, reuses one launcher identity token per poll, and suppresses duplicate launches for ten minutes. A process restart may still cause a duplicate launch, but each build re-reads GitHub job state before registering a runner; a job that is no longer queued becomes a no-op.
 
-The launcher scales from zero and is private. It contains no GitHub secret and performs one operation: submit the exact runner build described by trusted software.
+The private launcher keeps one warm Cloud Run service instance to remove launch-path cold starts. It contains no GitHub secret and performs one operation: submit the exact runner build described by trusted software. Runner builds expire from the Cloud Build queue after 90 seconds so stale verification demand cannot turn into delayed compute.
 
-Deployment is explicit. A project administrator runs `infra/gcp/bootstrap-runner-launcher-iam.sh` once to create the dedicated launcher identity, grant its bounded Cloud Build permissions, allow the recurring deployer to attach that identity, grant `overcenter-runtime` read-only access to the runner-image repository, and grant only `overcenter-runtime` permission to invoke the existing private launcher service. Recurring deployment performs no IAM mutation. Updating `.overcenter/gcp-runner-autoscaler-deploy-request` on the WIF-authorized infrastructure branch builds immutable runner and control images, deploys the private launcher and autoscaler revisions, and reads back service identities, image digests, source revision, invoker policy, instance bounds, secret placement, and private exposure.
+Deployment is explicit. A project administrator runs `infra/gcp/bootstrap-runner-launcher-iam.sh` once to create the dedicated launcher identity, grant its bounded Cloud Build permissions, allow the recurring deployer to attach that identity, grant `overcenter-runtime` read-only access to the runner-image repository, and grant only `overcenter-runtime` permission to invoke the existing private launcher service. Recurring deployment performs no IAM mutation. Updating `.overcenter/gcp-runner-autoscaler-deploy-request` on the WIF-authorized infrastructure branch builds immutable runner and control images, deploys the private launcher, stages the autoscaler worker pool at zero instances, verifies its exact identity/image/secrets, retires the legacy request-serving autoscaler, then starts exactly one worker-pool instance. Deployment reads back identities, image digests, source revision, invoker policy, secret placement, scaling, and private exposure.
 
 The deployment workflow is bootstrap/update machinery only. Once the services are deployed, verification jobs do not depend on GitHub-hosted compute.
