@@ -2,10 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
-import {
-  parseRunnerAutoscalerConfig,
-  type RepositoryBinding,
-} from './gcp-runner-autoscaler.ts';
+import { parseRunnerAutoscalerConfig, type RepositoryBinding } from './gcp-runner-autoscaler.ts';
 
 const METADATA_TOKEN_URL =
   'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token';
@@ -249,17 +246,11 @@ function requireLauncherEnvironment(env: NodeJS.ProcessEnv): LauncherEnvironment
   if (!/^[a-z]+-[a-z]+[0-9]$/.test(region)) {
     throw new TypeError('GCP_REGION is invalid');
   }
-  if (
-    runtimeServiceAccount !==
-    'overcenter-runtime@' + projectId + '.iam.gserviceaccount.com'
-  ) {
+  if (runtimeServiceAccount !== 'overcenter-runtime@' + projectId + '.iam.gserviceaccount.com') {
     throw new TypeError('GCP_RUNNER_SERVICE_ACCOUNT must be the Overcenter runtime identity');
   }
   const imagePrefix = region + '-docker.pkg.dev/' + projectId + '/';
-  if (
-    !runnerImage.startsWith(imagePrefix) ||
-    !/@sha256:[0-9a-f]{64}$/.test(runnerImage)
-  ) {
+  if (!runnerImage.startsWith(imagePrefix) || !/@sha256:[0-9a-f]{64}$/.test(runnerImage)) {
     throw new TypeError('OVERCENTER_RUNNER_IMAGE must be an immutable Artifact Registry digest');
   }
   return Object.freeze({ projectId, region, runtimeServiceAccount, runnerImage });
@@ -285,6 +276,7 @@ export function createRunnerBuild(
     '  exit 0',
     'fi',
     'test -s /workspace/jit-config',
+    'set +e',
     [
       'docker run --rm --network bridge',
       '--volume /workspace:/workspace',
@@ -292,15 +284,18 @@ export function createRunnerBuild(
       '--env TARGET_JOB_ID=' + String(request.job_id),
       '--env RUNNER_LABEL=' + request.runner_label,
       environment.runnerImage,
+      '> /workspace/runner-output.log 2>&1',
     ].join(' '),
+    'runner_status=$?',
+    'set -e',
+    'tail -c 48000 /workspace/runner-output.log > "$BUILDER_OUTPUT/output"',
+    'cat /workspace/runner-output.log',
+    'exit "$runner_status"',
   ].join('\n');
 
   return {
     serviceAccount:
-      'projects/' +
-      environment.projectId +
-      '/serviceAccounts/' +
-      environment.runtimeServiceAccount,
+      'projects/' + environment.projectId + '/serviceAccounts/' + environment.runtimeServiceAccount,
     timeout: '1200s',
     steps: [
       {
@@ -322,10 +317,7 @@ export function createRunnerBuild(
       secretManager: [
         {
           versionName:
-            'projects/' +
-            environment.projectId +
-            '/secrets/' +
-            GITHUB_APP_SECRET_VERSION,
+            'projects/' + environment.projectId + '/secrets/' + GITHUB_APP_SECRET_VERSION,
           env: 'GITHUB_APP_PRIVATE_KEY',
         },
       ],
@@ -467,7 +459,7 @@ async function main(): Promise<void> {
 
   const server = createServer((request, response) => {
     void handleRequest(request, response, environment, config).catch((error) => {
-      console.error(String(error instanceof Error ? error.stack ?? error.message : error));
+      console.error(String(error instanceof Error ? (error.stack ?? error.message) : error));
       if (!response.headersSent) sendJson(response, 500, { error: 'internal error' });
       else response.destroy();
     });
@@ -484,7 +476,7 @@ async function main(): Promise<void> {
 const entrypoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
 if (import.meta.url === entrypoint) {
   main().catch((error) => {
-    console.error(String(error instanceof Error ? error.stack ?? error.message : error));
+    console.error(String(error instanceof Error ? (error.stack ?? error.message) : error));
     process.exit(1);
   });
 }
