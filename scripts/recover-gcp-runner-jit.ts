@@ -246,6 +246,29 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
     'exec setpriv --reuid=10001 --regid=10001 --init-groups --no-new-privs ./run.sh --jitconfig "$jit_config"',
   ].join('\n');
 
+  const encodedContainerScript = Buffer.from(containerScript, 'utf8').toString('base64');
+  const runnerCommand =
+    'printf %s ' +
+    encodedContainerScript +
+    ' | base64 -d > /tmp/overcenter-jit-runner.sh; exec bash /tmp/overcenter-jit-runner.sh';
+  const dockerScript = [
+    'set +e',
+    'docker run --rm --network bridge --cap-add=NET_ADMIN' +
+      ' --volume /workspace:/workspace' +
+      ' --env TARGET_REPOSITORY=' + job.repository +
+      ' --env TARGET_JOB_ID=' + String(job.job_id) +
+      ' --env RUNNER_LABEL=' + job.runner_label +
+      ' --env RUNNER_NAME=' + runnerName +
+      ' --entrypoint bash' +
+      ' docker.io/library/ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55' +
+      ' -ceu ' + JSON.stringify(runnerCommand) +
+      ' > /workspace/jit-runner-output.log 2>&1',
+    'status=$?',
+    'set -e',
+    'printf "%s\\n" "$status" > /workspace/jit-runner-exit-code',
+    'exit 0',
+  ].join('\n');
+
   return {
     serviceAccount:
       'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' +
@@ -277,19 +300,41 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
       {
         id: 'github-runner',
         name: 'gcr.io/cloud-builders/docker',
+        entrypoint: 'bash',
+        args: ['-ceu', dockerScript],
+      },
+      {
+        id: 'capture-runner-output',
+        name: 'ubuntu:24.04',
+        entrypoint: 'bash',
         args: [
-          'run',
-          '--rm',
-          '--network',
-          'bridge',
-          '--cap-add',
-          'NET_ADMIN',
-          '--volume',
-          '/workspace:/workspace',
-          'docker.io/library/ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55',
-          'bash',
           '-ceu',
-          containerScript,
+          [
+            'mkdir -p /builder/outputs',
+            'if [ -f /workspace/jit-runner-output.log ]; then',
+            '  tail -c 48000 /workspace/jit-runner-output.log > /builder/outputs/output',
+            'else',
+            '  { echo "JIT runner output missing"; ls -la /workspace; } > /builder/outputs/output',
+            'fi',
+            'cat /builder/outputs/output',
+          ].join('\\n'),
+        ],
+      },
+      {
+        id: 'require-runner-success',
+        name: 'ubuntu:24.04',
+        entrypoint: 'bash',
+        args: [
+          '-ceu',
+          [
+            'test -s /workspace/jit-runner-exit-code',
+            'status="$(cat /workspace/jit-runner-exit-code)"',
+            'if [ "$status" != "0" ]; then',
+            '  cat /workspace/jit-runner-output.log >&2 || true',
+            '  echo "JIT runner process failed with exit $status" >&2',
+            '  exit "$status"',
+            'fi',
+          ].join('\\n'),
         ],
       },
     ],
