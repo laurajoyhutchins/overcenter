@@ -216,7 +216,7 @@ async function main() {
       body: JSON.stringify({
         name: runnerName,
         runner_group_id: 1,
-        labels: ['self-hosted', 'Linux', 'X64', runnerLabel],
+        labels: Array.from(new Set(['self-hosted', 'Linux', 'X64', ...labels])).sort(),
         work_folder: '_work',
       }),
     }),

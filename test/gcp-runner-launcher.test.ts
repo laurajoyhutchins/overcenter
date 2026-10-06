@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { generateKeyPairSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 
 import {
   createRunnerBuild,
@@ -55,6 +58,65 @@ test('launcher rejects stale workflow-dispatch-shaped requests', () => {
   );
 });
 
+test('JIT registration preserves every requested job label so specific jobs can be scheduled', async () => {
+  const build = createRunnerBuild(environment, request);
+  const step = (build.steps as Array<{ args: string[]; env: string[] }>)[0];
+  assert.ok(step);
+  const env = Object.fromEntries(
+    step.env.map((entry) => [
+      entry.slice(0, entry.indexOf('=')),
+      entry.slice(entry.indexOf('=') + 1),
+    ]),
+  );
+  env.RUNNER_NAME = `overcenter-gcp-${request.job_id}-test-build`;
+  const key = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
+  env.GITHUB_APP_PRIVATE_KEY = key.export({ type: 'pkcs8', format: 'pem' }).toString();
+  const require = createRequire(import.meta.url);
+  let registration: Record<string, unknown> | undefined;
+  await runInNewContext(step.args[1] ?? '', {
+    Buffer,
+    console,
+    process: {
+      env,
+      exit: (code: number) => {
+        throw new Error(`authorization exited ${code}`);
+      },
+    },
+    require: (name: string) => (name === 'fs' ? { writeFileSync: () => {} } : require(name)),
+    fetch: async (url: string, options: { body?: string }) => {
+      let body: unknown;
+      if (url.endsWith('/installation'))
+        body = { id: 1, permissions: { administration: 'write', actions: 'read' } };
+      else if (url.endsWith('/access_tokens')) body = { token: 'test-installation-token' };
+      else if (url.endsWith(`/actions/jobs/${request.job_id}`))
+        body = {
+          id: request.job_id,
+          status: 'queued',
+          labels: ['self-hosted', 'overcenter-gcp', 'exact-canary'],
+        };
+      else if (url.endsWith('/generate-jitconfig')) {
+        registration = JSON.parse(options.body ?? '{}') as Record<string, unknown>;
+        body = { encoded_jit_config: 'test-jit-config' };
+      } else if (url === `https://api.github.com/repos/${request.repository}`)
+        body = {
+          id: request.repository_id,
+          owner: { id: request.owner_id },
+          full_name: request.repository,
+        };
+      else throw new Error(`unexpected GitHub request ${url}`);
+      return { ok: true, text: async () => JSON.stringify(body) };
+    },
+  });
+  assert.ok(registration);
+  assert.deepEqual(registration.labels, [
+    'Linux',
+    'X64',
+    'exact-canary',
+    'overcenter-gcp',
+    'self-hosted',
+  ]);
+});
+
 test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   const build = createRunnerBuild(environment, parseRunnerLaunchRequest(request));
   assert.equal(
@@ -83,7 +145,6 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   assert.match(authorization, /encoded_jit_config/);
   assert.match(authorization, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
   assert.match(authorization, /RUNNER_LABEL=overcenter-gcp/);
-  assert.match(authorization, /labels: \['self-hosted', 'Linux', 'X64', runnerLabel\]/);
   assert.doesNotMatch(authorization, /registration-token/);
 
   const secrets = build.availableSecrets as {
