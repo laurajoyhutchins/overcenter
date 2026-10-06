@@ -204,7 +204,7 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
     'rc=$?',
     'unset jit_config',
     'test "$rc" -eq 0 || exit 95',
-  ].join('\\n');;
+  ].join('\n');
 
   return {
     serviceAccount:
