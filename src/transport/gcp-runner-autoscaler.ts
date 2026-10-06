@@ -250,10 +250,22 @@ function parseJobs(value: unknown): WorkflowJob[] {
   });
 }
 
-export function isEligibleRunnerJob(job: WorkflowJob, runnerLabel: string): boolean {
-  if (job.status !== 'queued') return false;
+export function runnerSchedulingLabel(job: WorkflowJob, runnerLabel: string): string | null {
+  if (job.status !== 'queued') return null;
+  const base = runnerLabel.toLowerCase();
   const labels = new Set(job.labels.map((label) => label.toLowerCase()));
-  return labels.has('self-hosted') && labels.has(runnerLabel.toLowerCase());
+  if (!labels.has('self-hosted')) return null;
+
+  const schedulingLabels = job.labels.filter((label) => {
+    const normalized = label.toLowerCase();
+    return normalized === base || normalized.startsWith(base + '-');
+  });
+  if (schedulingLabels.length !== 1) return null;
+  return schedulingLabels[0] ?? null;
+}
+
+export function isEligibleRunnerJob(job: WorkflowJob, runnerLabel: string): boolean {
+  return runnerSchedulingLabel(job, runnerLabel) !== null;
 }
 
 async function verifyRepositoryIdentity(
@@ -331,6 +343,10 @@ async function launchRunner(
   sourceRepository: RepositoryBinding,
   job: WorkflowJob,
 ): Promise<void> {
+  const schedulingLabel = runnerSchedulingLabel(job, config.runner_label);
+  if (schedulingLabel === null) {
+    throw new Error('queued runner job lost its admitted scheduling label');
+  }
   const token = await cloudRunIdentityToken(launcherUrl);
   const response = await fetch(`${launcherUrl}/launch`, {
     method: 'POST',
@@ -344,7 +360,7 @@ async function launchRunner(
       repository_id: sourceRepository.repository_id,
       owner_id: sourceRepository.owner_id,
       job_id: job.id,
-      runner_label: config.runner_label,
+      runner_label: schedulingLabel,
     }),
   });
   const text = await response.text();
