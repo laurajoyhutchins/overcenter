@@ -70,7 +70,18 @@ jobs:
           }
           main().catch(error => { console.error(error); process.exit(23); });
           '
-          gcloud run jobs deploy overcenter-runtime-cloudbuild-probe             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --image="$CONTROL_IMAGE"             --service-account="$GCP_RUNTIME_SERVICE_ACCOUNT"             --command=node             --args="-e,$script"             --max-retries=0             --task-timeout=3m             --quiet
+          script_b64="$(printf '%s' "$script" | base64 -w0)"
+          gcloud run jobs deploy overcenter-runtime-cloudbuild-probe \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --image="$CONTROL_IMAGE" \
+            --service-account="$GCP_RUNTIME_SERVICE_ACCOUNT" \
+            --set-env-vars="PROBE_SCRIPT_B64=$script_b64" \
+            --command=/bin/sh \
+            --args='-ceu,printf "%s" "$PROBE_SCRIPT_B64" | base64 -d | node' \
+            --max-retries=0 \
+            --task-timeout=3m \
+            --quiet
           set +e
           gcloud run jobs execute overcenter-runtime-cloudbuild-probe \
             --project="$GCP_PROJECT_ID" \
