@@ -274,7 +274,7 @@ export function createRunnerBuild(
     'fi',
     'test -s /workspace/registration-token',
     [
-      'docker run --rm --network bridge',
+      'docker run --pull=never --rm --network bridge',
       '--volume /workspace:/workspace',
       '--env TARGET_REPOSITORY=' + request.repository,
       '--env TARGET_JOB_ID=' + String(request.job_id),
