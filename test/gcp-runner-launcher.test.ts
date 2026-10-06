@@ -73,8 +73,8 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   assert.match(script, /RUNNER_LABEL=overcenter-gcp/);
   assert.match(script, /test -s \/workspace\/jit-config/);
   assert.match(script, /runner-output\.log/);
-  assert.match(script, /BUILDER_OUTPUT\/output/);
-  assert.match(script, /exit "\$\$runner_status"/);
+  assert.match(script, /\/builder\/outputs\/output/);
+  assert.match(script, /runner-success/);
   assert.doesNotMatch(script, /registration-token/);
   assert.match(script, /@sha256:a{64}/);
 
