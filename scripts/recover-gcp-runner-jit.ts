@@ -364,6 +364,8 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
     '  status="$(curl --silent --output /dev/null --write-out "%{http_code}" --connect-timeout 1 --max-time 2 -H "Metadata-Flavor: Google" "$endpoint" || true)"',
     '  test "$status" != 200 || { echo "GCP metadata credentials are reachable from runner network" >&2; exit 71; }',
     'done',
+    'printf "github=%s\\n" "$(getent ahostsv4 github.com | head -n1 | awk \'{print $1}\')" > /workspace/jit-network-preflight.log',
+    'printf "broker=%s\\n" "$(getent ahostsv4 broker.actions.githubusercontent.com | head -n1 | awk \'{print $1}\')" >> /workspace/jit-network-preflight.log',
     'jit_config="$(cat /workspace/jit-config)"',
     'rm -f /workspace/jit-config',
     'cd /actions-runner',
@@ -378,7 +380,7 @@ function createJitBuild(job: ReturnType<typeof parseRunnerLaunchRequest>): Recor
   const dockerScript = [
     'set +e',
     'mkdir -p /workspace/runner-diag',
-    'docker run --rm --network bridge --cap-add=NET_ADMIN' +
+    'docker run --rm --network bridge --dns 8.8.8.8 --dns 8.8.4.4 --cap-add=NET_ADMIN' +
       ' --volume /workspace:/workspace' +
       ' --volume /workspace/runner-diag:/actions-runner/_diag' +
       ' --env TARGET_REPOSITORY=' + job.repository +
