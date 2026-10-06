@@ -135,7 +135,7 @@ jobs:
               args:
                 - -ceu
                 - |
-                  export PATH=/workspace/verification-tools/bin:$PATH
+                  export PATH=/workspace/verification-tools/bin:$$PATH
                   python tools/check.py
 
             - id: publish
