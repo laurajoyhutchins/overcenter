@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   grant:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
@@ -27,6 +27,7 @@ jobs:
       GCP_DEPLOY_SERVICE_ACCOUNT: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
       GCP_RUNTIME_SERVICE_ACCOUNT: overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
       GCP_LAUNCHER_SERVICE: overcenter-gcp-runner-launcher
+      GCP_ARTIFACT_REPOSITORY: cloud-run-source-deploy
 
     steps:
       - name: Authenticate bootstrap principal
@@ -42,6 +43,40 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
           version: ">= 363.0.0"
+
+      - name: Grant runtime runner-image read
+        shell: bash
+        run: |
+          set -euo pipefail
+          member="serviceAccount:${GCP_RUNTIME_SERVICE_ACCOUNT}"
+          gcloud artifacts repositories add-iam-policy-binding "$GCP_ARTIFACT_REPOSITORY" \
+            --project="$GCP_PROJECT_ID" \
+            --location="$GCP_REGION" \
+            --member="$member" \
+            --role="roles/artifactregistry.reader" \
+            --condition=None \
+            --quiet >/dev/null
+
+          policy="$RUNNER_TEMP/artifact-policy.json"
+          gcloud artifacts repositories get-iam-policy "$GCP_ARTIFACT_REPOSITORY" \
+            --project="$GCP_PROJECT_ID" \
+            --location="$GCP_REGION" \
+            --format=json > "$policy"
+          python3 - "$policy" "$member" <<'PY'
+          import json
+          import sys
+
+          path, member = sys.argv[1:]
+          with open(path, encoding="utf-8") as handle:
+              policy = json.load(handle)
+          if not any(
+              binding.get("role") == "roles/artifactregistry.reader"
+              and member in (binding.get("members") or [])
+              for binding in policy.get("bindings") or []
+          ):
+              raise SystemExit("runtime Artifact Registry reader binding did not read back")
+          print("runtime Artifact Registry reader binding verified")
+          PY
 
       - name: Grant runtime only launcher invocation
         shell: bash
