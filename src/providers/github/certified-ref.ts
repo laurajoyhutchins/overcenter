@@ -84,7 +84,8 @@ export function observeCertifiedGitHubRefFence(
     });
     if (read.state !== 'observed') throw new Error('GITHUB_REF_UNEXPECTED_COLLECTION_OBSERVATION');
     const value = read.value as { ref: string; object: { type: string; sha: string } };
-    if (!['commit', 'tag'].includes(value.object.type)) throw new Error('GITHUB_REF_OBJECT_TYPE_INVALID');
+    if (!['commit', 'tag'].includes(value.object.type))
+      throw new Error('GITHUB_REF_OBJECT_TYPE_INVALID');
     if (!isGitHubObjectId(value.object.sha)) throw new Error('GITHUB_REF_OBJECT_SHA_INVALID');
     if (canonicalGitHubRef(value.ref) !== canonicalRef) {
       throw new Error('GITHUB_REF_RESPONSE_COORDINATE_MISMATCH');

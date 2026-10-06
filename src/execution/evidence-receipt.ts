@@ -1,10 +1,5 @@
 import { sha256 } from '../digest.ts';
-import {
-  assertExactKeys,
-  assertNonEmptyString,
-  isData,
-  isSha256Hex,
-} from '../validation.ts';
+import { assertExactKeys, assertNonEmptyString, isData, isSha256Hex } from '../validation.ts';
 
 export const EXECUTION_EVIDENCE_RECEIPT_SCHEMA =
   'overcenter-execution-evidence-receipt/v1' as const;
@@ -64,12 +59,7 @@ function normalizedNeed(value: unknown): ExecutionEvidenceNeedBinding {
 
 function normalizedIdentity(value: unknown): ExecutionEvidenceIdentity {
   if (!isData(value)) throw new Error('EXECUTION_EVIDENCE_IDENTITY_INVALID');
-  assertExactKeys(
-    value,
-    ['evidence_id', 'revision'],
-    [],
-    'EXECUTION_EVIDENCE_IDENTITY_INVALID',
-  );
+  assertExactKeys(value, ['evidence_id', 'revision'], [], 'EXECUTION_EVIDENCE_IDENTITY_INVALID');
   assertNonEmptyString(value.evidence_id, 'EXECUTION_EVIDENCE_ID_INVALID');
   assertNonEmptyString(value.revision, 'EXECUTION_EVIDENCE_REVISION_INVALID');
   return {
@@ -78,9 +68,7 @@ function normalizedIdentity(value: unknown): ExecutionEvidenceIdentity {
   };
 }
 
-export function normalizeExecutionEvidenceDescriptor(
-  value: unknown,
-): ExecutionEvidenceDescriptor {
+export function normalizeExecutionEvidenceDescriptor(value: unknown): ExecutionEvidenceDescriptor {
   if (!isData(value)) throw new Error('EXECUTION_EVIDENCE_DESCRIPTOR_INVALID');
   assertExactKeys(
     value,
@@ -106,12 +94,7 @@ export function normalizeExecutionEvidenceRealization(
     'EXECUTION_EVIDENCE_REALIZATION_INVALID',
   );
   if (!isData(value.observation)) throw new Error('EXECUTION_EVIDENCE_OBSERVATION_INVALID');
-  assertExactKeys(
-    value.observation,
-    ['result'],
-    [],
-    'EXECUTION_EVIDENCE_OBSERVATION_INVALID',
-  );
+  assertExactKeys(value.observation, ['result'], [], 'EXECUTION_EVIDENCE_OBSERVATION_INVALID');
   if (value.observation.result !== 'satisfied' && value.observation.result !== 'unsatisfied') {
     throw new Error('EXECUTION_EVIDENCE_RESULT_INVALID');
   }
@@ -155,9 +138,7 @@ export function normalizeExecutionEvidenceReceipt(value: unknown): ExecutionEvid
   };
 }
 
-function descriptorOf(
-  realization: ExecutionEvidenceRealization,
-): ExecutionEvidenceDescriptor {
+function descriptorOf(realization: ExecutionEvidenceRealization): ExecutionEvidenceDescriptor {
   return {
     need: realization.need,
     identity: realization.identity,
@@ -175,10 +156,7 @@ export function executionEvidenceReceipt(
 ): ExecutionEvidenceReceipt {
   const descriptor = normalizeExecutionEvidenceDescriptor(descriptorValue);
   const realization = normalizeExecutionEvidenceRealization(realizationValue);
-  if (
-    canonicalNormalizedJson(descriptor) !==
-    canonicalNormalizedJson(descriptorOf(realization))
-  ) {
+  if (canonicalNormalizedJson(descriptor) !== canonicalNormalizedJson(descriptorOf(realization))) {
     throw new Error('EXECUTION_EVIDENCE_REALIZATION_BINDING_MISMATCH');
   }
   return {
