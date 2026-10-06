@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   inspect:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
