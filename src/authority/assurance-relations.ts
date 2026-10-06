@@ -255,20 +255,42 @@ function candidateSupports(db: DatabaseSync, coordinate: string): PropositionSup
     .all(coordinate, coordinate) as unknown as PropositionSupport[];
 }
 
+export interface AssuranceEvidenceFrontierBasis {
+  coordinate: string;
+  required_propositions: string[];
+  available_supports: PropositionSupport[];
+}
+
+export function assuranceEvidenceFrontierBasisFromRelations(
+  db: DatabaseSync,
+  properties: string | readonly string[],
+  coordinate: string = ASSURANCE_RELATION_COORDINATE,
+): AssuranceEvidenceFrontierBasis {
+  const closure = assuranceRequirementClosure(db, properties);
+  const requiredPropositions = closure.filter(
+    (proposition) => proposition.startsWith('obligation:') || proposition.startsWith('proof:'),
+  );
+  const requiredSet = new Set(requiredPropositions);
+  return {
+    coordinate,
+    required_propositions: requiredPropositions,
+    available_supports: candidateSupports(db, coordinate).filter((support) =>
+      requiredSet.has(support.proposition_id),
+    ),
+  };
+}
+
 export function assuranceEvidenceFrontierFromRelations(
   db: DatabaseSync,
   properties: string | readonly string[],
   coordinate: string = ASSURANCE_RELATION_COORDINATE,
   existingSupports: readonly PropositionSupport[] = [],
 ): MinimumSufficientEvidenceSet {
-  const closure = assuranceRequirementClosure(db, properties);
-  const requiredProofs = closure.filter(
-    (proposition) => proposition.startsWith('obligation:') || proposition.startsWith('proof:'),
-  );
+  const basis = assuranceEvidenceFrontierBasisFromRelations(db, properties, coordinate);
   return minimumSufficientEvidenceSet(
-    requiredProofs,
-    candidateSupports(db, coordinate),
-    coordinate,
+    basis.required_propositions,
+    basis.available_supports,
+    basis.coordinate,
     existingSupports,
   );
 }

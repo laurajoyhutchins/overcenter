@@ -46,6 +46,9 @@ export interface GitHubExecutionEvidenceObservation {
 export interface GitHubExecutionEvidenceExpectation {
   workflow_path: string;
   job_name: string;
+  head_branch?: string;
+  event?: string;
+  workflow_conclusion?: 'success' | 'failure';
 }
 
 export interface GitHubExecutionEvidenceProvenance {
@@ -186,14 +189,17 @@ export function adaptGitHubExecutionEvidence(
     run.path !== expected.workflow_path ||
     job.name !== expected.job_name ||
     jobRunId !== runRead.id ||
-    jobRunAttempt !== runAttempt
+    jobRunAttempt !== runAttempt ||
+    (expected.head_branch !== undefined && run.head_branch !== expected.head_branch) ||
+    (expected.event !== undefined && run.event !== expected.event)
   ) {
     throw new Error('GITHUB_EXECUTION_EVIDENCE_IDENTITY_MISMATCH');
   }
 
+  const workflowConclusion = expected.workflow_conclusion ?? 'success';
   if (
     run.status !== 'completed' ||
-    run.conclusion !== 'success' ||
+    run.conclusion !== workflowConclusion ||
     job.status !== 'completed' ||
     job.conclusion !== 'success'
   ) {

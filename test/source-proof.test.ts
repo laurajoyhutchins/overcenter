@@ -6,13 +6,16 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../src/effect-adapter.ts';
+import { executionEvidenceReceiptDigest } from '../src/execution/evidence-receipt.ts';
+import {
+  observeGitHubSourceProofExecutionEvidence,
+} from '../src/providers/github/source-proof-execution-evidence.ts';
 import {
   admitSourceProof,
   SourceProofRejected,
   trustedSourceProof,
 } from '../src/source/source-proof.ts';
-import { observeGitHubSourceProof } from '../src/source/github-source-proof-observation.ts';
-import { admitSourceProofObservation } from '../src/source/source-proof-admission.ts';
+import { admitSourceProofEvidence } from '../src/source/source-proof-admission.ts';
 import { sourceProofRecord, type SourceProofRecord } from '../src/source/source-proof-record.ts';
 import {
   buildSourceTransactionPlan,
@@ -22,7 +25,75 @@ import { baselineSourceTransactionPlan } from '../src/source/transaction-baselin
 import { observeRepositoryDelta } from '../src/source/repository-delta.ts';
 import { readSourceVerificationProfile } from '../src/source/source-verification-profile.ts';
 
-test('source proof admission binds provider jobs to reconstructed plan and trusted baseline', (t) => {
+function repository() {
+  return {
+    id: 42,
+    node_id: 'R_42',
+    full_name: 'acme/widget',
+    name: 'widget',
+    owner: { login: 'acme' },
+  };
+}
+
+function provider(
+  candidateSha: string,
+  runId: string,
+  evidenceConclusion: 'success' | 'failure' = 'success',
+) {
+  const run = {
+    id: 123,
+    node_id: 'WFR_123',
+    workflow_id: 88,
+    run_number: 12,
+    run_attempt: 2,
+    name: 'Source verification',
+    path: '.github/workflows/agent-candidate-signal.yml',
+    head_sha: candidateSha,
+    head_branch: `overcenter/candidate/${runId}`,
+    event: 'workflow_dispatch',
+    status: 'completed',
+    conclusion: evidenceConclusion,
+    created_at: '2026-10-05T18:00:00Z',
+    updated_at: '2026-10-05T18:05:00Z',
+    repository: { id: 42 },
+    head_repository: { id: 42 },
+  };
+  const evidenceJob = {
+    id: 10,
+    run_id: 123,
+    run_attempt: 2,
+    node_id: 'WFRJ_10',
+    head_sha: candidateSha,
+    name: 'Verify source candidate / Candidate evidence',
+    status: 'completed',
+    conclusion: evidenceConclusion,
+    started_at: '2026-10-05T18:01:00Z',
+    completed_at: '2026-10-05T18:04:00Z',
+  };
+  const recordJob = {
+    id: 11,
+    run_id: 123,
+    run_attempt: 2,
+    node_id: 'WFRJ_11',
+    head_sha: candidateSha,
+    name: 'Record source verification',
+    status: 'completed',
+    conclusion: 'success',
+    started_at: '2026-10-05T18:04:00Z',
+    completed_at: '2026-10-05T18:05:00Z',
+  };
+  return (_token: string, path: string): unknown => {
+    if (path === '/repos/acme/widget') return repository();
+    if (path.endsWith('/actions/runs/123')) return run;
+    if (path.endsWith('/actions/jobs/11')) return recordJob;
+    if (path.endsWith('/attempts/2/jobs?per_page=100')) {
+      return { jobs: [evidenceJob, recordJob] };
+    }
+    throw new Error(`unexpected provider path:${path}`);
+  };
+}
+
+test('source admission consumes only canonical neutral execution evidence', (t) => {
   const repo = mkdtempSync(join(tmpdir(), 'overcenter-source-proof-'));
   t.after(() => rmSync(repo, { recursive: true, force: true }));
   const git = (...args: string[]) =>
@@ -71,146 +142,93 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
     claimed_revision: 'authority',
     source_sha: base,
   };
-  const task = {
-    schema: 'overcenter-source-task/v1',
-    kind: 'source-change',
-    objective: 'Update value',
-    writable_paths: ['value.ts'],
-    effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
-  };
   const plan = buildSourceTransactionPlan({
     repo,
-    taskValue: task,
+    taskValue: {
+      schema: 'overcenter-source-task/v1',
+      kind: 'source-change',
+      objective: 'Update value',
+      writable_paths: ['value.ts'],
+      effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
+    },
     claim,
     candidateSha: candidate,
     context,
   });
   const producer = { workflow_run_id: 123, workflow_run_attempt: 2, job_id: 11 };
   const record = sourceProofRecord(plan, producer, 'success');
-  assert.equal(record.verification_profile_id, plan.verification_profile.profile.id);
-  assert.equal(record.verification_profile_sha256, plan.verification_profile.sha256);
-  const run = {
-    id: 123,
-    path: '.github/workflows/agent-candidate-signal.yml',
-    run_attempt: 2,
-    head_sha: candidate,
-    head_branch: 'overcenter/candidate/source-run',
-    event: 'workflow_dispatch',
-    status: 'completed',
-    conclusion: 'success',
-    repository: { id: 42 },
-    head_repository: { id: 42 },
+  const admittedContext = {
+    ...context,
+    verification_profile_id: plan.verification_profile.profile.id,
+    verification_profile_sha256: plan.verification_profile.sha256,
   };
-  const jobs = {
-    jobs: [
-      {
-        id: 10,
-        status: 'completed',
-        run_id: 123,
-        head_sha: candidate,
-        name: 'Verify source candidate / Candidate evidence',
-        conclusion: 'success',
-      },
-      {
-        id: 11,
-        status: 'completed',
-        run_id: 123,
-        head_sha: candidate,
-        name: 'Record source verification',
-        conclusion: 'success',
-      },
-    ],
-  };
-  const get = (_token: string, path: string): unknown =>
-    path.endsWith('/attempts/2/jobs?per_page=100')
-      ? jobs
-      : path.endsWith('/actions/runs/123')
-        ? run
-        : { id: 42, full_name: 'acme/widget' };
-  const options = {
-    githubToken: 'fixture',
-    get,
-    expectedWorkflowRunId: 123,
-    expectedWorkflowRunAttempt: 2,
-    context: {
-      ...context,
-      verification_profile_id: plan.verification_profile.profile.id,
-      verification_profile_sha256: plan.verification_profile.sha256,
-    },
-  };
-  const observation = observeGitHubSourceProof('fixture', {
-    repositoryId: context.repository_id,
-    repositoryFullName: context.repository_full_name,
+  const get = provider(candidate, claim.run_id);
+  const executionEvidence = observeGitHubSourceProofExecutionEvidence('fixture', plan, record, {
     workflowRunId: 123,
     workflowRunAttempt: 2,
     get,
   });
-  const observedWitness = admitSourceProofObservation(plan, record, {
-    observation,
+  const neutralWitness = admitSourceProofEvidence(plan, {
+    executionEvidence,
+    context: admittedContext,
+  });
+  const compatibilityWitness = admitSourceProof(plan, record, {
+    githubToken: 'fixture',
     expectedWorkflowRunId: 123,
     expectedWorkflowRunAttempt: 2,
-    context: options.context,
+    context: admittedContext,
+    get,
   });
-  const witness = admitSourceProof(plan, record, options);
-  assert.deepEqual(trustedSourceProof(observedWitness), trustedSourceProof(witness));
-  assert.equal(trustedSourceProof(witness).plan_digest, sourceTransactionPlanDigest(plan));
-  assert.throws(() => trustedSourceProof(record as never), /SOURCE_PROOF_WITNESS_INVALID/);
+  assert.deepEqual(trustedSourceProof(neutralWitness), trustedSourceProof(compatibilityWitness));
+  const admitted = trustedSourceProof(neutralWitness);
+  assert.equal(admitted.plan_digest, sourceTransactionPlanDigest(plan));
+  assert.equal(
+    admitted.execution_evidence_sha256,
+    executionEvidenceReceiptDigest(executionEvidence),
+  );
+  assert.equal('producer' in admitted, false);
 
-  const rejectedRecord = sourceProofRecord(plan, producer, 'failure');
   assert.throws(
     () =>
-      admitSourceProof(plan, rejectedRecord, {
-        ...options,
-        get: (token, path) => {
-          if (path.endsWith('/actions/runs/123')) return { ...run, conclusion: 'failure' };
-          if (path.endsWith('/attempts/2/jobs?per_page=100'))
-            return {
-              jobs: [{ ...jobs.jobs[0], conclusion: 'failure' }, jobs.jobs[1]],
-            };
-          return get(token, path);
+      admitSourceProofEvidence(plan, {
+        executionEvidence: {
+          ...executionEvidence,
+          identity: { ...executionEvidence.identity, revision: base },
         },
+        context: admittedContext,
+      }),
+    /SOURCE_PROOF_EXECUTION_EVIDENCE_MISMATCH/,
+  );
+
+  const rejectedRecord = sourceProofRecord(plan, producer, 'failure');
+  const rejectedEvidence = observeGitHubSourceProofExecutionEvidence(
+    'fixture',
+    plan,
+    rejectedRecord,
+    {
+      workflowRunId: 123,
+      workflowRunAttempt: 2,
+      get: provider(candidate, claim.run_id, 'failure'),
+    },
+  );
+  assert.equal(rejectedEvidence.observation.result, 'unsatisfied');
+  assert.throws(
+    () =>
+      admitSourceProofEvidence(plan, {
+        executionEvidence: rejectedEvidence,
+        context: admittedContext,
       }),
     SourceProofRejected,
   );
-
-  for (const changed of [
-    { plan_digest: '0'.repeat(64) },
-    { verification_profile_sha256: '0'.repeat(64) },
-    { candidate_sha: base },
-    { runtime_sha: 'b'.repeat(40) },
-    { baseline_sha256: '0'.repeat(64) },
-    { producer: { ...record.producer, workflow_run_attempt: 1 } },
-    { state: 'rejected', reason: 'failed' },
-  ]) {
-    assert.throws(() => admitSourceProof(plan, { ...record, ...changed }, options));
-  }
-  for (const changed of [
-    { head_sha: base },
-    { run_attempt: 1 },
-    { conclusion: 'failure' },
-    { path: '.github/workflows/other.yml' },
-    { head_repository: { id: 99 } },
-  ]) {
-    assert.throws(() =>
-      admitSourceProof(plan, record, {
-        ...options,
-        get: (token, path) =>
-          path.endsWith('/actions/runs/123') ? { ...run, ...changed } : get(token, path),
+  assert.throws(
+    () =>
+      observeGitHubSourceProofExecutionEvidence('fixture', plan, rejectedRecord, {
+        workflowRunId: 123,
+        workflowRunAttempt: 2,
+        get: provider(candidate, claim.run_id, 'success'),
       }),
-    );
-  }
-  for (const conclusion of ['failure', 'skipped', null]) {
-    assert.throws(() =>
-      admitSourceProof(plan, record, {
-        ...options,
-        get: (token, path) =>
-          path.endsWith('/attempts/2/jobs?per_page=100')
-            ? { jobs: [{ ...jobs.jobs[0], conclusion }, jobs.jobs[1]] }
-            : get(token, path),
-      }),
-    );
-  }
-  assert.throws(() => admitSourceProof(plan, record, { ...options, expectedWorkflowRunId: 999 }));
+    /SOURCE_PROOF_JOB_INVALID|GITHUB_EXECUTION_NOT_SUCCESSFUL/,
+  );
 
   writeFileSync(join(repo, 'baseline.txt'), 'weakened checks');
   git('add', '-A');
@@ -227,12 +245,37 @@ test('source proof admission binds provider jobs to reconstructed plan and trust
   assert.equal((record as SourceProofRecord).schema_version, 3);
 });
 
-
-test('source proof admission core owns no GitHub observation mechanics', () => {
-  const source = readFileSync(
+test('authority source path contains no provider execution plumbing', () => {
+  const admissionSource = readFileSync(
     new URL('../src/source/source-proof-admission.ts', import.meta.url),
     'utf8',
   );
-  assert.doesNotMatch(source, /githubToken|GitHubJsonGet|\/actions\//);
-  assert.doesNotMatch(source, /providers\/github/);
+  const requirementSource = readFileSync(
+    new URL('../src/source/source-proof-evidence.ts', import.meta.url),
+    'utf8',
+  );
+  const protocolSource = readFileSync(
+    new URL('../src/authority/project-agent-protocol.ts', import.meta.url),
+    'utf8',
+  );
+  for (const source of [admissionSource, requirementSource]) {
+    assert.doesNotMatch(
+      source,
+      /GitHub|github|workflow_run|workflow_job|workflow_path|job_id|providers\/github/,
+    );
+  }
+  assert.doesNotMatch(
+    protocolSource,
+    new RegExp(
+      [
+        'candidate_workflow_run_id',
+        'candidate_workflow_run_attempt',
+        'githubGet',
+        'sourceVerificationPath',
+        'source-proof-execution-evidence',
+      ].join('|'),
+    ),
+  );
+  assert.match(protocolSource, /sourceExecutionEvidence/);
+  assert.match(protocolSource, /admitSourceProofEvidence/);
 });

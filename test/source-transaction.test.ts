@@ -59,6 +59,26 @@ function plan(): SourceTransactionPlan {
       impacts: [],
       proof_plans: [],
       evidence: [],
+      evidence_frontiers: [
+        {
+          coordinate: `revision:${'c'.repeat(40)}`,
+          revision: 'c'.repeat(40),
+          model_sha256: 'e'.repeat(64),
+          dependency_sha256: 'f'.repeat(64),
+          baseline_sha256: '1'.repeat(64),
+          required_propositions: ['baseline:repository-baseline'],
+          candidates: [
+            {
+              evidence_id: 'baseline:repository-baseline',
+              proposition_ids: ['baseline:repository-baseline'],
+              obligation_ids: [],
+              artifact_ids: [],
+              package_scripts: ['test:unit'],
+              uses_package_runtime: true,
+            },
+          ],
+        },
+      ],
     },
   };
 }

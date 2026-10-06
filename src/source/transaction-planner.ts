@@ -10,7 +10,11 @@ import {
   type AssurancePropertyImpact,
   type AssuranceChangePlan,
 } from '../architecture/change-planner.ts';
-import { assuranceChangePlanForPropertiesFromRelations } from '../authority/assurance-relations.ts';
+import {
+  assuranceChangePlanForPropertiesFromRelations,
+  assuranceEvidenceFrontierBasisFromRelations,
+  type PropositionSupport,
+} from '../authority/assurance-relations.ts';
 import { ARCHITECTURE_SQL_PATHS, loadArchitectureDatabase } from '../architecture/sql-model.ts';
 import { deriveAssurancePropertyTrustRoots } from '../architecture/tcb.ts';
 import { canonicalDigest } from '../digest.ts';
@@ -24,6 +28,7 @@ import {
 export interface TrustedValidationPolicy {
   baseline_id: string | null;
   baseline_sha256: string | null;
+  baseline_package_scripts: readonly string[];
   validator_artifacts: readonly string[];
 }
 
@@ -39,6 +44,25 @@ export interface TransactionCoverageGap {
     | 'validator-changed';
 }
 
+export interface TransactionEvidenceCandidate {
+  evidence_id: string;
+  proposition_ids: string[];
+  obligation_ids: string[];
+  artifact_ids: string[];
+  package_scripts: string[];
+  uses_package_runtime: boolean;
+}
+
+export interface TransactionAssuranceFrontier {
+  coordinate: string;
+  revision: string;
+  model_sha256: string;
+  dependency_sha256: string;
+  baseline_sha256: string | null;
+  required_propositions: string[];
+  candidates: TransactionEvidenceCandidate[];
+}
+
 export interface TransactionAssurancePlan {
   base_revision: string;
   candidate_revision: string;
@@ -49,10 +73,65 @@ export interface TransactionAssurancePlan {
   impacts: AssurancePropertyImpact[];
   proof_plans: AssuranceChangePlan[];
   evidence: AssuranceChangePlan['evidence'];
+  evidence_frontiers: TransactionAssuranceFrontier[];
   coverage_gaps: TransactionCoverageGap[];
   validation_mode: 'selective' | 'baseline' | 'unsupported';
   baseline_id: string | null;
   baseline_sha256: string | null;
+}
+
+function evidenceCandidatesFromRelations(
+  db: ReturnType<typeof loadArchitectureDatabase>,
+  supports: readonly PropositionSupport[],
+): TransactionEvidenceCandidate[] {
+  const evidenceIds = [...new Set(supports.map((support) => support.object_id))].sort();
+  if (evidenceIds.length === 0) return [];
+
+  const marks = evidenceIds.map(() => '?').join(', ');
+  const witnesses = db
+    .prepare(`
+      SELECT evidence_id, artifact_id
+      FROM artifact_witnesses_evidence
+      WHERE evidence_id IN (${marks})
+      ORDER BY evidence_id, artifact_id
+    `)
+    .all(...evidenceIds) as unknown as Array<{ evidence_id: string; artifact_id: string }>;
+
+  return evidenceIds.map((evidenceId) => {
+    const artifactIds = witnesses
+      .filter((row) => row.evidence_id === evidenceId)
+      .map((row) => row.artifact_id);
+    if (artifactIds.length === 0) throw new Error(`ASSURANCE_EVIDENCE_UNREALIZED:${evidenceId}`);
+
+    const packageScripts = (
+      db
+        .prepare(
+          'SELECT script_name FROM evidence_uses_package_script WHERE evidence_id = ? ORDER BY script_name',
+        )
+        .all(evidenceId) as unknown as Array<{ script_name: string }>
+    ).map((row) => row.script_name);
+    if (packageScripts.length === 0) {
+      throw new Error(`ASSURANCE_EVIDENCE_REALIZATION_UNMAPPED:${evidenceId}`);
+    }
+
+    const propositionIds = supports
+      .filter((support) => support.object_id === evidenceId)
+      .map((support) => support.proposition_id)
+      .sort();
+    return {
+      evidence_id: evidenceId,
+      proposition_ids: propositionIds,
+      obligation_ids: propositionIds
+        .filter((proposition) => proposition.startsWith('obligation:'))
+        .map((proposition) => proposition.slice('obligation:'.length)),
+      artifact_ids: artifactIds,
+      package_scripts: packageScripts,
+      uses_package_runtime:
+        db
+          .prepare('SELECT evidence_id FROM evidence_uses_package_runtime WHERE evidence_id = ?')
+          .get(evidenceId) !== undefined,
+    };
+  });
 }
 
 function snapshotDirectory(repo: string, sha: string) {
@@ -90,7 +169,10 @@ export function planSourceTransaction(
   assertSupportedSourceDelta(delta);
   if (
     (policy.baseline_id === null) !== (policy.baseline_sha256 === null) ||
-    (policy.baseline_sha256 !== null && !/^[0-9a-f]{64}$/.test(policy.baseline_sha256))
+    (policy.baseline_sha256 !== null && !/^[0-9a-f]{64}$/.test(policy.baseline_sha256)) ||
+    !Array.isArray(policy.baseline_package_scripts) ||
+    policy.baseline_package_scripts.some((script) => !script || script.includes('\0')) ||
+    new Set(policy.baseline_package_scripts).size !== policy.baseline_package_scripts.length
   )
     throw new Error('SOURCE_TRANSACTION_BASELINE_INVALID');
   const changed = delta.entries.map((entry) => entry.path);
@@ -131,6 +213,7 @@ export function planSourceTransaction(
 
   const impactMap = new Map<string, AssurancePropertyImpact>();
   const proofs = new Map<string, AssuranceChangePlan>();
+  const evidenceFrontiers = new Map<string, TransactionAssuranceFrontier>();
   const observations: Array<{
     revision: string;
     property_id: string;
@@ -235,12 +318,32 @@ export function planSourceTransaction(
         }
         if (impacts.length > 0) {
           try {
+            const propertyIdsValue = impacts.map((impact) => impact.property_id);
+            const coordinate = `revision:${sha}`;
             const proof = assuranceChangePlanForPropertiesFromRelations(
               db,
-              impacts.map((impact) => impact.property_id),
-              `revision:${sha}`,
+              propertyIdsValue,
+              coordinate,
             );
             proofs.set(canonicalDigest(proof), proof);
+
+            const basis = assuranceEvidenceFrontierBasisFromRelations(
+              db,
+              propertyIdsValue,
+              coordinate,
+            );
+            const frontier: TransactionAssuranceFrontier = {
+              coordinate,
+              revision: sha,
+              model_sha256: canonicalDigest(models[side]),
+              dependency_sha256: canonicalDigest(
+                observations.filter((observation) => observation.revision === sha),
+              ),
+              baseline_sha256: null,
+              required_propositions: basis.required_propositions,
+              candidates: evidenceCandidatesFromRelations(db, basis.available_supports),
+            };
+            evidenceFrontiers.set(canonicalDigest(frontier), frontier);
           } catch {
             for (const impact of impacts) {
               impact.changed_artifacts.forEach((path) => {
@@ -290,6 +393,43 @@ export function planSourceTransaction(
   const coverageGaps = [
     ...new Map(gaps.map((gap) => [`${gap.artifact_id}:${gap.reason}`, gap])).values(),
   ].sort((a, b) => a.artifact_id.localeCompare(b.artifact_id) || a.reason.localeCompare(b.reason));
+  const validationMode = modelChanged
+    ? ('unsupported' as const)
+    : coverageGaps.length === 0
+      ? ('selective' as const)
+      : policy.baseline_id
+        ? ('baseline' as const)
+        : ('unsupported' as const);
+  if (
+    validationMode === 'baseline' &&
+    policy.baseline_id !== null &&
+    policy.baseline_sha256 !== null
+  ) {
+    if (policy.baseline_package_scripts.length === 0)
+      throw new Error('SOURCE_TRANSACTION_BASELINE_INVALID');
+    const proposition = `baseline:${policy.baseline_id}`;
+    const frontier: TransactionAssuranceFrontier = {
+      coordinate: `revision:${delta.candidate_revision}`,
+      revision: delta.candidate_revision,
+      model_sha256: canonicalDigest(models[1]),
+      dependency_sha256: canonicalDigest(
+        observations.filter((observation) => observation.revision === delta.candidate_revision),
+      ),
+      baseline_sha256: policy.baseline_sha256,
+      required_propositions: [proposition],
+      candidates: [
+        {
+          evidence_id: proposition,
+          proposition_ids: [proposition],
+          obligation_ids: [],
+          artifact_ids: [...new Set(policy.validator_artifacts)].sort(),
+          package_scripts: [...policy.baseline_package_scripts].sort(),
+          uses_package_runtime: true,
+        },
+      ],
+    };
+    evidenceFrontiers.set(canonicalDigest(frontier), frontier);
+  }
   return {
     base_revision: delta.base_revision,
     candidate_revision: delta.candidate_revision,
@@ -302,14 +442,13 @@ export function planSourceTransaction(
       canonicalDigest(a).localeCompare(canonicalDigest(b)),
     ),
     evidence: [...evidenceMap.values()].sort((a, b) => a.evidence_id.localeCompare(b.evidence_id)),
+    evidence_frontiers: [...evidenceFrontiers.values()].sort(
+      (left, right) =>
+        left.coordinate.localeCompare(right.coordinate) ||
+        canonicalDigest(left).localeCompare(canonicalDigest(right)),
+    ),
     coverage_gaps: coverageGaps,
-    validation_mode: modelChanged
-      ? 'unsupported'
-      : coverageGaps.length === 0
-        ? 'selective'
-        : policy.baseline_id
-          ? 'baseline'
-          : 'unsupported',
+    validation_mode: validationMode,
     baseline_id: policy.baseline_id,
     baseline_sha256: policy.baseline_sha256,
   };
