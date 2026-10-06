@@ -122,6 +122,9 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
   const verifiedProfile = validateSourceVerificationProfile(profile.profile);
   const profileBinding = sourceVerificationProfileBinding(verifiedProfile);
   if (profile.sha256 !== profileBinding.sha256) throw new Error(INVALID);
+  paths(plan.authorized_write_set);
+  paths(plan.expected_write_set);
+  paths(plan.observed_write_set);
   const writeEnvelope = normalizeSourceWriteEnvelope({
     writable_paths: (plan.authorized_write_set as string[] | undefined) ?? [],
     write_envelope: plan.write_envelope,
@@ -139,9 +142,6 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
     claim.source_sha,
   );
 
-  paths(plan.authorized_write_set);
-  paths(plan.expected_write_set);
-  paths(plan.observed_write_set);
   if (!plan.expected_write_set.length) throw new Error('SOURCE_TRANSACTION_SCOPE');
   if (!samePaths(plan.expected_write_set, plan.observed_write_set))
     throw new Error('SOURCE_TRANSACTION_DIVERGED');
