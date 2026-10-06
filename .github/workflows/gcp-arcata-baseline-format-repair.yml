@@ -1,0 +1,135 @@
+name: Arcata baseline format repair
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-arcata-baseline-format-repair.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+      - name: Format, verify, and publish Arcata baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/baseline-repair.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 900s
+          steps:
+            - id: repair
+              name: python:3.13-bookworm
+              entrypoint: bash
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+              args:
+                - -ceu
+                - |
+                  apt-get update -qq
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git nodejs
+                  python - <<'PY'
+                  import base64
+                  import os
+                  import subprocess
+                  from pathlib import Path
+
+                  repository = 'laurajoyhutchins/arcata'
+                  branch = 'repair/verification-baseline-format'
+                  expected = '4a943347960da6ae929440ddaba01ef328d7866c'
+                  script = r'''
+                  const crypto = require('crypto');
+                  const fs = require('fs');
+                  const repository = process.argv[1];
+                  const branch = process.argv[2];
+                  const expected = process.argv[3];
+                  const b64 = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+                  const now = Math.floor(Date.now()/1000);
+                  const unsigned = b64({alg:'RS256',typ:'JWT'}) + '.' + b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const jwt = unsigned + '.' + crypto.sign('RSA-SHA256',Buffer.from(unsigned),process.env.GITHUB_APP_PRIVATE_KEY).toString('base64url');
+                  const h = token => ({Accept:'application/vnd.github+json',Authorization:'Bearer '+token,'X-GitHub-Api-Version':'2026-03-10','User-Agent':'overcenter-arcata-baseline-repair'});
+                  async function json(response,label){const text=await response.text();if(!response.ok)throw new Error(label+' HTTP '+response.status+': '+text.slice(0,300));return text?JSON.parse(text):null;}
+                  async function main(){
+                    const installation=await json(await fetch('https://api.github.com/repos/'+repository+'/installation',{headers:h(jwt)}),'installation');
+                    const access=await json(await fetch('https://api.github.com/app/installations/'+installation.id+'/access_tokens',{method:'POST',headers:{...h(jwt),'Content-Type':'application/json'},body:JSON.stringify({repository_ids:[1402666660],permissions:{contents:'write'}})}),'token');
+                    const token=access.token;
+                    const path=branch.split('/').map(encodeURIComponent).join('/');
+                    const ref=await json(await fetch('https://api.github.com/repos/'+repository+'/git/ref/heads/'+path,{headers:h(token)}),'ref');
+                    if(ref.object.sha!==expected)throw new Error('exact-head lease mismatch');
+                    fs.writeFileSync('/workspace/github-token',token,{mode:0o600});
+                  }
+                  main().catch(error=>{console.error(String(error&&error.message||error));process.exit(1);});
+                  '''
+                  subprocess.run(['node','-e',script,repository,branch,expected], env=os.environ, check=True)
+                  token = Path('/workspace/github-token').read_text()
+                  auth = base64.b64encode(f'x-access-token:{token}'.encode()).decode()
+                  root = Path('/workspace/source')
+                  root.mkdir(parents=True, exist_ok=True)
+                  subprocess.run(['git','init','-q'],cwd=root,check=True)
+                  subprocess.run(['git','remote','add','origin',f'https://github.com/{repository}.git'],cwd=root,check=True)
+                  subprocess.run(['git','-c',f'http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}','fetch','--no-tags','origin',f'refs/heads/{branch}:refs/remotes/origin/candidate'],cwd=root,check=True)
+                  actual=subprocess.check_output(['git','rev-parse','refs/remotes/origin/candidate'],cwd=root,text=True).strip()
+                  if actual != expected: raise SystemExit('candidate moved during fetch')
+                  subprocess.run(['git','checkout','-q','--detach',expected],cwd=root,check=True)
+                  req=Path('/workspace/verification-tools.txt')
+                  with req.open('w') as handle:
+                      subprocess.run(['python','tools/verification_tools.py','requirements'],cwd=root,stdout=handle,text=True,check=True)
+                  subprocess.run(['python','-m','venv','/workspace/verification-tools'],check=True)
+                  py='/workspace/verification-tools/bin/python'
+                  subprocess.run([py,'-m','pip','install','--disable-pip-version-check','--no-input','--no-compile','--only-binary=:all:','--no-deps','--require-hashes','--requirement',str(req)],cwd=root,check=True)
+                  subprocess.run([py,'-m','pip','check'],cwd=root,check=True)
+                  subprocess.run(['/workspace/verification-tools/bin/ruff','format','.'],cwd=root,check=True)
+                  changed=subprocess.check_output(['git','diff','--name-only'],cwd=root,text=True).splitlines()
+                  if changed != ['tools/repo_config.py']:
+                      raise SystemExit(f'unexpected formatter write set: {changed}')
+                  env=dict(os.environ)
+                  env['PATH']='/workspace/verification-tools/bin:'+env.get('PATH','')
+                  subprocess.run(['python','tools/check.py'],cwd=root,env=env,check=True)
+                  subprocess.run(['git','config','user.name','Overcenter GCP Repair'],cwd=root,check=True)
+                  subprocess.run(['git','config','user.email','noreply@users.noreply.github.com'],cwd=root,check=True)
+                  subprocess.run(['git','add','tools/repo_config.py'],cwd=root,check=True)
+                  subprocess.run(['git','commit','-m','Format verification repository configuration'],cwd=root,check=True)
+                  head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+                  subprocess.run(['git','-c',f'http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}','push','origin',f'{head}:refs/heads/{branch}',f'--force-with-lease=refs/heads/{branch}:{expected}'],cwd=root,check=True)
+                  print('REPAIRED_HEAD='+head)
+                  PY
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: CLOUD_LOGGING_ONLY
+          YAML
+          build_id="$(gcloud builds submit --async --no-source --project="$PROJECT_ID" --region="$REGION" --config="$config" --format='value(id)')"
+          for _ in $(seq 1 450); do
+            status="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION" --format='value(status)')"
+            case "$status" in SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) break ;; esac
+            sleep 2
+          done
+          echo "Cloud Build: $build_id"
+          echo "Status: $status"
+          gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$REGION" --format='table(steps.id,steps.status)'
+          test "$status" = SUCCESS
