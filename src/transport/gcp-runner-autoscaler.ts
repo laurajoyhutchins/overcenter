@@ -91,7 +91,8 @@ export function parseRunnerAutoscalerConfig(value: unknown): RunnerAutoscalerCon
     'repositories',
   ]);
   for (const key of Object.keys(body)) {
-    if (!allowedKeys.has(key)) throw new TypeError(`unexpected runner autoscaler config key: ${key}`);
+    if (!allowedKeys.has(key))
+      throw new TypeError(`unexpected runner autoscaler config key: ${key}`);
   }
 
   if (!Array.isArray(body.repositories) || body.repositories.length < 1) {
@@ -426,7 +427,9 @@ async function main(): Promise<void> {
   const configPath =
     String(process.env.OVERCENTER_RUNNER_CONFIG_PATH ?? '').trim() ||
     'config/gcp-runner-autoscaler.json';
-  const launcherUrl = String(process.env.OVERCENTER_RUNNER_LAUNCHER_URL ?? '').trim().replace(/\/$/, '');
+  const launcherUrl = String(process.env.OVERCENTER_RUNNER_LAUNCHER_URL ?? '')
+    .trim()
+    .replace(/\/$/, '');
   if (!/^https:\/\/[^/]+$/.test(launcherUrl)) {
     throw new TypeError('OVERCENTER_RUNNER_LAUNCHER_URL must be an HTTPS origin');
   }

@@ -2,10 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
-import {
-  parseRunnerAutoscalerConfig,
-  type RepositoryBinding,
-} from './gcp-runner-autoscaler.ts';
+import { parseRunnerAutoscalerConfig, type RepositoryBinding } from './gcp-runner-autoscaler.ts';
 
 const METADATA_TOKEN_URL =
   'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token';
@@ -105,6 +102,7 @@ const expectedRepositoryId = Number(process.env.TARGET_REPOSITORY_ID);
 const expectedOwnerId = Number(process.env.TARGET_OWNER_ID);
 const jobId = Number(process.env.TARGET_JOB_ID);
 const runnerLabel = process.env.RUNNER_LABEL;
+const runnerName = process.env.RUNNER_NAME;
 const appId = process.env.GITHUB_APP_ID;
 
 const b64 = value => Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -207,17 +205,27 @@ async function main() {
     return;
   }
 
-  const registration = await json(
-    await fetch('https://api.github.com/repos/' + repo + '/actions/runners/registration-token', {
-      method: 'POST',
-      headers,
-    }),
-    'runner registration token',
-  );
-  if (!registration || typeof registration.token !== 'string' || !registration.token) {
-    throw new Error('runner registration token response was incomplete');
+  if (!runnerName || !/^overcenter-gcp-[0-9]+-[A-Za-z0-9_-]+$/.test(runnerName)) {
+    throw new Error('runner name is not bound to the queued job and build');
   }
-  fs.writeFileSync('/workspace/registration-token', registration.token, { mode: 0o600 });
+
+  const jit = await json(
+    await fetch('https://api.github.com/repos/' + repo + '/actions/runners/generate-jitconfig', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: runnerName,
+        runner_group_id: 1,
+        labels: ['self-hosted', 'Linux', 'X64', runnerLabel],
+        work_folder: '_work',
+      }),
+    }),
+    'runner JIT configuration',
+  );
+  if (!jit || typeof jit.encoded_jit_config !== 'string' || !jit.encoded_jit_config) {
+    throw new Error('runner JIT configuration response was incomplete');
+  }
+  fs.writeFileSync('/workspace/jit-config', jit.encoded_jit_config, { mode: 0o600 });
 }
 
 main().catch(error => {
@@ -238,17 +246,11 @@ function requireLauncherEnvironment(env: NodeJS.ProcessEnv): LauncherEnvironment
   if (!/^[a-z]+-[a-z]+[0-9]$/.test(region)) {
     throw new TypeError('GCP_REGION is invalid');
   }
-  if (
-    runtimeServiceAccount !==
-    'overcenter-runtime@' + projectId + '.iam.gserviceaccount.com'
-  ) {
+  if (runtimeServiceAccount !== 'overcenter-runtime@' + projectId + '.iam.gserviceaccount.com') {
     throw new TypeError('GCP_RUNNER_SERVICE_ACCOUNT must be the Overcenter runtime identity');
   }
   const imagePrefix = region + '-docker.pkg.dev/' + projectId + '/';
-  if (
-    !runnerImage.startsWith(imagePrefix) ||
-    !/@sha256:[0-9a-f]{64}$/.test(runnerImage)
-  ) {
+  if (!runnerImage.startsWith(imagePrefix) || !/@sha256:[0-9a-f]{64}$/.test(runnerImage)) {
     throw new TypeError('OVERCENTER_RUNNER_IMAGE must be an immutable Artifact Registry digest');
   }
   return Object.freeze({ projectId, region, runtimeServiceAccount, runnerImage });
@@ -265,6 +267,7 @@ export function createRunnerBuild(
     'TARGET_OWNER_ID=' + String(request.owner_id),
     'TARGET_JOB_ID=' + String(request.job_id),
     'RUNNER_LABEL=' + request.runner_label,
+    'RUNNER_NAME=overcenter-gcp-' + String(request.job_id) + '-$BUILD_ID',
   ];
 
   const dockerScript = [
@@ -272,24 +275,26 @@ export function createRunnerBuild(
     '  echo "GitHub job is no longer queued; skipping worker launch."',
     '  exit 0',
     'fi',
-    'test -s /workspace/registration-token',
+    'test -s /workspace/jit-config',
     [
       'docker run --rm --network bridge',
       '--volume /workspace:/workspace',
       '--env TARGET_REPOSITORY=' + request.repository,
       '--env TARGET_JOB_ID=' + String(request.job_id),
       '--env RUNNER_LABEL=' + request.runner_label,
-      '--env RUNNER_NAME=overcenter-gcp-' + String(request.job_id) + '-$BUILD_ID',
       environment.runnerImage,
+      '> /workspace/runner-output.log 2>&1',
+      '&& touch /workspace/runner-success',
+      '|| touch /workspace/runner-failure',
     ].join(' '),
+    'tail -c 48000 /workspace/runner-output.log > /builder/outputs/output',
+    'cat /workspace/runner-output.log',
+    'test -f /workspace/runner-success',
   ].join('\n');
 
   return {
     serviceAccount:
-      'projects/' +
-      environment.projectId +
-      '/serviceAccounts/' +
-      environment.runtimeServiceAccount,
+      'projects/' + environment.projectId + '/serviceAccounts/' + environment.runtimeServiceAccount,
     timeout: '1200s',
     steps: [
       {
@@ -311,10 +316,7 @@ export function createRunnerBuild(
       secretManager: [
         {
           versionName:
-            'projects/' +
-            environment.projectId +
-            '/secrets/' +
-            GITHUB_APP_SECRET_VERSION,
+            'projects/' + environment.projectId + '/secrets/' + GITHUB_APP_SECRET_VERSION,
           env: 'GITHUB_APP_PRIVATE_KEY',
         },
       ],
@@ -456,7 +458,7 @@ async function main(): Promise<void> {
 
   const server = createServer((request, response) => {
     void handleRequest(request, response, environment, config).catch((error) => {
-      console.error(String(error instanceof Error ? error.stack ?? error.message : error));
+      console.error(String(error instanceof Error ? (error.stack ?? error.message) : error));
       if (!response.headersSent) sendJson(response, 500, { error: 'internal error' });
       else response.destroy();
     });
@@ -473,7 +475,7 @@ async function main(): Promise<void> {
 const entrypoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
 if (import.meta.url === entrypoint) {
   main().catch((error) => {
-    console.error(String(error instanceof Error ? error.stack ?? error.message : error));
+    console.error(String(error instanceof Error ? (error.stack ?? error.message) : error));
     process.exit(1);
   });
 }

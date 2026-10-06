@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -58,8 +59,7 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   const build = createRunnerBuild(environment, parseRunnerLaunchRequest(request));
   assert.equal(
     build.serviceAccount,
-    'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' +
-      environment.runtimeServiceAccount,
+    'projects/project-6b810532-a302-48dc-b56/serviceAccounts/' + environment.runtimeServiceAccount,
   );
 
   const steps = build.steps as Array<Record<string, unknown>>;
@@ -71,8 +71,19 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   const script = args[1] ?? '';
   assert.match(script, /docker run --rm --network bridge/);
   assert.match(script, /RUNNER_LABEL=overcenter-gcp/);
-  assert.match(script, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
+  assert.match(script, /test -s \/workspace\/jit-config/);
+  assert.match(script, /runner-output\.log/);
+  assert.match(script, /\/builder\/outputs\/output/);
+  assert.match(script, /runner-success/);
+  assert.doesNotMatch(script, /registration-token/);
   assert.match(script, /@sha256:a{64}/);
+
+  const authorization = JSON.stringify(steps[0]);
+  assert.match(authorization, /generate-jitconfig/);
+  assert.match(authorization, /encoded_jit_config/);
+  assert.match(authorization, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
+  assert.match(authorization, /labels.*self-hosted.*Linux.*X64.*overcenter-gcp/);
+  assert.doesNotMatch(authorization, /registration-token/);
 
   const secrets = build.availableSecrets as {
     secretManager: Array<Record<string, unknown>>;
@@ -84,4 +95,67 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
       'overcenter-github-app-private-key/versions/latest',
   );
   assert.equal(JSON.stringify(build).includes('registration-token='), false);
+});
+
+test('runner image consumes one-time JIT configuration without persistent registration', () => {
+  const entrypoint = readFileSync(
+    new URL('../infra/gcp-runner-image/entrypoint.sh', import.meta.url),
+    'utf8',
+  );
+  assert.match(entrypoint, /test -s \/workspace\/jit-config/);
+  assert.match(entrypoint, /rm -f \/workspace\/jit-config/);
+  assert.match(entrypoint, /exec \.\/run\.sh --jitconfig "\$jit_config"/);
+  assert.doesNotMatch(entrypoint, /\.\/config\.sh/);
+  assert.doesNotMatch(entrypoint, /registration-token/);
+});
+
+test('dedicated launcher identity preserves the deployment authority split', () => {
+  const deploy = readFileSync(
+    new URL('../infra/gcp/deploy-runner-autoscaler.sh', import.meta.url),
+    'utf8',
+  );
+  const bootstrap = readFileSync(
+    new URL('../infra/gcp/bootstrap-runner-launcher-iam.sh', import.meta.url),
+    'utf8',
+  );
+  const controlImage = readFileSync(
+    new URL('../infra/gcp-runner-control/Dockerfile', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    deploy,
+    /LAUNCHER_SA="overcenter-runner-launcher@\$\{PROJECT_ID\}\.iam\.gserviceaccount\.com"/,
+  );
+  assert.match(deploy, /--service-account="\$LAUNCHER_SA"/);
+  assert.match(deploy, /--service-account="\$RUNTIME_SA"/);
+  assert.match(deploy, /--image="\$CONTROL_IMAGE_IMMUTABLE"/);
+  assert.doesNotMatch(deploy, /gcloud projects add-iam-policy-binding/);
+  assert.doesNotMatch(deploy, /gcloud iam service-accounts add-iam-policy-binding/);
+  assert.doesNotMatch(deploy, /gcloud run services add-iam-policy-binding/);
+
+  assert.match(bootstrap, /roles\/cloudbuild\.builds\.editor/);
+  assert.match(bootstrap, /roles\/serviceusage\.serviceUsageConsumer/);
+  assert.match(bootstrap, /roles\/artifactregistry\.reader/);
+  assert.match(bootstrap, /gcloud artifacts repositories add-iam-policy-binding/);
+  assert.match(bootstrap, /roles\/iam\.serviceAccountUser/);
+  assert.match(bootstrap, /roles\/run\.invoker/);
+  assert.match(bootstrap, /serviceAccount:\$\{LAUNCHER_SA\}/);
+  assert.match(bootstrap, /serviceAccount:\$\{RUNTIME_SA\}/);
+  assert.match(bootstrap, /serviceAccount:\$\{DEPLOYER_SA\}/);
+
+  for (const forbidden of [
+    'roles/owner',
+    'roles/editor',
+    'roles/iam.serviceAccountAdmin',
+    'roles/secretmanager.secretAccessor',
+    'roles/run.admin',
+    'roles/artifactregistry.writer',
+    'roles/artifactregistry.admin',
+  ]) {
+    assert.equal(bootstrap.includes(forbidden), false, `bootstrap must not grant ${forbidden}`);
+  }
+
+  assert.match(controlImage, /^FROM node:22\.16\.0-bookworm-slim/m);
+  assert.match(controlImage, /^USER node$/m);
 });
