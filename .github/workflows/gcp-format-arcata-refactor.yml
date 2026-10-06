@@ -80,8 +80,67 @@ jobs:
                     fs.writeFileSync("/workspace/github-token",a.token,{mode:0o600});
                   })().catch(e=>{console.error(String(e&&e.message||e));process.exit(1)});
 
-            - id: format-verify-publish
+            - id: format
               name: python:3.13-bookworm
+              entrypoint: bash
+              env:
+                - REPOSITORY=${_REPOSITORY}
+                - BRANCH=${_BRANCH}
+                - EXPECTED_HEAD=${_EXPECTED_HEAD}
+                - ALLOWED_PATH=${_ALLOWED_PATH}
+              args:
+                - -ceu
+                - |
+                  apt-get update -qq
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git
+                  python - <<'PY'
+                  import base64, os, subprocess, sys
+                  from pathlib import Path
+                  repo=os.environ["REPOSITORY"]; branch=os.environ["BRANCH"]; expected=os.environ["EXPECTED_HEAD"]
+                  allowed=os.environ["ALLOWED_PATH"]
+                  token=Path("/workspace/github-token").read_text(encoding="utf-8")
+                  auth=base64.b64encode(f"x-access-token:{token}".encode()).decode()
+                  root=Path("/workspace/source"); root.mkdir(parents=True,exist_ok=True)
+                  def run(args, *, capture=False):
+                      return subprocess.run(args,cwd=root,check=True,text=True,
+                          stdout=subprocess.PIPE if capture else None,
+                          stderr=subprocess.STDOUT if capture else None)
+                  run(["git","init","-q"])
+                  run(["git","remote","add","origin",f"https://github.com/{repo}.git"])
+                  run(["git","-c",f"http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}",
+                       "fetch","--no-tags","origin",f"refs/heads/{branch}:refs/remotes/origin/candidate"])
+                  actual=run(["git","rev-parse","refs/remotes/origin/candidate"],capture=True).stdout.strip()
+                  if actual!=expected: raise SystemExit("candidate moved before formatting")
+                  run(["git","checkout","-q","--detach",expected])
+                  req=Path("/workspace/verification-tools.txt")
+                  with req.open("w",encoding="utf-8") as h:
+                      subprocess.run([sys.executable,"tools/verification_tools.py","requirements"],cwd=root,check=True,text=True,stdout=h)
+                  venv=Path("/workspace/verification-tools")
+                  subprocess.run([sys.executable,"-m","venv",str(venv)],check=True)
+                  py=venv/"bin"/"python"
+                  subprocess.run([str(py),"-m","pip","install","--disable-pip-version-check","--no-input","--no-compile",
+                      "--only-binary=:all:","--no-deps","--require-hashes","--requirement",str(req)],cwd=root,check=True)
+                  subprocess.run([str(py),"-m","pip","check"],cwd=root,check=True)
+                  subprocess.run([str(venv/"bin"/"ruff"),"format","."],cwd=root,check=True)
+                  changed=run(["git","diff","--name-only"],capture=True).stdout.splitlines()
+                  if changed!=[allowed]:
+                      raise SystemExit(f"formatter write set {changed!r} != {[allowed]!r}")
+                  PY
+
+            - id: verify
+              name: python:3.13-bookworm
+              waitFor: ["format"]
+              dir: source
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  export PATH=/workspace/verification-tools/bin:$PATH
+                  python tools/check.py
+
+            - id: publish
+              name: python:3.13-bookworm
+              waitFor: ["verify"]
               entrypoint: bash
               env:
                 - REPOSITORY=${_REPOSITORY}
@@ -95,55 +154,28 @@ jobs:
                   apt-get update -qq
                   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates git
                   python - <<'PY'
-                  import base64, os, subprocess, sys
+                  import base64, os, subprocess
                   from pathlib import Path
-
                   repo=os.environ["REPOSITORY"]; branch=os.environ["BRANCH"]; expected=os.environ["EXPECTED_HEAD"]
                   allowed=os.environ["ALLOWED_PATH"]; message=os.environ["COMMIT_MESSAGE"]
                   token=Path("/workspace/github-token").read_text(encoding="utf-8")
                   auth=base64.b64encode(f"x-access-token:{token}".encode()).decode()
-                  root=Path("/workspace/source"); root.mkdir(parents=True,exist_ok=True)
-
+                  root=Path("/workspace/source")
                   def run(args, *, capture=False):
                       return subprocess.run(args,cwd=root,check=True,text=True,
                           stdout=subprocess.PIPE if capture else None,
                           stderr=subprocess.STDOUT if capture else None)
-
-                  run(["git","init","-q"])
-                  run(["git","remote","add","origin",f"https://github.com/{repo}.git"])
-                  run(["git","-c",f"http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}",
-                       "fetch","--no-tags","origin",f"refs/heads/{branch}:refs/remotes/origin/candidate"])
-                  actual=run(["git","rev-parse","refs/remotes/origin/candidate"],capture=True).stdout.strip()
-                  if actual!=expected: raise SystemExit("candidate moved before formatting")
-                  run(["git","checkout","-q","--detach",expected])
-
-                  req=Path("/workspace/verification-tools.txt")
-                  with req.open("w",encoding="utf-8") as h:
-                      subprocess.run([sys.executable,"tools/verification_tools.py","requirements"],cwd=root,check=True,text=True,stdout=h)
-                  venv=Path("/workspace/verification-tools")
-                  subprocess.run([sys.executable,"-m","venv",str(venv)],check=True)
-                  py=venv/"bin"/"python"
-                  subprocess.run([str(py),"-m","pip","install","--disable-pip-version-check","--no-input","--no-compile",
-                      "--only-binary=:all:","--no-deps","--require-hashes","--requirement",str(req)],cwd=root,check=True)
-                  subprocess.run([str(py),"-m","pip","check"],cwd=root,check=True)
-                  ruff=venv/"bin"/"ruff"
-
-                  subprocess.run([str(ruff),"format","."],cwd=root,check=True)
-                  changed=run(["git","diff","--name-only"],capture=True).stdout.splitlines()
-                  if changed!=[allowed]:
-                      raise SystemExit(f"formatter write set {changed!r} != {[allowed]!r}")
-                  env=os.environ.copy(); env["PATH"]=str(venv/"bin")+os.pathsep+env.get("PATH","")
-                  subprocess.run([sys.executable,"tools/check.py"],cwd=root,check=True,env=env)
-
                   run(["git","config","user.name","Overcenter GCP Formatter"])
                   run(["git","config","user.email","noreply@users.noreply.github.com"])
                   run(["git","add","--",allowed])
                   run(["git","commit","-m",message])
                   head=run(["git","rev-parse","HEAD"],capture=True).stdout.strip()
                   run(["git","-c",f"http.https://github.com/.extraheader=AUTHORIZATION: basic {auth}",
-                       "push","origin",f"{head}:refs/heads/{branch}",f"--force-with-lease=refs/heads/{branch}:{expected}"])
+                       "push","origin",f"{head}:refs/heads/{branch}",
+                       f"--force-with-lease=refs/heads/{branch}:{expected}"])
                   print("FORMATTED_HEAD="+head)
                   PY
+
           availableSecrets:
             secretManager:
               - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
