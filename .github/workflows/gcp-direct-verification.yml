@@ -246,7 +246,7 @@ jobs:
                       "entrypoint": "bash",
                       "args": [
                           "-ceu",
-                          'mkdir -p /builder/outputs; { cat /workspace/materialization.log 2>/dev/null || true; cat /workspace/direct-verification.log 2>/dev/null || true; } | tail -c 96000 > /builder/outputs/output',
+                          'set -euo pipefail; captured=/workspace/captured-verification-output.log; { cat /workspace/materialization.log 2>/dev/null || true; cat /workspace/direct-verification.log 2>/dev/null || true; } | tail -c 96000 > "$captured"; cat "$captured"; mkdir -p /builder/outputs; cp "$captured" /builder/outputs/output',
                       ],
                   },
                   {
@@ -305,7 +305,6 @@ jobs:
           build_json="$RUNNER_TEMP/direct-gcp-build.json"
           gcloud builds describe "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --format=json > "$build_json"
           python3 - "$build_json" <<'PY'
-          import base64
           import json
           import sys
 
@@ -318,13 +317,12 @@ jobs:
                   f"step[{index}] id={step.get('id')} status={step.get('status')} "
                   f"exit={step.get('exitCode')}"
               )
-          for index, encoded in enumerate((body.get("results") or {}).get("buildStepOutputs") or []):
-              if not encoded:
-                  continue
-              padded = encoded + ("=" * ((-len(encoded)) % 4))
-              print(f"== buildStepOutputs[{index}] ==")
-              print(base64.b64decode(padded).decode("utf-8", errors="replace"))
+          outputs = (body.get("results") or {}).get("buildStepOutputs") or []
+          for index, value in enumerate(outputs):
+              if value:
+                  print(f"buildStepOutputs[{index}] raw:", json.dumps(value, ensure_ascii=False))
           PY
+          gcloud beta builds log "$build_id"             --project="$GCP_PROJECT_ID"             --region="$GCP_REGION"             --stream || true
           test "$status" = "SUCCESS"
 
       - name: Publish direct verification receipt
