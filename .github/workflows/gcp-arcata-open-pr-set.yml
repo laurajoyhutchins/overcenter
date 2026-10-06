@@ -1,0 +1,268 @@
+name: Arcata open PR GCP verification set
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/gcp-arcata-open-pr-set.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: arcata-open-pr-gcp-set
+  cancel-in-progress: true
+
+jobs:
+  verify-set:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PROJECT_ID: project-6b810532-a302-48dc-b56
+      REGION: us-west1
+      WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
+      DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - name: Authenticate with Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: ">= 363.0.0"
+
+      - name: Submit and aggregate exact-head builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/dev"
+
+          config="$RUNNER_TEMP/arcata-open-pr-set-cloudbuild.yaml"
+          cat > "$config" <<'YAML'
+          serviceAccount: projects/project-6b810532-a302-48dc-b56/serviceAccounts/overcenter-runtime@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+          timeout: 900s
+          steps:
+            - id: private-source
+              name: node:22-bookworm
+              entrypoint: node
+              secretEnv: [GITHUB_APP_PRIVATE_KEY]
+              env:
+                - GITHUB_APP_ID=4616688
+                - SOURCE_REVISION=${_REVISION}
+              args:
+                - -e
+                - |
+                  const crypto = require("crypto");
+                  const fs = require("fs");
+                  const repository = "laurajoyhutchins/arcata";
+                  const revision = process.env.SOURCE_REVISION;
+                  const expectedRepositoryId = 1402666660;
+                  const expectedOwnerId = 219002713;
+                  const b64 = value => Buffer.from(JSON.stringify(value)).toString("base64url");
+                  const now = Math.floor(Date.now() / 1000);
+                  const header = b64({alg:"RS256",typ:"JWT"});
+                  const payload = b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
+                  const unsigned = header + "." + payload;
+                  const signature = crypto.sign(
+                    "RSA-SHA256",
+                    Buffer.from(unsigned),
+                    process.env.GITHUB_APP_PRIVATE_KEY,
+                  ).toString("base64url");
+                  const jwt = unsigned + "." + signature;
+                  const baseHeaders = {
+                    Accept:"application/vnd.github+json",
+                    "X-GitHub-Api-Version":"2022-11-28",
+                    "User-Agent":"overcenter-arcata-open-pr-set",
+                  };
+                  async function json(response, label) {
+                    const text = await response.text();
+                    if (!response.ok) throw new Error(label + " HTTP " + response.status + ": " + text.slice(0,300));
+                    return JSON.parse(text);
+                  }
+                  async function main() {
+                    const installation = await json(
+                      await fetch("https://api.github.com/repos/" + repository + "/installation", {
+                        headers:{...baseHeaders,Authorization:"Bearer " + jwt},
+                      }),
+                      "installation lookup",
+                    );
+                    const access = await json(
+                      await fetch(
+                        "https://api.github.com/app/installations/" + installation.id + "/access_tokens",
+                        {
+                          method:"POST",
+                          headers:{...baseHeaders,Authorization:"Bearer " + jwt,"Content-Type":"application/json"},
+                          body:JSON.stringify({repository_ids:[expectedRepositoryId],permissions:{contents:"read"}}),
+                        },
+                      ),
+                      "installation token",
+                    );
+                    const headers={...baseHeaders,Authorization:"Bearer " + access.token};
+                    const repo = await json(
+                      await fetch("https://api.github.com/repos/" + repository,{headers}),
+                      "repository identity",
+                    );
+                    if (repo.id !== expectedRepositoryId || !repo.owner || repo.owner.id !== expectedOwnerId || repo.full_name !== repository) {
+                      throw new Error("repository identity mismatch");
+                    }
+                    const commit = await json(
+                      await fetch("https://api.github.com/repos/" + repository + "/commits/" + revision,{headers}),
+                      "exact revision",
+                    );
+                    if (commit.sha !== revision) throw new Error("revision mismatch");
+                    const archive = await fetch(
+                      "https://api.github.com/repos/" + repository + "/tarball/" + revision,
+                      {headers,redirect:"follow"},
+                    );
+                    if (!archive.ok) throw new Error("archive HTTP " + archive.status);
+                    const bytes=Buffer.from(await archive.arrayBuffer());
+                    if (bytes.length < 1024) throw new Error("archive unexpectedly small");
+                    fs.writeFileSync("/workspace/source.tar.gz",bytes,{mode:0o600});
+                  }
+                  main().catch(error => {
+                    console.error(String(error && error.message || error));
+                    process.exit(1);
+                  });
+
+            - id: extract-source
+              name: python:3.13-bookworm
+              entrypoint: python
+              args:
+                - -c
+                - |
+                  from pathlib import Path
+                  import shutil
+                  import tarfile
+                  archive=Path("/workspace/source.tar.gz")
+                  unpack=Path("/workspace/unpack")
+                  target=Path("/workspace/source")
+                  shutil.rmtree(unpack,ignore_errors=True)
+                  shutil.rmtree(target,ignore_errors=True)
+                  unpack.mkdir()
+                  with tarfile.open(archive,"r:gz") as source:
+                      source.extractall(unpack,filter="data")
+                  entries=list(unpack.iterdir())
+                  if len(entries) != 1 or not entries[0].is_dir():
+                      raise SystemExit("unexpected archive layout")
+                  shutil.move(str(entries[0]),target)
+
+            - id: install-tools
+              name: python:3.13-bookworm
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  cd /workspace/source
+                  python tools/verification_tools.py requirements > /workspace/verification-tools.txt
+                  python -m venv /workspace/verification-tools
+                  /workspace/verification-tools/bin/python -m pip install \
+                    --disable-pip-version-check \
+                    --no-input \
+                    --no-compile \
+                    --only-binary=:all: \
+                    --no-deps \
+                    --require-hashes \
+                    --requirement /workspace/verification-tools.txt
+                  /workspace/verification-tools/bin/python -m pip check
+
+            - id: arcata-check
+              name: python:3.13-bookworm
+              dir: source
+              entrypoint: bash
+              args:
+                - -ceu
+                - |
+                  export PATH="/workspace/verification-tools/bin:$$PATH"
+                  python tools/check.py
+
+          availableSecrets:
+            secretManager:
+              - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
+                env: GITHUB_APP_PRIVATE_KEY
+          options:
+            logging: NONE
+          YAML
+
+          targets="$RUNNER_TEMP/arcata-open-pr-targets.tsv"
+          cat > "$targets" <<'TARGETS'
+          92 44e665a8ada6a4f58ff92aeca0ab0490677af370
+          91 691eb17e56b7f62beeadcc03c135cad24bd77914
+          90 8738d4e966b00590e19411b20c205bc9749903b5
+          89 06a3e144ed724c89aadb524d241d2a45a1f1c923
+          88 708368241cfb671f456ece2d8b3629e9176aa7a6
+          85 0adafcddddf2ff769926b81ae4f13582015516d0
+          84 eea412516f5561c0451082425d1a8ce850046363
+          82 f1eda022a5c5b1ed71f9149c5977521a90ed1ea7
+          80 5669b06e9b21ed118596cb40f7540a4f84c3bcc2
+          24 7d0865a02e83404c59de531a3f8b7586043a07b9
+          20 357cf6153ac29f6bd46f246d1acf6394b9855f63
+          19 5a3e7f2f25dc833fb62f942c2a09f76e926b6c09
+          17 2a3065c1b548446b1f1cca91065386c8498a084d
+          15 9ee3cf6c261d37a949e99b205a44c5ac5c98125c
+          TARGETS
+
+          builds="$RUNNER_TEMP/arcata-open-pr-builds.tsv"
+          : > "$builds"
+          while read -r pr sha; do
+            build_id="$(
+              gcloud builds submit \
+                --async \
+                --no-source \
+                --project="$PROJECT_ID" \
+                --region="$REGION" \
+                --config="$config" \
+                --substitutions="_REVISION=$sha" \
+                --format='value(id)'
+            )"
+            test -n "$build_id"
+            printf '%s\t%s\t%s\n' "$pr" "$sha" "$build_id" >> "$builds"
+            echo "submitted PR #$pr @ $sha -> $build_id"
+          done < "$targets"
+
+          for _ in $(seq 1 300); do
+            pending=0
+            while IFS=$'\t' read -r pr sha build_id; do
+              status="$(
+                gcloud builds describe "$build_id" \
+                  --project="$PROJECT_ID" \
+                  --region="$REGION" \
+                  --format='value(status)'
+              )"
+              case "$status" in
+                SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) ;;
+                *) pending=1 ;;
+              esac
+            done < "$builds"
+            if [ "$pending" -eq 0 ]; then break; fi
+            sleep 2
+          done
+
+          {
+            echo "## Arcata open PR exact-head verification set"
+            echo
+            echo "| PR | exact head | Cloud Build | result |"
+            echo "| ---: | --- | --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          while IFS=$'\t' read -r pr sha build_id; do
+            status="$(
+              gcloud builds describe "$build_id" \
+                --project="$PROJECT_ID" \
+                --region="$REGION" \
+                --format='value(status)'
+            )"
+            printf '| #%s | `%s` | `%s` | `%s` |\n' "$pr" "$sha" "$build_id" "$status" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$status" != SUCCESS ]; then failed=1; fi
+          done < "$builds"
+
+          exit "$failed"
