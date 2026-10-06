@@ -177,54 +177,21 @@ jobs:
                     --requirement /workspace/verification-tools.txt
                   /workspace/verification-tools/bin/python -m pip check
 
-            - id: fmt-harmonics
+            - id: formatter-diff
               name: python:3.13-bookworm
               dir: source
               entrypoint: /workspace/verification-tools/bin/ruff
-              args: ["format", "--check", "packages/power-quality/src/power_quality/harmonics.py"]
-              allowFailure: true
-
-            - id: fmt-impedance
-              name: python:3.13-bookworm
-              dir: source
-              entrypoint: /workspace/verification-tools/bin/ruff
-              args: ["format", "--check", "packages/power-quality/src/power_quality/impedance.py"]
-              allowFailure: true
-
-            - id: fmt-duty
-              name: python:3.13-bookworm
-              dir: source
-              entrypoint: /workspace/verification-tools/bin/ruff
-              args: ["format", "--check", "packages/short-circuit/src/short_circuit/duty.py"]
-              allowFailure: true
-
-            - id: fmt-iec60909
-              name: python:3.13-bookworm
-              dir: source
-              entrypoint: /workspace/verification-tools/bin/ruff
-              args: ["format", "--check", "packages/short-circuit/src/short_circuit/iec60909.py"]
-              allowFailure: true
-
-            - id: fmt-solver
-              name: python:3.13-bookworm
-              dir: source
-              entrypoint: /workspace/verification-tools/bin/ruff
-              args: ["format", "--check", "packages/short-circuit/src/short_circuit/solver.py"]
-              allowFailure: true
-
-            - id: fmt-freezer
-              name: python:3.13-bookworm
-              dir: source
-              entrypoint: /workspace/verification-tools/bin/ruff
-              args: ["format", "--check", "tools/freeze_sequence_kernels.py"]
-              allowFailure: true
+              args:
+                - format
+                - --diff
+                - tools/freeze_sequence_kernels.py
 
           availableSecrets:
             secretManager:
               - versionName: projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key/versions/latest
                 env: GITHUB_APP_PRIVATE_KEY
           options:
-            logging: NONE
+            logging: CLOUD_LOGGING_ONLY
           YAML
 
           build_id="$(
@@ -259,4 +226,7 @@ jobs:
             --region="$REGION" \
             --format='table(steps.id,steps.status)' | tee -a "$GITHUB_STEP_SUMMARY"
           echo "Status: $status" | tee -a "$GITHUB_STEP_SUMMARY"
+          gcloud builds log "$build_id" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" || true
           test "$status" = SUCCESS
