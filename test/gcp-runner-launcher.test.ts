@@ -69,14 +69,16 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
 
   const args = steps[1]?.args as string[];
   const script = args[1] ?? '';
-  assert.match(script, /docker run --pull=always --rm --network bridge/);
   assert.match(
     script,
-    /docker\.io\/library\/ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55/,
+    /docker run --rm --network bridge --dns 8\.8\.8\.8 --dns 8\.8\.4\.4/,
+  );
+  assert.match(
+    script,
+    /us-west1-docker\.pkg\.dev\/project-6b810532-a302-48dc-b56\/cloud-run-source-deploy\/overcenter-gcp-runner@sha256:/,
   );
   assert.match(script, /RUNNER_LABEL=overcenter-gcp/);
-  assert.match(script, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
-  assert.match(script, /runner-bootstrap\.sh/);
+  assert.match(script, /TARGET_JOB_ID=111891233183/);
   assert.doesNotMatch(script, /docker login|artifact-registry-token/);
 
   const secrets = build.availableSecrets as {
