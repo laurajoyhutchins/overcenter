@@ -94,7 +94,7 @@ test('active hosted proof contains no legacy commit-status effect intent', () =>
 test('intermediate PR heads cannot spend candidate-only CI evidence', () => {
   assert.match(
     eventBlock(mergeGate, 'pull_request_target'),
-    /types: \[opened, synchronize, reopened\]/,
+    /types: \[opened, synchronize, reopened, ready_for_review\]/,
     'ordinary PR transitions must stay cheap and non-certifying',
   );
   assert.doesNotMatch(
@@ -240,7 +240,7 @@ test('relational hosted assurance is selected once from the trusted baseline', (
 test('ordinary repository PRs use a trusted base gate for control-plane changes', () => {
   assert.match(
     eventBlock(mergeGate, 'pull_request_target'),
-    /types: \[opened, synchronize, reopened\]/,
+    /types: \[opened, synchronize, reopened, ready_for_review\]/,
     'the required merge check must execute from the trusted base workflow',
   );
   assert.doesNotMatch(
