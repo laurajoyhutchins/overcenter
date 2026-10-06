@@ -244,13 +244,20 @@ function createBuild(
   const dockerScript = [
     'if [ -f /workspace/skip-runner ]; then',
     '  echo "GitHub job is no longer queued; skipping worker launch."',
+    '  printf "0\\n" > /workspace/runner-registration-exit-code',
     '  exit 0',
     'fi',
     'if [ ! -s /workspace/runner-registration-token ]; then',
     '  echo "runner registration token is missing" > /workspace/runner-registration-output.log',
+    '  printf "72\\n" > /workspace/runner-registration-exit-code',
     '  exit 0',
     'fi',
+    'set +e',
     dockerParts.join(' '),
+    'status=$?',
+    'set -e',
+    'printf "%s\\n" "$status" > /workspace/runner-registration-exit-code',
+    'exit 0',
   ].join('\n');
 
   return {
@@ -293,6 +300,23 @@ function createBuild(
             '  tail -c 48000 /workspace/runner-registration-output.log > "/builder/outputs/output"',
             'else',
             '  { echo "runner registration output missing"; ls -la /workspace; } > "/builder/outputs/output"',
+            'fi',
+          ].join('\n'),
+        ],
+      },
+      {
+        id: 'require-runner-success',
+        name: 'ubuntu:24.04',
+        entrypoint: 'bash',
+        args: [
+          '-ceu',
+          [
+            'test -s /workspace/runner-registration-exit-code',
+            'status="$(cat /workspace/runner-registration-exit-code)"',
+            'if [ "$status" != "0" ]; then',
+            '  cat /workspace/runner-registration-output.log >&2 || true',
+            '  echo "runner process failed with exit $status" >&2',
+            '  exit "$status"',
             'fi',
           ].join('\n'),
         ],
