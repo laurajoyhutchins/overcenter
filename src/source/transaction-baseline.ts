@@ -86,21 +86,48 @@ export function baselineSourceTransactionPlan(
   const modelChanged = changed.some((path) =>
     (ARCHITECTURE_SQL_PATHS as readonly string[]).includes(path),
   );
+  const modelSha256 = canonicalDigest(models);
+  const dependencySha256 = canonicalDigest({
+    domain: 'overcenter-whole-source-snapshots/v1',
+    base_revision: delta.base_revision,
+    candidate_revision: delta.candidate_revision,
+    candidate_tree: delta.candidate_tree,
+  });
+  const packageScripts = profile.commands.map((command) => {
+    const match = /^npm run (.+)$/.exec(command);
+    if (!match) throw new Error('SOURCE_TRANSACTION_BASELINE_COMMAND_UNSUPPORTED');
+    return match[1]!;
+  });
   return {
     base_revision: delta.base_revision,
     candidate_revision: delta.candidate_revision,
     candidate_tree: delta.candidate_tree,
-    model_sha256: canonicalDigest(models),
-    dependency_sha256: canonicalDigest({
-      domain: 'overcenter-whole-source-snapshots/v1',
-      base_revision: delta.base_revision,
-      candidate_revision: delta.candidate_revision,
-      candidate_tree: delta.candidate_tree,
-    }),
+    model_sha256: modelSha256,
+    dependency_sha256: dependencySha256,
     changed_artifacts: changed,
     impacts: [],
     proof_plans: [],
     evidence: [],
+    evidence_frontiers: [
+      {
+        coordinate: `revision:${delta.candidate_revision}`,
+        revision: delta.candidate_revision,
+        model_sha256: modelSha256,
+        dependency_sha256: dependencySha256,
+        baseline_sha256: baseline.digest,
+        required_propositions: [`baseline:${profile.id}`],
+        candidates: [
+          {
+            evidence_id: `baseline:${profile.id}`,
+            proposition_ids: [`baseline:${profile.id}`],
+            obligation_ids: [],
+            artifact_ids: [],
+            package_scripts: [...packageScripts].sort(),
+            uses_package_runtime: true,
+          },
+        ],
+      },
+    ],
     coverage_gaps: changed.map((artifact_id) => ({
       artifact_id,
       reason: (ARCHITECTURE_SQL_PATHS as readonly string[]).includes(artifact_id)
