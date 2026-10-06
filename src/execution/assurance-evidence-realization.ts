@@ -9,7 +9,12 @@ import {
   type AssuranceEvidenceNeed,
   type AssuranceEvidenceNeedInputs,
 } from '../source/assurance-evidence-needs.ts';
-import { assertExactKeys, assertNonEmptyString, isData, isSha256Hex } from '../validation.ts';
+import {
+  assertExactKeys,
+  assertNonEmptyString,
+  isData,
+  isSha256Hex,
+} from '../validation.ts';
 import { executionEvidenceDescriptorForAssuranceNeed } from './assurance-evidence-descriptor.ts';
 import {
   executionEvidenceReceipt,
@@ -17,7 +22,8 @@ import {
   type ExecutionEvidenceReceipt,
 } from './evidence-receipt.ts';
 
-export const ASSURANCE_EVIDENCE_RECIPE_SCHEMA = 'overcenter-assurance-evidence-recipe/v1' as const;
+export const ASSURANCE_EVIDENCE_RECIPE_SCHEMA =
+  'overcenter-assurance-evidence-recipe/v1' as const;
 export const ASSURANCE_EVIDENCE_EXECUTION_OBSERVATION_SCHEMA =
   'overcenter-assurance-evidence-execution-observation/v1' as const;
 
@@ -142,13 +148,11 @@ export function normalizeAssuranceEvidenceNeed(value: unknown): AssuranceEvidenc
   if (inputs.uses_package_runtime !== 'true' && inputs.uses_package_runtime !== 'false') {
     throw new Error('ASSURANCE_EVIDENCE_PACKAGE_RUNTIME_INVALID');
   }
-  for (const key of [
-    'proposition_ids',
-    'obligation_ids',
-    'artifact_ids',
-    'package_scripts',
-  ] as const) {
-    canonicalStringArray(requiredNeedInput(inputs, key), `ASSURANCE_EVIDENCE_INPUT_INVALID:${key}`);
+  for (const key of ['proposition_ids', 'obligation_ids', 'artifact_ids', 'package_scripts'] as const) {
+    canonicalStringArray(
+      requiredNeedInput(inputs, key),
+      `ASSURANCE_EVIDENCE_INPUT_INVALID:${key}`,
+    );
   }
 
   const identity = {
@@ -189,7 +193,10 @@ function assertRecipe(recipe: AssuranceEvidenceRecipe): AssuranceEvidenceNeed {
   ) {
     throw new Error('ASSURANCE_EVIDENCE_RECIPE_SCRIPTS_NONCANONICAL');
   }
-  if (canonicalJson(recipe.scripts) !== requiredNeedInput(need.inputs, 'package_scripts')) {
+  if (
+    canonicalJson(recipe.scripts) !==
+    requiredNeedInput(need.inputs, 'package_scripts')
+  ) {
     throw new Error('ASSURANCE_EVIDENCE_RECIPE_NEED_SCRIPTS_MISMATCH');
   }
   if (requiredNeedInput(need.inputs, 'uses_package_runtime') !== 'true') {
@@ -204,7 +211,11 @@ export function deriveAssuranceEvidenceRecipe(
 ): AssuranceEvidenceRecipe {
   const need = normalizeAssuranceEvidenceNeed(needValue);
   const requestedScripts = canonicalStringArray(
-    requiredNeedInput(need.inputs, 'package_scripts', 'ASSURANCE_EVIDENCE_PACKAGE_SCRIPTS_INVALID'),
+    requiredNeedInput(
+      need.inputs,
+      'package_scripts',
+      'ASSURANCE_EVIDENCE_PACKAGE_SCRIPTS_INVALID',
+    ),
     'ASSURANCE_EVIDENCE_PACKAGE_SCRIPTS_INVALID',
   );
   if (

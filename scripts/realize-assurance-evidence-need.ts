@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 import { canonicalJson } from '../src/digest.ts';
-import { realizeExecutionEvidenceOnGcp } from '../src/providers/gcp/execution-evidence-receipt.ts';
+import {
+  realizeExecutionEvidenceOnGcp,
+} from '../src/providers/gcp/execution-evidence-receipt.ts';
 import type { AssuranceEvidenceNeed } from '../src/source/assurance-evidence-needs.ts';
 
 async function main(): Promise<void> {
