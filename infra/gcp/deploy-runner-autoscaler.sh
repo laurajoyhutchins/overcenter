@@ -7,7 +7,8 @@ set -euo pipefail
 
 PROJECT_ID="$GCP_PROJECT_ID"
 REGION="$GCP_REGION"
-AUTOSCALER_SERVICE="overcenter-github-runner-autoscaler"
+AUTOSCALER_WORKER_POOL="overcenter-github-runner-poller"
+LEGACY_AUTOSCALER_SERVICE="overcenter-github-runner-autoscaler"
 LAUNCHER_SERVICE="overcenter-gcp-runner-launcher"
 RUNTIME_SA="overcenter-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
 DEPLOYER_SA="overcenter-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
@@ -141,7 +142,7 @@ gcloud run deploy "$LAUNCHER_SERVICE" \
   --args="--experimental-strip-types,src/transport/gcp-runner-launcher.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
   --no-allow-unauthenticated \
-  --min-instances=0 \
+  --min-instances=1 \
   --max-instances=8 \
   --cpu=1 \
   --memory=256Mi \
@@ -224,8 +225,8 @@ if not any(
     raise SystemExit("runner launcher invoker binding readback mismatch")
 PY
 
-echo "Deploying private autoscaler service"
-gcloud run deploy "$AUTOSCALER_SERVICE" \
+echo "Staging background autoscaler worker pool"
+gcloud run worker-pools deploy "$AUTOSCALER_WORKER_POOL" \
   --image="$CONTROL_IMAGE_IMMUTABLE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
@@ -234,100 +235,127 @@ gcloud run deploy "$AUTOSCALER_SERVICE" \
   --set-secrets="GITHUB_APP_PRIVATE_KEY=overcenter-github-app-private-key:latest" \
   --command=node \
   --args="--experimental-strip-types,src/transport/gcp-runner-autoscaler.ts" \
-  --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
-  --no-allow-unauthenticated \
-  --min-instances=1 \
-  --max-instances=1 \
-  --no-cpu-throttling \
+  --instances=0 \
   --cpu=1 \
   --memory=512Mi \
   --quiet
 
-service_json="${RUNNER_TEMP:-/tmp}/overcenter-gcp-runner-autoscaler.json"
-gcloud run services describe "$AUTOSCALER_SERVICE" \
+worker_json="${RUNNER_TEMP:-/tmp}/overcenter-gcp-runner-poller.json"
+gcloud run worker-pools describe "$AUTOSCALER_WORKER_POOL" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
-  --format=json > "$service_json"
+  --format=json > "$worker_json"
 
-python3 - "$service_json" "$RUNTIME_SA" "$CONTROL_IMAGE_IMMUTABLE" "$EXACT_REVISION" "$launcher_url" <<'PY'
+python3 - "$worker_json" "$RUNTIME_SA" "$CONTROL_IMAGE_IMMUTABLE" "$EXACT_REVISION" "$launcher_url" "0" <<'PY'
 import json
 import sys
 
-path, expected_sa, control_image, expected_revision, launcher_url = sys.argv[1:]
+path, expected_sa, control_image, expected_revision, launcher_url, expected_instances = sys.argv[1:]
 with open(path, encoding="utf-8") as handle:
     body = json.load(handle)
 
-template = ((body.get("spec") or {}).get("template") or {})
-spec = template.get("spec") or {}
-if spec.get("serviceAccountName") != expected_sa:
-    raise SystemExit("autoscaler service account readback mismatch")
+template = ((body.get("spec") or {}).get("template") or body.get("template") or {})
+spec = template.get("spec") or template
+service_account = spec.get("serviceAccountName") or spec.get("serviceAccount") or ""
+if service_account != expected_sa:
+    raise SystemExit("autoscaler worker-pool service account readback mismatch")
 
-containers = spec.get("containers") or [{}]
+containers = spec.get("containers") or template.get("containers") or [{}]
 if str(containers[0].get("image") or "") != control_image:
-    raise SystemExit("autoscaler control image readback mismatch")
+    raise SystemExit("autoscaler worker-pool control image readback mismatch")
 env = {
     str(item.get("name")): item
     for item in (containers[0].get("env") or [])
     if item.get("name")
 }
 if str((env.get("GITHUB_APP_ID") or {}).get("value") or "") != "4616688":
-    raise SystemExit("autoscaler GitHub App id readback mismatch")
+    raise SystemExit("autoscaler worker-pool GitHub App id readback mismatch")
 if str((env.get("OVERCENTER_SOURCE_REVISION") or {}).get("value") or "") != expected_revision:
-    raise SystemExit("autoscaler source revision readback mismatch")
+    raise SystemExit("autoscaler worker-pool source revision readback mismatch")
 if str((env.get("OVERCENTER_RUNNER_LAUNCHER_URL") or {}).get("value") or "") != launcher_url:
-    raise SystemExit("autoscaler launcher URL readback mismatch")
+    raise SystemExit("autoscaler worker-pool launcher URL readback mismatch")
 
 private_key = env.get("GITHUB_APP_PRIVATE_KEY") or {}
 if "valueFrom" not in private_key:
-    raise SystemExit("autoscaler GitHub App key is not secret-backed")
-
-annotations = (template.get("metadata") or {}).get("annotations") or {}
-max_scale = str(annotations.get("autoscaling.knative.dev/maxScale") or "")
-min_scale = str(annotations.get("autoscaling.knative.dev/minScale") or "")
-if max_scale != "1" or min_scale != "1":
-    raise SystemExit(f"autoscaler instance bounds mismatch: min={min_scale!r} max={max_scale!r}")
+    raise SystemExit("autoscaler worker-pool GitHub App key is not secret-backed")
 
 if any("cloudsql" in json.dumps(value).lower() for value in (spec.get("volumes") or [])):
-    raise SystemExit("autoscaler must not have a Cloud SQL attachment")
+    raise SystemExit("autoscaler worker pool must not have a Cloud SQL attachment")
 
-status = body.get("status") or {}
-ready = str(status.get("latestReadyRevisionName") or "")
-created = str(status.get("latestCreatedRevisionName") or "")
-if not ready or ready != created:
-    raise SystemExit("autoscaler deployment did not become ready")
-
-print(f"Autoscaler revision: {ready}")
-print(f"Autoscaler URL: {status.get('url') or ''}")
+annotations = (body.get("metadata") or {}).get("annotations") or {}
+scaling = body.get("scaling") or {}
+manual_instances = scaling.get("manualInstanceCount")
+if manual_instances is None:
+    manual_instances = annotations.get("run.googleapis.com/manualInstanceCount")
+if str(manual_instances) != expected_instances:
+    raise SystemExit(
+        f"autoscaler worker-pool instance count mismatch: {manual_instances!r}"
+    )
 PY
 
-service_url="$(
-  python3 - "$service_json" <<'PY'
-import json,sys
-with open(sys.argv[1], encoding="utf-8") as handle:
-    body=json.load(handle)
-print(str((body.get("status") or {}).get("url") or ""))
-PY
+echo "Verifying private launcher remains closed to unauthenticated callers"
+unauth_status="$(
+  curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${launcher_url}/health"
 )"
-if [[ ! "$service_url" =~ ^https:// ]]; then
-  echo "autoscaler deployment returned no HTTPS URL" >&2
+if [[ "$unauth_status" != "403" ]]; then
+  echo "runner launcher must remain private; unauthenticated /health returned $unauth_status" >&2
   exit 1
 fi
 
-for private_url in "$launcher_url" "$service_url"; do
-  unauth_status="$(
-    curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${private_url}/health"
-  )"
-  if [[ "$unauth_status" != "403" ]]; then
-    echo "runner service must remain private; unauthenticated /health returned $unauth_status for $private_url" >&2
-    exit 1
-  fi
-done
+if gcloud run services describe "$LEGACY_AUTOSCALER_SERVICE" \
+  --project="$PROJECT_ID" \
+  --region="$REGION" >/dev/null 2>&1; then
+  echo "Retiring legacy request-serving autoscaler service"
+  gcloud run services delete "$LEGACY_AUTOSCALER_SERVICE" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --quiet
+fi
+
+echo "Starting background autoscaler worker pool"
+gcloud run worker-pools update "$AUTOSCALER_WORKER_POOL" \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --instances=1 \
+  --quiet
+
+gcloud run worker-pools describe "$AUTOSCALER_WORKER_POOL" \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --format=json > "$worker_json"
+
+python3 - "$worker_json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    body = json.load(handle)
+
+annotations = (body.get("metadata") or {}).get("annotations") or {}
+scaling = body.get("scaling") or {}
+manual_instances = scaling.get("manualInstanceCount")
+if manual_instances is None:
+    manual_instances = annotations.get("run.googleapis.com/manualInstanceCount")
+if str(manual_instances) != "1":
+    raise SystemExit(
+        f"autoscaler worker-pool did not start exactly one instance: {manual_instances!r}"
+    )
+
+conditions = (body.get("status") or {}).get("conditions") or []
+ready = [
+    condition
+    for condition in conditions
+    if str(condition.get("type") or "").lower() == "ready"
+]
+if ready and str(ready[0].get("status") or "").lower() not in ("true", "condition_succeeded"):
+    raise SystemExit("autoscaler worker-pool is not ready")
+PY
 
 printf '%s\n' \
   "GCP runner substrate deployed" \
   "Source revision: ${EXACT_REVISION}" \
   "Runner digest:   ${runner_digest}" \
   "Control digest:  ${control_digest}" \
-  "Launcher:        private Cloud Run; Cloud Build submission only" \
-  "Autoscaler:      private Cloud Run; GitHub observation only" \
+  "Launcher:        private warm Cloud Run service; Cloud Build submission only" \
+  "Autoscaler:      one-instance Cloud Run worker pool; GitHub observation only" \
   "Hosted Actions:  deployment only, never per verification job"
