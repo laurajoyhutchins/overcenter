@@ -10,6 +10,12 @@ outputs:
   repository:
     description: Repository executed by the runner.
     value: ${{ steps.provenance.outputs.repository }}
+  job-id:
+    description: Exact GitHub workflow job ID bound by the JIT runner launcher.
+    value: ${{ steps.provenance.outputs.job_id }}
+  scheduling-label:
+    description: Exact admitted GCP scheduling label used for this job.
+    value: ${{ steps.provenance.outputs.scheduling_label }}
   run-id:
     description: GitHub workflow run ID.
     value: ${{ steps.provenance.outputs.run_id }}
