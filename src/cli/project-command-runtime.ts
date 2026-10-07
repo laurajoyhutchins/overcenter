@@ -25,13 +25,17 @@ export function commandOption(name: string): string | null {
 
 export function projectCommandContext(): ProjectCommandContext {
   const projectSourceSha = process.env.OVERCENTER_PROJECT_SOURCE_SHA;
+  const commandRunId = positiveIntegerEnv('OVERCENTER_COMMAND_RUN_ID');
+  const commandRunAttempt = positiveIntegerEnv('OVERCENTER_COMMAND_RUN_ATTEMPT');
+  if (commandRunAttempt < 2) throw new Error('PROJECT_AGENT_COMMAND_NOT_INVOKED');
   return {
     repository_id: positiveIntegerEnv('OVERCENTER_COMMAND_REPOSITORY_ID'),
     repository_full_name: requiredEnv('OVERCENTER_COMMAND_REPOSITORY'),
     command_source_sha: requiredEnv('OVERCENTER_COMMAND_SOURCE_SHA'),
     ...(projectSourceSha ? { project_source_sha: projectSourceSha } : {}),
-    command_run_id: positiveIntegerEnv('OVERCENTER_COMMAND_RUN_ID'),
-    command_run_attempt: positiveIntegerEnv('OVERCENTER_COMMAND_RUN_ATTEMPT'),
+    transport: 'github-actions-job-rerun',
+    command_run_id: commandRunId,
+    command_run_attempt: commandRunAttempt,
   };
 }
 
