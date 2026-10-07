@@ -7,7 +7,6 @@ import { generators, PAGE_FILES } from './render.ts';
 export interface BuildSiteOptions {
   root?: string;
   outDir?: string;
-  includeSearch?: boolean;
 }
 
 const SITE_ROOT = 'https://laurajoyhutchins.github.io/overcenter/';
@@ -18,24 +17,6 @@ function renderSitemap(): string {
     return `  <url><loc>${location}</loc></url>`;
   }).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
-}
-
-async function buildSearchIndex(outDir: string): Promise<void> {
-  const { execFile } = await import('node:child_process');
-  await new Promise<void>((resolvePromise, reject) => {
-    execFile(
-      'npx',
-      ['--yes', 'pagefind@1.5.2', '--site', outDir],
-      { maxBuffer: 16 * 1024 * 1024 },
-      (error, _stdout, stderr) => {
-        if (error) {
-          reject(new Error(`SITE_PAGEFIND_FAILED:${stderr.trim() || error.message}`));
-          return;
-        }
-        resolvePromise();
-      },
-    );
-  });
 }
 
 export async function buildSite(options: BuildSiteOptions = {}): Promise<SiteModel> {
@@ -59,10 +40,9 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<SiteMod
     'utf8',
   );
   await writeFile(resolve(outDir, 'sitemap.xml'), renderSitemap(), 'utf8');
-  if (options.includeSearch) await buildSearchIndex(outDir);
   return model;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  await buildSite({ includeSearch: true });
+  await buildSite();
 }
