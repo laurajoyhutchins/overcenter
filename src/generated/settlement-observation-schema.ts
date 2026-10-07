@@ -9,6 +9,7 @@ export const SettlementObservationSchema={
   "properties": {
     "verifier": {
       "enum": [
+        "github-pages-static-tree-published/v1",
         "file-content-equals/v1",
         "eventually-consistent-file-content-equals/v1",
         "github-commit-status/v2",

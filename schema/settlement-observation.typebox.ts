@@ -6,6 +6,7 @@ const stringEnum = <const T extends readonly string[]>(values: T) =>
   Type.Unsafe<T[number]>({ enum: [...values] });
 
 export const VerifierKind = stringEnum([
+  'github-pages-static-tree-published/v1',
   'file-content-equals/v1',
   'eventually-consistent-file-content-equals/v1',
   'github-commit-status/v2',

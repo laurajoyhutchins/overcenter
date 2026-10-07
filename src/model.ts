@@ -79,6 +79,7 @@ export interface OperatorJudgmentPostcondition {
 }
 
 export type Postcondition =
+  | import('./providers/github/pages-contract.ts').GitHubPagesPublicationPostcondition
   | FileContentPostcondition
   | EventuallyConsistentFilePostcondition
   | GitHubCommitStatusPostcondition

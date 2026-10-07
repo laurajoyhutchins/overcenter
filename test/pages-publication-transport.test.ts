@@ -4,12 +4,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createPagesGitPush } from '../src/providers/github/pages-transport.ts';
+import {
+  createPagesGitPush,
+  performGitHubPagesPublicationEffect,
+  type PagesPublicationAuthority,
+} from '../src/providers/github/pages-effect.ts';
 import { pagesGitText } from '../src/providers/github/pages-git.ts';
 import { OvercenterKernel } from '../src/authority/kernel.ts';
-import type { Postcondition } from '../src/model.ts';
-import { effectAdapterCapabilities } from '../src/effect-adapter.ts';
-import { publication } from './fixtures/pages-publication.ts';
+import { publication, pagesProvider } from './fixtures/pages-publication.ts';
 
 test('explicit Git lease rejects competing updates and initial creation races', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pages-lease-'));
@@ -72,23 +74,31 @@ test('explicit Git lease rejects competing updates and initial creation races', 
     }),
   );
 });
-test('support does not admit Pages work or manufacture publication authority', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'pages-inactive-'));
+test('forged authority cannot reach publication transport', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'pages-forged-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const kernel = new OvercenterKernel(join(root, 'authority.sqlite'));
   t.after(() => kernel.close());
-  kernel.initialize();
-  assert.equal(effectAdapterCapabilities('github-pages/publish-static-tree/v1'), null);
-  assert.throws(
-    () =>
-      kernel.define({
-        id: 'publish',
-        dependencies: [],
-        packet: { effect_contract: 'github-pages/publish-static-tree/v1' },
-        postcondition: publication() as unknown as Postcondition,
-      }),
-    /UNSUPPORTED_POSTCONDITION/,
+  let mutations = 0;
+  const p = publication();
+  await assert.rejects(
+    performGitHubPagesPublicationEffect(kernel, { postcondition: p } as PagesPublicationAuthority, {
+      token: 'fixture',
+      get: pagesProvider(p),
+      destination: {
+        repository_id: 42,
+        repository_full_name: 'acme/widget',
+        destination_ref: 'refs/heads/gh-pages',
+        default_ref: 'refs/heads/main',
+        site_base_url: p.site_base_url,
+      },
+      object_repo: root,
+      pushWithExpectedHead: async () => {
+        mutations++;
+      },
+    }),
   );
+  assert.equal(mutations, 0);
 });
 
 test('HTTPS transport rejects repository retargeting before Git runs', async () => {

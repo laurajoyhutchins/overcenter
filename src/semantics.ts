@@ -40,6 +40,7 @@ export function settlementSemantics(postcondition: Postcondition): SettlementSem
   }
   if (
     postcondition.verifier === 'eventually-consistent-file-content-equals/v1' ||
+    postcondition.verifier === 'github-pages-static-tree-published/v1' ||
     postcondition.verifier === 'github-commit-status/v2' ||
     postcondition.verifier === 'github-pull-request-branch-updated/v1' ||
     postcondition.verifier === 'github-hostile-mutation-evidence/v1' ||
@@ -86,6 +87,13 @@ export function verifiedContentIdentity(postcondition: Postcondition): string | 
 }
 
 export function effectSemantics(postcondition: Postcondition): EffectSemantics | null {
+  if (postcondition.verifier === 'github-pages-static-tree-published/v1') {
+    return {
+      resource: `github-pages:${postcondition.repository_id}:${postcondition.destination_ref}`,
+      desired: canonicalDigest(postcondition),
+      sameDesiredCommutes: false,
+    };
+  }
   if (postcondition.verifier === 'github-pull-request-branch-updated/v1') {
     return {
       resource: `github-pr-branch:${postcondition.repository_id}:${postcondition.pull_number}`,
