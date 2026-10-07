@@ -12,6 +12,7 @@ export const GITHUB_PULL_REQUEST_UPDATE_BRANCH_EFFECT =
   'github-pull-request/update-branch' as const;
 
 export const GITHUB_SOURCE_INTEGRATION_EFFECT = 'github-source/integrate-verified-tree/v1' as const;
+export const GITHUB_PAGES_PUBLICATION_EFFECT = 'github-pages/publish-static-tree/v1' as const;
 
 export const KUBERNETES_CONFIGMAP_EFFECT = 'kubernetes-configmap/ensure' as const;
 
@@ -77,6 +78,21 @@ export function validateEffectAdapterCapabilities(capabilities: EffectAdapterCap
 }
 
 export const EFFECT_ADAPTER_CAPABILITIES = [
+  {
+    schema: EFFECT_ADAPTER_CAPABILITIES_SCHEMA,
+    effect_contract: GITHUB_PAGES_PUBLICATION_EFFECT,
+    postcondition_verifier: 'github-pages-static-tree-published/v1',
+    duplicate_delivery: 'may-duplicate',
+    replay: {
+      kind: 'forbidden',
+      reason:
+        'ambiguous publication must reconcile exact provider and served-byte observations before another mutation',
+    },
+    reservation_release: {
+      kind: 'forbidden',
+      reason: 'no admitted Pages pre-dispatch release evidence',
+    },
+  },
   {
     schema: EFFECT_ADAPTER_CAPABILITIES_SCHEMA,
     effect_contract: GITHUB_COMMIT_STATUS_EFFECT,

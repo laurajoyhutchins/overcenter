@@ -16,6 +16,13 @@ import {
 import { SettlementObservationSchema } from '../generated/settlement-observation-schema.ts';
 import { assertSupportedStructuralSchema, structurallyMatches } from '../structural-schema.ts';
 import { isPositiveSafeInteger, isSha256Hex } from '../validation.ts';
+import { validatePagesPublication } from '../providers/github/pages-contract.ts';
+import {
+  observeCertifiedGitHubPagesPublication,
+  githubPagesPublicationEvidenceMatches,
+  pagesUncertain,
+  type PagesObservationContext,
+} from '../providers/github/certified-pages.ts';
 import {
   observeCertifiedGitHubCommitStatus,
   type GitHubJsonGet,
@@ -37,6 +44,7 @@ import {
 } from '../providers/kubernetes/configmap.ts';
 
 export interface ObservationContext {
+  pages?: Omit<PagesObservationContext, 'token'>;
   githubToken: string | null;
   githubGet?: GitHubJsonGet;
   githubGetAsync?: GitHubJsonGetAsync;
@@ -112,6 +120,10 @@ function readLocalFile(path: string, context: ObservationContext): string {
 }
 
 export function validatePostcondition(p: Postcondition): void {
+  if (p?.verifier === 'github-pages-static-tree-published/v1') {
+    validatePagesPublication(p);
+    return;
+  }
   if (p?.verifier === 'operator-judgment/v1' && data(p.subject)) return;
   if (p?.verifier === 'source-integration/v1') return;
   if (
@@ -423,6 +435,8 @@ function githubPullRequestBranchUpdatedEvidenceMatches(
 }
 
 export function observePostcondition(p: Postcondition, context: ObservationContext): Observation {
+  if (p.verifier === 'github-pages-static-tree-published/v1')
+    return pagesUncertain(p, 'PAGES_ASYNC_OBSERVATION_REQUIRED');
   validatePostcondition(p);
   if (p.verifier === 'source-integration/v1') {
     throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
@@ -609,6 +623,14 @@ export async function observePostconditionAsync(
   context: ObservationContext,
 ): Promise<Observation> {
   validatePostcondition(p);
+  if (p.verifier === 'github-pages-static-tree-published/v1') {
+    if (!context.pages || !context.githubToken)
+      return pagesUncertain(p, 'PAGES_OBSERVATION_CONTEXT_REQUIRED');
+    return await observeCertifiedGitHubPagesPublication(p, {
+      ...context.pages,
+      token: context.githubToken,
+    });
+  }
   if (p.verifier === 'github-pull-request-branch-updated/v1') {
     if (!context.githubToken) {
       return githubPullRequestBranchUpdatedError(p, 'GITHUB_TOKEN_UNAVAILABLE');
@@ -667,6 +689,19 @@ function assertObservationCoordinate(postcondition: Postcondition, observed: Obs
   validateObservationEnvelope(observed);
   if (observed.verifier !== postcondition.verifier) {
     throw new Error('OBSERVATION_VERIFIER_MISMATCH');
+  }
+  if (postcondition.verifier === 'github-pages-static-tree-published/v1') {
+    if (
+      observed.provider !== 'github' ||
+      observed.repository_id !== postcondition.repository_id ||
+      observed.repository_full_name !== postcondition.repository_full_name ||
+      observed.ref !== postcondition.destination_ref ||
+      observed.commit_sha !== postcondition.publication_sha ||
+      observed.expected_sha256 !== canonicalDigest(postcondition)
+    ) {
+      throw new Error('OBSERVATION_COORDINATE_MISMATCH');
+    }
+    return;
   }
 
   if (
@@ -777,6 +812,8 @@ export function observationVerified(postcondition: Postcondition, observed: Obse
     throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
   }
   if (observed.mutation_certainty !== 'present') return false;
+  if (postcondition.verifier === 'github-pages-static-tree-published/v1')
+    return githubPagesPublicationEvidenceMatches(postcondition, observed);
 
   if (
     postcondition.verifier === 'file-content-equals/v1' ||

@@ -2,17 +2,23 @@ import type { KernelCore } from '../authority/engine.ts';
 import {
   effectAdapterCapabilities,
   GITHUB_COMMIT_STATUS_EFFECT,
+  GITHUB_PAGES_PUBLICATION_EFFECT,
   KUBERNETES_CONFIGMAP_EFFECT,
 } from '../effect-adapter.ts';
 import type { Data, ExecutionPermit } from '../model.ts';
 import { performGitHubCommitStatusEffect, type GitHubStatusPost } from './github/status-effect.ts';
 import type { GitHubJsonGetAsync } from './github/rest.ts';
 import {
+  performGitHubPagesPublicationEffect,
+  type PagesEffectContext,
+} from './github/pages-effect.ts';
+import {
   performKubernetesConfigMapEffect,
   type KubernetesConfigMapApply,
 } from './kubernetes/configmap-effect.ts';
 
 export interface TrustedEffectDispatchContext {
+  pages?: PagesEffectContext;
   github?: {
     token: string;
     get?: GitHubJsonGetAsync;
@@ -45,6 +51,14 @@ export async function dispatchAdmittedEffect(
       ...(github.statusPost ? { post: github.statusPost } : {}),
       ...(github.clock ? { clock: github.clock } : {}),
     });
+  }
+  if (capabilities.effect_contract === GITHUB_PAGES_PUBLICATION_EFFECT) {
+    if (!context.pages) throw new Error('REGISTERED_EFFECT_DISPATCH_PAGES_CONTEXT_REQUIRED');
+    return await performGitHubPagesPublicationEffect(
+      kernel,
+      kernel.authorizeEffect(permit, GITHUB_PAGES_PUBLICATION_EFFECT),
+      context.pages,
+    );
   }
 
   if (capabilities.effect_contract === KUBERNETES_CONFIGMAP_EFFECT) {

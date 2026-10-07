@@ -34,3 +34,18 @@ admitted. Do not deploy through this support slice, invent authority, configure
 Pages implicitly, or use generated output as proof of live publication.
 
 See `VALIDATION.md` for candidate checks and remaining rollout evidence.
+
+## Blocked activation candidate
+
+This branch layers registration, dispatcher, observation/settlement semantics,
+and kernel recovery tests over the inactive support PR. The new paths remain
+unadmitted. The candidate must not be merged or used operationally until its
+trusted-closure growth and mixed protected/ordinary admission transition are
+resolved with accepted machinery. Do not reinterpret support's zero-growth result
+as activation evidence.
+
+The preserved experiment accepts an existing authority DB and kernel-issued
+permit; it does not define/claim work or configure Pages. `push` exits after the
+reserved mutation, while a fresh `recover` process only observes. A separate,
+owner-populated provider mirror is required for independent tree acquisition.
+No live publication receipt exists for this candidate.
