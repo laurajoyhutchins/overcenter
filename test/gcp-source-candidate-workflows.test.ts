@@ -43,12 +43,6 @@ test('source verification recording owns runtime and authority-state mechanics',
 });
 
 test('source record observation derives its job name from the trusted profile', () => {
-  assert.match(
-    RECORD_SCRIPT,
-    /job\.name === plan\.verification_profile\.profile\.record_job/,
-  );
-  assert.doesNotMatch(
-    RECORD_SCRIPT,
-    /job\.name === ['"]Record source verification['"]/,
-  );
+  assert.match(RECORD_SCRIPT, /job\.name === plan\.verification_profile\.profile\.record_job/);
+  assert.doesNotMatch(RECORD_SCRIPT, /job\.name === ['"]Record source verification['"]/);
 });
