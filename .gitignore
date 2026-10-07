@@ -1,6 +1,0 @@
-*.db
-*.db-shm
-*.db-wal
-node_modules/
-formal/.tlc/
-.overcenter-build/
