@@ -1,0 +1,44 @@
+name: Temporary format source portability
+
+on:
+  push:
+    branches: [codex/external-source-profile-portability]
+    paths:
+      - .github/workflows/tmp-format-source-portability.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: [self-hosted, "overcenter-gcp-${{ github.run_id }}-formatport-${{ github.run_attempt }}"]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.node-version'
+          package-manager-cache: false
+      - name: Format TypeScript with pinned Biome
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(
+            git ls-files '*.ts' biome.json package.json |
+              grep -v '^src/generated/' |
+              grep -v '^src/providers/github/operations\.generated\.ts$'
+          )
+          npx --yes "@biomejs/biome@2.5.14" format --write "${files[@]}"
+      - name: Commit mechanical formatting and delete formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/tmp-format-source-portability.yml
+          git add -A
+          git config user.name "overcenter-format"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "Format source portability slice"
+          git push origin HEAD:codex/external-source-profile-portability
