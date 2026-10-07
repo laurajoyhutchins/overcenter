@@ -258,6 +258,9 @@ test('dedicated launcher identity preserves the deployment authority split', () 
   assert.doesNotMatch(deploy, /gcloud projects add-iam-policy-binding/);
   assert.doesNotMatch(deploy, /gcloud iam service-accounts add-iam-policy-binding/);
   assert.doesNotMatch(deploy, /gcloud run services add-iam-policy-binding/);
+  assert.match(deploy, /--no-invoker-iam-check/);
+  assert.match(deploy, /run\.googleapis\.com\/invoker-iam-disabled/);
+  assert.doesNotMatch(bootstrap, /allUsers/);
 
   assert.match(bootstrap, /roles\/cloudbuild\.builds\.editor/);
   assert.match(bootstrap, /roles\/serviceusage\.serviceUsageConsumer/);

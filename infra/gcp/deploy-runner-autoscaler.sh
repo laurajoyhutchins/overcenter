@@ -268,6 +268,7 @@ gcloud run deploy "$AUTOSCALER_SERVICE" \
   --command=node \
   --args="--experimental-strip-types,src/transport/gcp-runner-autoscaler.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
+  --no-invoker-iam-check \
   --min=1 \
   --max=1 \
   --no-cpu-throttling \
@@ -320,6 +321,8 @@ if max_scale != "1" or min_scale != "1":
     raise SystemExit(
         f"autoscaler service instance bounds mismatch: min={min_scale!r} max={max_scale!r}"
     )
+if str(service_annotations.get("run.googleapis.com/invoker-iam-disabled") or "").lower() != "true":
+    raise SystemExit("autoscaler invoker IAM check is still enabled")
 
 if any("cloudsql" in json.dumps(value).lower() for value in (spec.get("volumes") or [])):
     raise SystemExit("autoscaler must not have a Cloud SQL attachment")
@@ -355,26 +358,6 @@ if [[ ! "$existing_autoscaler_url" =~ ^https:// ]]; then
     --update-env-vars="OVERCENTER_GITHUB_WEBHOOK_URL=${service_url}/github-webhook" \
     --quiet
 fi
-
-echo "Verifying bootstrapped GitHub webhook ingress"
-autoscaler_policy="${RUNNER_TEMP:-/tmp}/overcenter-gcp-runner-autoscaler-policy.json"
-gcloud run services get-iam-policy "$AUTOSCALER_SERVICE" \
-  --project="$PROJECT_ID" \
-  --region="$REGION" \
-  --format=json > "$autoscaler_policy"
-python3 - "$autoscaler_policy" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], encoding="utf-8") as handle:
-    body = json.load(handle)
-if not any(
-    binding.get("role") == "roles/run.invoker"
-    and "allUsers" in (binding.get("members") or [])
-    for binding in body.get("bindings") or []
-):
-    raise SystemExit("autoscaler public webhook invoker bootstrap is missing")
-PY
 
 launcher_status="$(
   curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${launcher_url}/health"
