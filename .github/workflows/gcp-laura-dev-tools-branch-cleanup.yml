@@ -81,6 +81,8 @@ jobs:
                   test -n "$$root"
                   cp -a "$$root"/. /workspace/ldt/
                   cd /workspace/ldt
+                  npm install --ignore-scripts --no-audit --no-fund
+                  npm run build
                   export LAURA_DEV_TOOLS_GITHUB_APP_ID="$$GITHUB_APP_ID"
                   export LAURA_DEV_TOOLS_GITHUB_APP_PRIVATE_KEY="$$GITHUB_APP_PRIVATE_KEY"
                   export LAURA_DEV_TOOLS_OPERATION='git.branch.delete'
@@ -90,7 +92,7 @@ jobs:
                     head="$$2"
                     export LAURA_DEV_TOOLS_INPUT_JSON
                     LAURA_DEV_TOOLS_INPUT_JSON="$$(printf '{"repo":"laurajoyhutchins/overcenter","branch":"%s","expected_head":"%s"}' "$$branch" "$$head")"
-                    node --experimental-strip-types src/cli.ts
+                    node dist/cli.js
                   }
 
                     delete_branch 'perf/gcp-verification-substrate' 'f408a18c3b81ab4d74ae385fbc88ed3fc67268f2'
