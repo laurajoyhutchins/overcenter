@@ -147,6 +147,37 @@ export function runnerExecutionLease(request: RunnerLaunchRequest): RunnerExecut
   });
 }
 
+export function parseRunnerExecutionLease(value: unknown): RunnerExecutionLease {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('runner execution lease must be an object');
+  }
+  const body = value as Record<string, unknown>;
+  const allowedKeys = new Set([
+    'schema',
+    'repository',
+    'repository_id',
+    'owner_id',
+    'job_id',
+    'runner_label',
+  ]);
+  for (const key of Object.keys(body)) {
+    if (!allowedKeys.has(key)) {
+      throw new TypeError('unexpected runner execution lease key: ' + key);
+    }
+  }
+  if (body.schema !== RUNNER_EXECUTION_LEASE_SCHEMA) {
+    throw new TypeError('runner execution lease schema mismatch');
+  }
+  return Object.freeze({
+    schema: RUNNER_EXECUTION_LEASE_SCHEMA,
+    repository: requireRepository(body.repository, 'repository'),
+    repository_id: requirePositiveInteger(body.repository_id, 'repository_id'),
+    owner_id: requirePositiveInteger(body.owner_id, 'owner_id'),
+    job_id: requirePositiveInteger(body.job_id, 'job_id'),
+    runner_label: requireRunnerLabel(body.runner_label),
+  });
+}
+
 export function matchRepositoryBinding(
   repositories: readonly RepositoryBinding[],
   request: RunnerLaunchRequest,
@@ -512,6 +543,74 @@ export function createCloudBuildRunnerSubstrate(
         substrate: 'cloud-build' as const,
         executionId: submission.buildId,
         reused: submission.reused,
+      });
+    },
+  });
+}
+
+export type GceWarmPoolEnvironment = Readonly<{
+  projectId: string;
+  topic: string;
+}>;
+
+export function runnerExecutionMessage(lease: RunnerExecutionLease): Readonly<{
+  data: string;
+  attributes: Readonly<Record<string, string>>;
+}> {
+  return Object.freeze({
+    data: Buffer.from(JSON.stringify(lease), 'utf8').toString('base64'),
+    attributes: Object.freeze({
+      schema: lease.schema,
+      repository_id: String(lease.repository_id),
+      job_id: String(lease.job_id),
+    }),
+  });
+}
+
+export function createGceWarmPoolRunnerSubstrate(
+  environment: GceWarmPoolEnvironment,
+): RunnerExecutionSubstrate {
+  if (!/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(environment.projectId)) {
+    throw new TypeError('GCE warm-pool project id is invalid');
+  }
+  if (!/^[A-Za-z][A-Za-z0-9._~+%-]{2,254}$/.test(environment.topic)) {
+    throw new TypeError('GCE warm-pool Pub/Sub topic is invalid');
+  }
+  return Object.freeze({
+    kind: 'gce-warm-pool' as const,
+    async submit(lease: RunnerExecutionLease): Promise<RunnerExecutionSubmission> {
+      const token = await metadataAccessToken();
+      const response = await fetch(
+        'https://pubsub.googleapis.com/v1/projects/' +
+          encodeURIComponent(environment.projectId) +
+          '/topics/' +
+          encodeURIComponent(environment.topic) +
+          ':publish',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer ' + token,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ messages: [runnerExecutionMessage(lease)] }),
+        },
+      );
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(
+          'Pub/Sub runner publish failed with HTTP ' + response.status + ': ' + text.slice(0, 500),
+        );
+      }
+      const body = JSON.parse(text) as Record<string, unknown>;
+      const messageIds = Array.isArray(body.messageIds) ? body.messageIds : [];
+      const messageId = String(messageIds[0] ?? '').trim();
+      if (!messageId) {
+        throw new Error('Pub/Sub runner publish response did not include a message id');
+      }
+      return Object.freeze({
+        substrate: 'gce-warm-pool' as const,
+        executionId: messageId,
+        reused: false,
       });
     },
   });
