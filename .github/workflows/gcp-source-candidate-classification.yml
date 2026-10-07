@@ -1,0 +1,69 @@
+name: GCP source candidate classification
+
+on:
+  workflow_call:
+    inputs:
+      candidate_sha:
+        description: Exact caller source candidate revision.
+        required: true
+        type: string
+      runtime_sha:
+        description: Exact trusted Overcenter runtime revision bound to the candidate.
+        required: true
+        type: string
+    outputs:
+      run_id:
+        description: Candidate run identifier derived from the published candidate ref.
+        value: ${{ jobs.classify.outputs.run_id }}
+      base_sha:
+        description: Exact first parent of the source candidate.
+        value: ${{ jobs.classify.outputs.base_sha }}
+      candidate_sha:
+        description: Exact classified source candidate revision.
+        value: ${{ jobs.classify.outputs.candidate_sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    name: Candidate classification
+    runs-on: [self-hosted, "overcenter-gcp-${{ github.run_id }}-classify-${{ github.run_attempt }}"]
+    timeout-minutes: 3
+    outputs:
+      run_id: ${{ steps.classify.outputs.run_id }}
+      base_sha: ${{ steps.classify.outputs.base_sha }}
+      candidate_sha: ${{ steps.classify.outputs.candidate_sha }}
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Record GCP runner provenance
+        uses: $/.github/actions/record-gcp-runner-provenance
+
+      - name: Bind exact candidate transport
+        id: classify
+        shell: bash
+        env:
+          CANDIDATE_SHA_INPUT: ${{ inputs.candidate_sha }}
+          RUNTIME_SHA_INPUT: ${{ inputs.runtime_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_SHA_INPUT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$RUNTIME_SHA_INPUT" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_SHA" = "$CANDIDATE_SHA_INPUT"
+
+          run_id="${GITHUB_REF_NAME#overcenter/candidate/}"
+          test -n "$run_id"
+          test "$run_id" != "$GITHUB_REF_NAME"
+
+          read -r -a parents <<<"$(git rev-list --parents -n1 "$GITHUB_SHA")"
+          test "${#parents[@]}" -eq 2
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "base_sha=${parents[1]}" >> "$GITHUB_OUTPUT"
+          echo "candidate_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
