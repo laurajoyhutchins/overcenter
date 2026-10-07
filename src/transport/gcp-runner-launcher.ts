@@ -221,10 +221,14 @@ async function main() {
   );
   const headers = { ...baseHeaders, Authorization: 'Bearer ' + access.token };
 
-  const identity = await json(
-    await fetch('https://api.github.com/repos/' + repo, { headers }),
-    'repository identity',
-  );
+  const [identity, job] = await Promise.all([
+    fetch('https://api.github.com/repos/' + repo, { headers }).then(response =>
+      json(response, 'repository identity'),
+    ),
+    fetch('https://api.github.com/repos/' + repo + '/actions/jobs/' + jobId, {
+      headers,
+    }).then(response => json(response, 'workflow job lookup')),
+  ]);
   if (
     identity.id !== expectedRepositoryId ||
     !identity.owner ||
@@ -233,13 +237,6 @@ async function main() {
   ) {
     throw new Error('repository identity mismatch');
   }
-
-  const job = await json(
-    await fetch('https://api.github.com/repos/' + repo + '/actions/jobs/' + jobId, {
-      headers,
-    }),
-    'workflow job lookup',
-  );
   const labels = new Set(Array.isArray(job.labels) ? job.labels.map(String) : []);
   if (
     job.id !== jobId ||
@@ -346,18 +343,26 @@ export function createRunnerBuild(
     tags: runnerBuildTags(request),
     steps: [
       {
+        id: 'prefetch-runner-image',
+        name: 'gcr.io/cloud-builders/docker',
+        args: ['pull', environment.runnerImage],
+        waitFor: ['-'],
+      },
+      {
         id: 'authorize-job',
-        name: 'node:22-bookworm',
+        name: 'node:22.16.0-bookworm-slim',
         entrypoint: 'node',
         secretEnv: ['GITHUB_APP_PRIVATE_KEY'],
         env: targetEnv,
         args: ['-e', AUTHORIZE_JOB_SCRIPT],
+        waitFor: ['-'],
       },
       {
         id: 'github-runner',
         name: 'gcr.io/cloud-builders/docker',
         entrypoint: 'bash',
         args: ['-ceu', dockerScript],
+        waitFor: ['authorize-job', 'prefetch-runner-image'],
       },
     ],
     availableSecrets: {
