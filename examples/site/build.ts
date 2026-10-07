@@ -1,5 +1,4 @@
 import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
-import * as pagefind from 'pagefind';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadSiteModel, type SiteModel } from './model.ts';
@@ -8,6 +7,7 @@ import { generators, PAGE_FILES } from './render.ts';
 export interface BuildSiteOptions {
   root?: string;
   outDir?: string;
+  includeSearch?: boolean;
 }
 
 const SITE_ROOT = 'https://laurajoyhutchins.github.io/overcenter/';
@@ -21,31 +21,21 @@ function renderSitemap(): string {
 }
 
 async function buildSearchIndex(outDir: string): Promise<void> {
-  const { index } = await pagefind.createIndex({
-    rootSelector: '[data-pagefind-body]',
-    forceLanguage: 'en',
+  const { execFile } = await import('node:child_process');
+  await new Promise<void>((resolvePromise, reject) => {
+    execFile(
+      'npx',
+      ['--yes', 'pagefind@1.5.2', '--site', outDir],
+      { maxBuffer: 16 * 1024 * 1024 },
+      (error, _stdout, stderr) => {
+        if (error) {
+          reject(new Error(`SITE_PAGEFIND_FAILED:${stderr.trim() || error.message}`));
+          return;
+        }
+        resolvePromise();
+      },
+    );
   });
-  if (!index) throw new Error('SITE_PAGEFIND_INDEX_MISSING');
-
-  try {
-    const added = await index.addDirectory({ path: outDir, glob: '**/*.html' });
-    if (added.errors.length > 0) {
-      throw new Error(`SITE_PAGEFIND_ADD_FAILED:${added.errors.join('|')}`);
-    }
-    if (added.page_count !== PAGE_FILES.length) {
-      throw new Error(
-        `SITE_PAGEFIND_PAGE_COUNT:${added.page_count}:${PAGE_FILES.length}`,
-      );
-    }
-
-    const written = await index.writeFiles({ outputPath: resolve(outDir, 'pagefind') });
-    if (written.errors.length > 0) {
-      throw new Error(`SITE_PAGEFIND_WRITE_FAILED:${written.errors.join('|')}`);
-    }
-  } finally {
-    await index.deleteIndex();
-    await pagefind.close();
-  }
 }
 
 export async function buildSite(options: BuildSiteOptions = {}): Promise<SiteModel> {
@@ -69,10 +59,10 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<SiteMod
     'utf8',
   );
   await writeFile(resolve(outDir, 'sitemap.xml'), renderSitemap(), 'utf8');
-  await buildSearchIndex(outDir);
+  if (options.includeSearch) await buildSearchIndex(outDir);
   return model;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  await buildSite();
+  await buildSite({ includeSearch: true });
 }
