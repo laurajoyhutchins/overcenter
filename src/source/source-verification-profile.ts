@@ -42,6 +42,20 @@ function repositoryPath(value: unknown): value is string {
   );
 }
 
+export function sourceVerificationCommandArgv(command: string): [string, ...string[]] {
+  if (command.length === 0 || command !== command.trim() || command.includes('  ')) {
+    throw new Error('SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID');
+  }
+  const argv = command.split(' ');
+  if (
+    argv.length === 0 ||
+    argv.some((token) => token.length === 0 || !/^[A-Za-z0-9_./:@%+=,-]+$/.test(token))
+  ) {
+    throw new Error('SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID');
+  }
+  return argv as [string, ...string[]];
+}
+
 function stringList(value: unknown, error: string, paths = false): string[] {
   if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== 'string'))
     throw new Error(error);
@@ -90,9 +104,7 @@ export function validateSourceVerificationProfile(value: unknown): SourceVerific
     'SOURCE_VERIFICATION_PROFILE_JOBS_INVALID',
   ).sort();
   const commands = stringList(value.commands, 'SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID');
-  const supportedCommands = new Set(['npm run lint', 'npm run typecheck', 'npm run test:unit']);
-  if (commands.some((command) => !supportedCommands.has(command)))
-    throw new Error('SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID');
+  for (const command of commands) sourceVerificationCommandArgv(command);
   const protectedPaths = stringList(
     value.protected_paths,
     'SOURCE_VERIFICATION_PROFILE_PROTECTED_PATHS_INVALID',
