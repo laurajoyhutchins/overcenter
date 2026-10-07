@@ -1,11 +1,42 @@
 import { execFileSync } from 'node:child_process';
-import { canonicalDigest } from '../digest.ts';
+import { canonicalDigest, canonicalJson } from '../digest.ts';
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
 
 export const SOURCE_VERIFICATION_PROFILE_PATH =
   '.overcenter/source-verification-profile.json' as const;
 export const SOURCE_VERIFICATION_PROFILE_SCHEMA =
   'overcenter-source-verification-profile/v1' as const;
+
+export type SourceVerificationCommand =
+  | { kind: 'package-script'; script: string }
+  | { kind: 'process-argv'; argv: string[] };
+
+const COMMAND_TOKEN = /^[A-Za-z0-9_./:@%+=,-]+$/;
+
+export function parseSourceVerificationCommand(value: unknown): SourceVerificationCommand {
+  if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) {
+    throw new Error('SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID');
+  }
+  const packageScript = /^npm run ([A-Za-z0-9:_-]+)$/.exec(value);
+  if (packageScript) return { kind: 'package-script', script: packageScript[1]! };
+
+  const argv = value.split(' ');
+  if (
+    argv.length === 0 ||
+    argv.some((token) => !token || !COMMAND_TOKEN.test(token)) ||
+    argv[0] === 'npm'
+  ) {
+    throw new Error('SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID');
+  }
+  return { kind: 'process-argv', argv };
+}
+
+export function sourceVerificationRecipeStep(command: string): string {
+  const parsed = parseSourceVerificationCommand(command);
+  return parsed.kind === 'package-script'
+    ? parsed.script
+    : `argv:${canonicalJson(parsed.argv)}`;
+}
 
 export interface SourceVerificationProfile {
   schema: typeof SOURCE_VERIFICATION_PROFILE_SCHEMA;
@@ -90,9 +121,7 @@ export function validateSourceVerificationProfile(value: unknown): SourceVerific
     'SOURCE_VERIFICATION_PROFILE_JOBS_INVALID',
   ).sort();
   const commands = stringList(value.commands, 'SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID');
-  const supportedCommands = new Set(['npm run lint', 'npm run typecheck', 'npm run test:unit']);
-  if (commands.some((command) => !supportedCommands.has(command)))
-    throw new Error('SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID');
+  for (const command of commands) parseSourceVerificationCommand(command);
   const protectedPaths = stringList(
     value.protected_paths,
     'SOURCE_VERIFICATION_PROFILE_PROTECTED_PATHS_INVALID',
