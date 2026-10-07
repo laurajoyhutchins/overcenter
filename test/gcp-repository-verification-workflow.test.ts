@@ -23,12 +23,6 @@ test('called workflow checks out the caller and owns generic execution provenanc
 });
 
 test('repository policy crosses the boundary only as an explicit command', () => {
-  assert.match(
-    WORKFLOW,
-    /OVERCENTER_REPOSITORY_VERIFICATION_COMMAND: \$\{\{ inputs\.command \}\}/,
-  );
-  assert.match(
-    WORKFLOW,
-    /bash -ceu "\$OVERCENTER_REPOSITORY_VERIFICATION_COMMAND"/,
-  );
+  assert.match(WORKFLOW, /OVERCENTER_REPOSITORY_VERIFICATION_COMMAND: \$\{\{ inputs\.command \}\}/);
+  assert.match(WORKFLOW, /bash -ceu "\$OVERCENTER_REPOSITORY_VERIFICATION_COMMAND"/);
 });
