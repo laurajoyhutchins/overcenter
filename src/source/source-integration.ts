@@ -5,10 +5,8 @@ import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository
 import {
   SOURCE_CANDIDATE_SCHEMA,
   validateSourceCandidate,
-  validateSourceTaskPacket,
   type SourceCandidate,
   type SourceClaimBinding,
-  type SourceTaskPacket,
 } from './source-obligation.ts';
 
 export const SOURCE_VERIFICATION_SCHEMA = 'overcenter-source-verification/v1' as const;
@@ -68,15 +66,6 @@ function git(repo: string, args: string[]): string {
 
 function exactSha(value: unknown, error: string): asserts value is string {
   if (typeof value !== 'string' || !/^[0-9a-f]{40}$/.test(value)) throw new Error(error);
-}
-
-function sourceControlPath(path: string): boolean {
-  return (
-    path === '.overcenter' ||
-    path.startsWith('.overcenter/') ||
-    path === '.github' ||
-    path.startsWith('.github/')
-  );
 }
 
 export function validateSourceVerification(value: unknown): SourceVerification {
@@ -184,12 +173,11 @@ export function integrateVerifiedSourceCandidate(
 
 export function inspectSourceCandidate(
   repo: string,
-  taskValue: unknown,
+  _taskValue: unknown,
   claim: SourceClaimBinding,
   candidateSha: string,
   expectedObligationId?: string,
-): { task: SourceTaskPacket; candidate: SourceCandidate; changed_paths: string[] } {
-  const task = validateSourceTaskPacket(taskValue);
+): { candidate: SourceCandidate; changed_paths: string[] } {
   exactSha(candidateSha, 'SOURCE_CANDIDATE_COMMIT_SHA_INVALID');
 
   const parents = git(repo, ['rev-list', '--parents', '-n', '1', candidateSha])
@@ -221,14 +209,8 @@ export function inspectSourceCandidate(
 
   const delta = observeRepositoryDelta(repo, claim.source_sha, candidateSha);
   assertSupportedSourceDelta(delta);
-  const changedPaths = delta.entries.map((entry) => entry.path);
-  if (changedPaths.length === 0) throw new Error('SOURCE_CANDIDATE_EMPTY');
-  if (changedPaths.some(sourceControlPath)) {
-    throw new Error('SOURCE_CONTROL_PLANE_MUTATION_FORBIDDEN');
-  }
-  if (changedPaths.some((path) => !task.writable_paths.includes(path))) {
-    throw new Error('SOURCE_SCOPE_VIOLATION');
-  }
+  const changedPaths = delta.entries.map((entry) => entry.path).sort();
+  if (!changedPaths.length) throw new Error('SOURCE_CANDIDATE_EMPTY');
 
-  return { task, candidate, changed_paths: changedPaths };
+  return { candidate, changed_paths: changedPaths };
 }

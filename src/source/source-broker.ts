@@ -9,11 +9,14 @@ import {
   type SourceCandidatePublicationResult,
 } from './source-integration.ts';
 import {
+  assertSourceWriteEnvelope,
   validateSourceAssignment,
   validateSourceProposal,
   type SourceCandidate,
   type SourceClaimBinding,
 } from './source-obligation.ts';
+import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
+import { readSourceVerificationProfile } from './source-verification-profile.ts';
 
 function candidateGit(repo: string, args: string[], env: NodeJS.ProcessEnv = process.env): string {
   return execFileSync('git', ['-C', repo, ...args], {
@@ -116,7 +119,23 @@ function materializeSourceProposal(
     candidateTree.dispose();
   }
 
-  return inspectSourceCandidate(repo, taskValue, claim, candidateSha, obligationId).candidate;
+  const inspected = inspectSourceCandidate(repo, taskValue, claim, candidateSha, obligationId);
+  const delta = observeRepositoryDelta(repo, claim.source_sha, candidateSha);
+  assertSupportedSourceDelta(delta);
+  const profile = readSourceVerificationProfile(repo, claim.source_sha).profile;
+  assertSourceWriteEnvelope(
+    taskValue,
+    delta.entries.map((entry) => {
+      const size = (objectId: string | undefined) =>
+        objectId ? Number(candidateGit(repo, ['cat-file', '-s', objectId])) : 0;
+      return {
+        path: entry.path,
+        changed_bytes: size(entry.before?.object_id) + size(entry.after?.object_id),
+      };
+    }),
+    profile.protected_paths,
+  );
+  return inspected.candidate;
 }
 
 function publishSourceCandidate(
