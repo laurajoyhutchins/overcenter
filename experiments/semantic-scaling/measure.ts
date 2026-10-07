@@ -1,6 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { type Node, type SourceFile } from 'typescript/unstable/ast';
+import { API } from 'typescript/unstable/sync';
+
+import { logicalSemanticLoc } from '../../src/analysis/tcb-semantic-loc.ts';
 
 export const SEMANTIC_SCALING_MEASUREMENT_PLAN_SCHEMA =
   'overcenter-semantic-scaling-measurement-plan/v1' as const;
@@ -48,6 +54,9 @@ interface SymbolDeclaration {
   symbol: string;
   start_line: number;
   end_line: number;
+  start_offset?: number;
+  end_offset?: number;
+  semantic_loc?: number;
 }
 
 interface HybridScopeReport {
@@ -75,6 +84,7 @@ interface ArchitectureEffectReport extends HybridScopeReport {
 export interface SemanticScalingTcbReport {
   schema: 'overcenter-tcb-report';
   schema_version: 1;
+  semantic_loc_basis?: 'typescript-logical-sloc/v1';
   properties: TcbPropertyReport[];
   architecture_tcb: {
     effects: ArchitectureEffectReport[];
@@ -134,6 +144,131 @@ function semanticLine(line: string): boolean {
     !trimmed.startsWith('*') &&
     !trimmed.startsWith('*/')
   );
+}
+
+interface LogicalSemanticUnit {
+  key: string;
+  path: string;
+  start_offset: number;
+  end_offset: number;
+}
+
+type LogicalUnitsForPath = (path: string) => LogicalSemanticUnit[];
+
+let logicalApi: API | null = null;
+const logicalUnitCache = new Map<string, LogicalSemanticUnit[]>();
+
+function defaultLogicalUnitsForPath(path: string): LogicalSemanticUnit[] {
+  const cached = logicalUnitCache.get(path);
+  if (cached) return cached;
+
+  logicalApi ??= new API({ cwd: process.cwd() });
+  const absolute = resolve(path);
+  const snapshot = logicalApi.updateSnapshot({ openFiles: [absolute] });
+  const project = snapshot.getDefaultProjectForFile(absolute);
+  const source = project?.program.getSourceFile(absolute);
+  if (!source) throw new Error(`SEMANTIC_SCALING_TCB_SOURCE_UNAVAILABLE:${path}`);
+
+  const units: LogicalSemanticUnit[] = [];
+  const collect = (node: Node, sourceFile: SourceFile): void => {
+    const children: Node[] = [];
+    node.forEachChild((child) => {
+      children.push(child);
+    });
+    const semanticLoc = logicalSemanticLoc(node);
+    const childSemanticLoc = children.reduce((sum, child) => sum + logicalSemanticLoc(child), 0);
+    const ownSemanticLoc = semanticLoc - childSemanticLoc;
+    if (ownSemanticLoc !== 0 && ownSemanticLoc !== 1) {
+      throw new Error(`SEMANTIC_SCALING_TCB_LOGICAL_UNIT_INVALID:${path}`);
+    }
+    if (ownSemanticLoc === 1) {
+      const start = node.getStart(sourceFile);
+      const end = node.getEnd();
+      units.push({
+        key: `${path}:${start}-${end}-${node.kind}`,
+        path,
+        start_offset: start,
+        end_offset: end,
+      });
+    }
+    for (const child of children) collect(child, sourceFile);
+  };
+
+  collect(source, source);
+  if (units.length !== logicalSemanticLoc(source)) {
+    throw new Error(`SEMANTIC_SCALING_TCB_LOGICAL_FILE_MISMATCH:${path}`);
+  }
+  logicalUnitCache.set(path, units);
+  return units;
+}
+
+function trustedLogicalUnitsForScope(
+  scope: HybridScopeReport,
+  logicalUnitsForPath: LogicalUnitsForPath,
+): Set<string> {
+  if (
+    !Array.isArray(scope.module_closure_files) ||
+    !Array.isArray(scope.symbol_closure_declarations)
+  ) {
+    throw new Error('SEMANTIC_SCALING_TCB_RECONSTRUCTION_EVIDENCE_MISSING');
+  }
+
+  const trusted = new Set<string>();
+  const reconstructedFiles = new Set<string>();
+  const moduleFiles = new Set(scope.module_closure_files);
+
+  for (const path of scope.module_closure_files) {
+    reconstructedFiles.add(path);
+    for (const unit of logicalUnitsForPath(path)) trusted.add(unit.key);
+  }
+
+  for (const declaration of scope.symbol_closure_declarations) {
+    reconstructedFiles.add(declaration.path);
+    if (moduleFiles.has(declaration.path)) continue;
+    if (
+      !Number.isSafeInteger(declaration.start_offset) ||
+      !Number.isSafeInteger(declaration.end_offset) ||
+      !Number.isSafeInteger(declaration.semantic_loc) ||
+      declaration.start_offset === undefined ||
+      declaration.end_offset === undefined ||
+      declaration.semantic_loc === undefined ||
+      declaration.start_offset < 0 ||
+      declaration.end_offset <= declaration.start_offset ||
+      declaration.semantic_loc < 0
+    ) {
+      throw new Error(
+        `SEMANTIC_SCALING_TCB_LOGICAL_DECLARATION_INVALID:${declaration.path}#${declaration.symbol}`,
+      );
+    }
+
+    const selected = logicalUnitsForPath(declaration.path).filter(
+      (unit) =>
+        unit.start_offset >= declaration.start_offset! &&
+        unit.end_offset <= declaration.end_offset!,
+    );
+    if (selected.length !== declaration.semantic_loc) {
+      throw new Error(
+        `SEMANTIC_SCALING_TCB_LOGICAL_DECLARATION_MISMATCH:${declaration.path}#${declaration.symbol}:${selected.length}:${declaration.semantic_loc}`,
+      );
+    }
+    for (const unit of selected) trusted.add(unit.key);
+  }
+
+  if (trusted.size !== scope.hybrid_closure_semantic_loc) {
+    throw new Error(
+      `SEMANTIC_SCALING_TCB_RECONSTRUCTION_MISMATCH:${trusted.size}:${scope.hybrid_closure_semantic_loc}`,
+    );
+  }
+
+  const expectedFiles = new Set(scope.hybrid_closure_files);
+  if (
+    reconstructedFiles.size !== expectedFiles.size ||
+    [...reconstructedFiles].some((path) => !expectedFiles.has(path))
+  ) {
+    throw new Error('SEMANTIC_SCALING_TCB_FILE_SET_MISMATCH');
+  }
+
+  return trusted;
 }
 
 function sha256(value: string): string {
@@ -277,6 +412,12 @@ function validateTcbReport(value: unknown): SemanticScalingTcbReport {
     throw new Error('SEMANTIC_SCALING_TCB_REPORT_SCHEMA_UNSUPPORTED');
   }
   if (
+    report.semantic_loc_basis !== undefined &&
+    report.semantic_loc_basis !== 'typescript-logical-sloc/v1'
+  ) {
+    throw new Error('SEMANTIC_SCALING_TCB_SEMANTIC_LOC_BASIS_UNSUPPORTED');
+  }
+  if (
     report.reconciliation !== undefined &&
     report.reconciliation !== null &&
     !report.reconciliation.admitted
@@ -311,7 +452,13 @@ function digestUnits(units: Set<string>): string {
 export function trustedUnitsForScope(
   scope: HybridScopeReport,
   readSource: (path: string) => string = (path) => readFileSync(path, 'utf8'),
+  semanticLocBasis?: SemanticScalingTcbReport['semantic_loc_basis'],
+  logicalUnitsForPath: LogicalUnitsForPath = defaultLogicalUnitsForPath,
 ): Set<string> {
+  if (semanticLocBasis === 'typescript-logical-sloc/v1') {
+    return trustedLogicalUnitsForScope(scope, logicalUnitsForPath);
+  }
+
   const trusted = new Set<string>();
   const reconstructedFiles = new Set<string>();
 
@@ -402,7 +549,7 @@ function resolveScope(
       key: `property:${requested.id}`,
       role: requested.role,
       report: property,
-      units: trustedUnitsForScope(property, readSource),
+      units: trustedUnitsForScope(property, readSource, report.semantic_loc_basis),
     };
   }
 
@@ -416,7 +563,7 @@ function resolveScope(
     key: `architecture-effect:${requested.id}`,
     role: requested.role,
     report: effect,
-    units: trustedUnitsForScope(effect, readSource),
+    units: trustedUnitsForScope(effect, readSource, report.semantic_loc_basis),
   };
 }
 
@@ -515,7 +662,7 @@ export function semanticScalingSummary(result: SemanticScalingMeasurementResult)
     '| --- | --- | --- | ---: | ---: | ---: | ---: | --- | ---: | --- |',
     ...rows,
     '',
-    'Marginal LOC is a deduplicated line-level projection reconstructed from the existing TCB report. Scope identities, roles, fingerprints, external-assumption deltas, and residual judgments remain separate so a zero-LOC delta cannot erase semantic growth or a judgment frontier.',
+    'Marginal LOC is a deduplicated semantic-unit projection reconstructed from the existing TCB report using the report's declared semantic-LOC basis. Scope identities, roles, fingerprints, external-assumption deltas, and residual judgments remain separate so a zero-LOC delta cannot erase semantic growth or a judgment frontier.',
     '',
   ].join('\n');
 }
