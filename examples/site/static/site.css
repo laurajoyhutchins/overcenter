@@ -23,18 +23,19 @@
 * { box-sizing: border-box; }
 html {
   color: var(--ink);
-  background-color: var(--cream);
-  background-image:
-    linear-gradient(rgba(14, 143, 132, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(14, 143, 132, 0.055) 1px, transparent 1px);
-  background-size: 32px 32px;
+  background: var(--cream);
 }
 body {
   margin: 0;
   min-height: 100vh;
+  background-color: var(--cream);
+  background-image:
+    linear-gradient(rgba(14, 143, 132, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 143, 132, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
   font-family: var(--font-body);
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 16px;
+  line-height: 1.62;
 }
 a {
   color: var(--phthalo-blue);
@@ -82,15 +83,24 @@ nav a {
   text-decoration: none;
 }
 nav a:hover { color: var(--phthalo-green); }
+nav a[aria-current="page"] {
+  color: var(--phthalo-green);
+  box-shadow: inset 0 -2px var(--teal);
+}
 
 main,
 footer {
   width: min(1160px, calc(100% - 2.5rem));
   margin: 0 auto;
 }
+main { background: var(--cream); }
 .home-intro,
 .page-intro {
   padding: 5rem 0 2.75rem;
+  background-image:
+    linear-gradient(rgba(14, 143, 132, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 143, 132, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 .home-intro h1,
 .page-intro h1 {
@@ -203,6 +213,13 @@ footer {
 .card p,
 .evidence-row dd { line-height: 1.58; }
 
+.status-block {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.65rem;
+  align-items: baseline;
+  margin: 0 0 0.85rem;
+}
 .status {
   display: inline-block;
   margin: 0 0 0.75rem;
@@ -212,9 +229,18 @@ footer {
   color: var(--phthalo-blue);
   background: #DFFCF1;
   font-family: var(--font-label);
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   font-weight: 700;
   line-height: 1.2;
+}
+.status-block .status { margin: 0; }
+.status-scope {
+  flex: 1 1 18rem;
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-label);
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 .status-demonstrated,
 .status-supported {
@@ -233,10 +259,21 @@ footer {
   color: var(--midnight);
   background: color-mix(in srgb, var(--blush) 26%, var(--white));
 }
-.status-unknown {
+.status-unknown,
+.status-other {
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--cream);
+}
+.status-safety-constraint {
   border-color: #B89B00;
   color: var(--midnight);
-  background: color-mix(in srgb, var(--lemon) 34%, var(--white));
+  background: var(--lemon);
+}
+.status-architectural-requirement {
+  border-color: var(--teal);
+  color: var(--phthalo-blue);
+  background: var(--white);
 }
 .status-non-claim {
   border-color: var(--line);
@@ -247,8 +284,25 @@ footer {
 .meta {
   color: var(--phthalo-green);
   font-family: var(--font-label);
-  font-size: 0.76rem;
+  font-size: 0.82rem;
   overflow-wrap: anywhere;
+}
+.claim-provenance {
+  margin-top: 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+.claim-provenance p { margin: 0.35rem 0; }
+.claim-provenance span {
+  color: var(--phthalo-green);
+  font-family: var(--font-label);
+  font-weight: 700;
+}
+.claim-provenance code {
+  color: var(--phthalo-blue);
+  font-family: var(--font-mono);
 }
 .meta code {
   color: var(--phthalo-blue);
@@ -288,7 +342,7 @@ footer {
 .evidence-row dt {
   color: var(--phthalo-green);
   font-family: var(--font-label);
-  font-size: 0.71rem;
+  font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -296,7 +350,7 @@ footer {
 .evidence-row dd {
   margin: 0.4rem 0 0;
   color: var(--ink);
-  font-size: 0.86rem;
+  font-size: 0.94rem;
 }
 
 .chip-grid {
@@ -337,7 +391,7 @@ footer {
   padding: 2.75rem 0 5rem;
   color: var(--muted);
   font-family: var(--font-label);
-  font-size: 0.76rem;
+  font-size: 0.8rem;
 }
 
 ::selection {
@@ -346,7 +400,9 @@ footer {
 }
 
 @media (max-width: 800px) {
-  html { background-size: 24px 24px; }
+  body { background-size: 24px 24px; }
+  .home-intro,
+  .page-intro { background-size: 24px 24px; }
   .site-header {
     align-items: flex-start;
     flex-direction: column;

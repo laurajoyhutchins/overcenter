@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { buildSite } from '../examples/site/build.ts';
-import { PAGE_FILES, slug } from '../examples/site/render.ts';
+import { escapeHtml, PAGE_FILES, slug } from '../examples/site/render.ts';
 
 test('site projection conserves source records and internal links', async () => {
   const outDir = await mkdtemp(join(tmpdir(), 'overcenter-site-'));
@@ -38,18 +38,57 @@ test('site projection conserves source records and internal links', async () => 
     }
     assert.ok(siteCss.includes('background: var(--midnight)'));
 
+    const home = pages.get('index.html') ?? '';
     const claims = pages.get('claims.html') ?? '';
     const experiments = pages.get('experiments.html') ?? '';
     const architecture = pages.get('architecture.html') ?? '';
     const index = pages.get('index-of-terms.html') ?? '';
 
+    const demonstrated = model.claims.filter((claim) => claim.statusKind === 'demonstrated').length;
+    const demonstratedFromAuthority = model.claims.filter(
+      (claim) => claim.status === 'Demonstrated' || claim.status.startsWith('Demonstrated '),
+    ).length;
+    assert.equal(
+      demonstrated,
+      demonstratedFromAuthority,
+      'semantic demonstrated classification must preserve qualified demonstrated statuses',
+    );
+    assert.ok(
+      home.includes(`<strong>${demonstrated}</strong><span>demonstrated claims</span>`),
+      'home metric must count every demonstrated status family member',
+    );
+
     for (const claim of model.claims) {
       const anchor = `claim-${slug(claim.id)}`;
-      assert.match(claims, new RegExp(`id="${anchor}"`), `claim vanished: ${claim.id}`);
-      assert.match(
-        claims,
-        new RegExp(`class="status status-${slug(claim.status)}"`),
-        `claim status lost semantic class: ${claim.id}`,
+      const cardStart = claims.indexOf(`id="${anchor}"`);
+      assert.notEqual(cardStart, -1, `claim vanished: ${claim.id}`);
+      const cardEnd = claims.indexOf('</article>', cardStart);
+      assert.notEqual(cardEnd, -1, `claim card did not terminate: ${claim.id}`);
+      const claimCard = claims.slice(cardStart, cardEnd);
+
+      assert.ok(
+        claimCard.includes(`class="status status-${claim.statusKind}"`),
+        `claim status lost bounded semantic class: ${claim.id}`,
+      );
+      assert.ok(
+        claimCard.includes(`research/claims.md · ${claim.id}`),
+        `claim source missing: ${claim.id}`,
+      );
+      if (claim.statusScope) {
+        assert.ok(
+          claimCard.includes(escapeHtml(claim.statusScope)),
+          `claim status scope missing: ${claim.id}`,
+        );
+      }
+      if (claim.evidenceBoundary) {
+        assert.ok(
+          claimCard.includes(escapeHtml(claim.evidenceBoundary)),
+          `claim evidence boundary missing: ${claim.id}`,
+        );
+      }
+      assert.ok(
+        claimCard.includes('<a href="evidence.html">Proof obligation register</a>'),
+        `claim evidence route missing: ${claim.id}`,
       );
       assert.match(
         index,
@@ -65,10 +104,9 @@ test('site projection conserves source records and internal links', async () => 
         new RegExp(`id="${anchor}"`),
         `experiment vanished: ${experiment.id}`,
       );
-      assert.match(
-        experiments,
-        new RegExp(`class="status status-${slug(experiment.outcome)}"`),
-        `experiment status lost semantic class: ${experiment.id}`,
+      assert.ok(
+        experiments.includes(`class="status status-${experiment.outcomeKind}"`),
+        `experiment status lost bounded semantic class: ${experiment.id}`,
       );
       assert.match(
         index,
@@ -105,6 +143,29 @@ test('site projection conserves source records and internal links', async () => 
     }
     assert.equal(rendered.includes('class="eyebrow"'), false);
     assert.equal(rendered.includes('class="triptych"'), false);
+
+    assert.equal(
+      claims.includes('status-demonstrated-for-'),
+      false,
+      'free-form demonstrated scope must not become a CSS class',
+    );
+    assert.match(
+      siteCss,
+      /\.status-safety-constraint \{[\s\S]*?background: var\(--lemon\);[\s\S]*?\}/,
+    );
+    assert.match(
+      siteCss,
+      /\.status-unknown,[\s\S]*?\.status-other \{[\s\S]*?background: var\(--cream\);[\s\S]*?\}/,
+    );
+
+    for (const [file, html] of pages) {
+      const currentLinks = [...html.matchAll(/aria-current="page"/g)];
+      assert.equal(currentLinks.length, 1, `exactly one active navigation item required: ${file}`);
+      assert.ok(
+        html.includes(`href="${file}" aria-current="page"`),
+        `active navigation target mismatch: ${file}`,
+      );
+    }
 
     const anchorsByPage = new Map<string, Set<string>>();
     for (const [file, html] of pages) {

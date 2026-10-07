@@ -1,12 +1,23 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+export type ClaimStatusKind =
+  | 'demonstrated'
+  | 'architectural-requirement'
+  | 'research-target'
+  | 'non-claim'
+  | 'safety-constraint'
+  | 'other';
+
 export interface Claim {
   id: string;
   title: string;
   family: string;
   status: string;
+  statusKind: ClaimStatusKind;
+  statusScope?: string;
   statement: string;
+  evidenceBoundary?: string;
 }
 
 export interface ProofObligation {
@@ -18,11 +29,14 @@ export interface ProofObligation {
   boundary: string;
 }
 
+export type ExperimentOutcomeKind = 'supported' | 'mixed' | 'pending' | 'unknown' | 'other';
+
 export interface Experiment {
   id: string;
   question: string;
   claim: string;
   outcome: string;
+  outcomeKind: ExperimentOutcomeKind;
   summary: string;
   evidenceStatus: string;
   evaluatedRevision?: string;
@@ -113,6 +127,50 @@ function extractClaimStatement(lines: string[]): string {
   return 'See the canonical claim record for scope and evidence.';
 }
 
+function extractLabeledParagraph(lines: string[], label: string): string | undefined {
+  const marker = lines.findIndex((line) => line.trim() === label);
+  if (marker < 0) return undefined;
+
+  const paragraph: string[] = [];
+  for (const line of lines.slice(marker + 1)) {
+    const trimmed = line.trim();
+    if (paragraph.length > 0 && trimmed === '') break;
+    if (trimmed.startsWith('**') && trimmed.endsWith('**')) break;
+    if (!trimmed) continue;
+    paragraph.push(trimmed.replaceAll('**', '').replaceAll('`', ''));
+  }
+  return paragraph.length > 0 ? paragraph.join(' ') : undefined;
+}
+
+export function classifyClaimStatus(status: string): {
+  kind: ClaimStatusKind;
+  scope?: string;
+} {
+  if (status === 'Demonstrated') return { kind: 'demonstrated' };
+  if (status.startsWith('Demonstrated ')) {
+    return {
+      kind: 'demonstrated',
+      scope: status.slice('Demonstrated '.length).trim(),
+    };
+  }
+
+  const exact = new Map<string, ClaimStatusKind>([
+    ['Architectural requirement', 'architectural-requirement'],
+    ['Research target', 'research-target'],
+    ['Non-claim', 'non-claim'],
+    ['Safety constraint', 'safety-constraint'],
+  ]);
+  return { kind: exact.get(status) ?? 'other' };
+}
+
+export function classifyExperimentOutcome(outcome: string): ExperimentOutcomeKind {
+  if (outcome === 'supported') return 'supported';
+  if (outcome === 'mixed') return 'mixed';
+  if (outcome === 'pending') return 'pending';
+  if (outcome === 'unknown') return 'unknown';
+  return 'other';
+}
+
 function parseClaims(markdown: string): Claim[] {
   const lines = markdown.split(/\r?\n/);
   const claims: Claim[] = [];
@@ -142,12 +200,17 @@ function parseClaims(markdown: string): Claim[] {
     const status = statusLine?.replace('**Status:**', '').trim().replace(/\.$/, '');
     if (!status) throw new Error(`SITE_CLAIM_STATUS_MISSING:${claimMatch[1]}`);
 
+    const classified = classifyClaimStatus(status);
+    const evidenceBoundary = extractLabeledParagraph(section, '**Evidence boundary:**');
     claims.push({
       id: claimMatch[1],
       title: claimMatch[2].trim(),
       family,
       status,
+      statusKind: classified.kind,
+      ...(classified.scope ? { statusScope: classified.scope } : {}),
       statement: extractClaimStatement(section),
+      ...(evidenceBoundary ? { evidenceBoundary } : {}),
     });
     index = cursor - 1;
   }
@@ -228,17 +291,21 @@ function parseExperiments(registryJson: string): Experiment[] {
   if (!Array.isArray(registry.entries)) throw new Error('SITE_EXPERIMENT_REGISTRY_INVALID');
 
   return registry.entries
-    .map((entry) => ({
-      id: entry.id,
-      question: entry.question,
-      claim: entry.claim,
-      outcome: entry.outcome?.state ?? 'unknown',
-      summary: entry.outcome?.summary ?? '',
-      evidenceStatus: entry.evidence?.status ?? 'unknown',
-      ...(entry.evidence?.evaluated_revision
-        ? { evaluatedRevision: entry.evidence.evaluated_revision }
-        : {}),
-    }))
+    .map((entry) => {
+      const outcome = entry.outcome?.state ?? 'unknown';
+      return {
+        id: entry.id,
+        question: entry.question,
+        claim: entry.claim,
+        outcome,
+        outcomeKind: classifyExperimentOutcome(outcome),
+        summary: entry.outcome?.summary ?? '',
+        evidenceStatus: entry.evidence?.status ?? 'unknown',
+        ...(entry.evidence?.evaluated_revision
+          ? { evaluatedRevision: entry.evidence.evaluated_revision }
+          : {}),
+      };
+    })
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 
