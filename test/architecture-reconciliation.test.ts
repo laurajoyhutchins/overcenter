@@ -157,8 +157,8 @@ test('TCB roots are derived recursively from effect architecture', () => {
     assert.ok(
       sourceRoots.some(
         (root) =>
-          root.artifact_id === 'src/source/source-integration.ts' &&
-          root.symbol_id === 'integrateVerifiedSourceCandidate',
+          root.artifact_id === 'src/providers/github/pr-publication-effect.ts' &&
+          root.symbol_id === 'performGitHubPullRequestPublicationEffect',
       ),
     );
   } finally {
