@@ -42,10 +42,7 @@ function isTypeOnlyDeclaration(node: Node): boolean {
   if (isInterfaceDeclaration(node) || isTypeAliasDeclaration(node) || isTypeOnlySpecifier(node)) {
     return true;
   }
-  if (
-    isImportDeclaration(node) &&
-    node.importClause?.phaseModifier === SyntaxKind.TypeKeyword
-  ) {
+  if (isImportDeclaration(node) && node.importClause?.phaseModifier === SyntaxKind.TypeKeyword) {
     return true;
   }
   return (
@@ -96,8 +93,7 @@ export function logicalSemanticLoc(node: Node): number {
 
 export function maximalSemanticSpans<T extends SemanticSpan>(spans: readonly T[]): T[] {
   const sorted = [...spans].sort(
-    (left, right) =>
-      left.start_offset - right.start_offset || right.end_offset - left.end_offset,
+    (left, right) => left.start_offset - right.start_offset || right.end_offset - left.end_offset,
   );
   const maximal: T[] = [];
 
@@ -117,20 +113,14 @@ export function maximalSemanticSpans<T extends SemanticSpan>(spans: readonly T[]
       continue;
     }
 
-    if (
-      previous.start_offset === span.start_offset &&
-      previous.end_offset === span.end_offset
-    ) {
+    if (previous.start_offset === span.start_offset && previous.end_offset === span.end_offset) {
       if (previous.semantic_loc !== span.semantic_loc) {
         throw new Error('TCB_SEMANTIC_SPAN_CONFLICT');
       }
       continue;
     }
 
-    if (
-      previous.start_offset <= span.start_offset &&
-      previous.end_offset >= span.end_offset
-    ) {
+    if (previous.start_offset <= span.start_offset && previous.end_offset >= span.end_offset) {
       continue;
     }
 

@@ -6,10 +6,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { API, SymbolFlags, type Symbol as TypeScriptSymbol } from 'typescript/unstable/sync';
-import {
-  logicalSemanticLoc,
-  maximalSemanticSpans,
-} from '../src/analysis/tcb-semantic-loc.ts';
+import { logicalSemanticLoc, maximalSemanticSpans } from '../src/analysis/tcb-semantic-loc.ts';
 import {
   repositoryRelativePath as normalizedRepoPath,
   runtimeModuleClosure,
