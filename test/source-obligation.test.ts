@@ -87,7 +87,7 @@ test('source task rejects duplicate and unsafe repository paths', () => {
   }
 });
 
-test('source proposal is claim-bound and cannot widen writable scope', () => {
+test('source proposal transport is claim-bound while scope admission remains separate', () => {
   const claim = bindSourceClaim('kernel-semantic-key', 'run-7', 'authority-head', 'c'.repeat(40));
   const proposal = {
     schema: SOURCE_PROPOSAL_SCHEMA,
@@ -103,17 +103,16 @@ test('source proposal is claim-bound and cannot widen writable scope', () => {
   };
 
   assert.deepEqual(validateSourceProposal(proposal, packet, claim), proposal);
-  assert.throws(
-    () =>
-      validateSourceProposal(
-        {
-          ...proposal,
-          files: [{ path: 'README.md', content_base64: Buffer.from('widened').toString('base64') }],
-        },
-        packet,
-        claim,
-      ),
-    /SOURCE_PROPOSAL_SCOPE_VIOLATION:README\.md/,
+  assert.deepEqual(
+    validateSourceProposal(
+      {
+        ...proposal,
+        files: [{ path: 'README.md', content_base64: Buffer.from('widened').toString('base64') }],
+      },
+      packet,
+      claim,
+    ).files.map((file) => file.path),
+    ['README.md'],
   );
   assert.throws(
     () => validateSourceProposal({ ...proposal, run_id: 'other-run' }, packet, claim),
