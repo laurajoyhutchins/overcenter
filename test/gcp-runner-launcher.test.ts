@@ -6,11 +6,14 @@ import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 
 import {
+  RUNNER_EXECUTION_LEASE_SCHEMA,
+  createCloudBuildRunnerSubstrate,
   createRunnerBuild,
   findReusableRunnerBuild,
   matchRepositoryBinding,
   parseRunnerLaunchRequest,
   runnerBuildTags,
+  runnerExecutionLease,
   type LauncherEnvironment,
 } from '../src/transport/gcp-runner-launcher.ts';
 
@@ -52,6 +55,24 @@ test('launcher binds repository name, numeric identity, owner, job, and label', 
     () => matchRepositoryBinding(repositories, parsed, 'different-runner'),
     /runner launch label mismatch/,
   );
+});
+
+test('launcher derives an immutable substrate-neutral execution lease', () => {
+  const parsed = parseRunnerLaunchRequest(request);
+  const lease = runnerExecutionLease(parsed);
+  assert.equal(lease.schema, RUNNER_EXECUTION_LEASE_SCHEMA);
+  assert.deepEqual(
+    {
+      repository: lease.repository,
+      repository_id: lease.repository_id,
+      owner_id: lease.owner_id,
+      job_id: lease.job_id,
+      runner_label: lease.runner_label,
+    },
+    parsed,
+  );
+  assert.equal(Object.isFrozen(lease), true);
+  assert.equal(createCloudBuildRunnerSubstrate(environment).kind, 'cloud-build');
 });
 
 test('launcher rejects stale workflow-dispatch-shaped requests', () => {

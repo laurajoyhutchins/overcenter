@@ -18,6 +18,28 @@ export type RunnerLaunchRequest = Readonly<{
   runner_label: string;
 }>;
 
+export const RUNNER_EXECUTION_LEASE_SCHEMA = 'overcenter-github-runner-execution-lease/v1' as const;
+
+export type RunnerExecutionLease = Readonly<{
+  schema: typeof RUNNER_EXECUTION_LEASE_SCHEMA;
+  repository: string;
+  repository_id: number;
+  owner_id: number;
+  job_id: number;
+  runner_label: string;
+}>;
+
+export type RunnerExecutionSubmission = Readonly<{
+  substrate: 'cloud-build' | 'gce-warm-pool';
+  executionId: string;
+  reused: boolean;
+}>;
+
+export interface RunnerExecutionSubstrate {
+  readonly kind: RunnerExecutionSubmission['substrate'];
+  submit(lease: RunnerExecutionLease): Promise<RunnerExecutionSubmission>;
+}
+
 export type LauncherEnvironment = Readonly<{
   projectId: string;
   region: string;
@@ -111,6 +133,17 @@ export function parseRunnerLaunchRequest(value: unknown): RunnerLaunchRequest {
     owner_id: requirePositiveInteger(body.owner_id, 'owner_id'),
     job_id: requirePositiveInteger(body.job_id, 'job_id'),
     runner_label: requireRunnerLabel(body.runner_label),
+  });
+}
+
+export function runnerExecutionLease(request: RunnerLaunchRequest): RunnerExecutionLease {
+  return Object.freeze({
+    schema: RUNNER_EXECUTION_LEASE_SCHEMA,
+    repository: request.repository,
+    repository_id: request.repository_id,
+    owner_id: request.owner_id,
+    job_id: request.job_id,
+    runner_label: request.runner_label,
   });
 }
 
@@ -426,7 +459,7 @@ async function reusableRunnerBuildId(
 
 async function submitRunnerBuild(
   environment: LauncherEnvironment,
-  request: RunnerLaunchRequest,
+  request: RunnerExecutionLease,
 ): Promise<RunnerBuildSubmission> {
   const token = await metadataAccessToken();
   const existingBuildId = await reusableRunnerBuildId(environment, request, token);
@@ -468,6 +501,22 @@ async function submitRunnerBuild(
   return { buildId: id, reused: false };
 }
 
+export function createCloudBuildRunnerSubstrate(
+  environment: LauncherEnvironment,
+): RunnerExecutionSubstrate {
+  return Object.freeze({
+    kind: 'cloud-build' as const,
+    async submit(lease: RunnerExecutionLease): Promise<RunnerExecutionSubmission> {
+      const submission = await submitRunnerBuild(environment, lease);
+      return Object.freeze({
+        substrate: 'cloud-build' as const,
+        executionId: submission.buildId,
+        reused: submission.reused,
+      });
+    },
+  });
+}
+
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -495,7 +544,7 @@ async function loadConfig(path: string): Promise<ReturnType<typeof parseRunnerAu
 async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
-  environment: LauncherEnvironment,
+  substrate: RunnerExecutionSubstrate,
   config: ReturnType<typeof parseRunnerAutoscalerConfig>,
 ): Promise<void> {
   if (request.method === 'GET' && request.url === '/health') {
@@ -510,17 +559,17 @@ async function handleRequest(
   try {
     const launch = parseRunnerLaunchRequest(await readJsonBody(request));
     matchRepositoryBinding(config.repositories, launch, config.runner_label);
-    const submission = await submitRunnerBuild(environment, launch);
+    const submission = await substrate.submit(runnerExecutionLease(launch));
     console.log(
       JSON.stringify({
         event: submission.reused ? 'runner_build_reused' : 'runner_build_submitted',
         repository: launch.repository,
         repository_id: launch.repository_id,
         job_id: launch.job_id,
-        build_id: submission.buildId,
+        build_id: submission.executionId,
       }),
     );
-    sendJson(response, 202, { build_id: submission.buildId, reused: submission.reused });
+    sendJson(response, 202, { build_id: submission.executionId, reused: submission.reused });
   } catch (error) {
     const message = String(error instanceof Error ? error.message : error);
     console.error(JSON.stringify({ event: 'runner_launch_failed', error: message }));
@@ -530,6 +579,7 @@ async function handleRequest(
 
 async function main(): Promise<void> {
   const environment = requireLauncherEnvironment(process.env);
+  const substrate = createCloudBuildRunnerSubstrate(environment);
   const configPath =
     String(process.env.OVERCENTER_RUNNER_CONFIG_PATH ?? '').trim() ||
     'config/gcp-runner-autoscaler.json';
@@ -540,7 +590,7 @@ async function main(): Promise<void> {
   }
 
   const server = createServer((request, response) => {
-    void handleRequest(request, response, environment, config).catch((error) => {
+    void handleRequest(request, response, substrate, config).catch((error) => {
       console.error(String(error instanceof Error ? (error.stack ?? error.message) : error));
       if (!response.headersSent) sendJson(response, 500, { error: 'internal error' });
       else response.destroy();
