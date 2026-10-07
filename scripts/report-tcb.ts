@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 
 import { API, SymbolFlags, type Symbol as TypeScriptSymbol } from 'typescript/unstable/sync';
 import {
+  logicalSemanticLoc,
+  maximalSemanticSpans,
+} from '../src/analysis/tcb-semantic-loc.ts';
+import {
   repositoryRelativePath as normalizedRepoPath,
   runtimeModuleClosure,
 } from '../src/analysis/typescript-runtime.ts';
@@ -100,6 +104,8 @@ interface Slice {
   reason: string;
   start_line: number;
   end_line: number;
+  start_offset: number;
+  end_offset: number;
   physical_loc: number;
   semantic_loc: number;
   sha256: string;
@@ -503,6 +509,33 @@ function semanticLine(line: string): boolean {
   );
 }
 
+interface LocatedSemanticSpan {
+  path: string;
+  start_offset: number;
+  end_offset: number;
+  semantic_loc: number;
+}
+
+function measuredSemanticLoc(node: Node): number {
+  return logicalSemanticLoc(node);
+}
+
+function maximalLocatedSemanticSpans<T extends LocatedSemanticSpan>(spans: readonly T[]): T[] {
+  const byPath = new Map<string, T[]>();
+  for (const span of spans) {
+    const selected = byPath.get(span.path) ?? [];
+    selected.push(span);
+    byPath.set(span.path, selected);
+  }
+  return [...byPath.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .flatMap(([, selected]) => maximalSemanticSpans(selected));
+}
+
+function uniqueLocatedSemanticLoc(spans: readonly LocatedSemanticSpan[]): number {
+  return maximalLocatedSemanticSpans(spans).reduce((sum, span) => sum + span.semantic_loc, 0);
+}
+
 function sliceFor(entry: SymbolEntry): Slice {
   const { text, source } = sourceFor(entry.path);
   const node =
@@ -520,31 +553,22 @@ function sliceFor(entry: SymbolEntry): Slice {
   const startLine = source.getLineAndCharacterOfPosition(start).line + 1;
   const endLine = source.getLineAndCharacterOfPosition(Math.max(start, end - 1)).line + 1;
   const selected = text.slice(start, end);
-  const lines = selected.split('\n');
   return {
     path: entry.path,
     symbol: entry.whole_file === true ? '*' : (entry.symbol as string),
     reason: entry.reason,
     start_line: startLine,
     end_line: endLine,
+    start_offset: start,
+    end_offset: end,
     physical_loc: endLine - startLine + 1,
-    semantic_loc: lines.filter(semanticLine).length,
+    semantic_loc: measuredSemanticLoc(node),
     sha256: createHash('sha256').update(selected).digest('hex'),
   };
 }
 
 function uniqueSemanticLoc(slices: Slice[]): number {
-  const trusted = new Map<string, Set<number>>();
-  for (const slice of slices) {
-    const { text } = sourceFor(slice.path);
-    const lines = text.split('\n');
-    const selected = trusted.get(slice.path) ?? new Set<number>();
-    for (let line = slice.start_line; line <= slice.end_line; line += 1) {
-      if (semanticLine(lines[line - 1] ?? '')) selected.add(line);
-    }
-    trusted.set(slice.path, selected);
-  }
-  return [...trusted.values()].reduce((sum, lines) => sum + lines.size, 0);
+  return uniqueLocatedSemanticLoc(slices);
 }
 
 function gitBlobSha1(path: string): string {
@@ -603,6 +627,8 @@ interface SymbolClosure {
     path: string;
     start_line: number;
     end_line: number;
+    start_offset: number;
+    end_offset: number;
     semantic_loc: number;
     symbol: string;
   }>;
@@ -709,11 +735,13 @@ function lineRange(node: Node): {
   path: string;
   start_line: number;
   end_line: number;
+  start_offset: number;
+  end_offset: number;
   semantic_loc: number;
 } | null {
   const path = repoPathFor(node);
   if (!path) return null;
-  const { text, source } = sourceFor(path);
+  const { source } = sourceFor(path);
   const start = node.getStart(source);
   const end = node.getEnd();
   const startLine = source.getLineAndCharacterOfPosition(start).line + 1;
@@ -722,10 +750,9 @@ function lineRange(node: Node): {
     path,
     start_line: startLine,
     end_line: endLine,
-    semantic_loc: text
-      .split('\n')
-      .slice(startLine - 1, endLine)
-      .filter(semanticLine).length,
+    start_offset: start,
+    end_offset: end,
+    semantic_loc: measuredSemanticLoc(node),
   };
 }
 
@@ -760,6 +787,8 @@ function symbolClosure(property: TcbProperty): SymbolClosure {
       path: string;
       start_line: number;
       end_line: number;
+      start_offset: number;
+      end_offset: number;
       semantic_loc: number;
       symbol: string;
     }
@@ -774,7 +803,7 @@ function symbolClosure(property: TcbProperty): SymbolClosure {
     if (!current) continue;
     const range = lineRange(current.node);
     if (range) {
-      const key = `${range.path}:${range.start_line}:${range.end_line}`;
+      const key = `${range.path}:${range.start_offset}:${range.end_offset}`;
       declarations.set(key, { ...range, symbol: current.symbol });
     }
 
@@ -881,17 +910,6 @@ function symbolClosure(property: TcbProperty): SymbolClosure {
     visit(current.node);
   }
 
-  const trusted = new Map<string, Set<number>>();
-  for (const declaration of declarations.values()) {
-    const { text } = sourceFor(declaration.path);
-    const lines = text.split('\n');
-    const selected = trusted.get(declaration.path) ?? new Set<number>();
-    for (let line = declaration.start_line; line <= declaration.end_line; line += 1) {
-      if (semanticLine(lines[line - 1] ?? '')) selected.add(line);
-    }
-    trusted.set(declaration.path, selected);
-  }
-
   const output = [...declarations.values()].sort(
     (left, right) =>
       left.path.localeCompare(right.path) ||
@@ -899,8 +917,8 @@ function symbolClosure(property: TcbProperty): SymbolClosure {
       left.end_line - right.end_line,
   );
   return {
-    semantic_loc: [...trusted.values()].reduce((sum, lines) => sum + lines.size, 0),
-    files: [...trusted.keys()].sort(),
+    semantic_loc: uniqueLocatedSemanticLoc(output),
+    files: [...new Set(output.map((declaration) => declaration.path))].sort(),
     declarations: output,
     external_symbols: [...externalSymbols].sort(),
     obligations: [...obligations].sort(),
@@ -928,6 +946,7 @@ function hybridClosure(
   const trusted = new Map<string, Set<number>>();
   const fingerprintMaterial = [`module:${module.sha256}`];
   const moduleFiles = new Set(module.files);
+  let semanticLoc = module.semantic_loc;
 
   for (const path of module.files) {
     const { text } = sourceFor(path);
@@ -938,6 +957,14 @@ function hybridClosure(
     trusted.set(path, selected);
   }
 
+  const symbolOnlyDeclarations = maximalLocatedSemanticSpans(
+    symbols.declarations.filter((declaration) => !moduleFiles.has(declaration.path)),
+  );
+  semanticLoc += symbolOnlyDeclarations.reduce(
+    (sum, declaration) => sum + declaration.semantic_loc,
+    0,
+  );
+
   for (const declaration of symbols.declarations) {
     const { text } = sourceFor(declaration.path);
     const lines = text.split('\n');
@@ -946,19 +973,14 @@ function hybridClosure(
       if (semanticLine(lines[line - 1] ?? '')) selected.add(line);
     }
     trusted.set(declaration.path, selected);
+  }
 
-    if (!moduleFiles.has(declaration.path)) {
-      const source = sourceFor(declaration.path).source;
-      const start = source.getPositionOfLineAndCharacter(declaration.start_line - 1, 0);
-      const end =
-        declaration.end_line < lines.length
-          ? source.getPositionOfLineAndCharacter(declaration.end_line, 0)
-          : text.length;
-      const body = text.slice(start, end);
-      fingerprintMaterial.push(
-        `symbol:${declaration.path}:${declaration.start_line}-${declaration.end_line}:${createHash('sha256').update(body).digest('hex')}`,
-      );
-    }
+  for (const declaration of symbolOnlyDeclarations) {
+    const { text } = sourceFor(declaration.path);
+    const body = text.slice(declaration.start_offset, declaration.end_offset);
+    fingerprintMaterial.push(
+      `symbol:${declaration.path}:${declaration.start_offset}-${declaration.end_offset}:${createHash('sha256').update(body).digest('hex')}`,
+    );
   }
 
   for (const boundary of symbols.composed_boundaries) {
@@ -987,7 +1009,7 @@ function hybridClosure(
     });
 
   return {
-    semantic_loc: [...trusted.values()].reduce((sum, lines) => sum + lines.size, 0),
+    semantic_loc: semanticLoc,
     files: [...trusted.keys()].sort(),
     sha256: createHash('sha256').update(fingerprintMaterial.sort().join('\n')).digest('hex'),
     semantic_line_ranges: semanticLineRanges,
@@ -1000,8 +1022,8 @@ function moduleClosure(rootPaths: string[]): ModuleClosure {
   let bytes = 0;
   const hashes: string[] = [];
   for (const path of closure.files) {
-    const text = readFileSync(path, 'utf8');
-    semanticLoc += text.split('\n').filter(semanticLine).length;
+    const { text, source } = sourceFor(path);
+    semanticLoc += measuredSemanticLoc(source);
     bytes += Buffer.byteLength(text);
     hashes.push(`${path}:${createHash('sha256').update(text).digest('hex')}`);
   }
@@ -1074,37 +1096,41 @@ try {
       if (!member) throw new Error(`TCB_COMPOSITION_PROPERTY_UNKNOWN:${composition.id}:${id}`);
       return member;
     });
-    const trusted = new Map<string, Set<number>>();
-    for (const member of members) {
-      for (const path of member.module_closure_files) {
-        const lines = readFileSync(path, 'utf8').split('\n');
-        const selected = trusted.get(path) ?? new Set<number>();
-        lines.forEach((line, index) => {
-          if (semanticLine(line)) selected.add(index + 1);
-        });
-        trusted.set(path, selected);
-      }
-      const moduleFiles = new Set(member.module_closure_files);
-      for (const declaration of member.symbol_closure_declarations) {
-        if (moduleFiles.has(declaration.path)) continue;
-        const lines = readFileSync(declaration.path, 'utf8').split('\n');
-        const selected = trusted.get(declaration.path) ?? new Set<number>();
-        for (let line = declaration.start_line; line <= declaration.end_line; line += 1) {
-          if (semanticLine(lines[line - 1] ?? '')) selected.add(line);
-        }
-        trusted.set(declaration.path, selected);
-      }
+    const moduleFiles = new Set(members.flatMap((member) => member.module_closure_files));
+    const symbolOnlyDeclarations = maximalLocatedSemanticSpans(
+      members
+        .flatMap((member) => member.symbol_closure_declarations)
+        .filter((declaration) => !moduleFiles.has(declaration.path)),
+    );
+    const fileSemanticLoc = new Map<string, number>();
+    for (const path of [...moduleFiles].sort()) {
+      const { source } = sourceFor(path);
+      fileSemanticLoc.set(path, measuredSemanticLoc(source));
     }
+    for (const declaration of symbolOnlyDeclarations) {
+      fileSemanticLoc.set(
+        declaration.path,
+        (fileSemanticLoc.get(declaration.path) ?? 0) + declaration.semantic_loc,
+      );
+    }
+
     const fingerprintMaterial = [`composition:${composition.id}`];
-    for (const member of [...composition.properties].sort())
+    for (const member of [...composition.properties].sort()) {
       fingerprintMaterial.push(`member:${member}`);
-    for (const path of [...trusted.keys()].sort()) {
-      const lines = readFileSync(path, 'utf8').split('\n');
-      for (const line of [...(trusted.get(path) ?? [])].sort((left, right) => left - right)) {
-        fingerprintMaterial.push(`${path}:${line}:${lines[line - 1] ?? ''}`);
-      }
     }
-    const semanticLoc = [...trusted.values()].reduce((sum, lines) => sum + lines.size, 0);
+    for (const path of [...moduleFiles].sort()) {
+      fingerprintMaterial.push(
+        `module:${path}:${createHash('sha256').update(sourceFor(path).text).digest('hex')}`,
+      );
+    }
+    for (const declaration of symbolOnlyDeclarations) {
+      const { text } = sourceFor(declaration.path);
+      const body = text.slice(declaration.start_offset, declaration.end_offset);
+      fingerprintMaterial.push(
+        `symbol:${declaration.path}:${declaration.start_offset}-${declaration.end_offset}:${createHash('sha256').update(body).digest('hex')}`,
+      );
+    }
+    const semanticLoc = [...fileSemanticLoc.values()].reduce((sum, value) => sum + value, 0);
     const sha256 = createHash('sha256').update(fingerprintMaterial.join('\n')).digest('hex');
     const memberEvidence = members.map((member) => member.hostile_evidence);
     const hasStaleEvidence = memberEvidence.some((evidence) => evidence.status === 'stale');
@@ -1126,9 +1152,9 @@ try {
       properties: composition.properties,
       hybrid_union_semantic_loc: semanticLoc,
       hybrid_union_sha256: sha256,
-      hybrid_union_files: [...trusted.keys()].sort(),
-      hybrid_union_file_semantic_loc: [...trusted.entries()]
-        .map(([path, lines]) => ({ path, semantic_loc: lines.size }))
+      hybrid_union_files: [...fileSemanticLoc.keys()].sort(),
+      hybrid_union_file_semantic_loc: [...fileSemanticLoc.entries()]
+        .map(([path, semantic_loc]) => ({ path, semantic_loc }))
         .sort(
           (left, right) =>
             right.semantic_loc - left.semantic_loc || left.path.localeCompare(right.path),
@@ -1293,6 +1319,7 @@ try {
   const report = {
     schema: 'overcenter-tcb-report' as const,
     schema_version: 1 as const,
+    semantic_loc_basis: 'typescript-logical-sloc/v1' as const,
     generated_from: [...ARCHITECTURE_SQL_PATHS, 'tcb-policy.json'],
     architecture_tcb: architectureTcb,
     properties: reports,
@@ -1401,18 +1428,20 @@ try {
     const summary = [
       '## Trusted computing base analysis',
       '',
+      'Semantic LOC basis: `typescript-logical-sloc/v1`.',
+      '',
       reconciliation
         ? `Accepted-base comparison: **${reconciliation.admitted ? 'admitted' : 'rejected'}** against \`${reconciliation.baseline_revision}\`.`
         : 'Observation only: no accepted-base revision was supplied.',
       '',
-      '| Property | Hybrid TCB | Δ total | Δ under accepted scope | Classification | Symbol closure | Hostile evidence |',
+      '| Property | Hybrid TCB (logical SLOC) | Δ total | Δ under accepted scope | Classification | Symbol closure | Hostile evidence |',
       '| --- | ---: | ---: | ---: | --- | --- | --- |',
       ...reports.map((property) => {
         const delta = propertyDelta.get(property.id);
         return `| \`${property.id}\` | **${number(property.hybrid_closure_semantic_loc)}** | ${signed(delta?.delta_semantic_loc ?? null)} | ${signed(delta?.accepted_scope_delta_semantic_loc ?? null)} | ${delta?.classification ?? 'observation-only'} | ${property.symbol_closure_status} | ${property.hostile_evidence.status} |`;
       }),
       '',
-      '| Composition | Deduplicated hybrid union | Δ total | Δ under accepted scope | Classification | Hostile evidence |',
+      '| Composition | Deduplicated hybrid union (logical SLOC) | Δ total | Δ under accepted scope | Classification | Hostile evidence |',
       '| --- | ---: | ---: | ---: | --- | --- |',
       ...compositions.map((composition) => {
         const delta = compositionDelta.get(composition.id);

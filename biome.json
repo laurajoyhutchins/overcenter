@@ -35,7 +35,12 @@
       "suspicious": {
         "preset": "recommended",
         "noExplicitAny": "off",
-        "noTemplateCurlyInString": "off"
+        "noTemplateCurlyInString": "off",
+        "noImportCycles": "error"
+      },
+      "style": {
+        "useImportType": "error",
+        "useNodejsImportProtocol": "error"
       }
     }
   },
