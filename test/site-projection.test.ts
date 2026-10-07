@@ -38,19 +38,38 @@ test('site projection conserves source records and internal links', async () => 
     }
     assert.ok(siteCss.includes('background: var(--midnight)'));
 
+    const home = pages.get('index.html') ?? '';
     const claims = pages.get('claims.html') ?? '';
     const experiments = pages.get('experiments.html') ?? '';
     const architecture = pages.get('architecture.html') ?? '';
     const index = pages.get('index-of-terms.html') ?? '';
 
+    const demonstrated = model.claims.filter((claim) => claim.statusKind === 'demonstrated').length;
+    assert.ok(
+      home.includes(`<strong>${demonstrated}</strong><span>demonstrated claims</span>`),
+      'home metric must count every demonstrated status family member',
+    );
+
     for (const claim of model.claims) {
       const anchor = `claim-${slug(claim.id)}`;
       assert.match(claims, new RegExp(`id="${anchor}"`), `claim vanished: ${claim.id}`);
-      assert.match(
-        claims,
-        new RegExp(`class="status status-${slug(claim.status)}"`),
-        `claim status lost semantic class: ${claim.id}`,
+      assert.ok(
+        claims.includes(`class="status status-${claim.statusKind}"`),
+        `claim status lost bounded semantic class: ${claim.id}`,
       );
+      assert.ok(
+        claims.includes(`research/claims.md · ${claim.id}`),
+        `claim source missing: ${claim.id}`,
+      );
+      if (claim.statusScope) {
+        assert.ok(claims.includes(claim.statusScope), `claim status scope missing: ${claim.id}`);
+      }
+      if (claim.evidenceBoundary) {
+        assert.ok(
+          claims.includes(claim.evidenceBoundary),
+          `claim evidence boundary missing: ${claim.id}`,
+        );
+      }
       assert.match(
         index,
         new RegExp(`claims\\.html#${anchor}`),
@@ -65,10 +84,9 @@ test('site projection conserves source records and internal links', async () => 
         new RegExp(`id="${anchor}"`),
         `experiment vanished: ${experiment.id}`,
       );
-      assert.match(
-        experiments,
-        new RegExp(`class="status status-${slug(experiment.outcome)}"`),
-        `experiment status lost semantic class: ${experiment.id}`,
+      assert.ok(
+        experiments.includes(`class="status status-${experiment.outcomeKind}"`),
+        `experiment status lost bounded semantic class: ${experiment.id}`,
       );
       assert.match(
         index,
@@ -105,6 +123,25 @@ test('site projection conserves source records and internal links', async () => 
     }
     assert.equal(rendered.includes('class="eyebrow"'), false);
     assert.equal(rendered.includes('class="triptych"'), false);
+
+    assert.equal(
+      claims.includes('status-demonstrated-for-'),
+      false,
+      'free-form demonstrated scope must not become a CSS class',
+    );
+    assert.ok(siteCss.includes('.status-safety-constraint'));
+    assert.ok(siteCss.includes('background: var(--lemon)'));
+    assert.ok(siteCss.includes('.status-unknown,'));
+    assert.ok(siteCss.includes('background: var(--cream)'));
+
+    for (const [file, html] of pages) {
+      const currentLinks = [...html.matchAll(/aria-current="page"/g)];
+      assert.equal(currentLinks.length, 1, `exactly one active navigation item required: ${file}`);
+      assert.ok(
+        html.includes(`href="${file}" aria-current="page"`),
+        `active navigation target mismatch: ${file}`,
+      );
+    }
 
     const anchorsByPage = new Map<string, Set<string>>();
     for (const [file, html] of pages) {
