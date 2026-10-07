@@ -43,6 +43,7 @@ const valid = {
 test('records exact job-bound GCP runner provenance without interpreting repository policy', () => {
   const { result, output, summary } = run(valid);
   assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
   assert.match(output, /provider=gcp/);
   assert.match(output, new RegExp(`runner_name=${valid.OC_RUNNER_NAME}`));
   assert.match(output, new RegExp(`repository=${valid.OC_REPOSITORY}`));
@@ -52,6 +53,8 @@ test('records exact job-bound GCP runner provenance without interpreting reposit
   assert.match(output, new RegExp(`run_attempt=${valid.OC_RUN_ATTEMPT}`));
   assert.match(output, new RegExp(`job=${valid.OC_JOB}`));
   assert.match(summary, /### Execution provenance/);
+  assert.match(summary, /- provider: `gcp`/);
+  assert.match(summary, new RegExp(`- runner: \\`${valid.OC_RUNNER_NAME}\\``));
 });
 
 test('accepts the compatibility prefixed scheduling label', () => {
