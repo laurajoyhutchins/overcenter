@@ -1,5 +1,8 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readSourceVerificationProfile } from '../src/source/source-verification-profile.ts';
+import {
+  readSourceVerificationProfile,
+  sourceVerificationCommandArgv,
+} from '../src/source/source-verification-profile.ts';
 
 const repo = process.cwd();
 const base = process.env.BASE_SHA ?? '';
@@ -36,8 +39,8 @@ if (trusted !== submitted) {
 if (process.argv.includes('--check-only')) process.exit(0);
 
 for (const command of trusted.profile.commands) {
-  const [name, ...args] = command.split(' ');
-  const result = spawnSync(name!, args, { stdio: 'inherit', shell: false });
+  const [name, ...args] = sourceVerificationCommandArgv(command);
+  const result = spawnSync(name, args, { stdio: 'inherit', shell: false });
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
