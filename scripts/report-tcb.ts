@@ -9,7 +9,6 @@ import type { Node as PrinterNode, SourceFile as PrinterSourceFile } from 'types
 import { API, SymbolFlags, type Symbol as TypeScriptSymbol } from 'typescript/unstable/sync';
 import {
   canonicalSemanticLoc,
-  maximalSemanticLoc,
   maximalSemanticSpans,
 } from '../src/analysis/tcb-semantic-loc.ts';
 import {
@@ -978,7 +977,6 @@ function hybridClosure(
       if (semanticLine(lines[line - 1] ?? '')) selected.add(line);
     }
     trusted.set(declaration.path, selected);
-
   }
 
   for (const declaration of symbolOnlyDeclarations) {
