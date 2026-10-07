@@ -80,7 +80,6 @@ test('validation dispatch is limited to published candidate branches and never i
   );
 });
 
-
 test('validation dispatch accepts current GitHub created-run success and rejects unbound workflows', () => {
   const publication = {
     state: 'PUBLISHED' as const,
