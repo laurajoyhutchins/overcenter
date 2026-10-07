@@ -18,6 +18,9 @@ test('reusable verification keeps job-specific scheduling inside Overcenter', ()
 test('called workflow checks out the caller and owns generic execution provenance', () => {
   assert.match(WORKFLOW, /name: Check out caller repository/);
   assert.match(WORKFLOW, /uses: actions\/checkout@v4/);
+  assert.match(WORKFLOW, /ref: \$\{\{ inputs\.checkout_ref \|\| github\.sha \}\}/);
+  assert.match(WORKFLOW, /persist-credentials: \$\{\{ inputs\.persist_credentials \}\}/);
+  assert.match(WORKFLOW, /default: false\n        type: boolean/);
   assert.match(WORKFLOW, /uses: \$\/\.github\/actions\/bind-verification-identity/);
   assert.match(WORKFLOW, /uses: \$\/\.github\/actions\/record-gcp-runner-provenance/);
 });
