@@ -18,8 +18,7 @@ export type RunnerLaunchRequest = Readonly<{
   runner_label: string;
 }>;
 
-export const RUNNER_EXECUTION_LEASE_SCHEMA =
-  'overcenter-github-runner-execution-lease/v1' as const;
+export const RUNNER_EXECUTION_LEASE_SCHEMA = 'overcenter-github-runner-execution-lease/v1' as const;
 
 export type RunnerExecutionLease = Readonly<{
   schema: typeof RUNNER_EXECUTION_LEASE_SCHEMA;
