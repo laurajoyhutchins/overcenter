@@ -302,6 +302,50 @@ async function githubJson(path: string, token: string, init: RequestInit = {}): 
   return JSON.parse(text) as unknown;
 }
 
+type ConditionalGitHubValue = Readonly<{
+  etag: string;
+  value: unknown;
+}>;
+
+const GITHUB_CONDITIONAL_CACHE_LIMIT = 512;
+const githubConditionalCache = new Map<string, ConditionalGitHubValue>();
+
+function rememberConditionalGitHubValue(path: string, value: ConditionalGitHubValue): void {
+  githubConditionalCache.delete(path);
+  githubConditionalCache.set(path, value);
+  while (githubConditionalCache.size > GITHUB_CONDITIONAL_CACHE_LIMIT) {
+    const oldest = githubConditionalCache.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    githubConditionalCache.delete(oldest);
+  }
+}
+
+export async function githubConditionalJson(path: string, token: string): Promise<unknown> {
+  const cached = githubConditionalCache.get(path);
+  const response = await fetch(`${GITHUB_API}${path}`, {
+    headers: {
+      ...githubHeaders(token),
+      ...(cached ? { 'If-None-Match': cached.etag } : {}),
+    },
+  });
+
+  if (response.status === 304) {
+    if (!cached) throw new Error(`GitHub GET ${path} returned 304 without cached state`);
+    rememberConditionalGitHubValue(path, cached);
+    return cached.value;
+  }
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`GitHub GET ${path} failed with HTTP ${response.status}: ${text.slice(0, 300)}`);
+  }
+  const value = text ? (JSON.parse(text) as unknown) : null;
+  const etag = response.headers.get('etag');
+  if (etag) rememberConditionalGitHubValue(path, { etag, value });
+  else githubConditionalCache.delete(path);
+  return value;
+}
+
 class GitHubAppClient {
   readonly #appId: string;
   readonly #privateKey: string;
@@ -400,7 +444,7 @@ async function verifyRepositoryIdentity(
   repository: RepositoryBinding,
   token: string,
 ): Promise<void> {
-  const body = (await githubJson(`/repos/${repository.full_name}`, token)) as Record<
+  const body = (await githubConditionalJson(`/repos/${repository.full_name}`, token)) as Record<
     string,
     unknown
   >;
@@ -428,7 +472,7 @@ async function queuedRunnerJobs(
     (['queued', 'in_progress'] as const).map(async (status) => {
       const ids: number[] = [];
       for (let page = 1; ; page += 1) {
-        const body = await githubJson(
+        const body = await githubConditionalJson(
           `/repos/${repository.full_name}/actions/runs?status=${status}&per_page=100&page=${page}`,
           token,
         );
@@ -444,7 +488,7 @@ async function queuedRunnerJobs(
   const jobs: WorkflowJob[] = [];
   for (const runId of runIds) {
     for (let page = 1; ; page += 1) {
-      const body = await githubJson(
+      const body = await githubConditionalJson(
         `/repos/${repository.full_name}/actions/runs/${runId}/jobs?filter=latest&per_page=100&page=${page}`,
         token,
       );

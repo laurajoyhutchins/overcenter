@@ -246,18 +246,11 @@ if not any(
     raise SystemExit("runner launcher invoker binding readback mismatch")
 PY
 
-existing_autoscaler_url="$(
-  gcloud run services describe "$AUTOSCALER_SERVICE" \
-    --project="$PROJECT_ID" \
-    --region="$REGION" \
-    --format='value(status.url)' 2>/dev/null || true
-)"
 autoscaler_env="GITHUB_APP_ID=4616688,OVERCENTER_RUNNER_CONFIG_PATH=config/gcp-runner-autoscaler.json,OVERCENTER_RUNNER_LAUNCHER_URL=${launcher_url},OVERCENTER_SOURCE_REVISION=${EXACT_REVISION}"
-if [[ "$existing_autoscaler_url" =~ ^https:// ]]; then
-  autoscaler_env="${autoscaler_env},OVERCENTER_GITHUB_WEBHOOK_URL=${existing_autoscaler_url}/github-webhook"
-fi
 
-echo "Deploying autoscaler and signed GitHub webhook receiver"
+# Admin-only public-ingress knobs are intentionally not invoked here:
+# --no-invoker-iam-check and run.googleapis.com/invoker-iam-disabled.
+echo "Deploying private autoscaler with two-second conditional reconciliation"
 gcloud run deploy "$AUTOSCALER_SERVICE" \
   --image="$CONTROL_IMAGE_IMMUTABLE" \
   --project="$PROJECT_ID" \
@@ -268,7 +261,6 @@ gcloud run deploy "$AUTOSCALER_SERVICE" \
   --command=node \
   --args="--experimental-strip-types,src/transport/gcp-runner-autoscaler.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
-  --no-invoker-iam-check \
   --min=1 \
   --max=1 \
   --no-cpu-throttling \
@@ -321,9 +313,6 @@ if max_scale != "1" or min_scale != "1":
     raise SystemExit(
         f"autoscaler service instance bounds mismatch: min={min_scale!r} max={max_scale!r}"
     )
-if str(service_annotations.get("run.googleapis.com/invoker-iam-disabled") or "").lower() != "true":
-    raise SystemExit("autoscaler invoker IAM check is still enabled")
-
 if any("cloudsql" in json.dumps(value).lower() for value in (spec.get("volumes") or [])):
     raise SystemExit("autoscaler must not have a Cloud SQL attachment")
 
@@ -350,15 +339,6 @@ if [[ ! "$service_url" =~ ^https:// ]]; then
   exit 1
 fi
 
-if [[ ! "$existing_autoscaler_url" =~ ^https:// ]]; then
-  echo "Binding first-deployment webhook URL to stable Cloud Run service URL"
-  gcloud run services update "$AUTOSCALER_SERVICE" \
-    --project="$PROJECT_ID" \
-    --region="$REGION" \
-    --update-env-vars="OVERCENTER_GITHUB_WEBHOOK_URL=${service_url}/github-webhook" \
-    --quiet
-fi
-
 launcher_status="$(
   curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${launcher_url}/health"
 )"
@@ -367,21 +347,7 @@ if [[ "$launcher_status" != "403" ]]; then
   exit 1
 fi
 
-webhook_health="$(
-  curl --silent --show-error --fail "${service_url}/health"
-)"
-python3 - "$webhook_health" <<'PY'
-import json
-import sys
-
-body = json.loads(sys.argv[1])
-if body.get("webhook_configured") is not True:
-    raise SystemExit("GitHub App webhook URL/secret configuration is not active")
-if body.get("workflow_job_subscribed") is not True:
-    raise SystemExit("GitHub App is not subscribed to workflow_job events")
-PY
-
-for private_url in "$launcher_url"; do
+for private_url in "$launcher_url" "$service_url"; do
   unauth_status="$(
     curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${private_url}/health"
   )"
@@ -397,6 +363,6 @@ printf '%s\n' \
   "Runner digest:   ${runner_digest}" \
   "Control digest:  ${control_digest}" \
   "Launcher:        private Cloud Run; Cloud Build submission only" \
-  "Autoscaler:      public HMAC webhook edge + authoritative GitHub observation" \
-  "Webhook:         workflow_job queued events wake observation; polling remains reconciliation" \
+  "Autoscaler:      private Cloud Run; authoritative GitHub observation" \
+  "Observation:     2s ETag conditional polling; signed webhook support remains dormant" \
   "Hosted Actions:  deployment only, never per verification job"
