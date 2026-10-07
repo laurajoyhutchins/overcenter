@@ -158,6 +158,43 @@ export function effectAdapterCapabilities(
   );
 }
 
+export function effectPostconditionBindingSafe(
+  work: Obligation,
+  effectContract: string,
+  postcondition: Postcondition,
+): boolean {
+  const capabilities = effectAdapterCapabilities(effectContract);
+  if (!capabilities || work.packet.effect_contract !== effectContract) return false;
+  if (
+    capabilities.postcondition_verifier !== work.postcondition.verifier ||
+    capabilities.postcondition_verifier !== postcondition.verifier
+  ) {
+    return false;
+  }
+  if (canonicalDigest(work.postcondition) === canonicalDigest(postcondition)) return true;
+  return (
+    effectContract === GITHUB_SOURCE_INTEGRATION_EFFECT &&
+    work.packet.kind === 'source-change' &&
+    work.postcondition.verifier === 'source-integration/v1' &&
+    Object.keys(work.postcondition).length === 1 &&
+    postcondition.verifier === 'source-integration/v1' &&
+    postcondition.provider === 'github' &&
+    Number.isSafeInteger(postcondition.repository_id) &&
+    Number(postcondition.repository_id) > 0 &&
+    typeof postcondition.repository_full_name === 'string' &&
+    /^[^/]+\/[^/]+$/.test(postcondition.repository_full_name) &&
+    typeof postcondition.ref === 'string' &&
+    postcondition.ref.startsWith('refs/heads/overcenter/candidate/') &&
+    typeof postcondition.commit_sha === 'string' &&
+    /^[0-9a-f]{40}$/.test(postcondition.commit_sha) &&
+    typeof postcondition.base_ref === 'string' &&
+    postcondition.base_ref.length > 0 &&
+    !postcondition.base_ref.startsWith('refs/') &&
+    typeof postcondition.expected_base_sha === 'string' &&
+    /^[0-9a-f]{40}$/.test(postcondition.expected_base_sha)
+  );
+}
+
 export function reservedEffectReplaySafe(
   work: Obligation,
   absenceEvidence: AbsenceEvidenceCertificate,
