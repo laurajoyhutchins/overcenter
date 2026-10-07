@@ -71,15 +71,14 @@ fi
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
-    echo "### Execution provenance"
-    echo
-    echo "- provider: `gcp`"
-    echo "- runner: `$runner_name`"
-    echo "- repository: `$repository`"
-    echo "- job ID: `$job_id`"
-    echo "- scheduling label: `$scheduling_label`"
-    echo "- run ID: `$run_id`"
-    echo "- run attempt: `$run_attempt`"
-    echo "- job: `$job`"
+    printf '%s\n' '### Execution provenance' ''
+    printf -- '- provider: `%s`\n' 'gcp'
+    printf -- '- runner: `%s`\n' "$runner_name"
+    printf -- '- repository: `%s`\n' "$repository"
+    printf -- '- job ID: `%s`\n' "$job_id"
+    printf -- '- scheduling label: `%s`\n' "$scheduling_label"
+    printf -- '- run ID: `%s`\n' "$run_id"
+    printf -- '- run attempt: `%s`\n' "$run_attempt"
+    printf -- '- job: `%s`\n' "$job"
   } >> "$GITHUB_STEP_SUMMARY"
 fi
