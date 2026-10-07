@@ -9,6 +9,10 @@ import {
   type AssuranceEvidenceNeed,
   type AssuranceEvidenceNeedInputs,
 } from '../source/assurance-evidence-needs.ts';
+import {
+  readSourceVerificationProfile,
+  sourceVerificationRecipeStep,
+} from '../source/source-verification-profile.ts';
 import { assertExactKeys, assertNonEmptyString, isData, isSha256Hex } from '../validation.ts';
 import { executionEvidenceDescriptorForAssuranceNeed } from './assurance-evidence-descriptor.ts';
 import {
@@ -170,6 +174,29 @@ export function normalizeAssuranceEvidenceNeed(value: unknown): AssuranceEvidenc
   };
 }
 
+function processArgvFromRecipeStep(step: string): string[] | null {
+  if (!step.startsWith('argv:')) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(step.slice('argv:'.length));
+  } catch {
+    throw new Error('ASSURANCE_EVIDENCE_RECIPE_COMMAND_INVALID');
+  }
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((token) => typeof token !== 'string' || token.length === 0) ||
+    canonicalJson(value) !== step.slice('argv:'.length)
+  ) {
+    throw new Error('ASSURANCE_EVIDENCE_RECIPE_COMMAND_INVALID');
+  }
+  return value as string[];
+}
+
+function recipePackageScripts(steps: readonly string[]): string[] {
+  return steps.filter((step) => processArgvFromRecipeStep(step) === null);
+}
+
 function assertRecipe(recipe: AssuranceEvidenceRecipe): AssuranceEvidenceNeed {
   if (recipe.schema !== ASSURANCE_EVIDENCE_RECIPE_SCHEMA) {
     throw new Error('ASSURANCE_EVIDENCE_RECIPE_SCHEMA_INVALID');
@@ -192,7 +219,10 @@ function assertRecipe(recipe: AssuranceEvidenceRecipe): AssuranceEvidenceNeed {
   if (canonicalJson(recipe.scripts) !== requiredNeedInput(need.inputs, 'package_scripts')) {
     throw new Error('ASSURANCE_EVIDENCE_RECIPE_NEED_SCRIPTS_MISMATCH');
   }
-  if (requiredNeedInput(need.inputs, 'uses_package_runtime') !== 'true') {
+  if (
+    recipePackageScripts(recipe.scripts).length > 0 &&
+    requiredNeedInput(need.inputs, 'uses_package_runtime') !== 'true'
+  ) {
     throw new Error('ASSURANCE_EVIDENCE_RECIPE_RUNTIME_UNAVAILABLE');
   }
   return need;
@@ -207,16 +237,24 @@ export function deriveAssuranceEvidenceRecipe(
     requiredNeedInput(need.inputs, 'package_scripts', 'ASSURANCE_EVIDENCE_PACKAGE_SCRIPTS_INVALID'),
     'ASSURANCE_EVIDENCE_PACKAGE_SCRIPTS_INVALID',
   );
+  if (requestedScripts.length === 0) {
+    throw new Error(`ASSURANCE_EVIDENCE_REALIZATION_UNAVAILABLE:${need.identity.evidence_id}`);
+  }
   if (
-    requiredNeedInput(need.inputs, 'uses_package_runtime') !== 'true' ||
-    requestedScripts.length === 0
+    recipePackageScripts(requestedScripts).length > 0 &&
+    requiredNeedInput(need.inputs, 'uses_package_runtime') !== 'true'
   ) {
     throw new Error(`ASSURANCE_EVIDENCE_REALIZATION_UNAVAILABLE:${need.identity.evidence_id}`);
   }
 
   const root = resolve(repo);
   if (need.identity.evidence_id.startsWith('baseline:')) {
-    if (canonicalJson(requestedScripts) !== canonicalJson(['verify:repository'])) {
+    const profile = readSourceVerificationProfile(root, need.identity.revision).profile;
+    const expected = profile.commands.map(sourceVerificationRecipeStep).sort();
+    if (
+      need.identity.evidence_id !== `baseline:${profile.id}` ||
+      canonicalJson(requestedScripts) !== canonicalJson(expected)
+    ) {
       throw new Error('ASSURANCE_EVIDENCE_BASELINE_RECIPE_MISMATCH');
     }
   } else {
@@ -238,13 +276,16 @@ export function deriveAssuranceEvidenceRecipe(
     }
   }
 
-  const packageValue: unknown = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
-  if (!isData(packageValue) || !isData(packageValue.scripts)) {
-    throw new Error('ASSURANCE_EVIDENCE_PACKAGE_INVALID');
-  }
-  for (const script of requestedScripts) {
-    if (typeof packageValue.scripts[script] !== 'string') {
-      throw new Error(`ASSURANCE_EVIDENCE_SCRIPT_UNAVAILABLE:${script}`);
+  const packageScripts = recipePackageScripts(requestedScripts);
+  if (packageScripts.length > 0) {
+    const packageValue: unknown = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
+    if (!isData(packageValue) || !isData(packageValue.scripts)) {
+      throw new Error('ASSURANCE_EVIDENCE_PACKAGE_INVALID');
+    }
+    for (const script of packageScripts) {
+      if (typeof packageValue.scripts[script] !== 'string') {
+        throw new Error(`ASSURANCE_EVIDENCE_SCRIPT_UNAVAILABLE:${script}`);
+      }
     }
   }
 
@@ -263,11 +304,19 @@ export function assuranceEvidenceDescriptorForRecipe(recipe: AssuranceEvidenceRe
 }
 
 function defaultRunScript(script: string, cwd: string): number {
-  const result = spawnSync('npm', ['run', '--silent', script], {
-    cwd,
-    env: process.env,
-    stdio: 'inherit',
-  });
+  const argv = processArgvFromRecipeStep(script);
+  const result =
+    argv === null
+      ? spawnSync('npm', ['run', '--silent', script], {
+          cwd,
+          env: process.env,
+          stdio: 'inherit',
+        })
+      : spawnSync(argv[0]!, argv.slice(1), {
+          cwd,
+          env: process.env,
+          stdio: 'inherit',
+        });
   if (result.error) throw result.error;
   if (result.signal) throw new Error(`ASSURANCE_EVIDENCE_SCRIPT_SIGNAL:${script}:${result.signal}`);
   if (result.status === null) throw new Error(`ASSURANCE_EVIDENCE_SCRIPT_STATUS_MISSING:${script}`);
@@ -362,7 +411,10 @@ export function executionEvidenceRealizationFromRecipeObservation(
       package_scripts_sha256: canonicalDigest(recipe.scripts),
     },
     semantic_evidence: {
-      realization_kind: 'package-scripts/v1',
+      realization_kind:
+        recipePackageScripts(recipe.scripts).length === recipe.scripts.length
+          ? 'package-scripts/v1'
+          : 'repository-commands/v1',
     },
     observation: { result: executionResult(recipe, observation) },
   };
