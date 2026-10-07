@@ -282,7 +282,7 @@ test('ambiguous create with no observed PR remains recovery-required', async () 
           return { status: 201, body: '{}' };
         },
       }),
-      /UNRESOLVED_EFFECT/,
+      /RUN_NOT_EXECUTING/,
     );
     assert.equal(posts, 1);
   } finally {
