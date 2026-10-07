@@ -93,11 +93,11 @@ export function baselineSourceTransactionPlan(
     candidate_revision: delta.candidate_revision,
     candidate_tree: delta.candidate_tree,
   });
-  const packageScripts = profile.commands.map((command) => {
-    const match = /^npm run (.+)$/.exec(command);
-    if (!match) throw new Error('SOURCE_TRANSACTION_BASELINE_COMMAND_UNSUPPORTED');
-    return match[1]!;
-  });
+  const packageScriptMatches = profile.commands.map((command) => /^npm run (.+)$/.exec(command));
+  const usesPackageRuntime = packageScriptMatches.every((match) => match !== null);
+  const packageScripts = usesPackageRuntime
+    ? packageScriptMatches.map((match) => match![1]!)
+    : ['verify:repository'];
   return {
     base_revision: delta.base_revision,
     candidate_revision: delta.candidate_revision,
@@ -123,7 +123,7 @@ export function baselineSourceTransactionPlan(
             obligation_ids: [],
             artifact_ids: [],
             package_scripts: [...packageScripts].sort(),
-            uses_package_runtime: true,
+            uses_package_runtime: usesPackageRuntime,
           },
         ],
       },
