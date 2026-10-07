@@ -1,1 +1,1 @@
-verify restored ordinary self-hosted control-plane deployment after recovery
+deploy clean dormant warm-GCE canary control plane after incident cleanup
