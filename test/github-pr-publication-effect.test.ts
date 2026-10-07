@@ -163,6 +163,28 @@ test('timeout after PR creation reconciles to DONE without a second mutation', a
   }
 });
 
+test('bound publication identity must match the claimed source run', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'source-pr-publication-binding-'));
+  const kernel = new OvercenterKernel(join(root, 'overcenter.sqlite'));
+
+  try {
+    const permit = define(kernel);
+    await assert.rejects(
+      performGitHubPullRequestPublicationEffect(kernel, permit, {
+        token: 'token',
+        get: getProvider(() => false),
+        postcondition: { ...publicationPostcondition(), expected_base_sha: OTHER },
+        post: async () => ({ status: 201, body: '{}' }),
+      }),
+      /SOURCE_PUBLICATION_BINDING_MISMATCH/,
+    );
+    assert.equal(kernel.hasUnresolvedEffect(permit.id), false);
+  } finally {
+    kernel.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('stale head fails before reservation and POST', async () => {
   const root = mkdtempSync(join(tmpdir(), 'source-pr-publication-stale-'));
   let posts = 0;
