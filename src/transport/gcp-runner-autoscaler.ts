@@ -1,4 +1,4 @@
-import { createSign } from 'node:crypto';
+import { createHash, createHmac, createSign, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
@@ -26,11 +26,18 @@ type GitHubToken = Readonly<{
   expiresAtMs: number;
 }>;
 
-type WorkflowJob = Readonly<{
+export type WorkflowJob = Readonly<{
   id: number;
   status: string;
   labels: readonly string[];
 }>;
+
+type WebhookState = {
+  configured: boolean;
+  subscribed: boolean;
+  lastDeliveryAt: string | null;
+  lastWakeAt: string | null;
+};
 
 type WorkflowRun = Readonly<{
   id: number;
@@ -144,6 +151,130 @@ export function createGitHubAppJwt(appId: string, privateKey: string, nowMs = Da
   signer.update(signingInput);
   signer.end();
   return `${signingInput}.${signer.sign(privateKey).toString('base64url')}`;
+}
+
+export function deriveGitHubWebhookSecret(privateKey: string): string {
+  if (!privateKey.trim()) throw new TypeError('GITHUB_APP_PRIVATE_KEY is required');
+  return createHash('sha256')
+    .update('overcenter-github-workflow-job-webhook/v1\0')
+    .update(privateKey)
+    .digest('hex');
+}
+
+export function verifyGitHubWebhookSignature(
+  body: Buffer,
+  signature: string | undefined,
+  secret: string,
+): boolean {
+  if (!/^sha256=[0-9a-f]{64}$/.test(signature ?? '')) return false;
+  const expected = createHmac('sha256', secret).update(body).digest();
+  const actual = Buffer.from(String(signature).slice('sha256='.length), 'hex');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export function isWorkflowJobWakeHint(
+  value: unknown,
+  config: RunnerAutoscalerConfig,
+): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const body = value as Record<string, unknown>;
+  if (body.action !== 'queued') return false;
+
+  const repository = body.repository;
+  const job = body.workflow_job;
+  if (
+    !repository ||
+    typeof repository !== 'object' ||
+    Array.isArray(repository) ||
+    !job ||
+    typeof job !== 'object' ||
+    Array.isArray(job)
+  ) {
+    return false;
+  }
+
+  const repositoryBody = repository as Record<string, unknown>;
+  const owner = repositoryBody.owner;
+  const ownerId =
+    owner && typeof owner === 'object' && !Array.isArray(owner)
+      ? Number((owner as Record<string, unknown>).id)
+      : 0;
+  const binding = config.repositories.find(
+    (candidate) =>
+      candidate.repository_id === Number(repositoryBody.id) &&
+      candidate.owner_id === ownerId &&
+      candidate.full_name.toLowerCase() === String(repositoryBody.full_name ?? '').toLowerCase(),
+  );
+  if (!binding) return false;
+
+  const jobBody = job as Record<string, unknown>;
+  const labels = Array.isArray(jobBody.labels) ? jobBody.labels.map((label) => String(label)) : [];
+  return (
+    runnerSchedulingLabel(
+      {
+        id: Number(jobBody.id),
+        status: String(jobBody.status ?? ''),
+        labels,
+      },
+      config.runner_label,
+    ) !== null
+  );
+}
+
+async function readRequestBody(request: IncomingMessage, limitBytes = 1_048_576): Promise<Buffer> {
+  const declaredLength = Number(request.headers['content-length'] ?? '0');
+  if (Number.isFinite(declaredLength) && declaredLength > limitBytes) {
+    throw new RangeError('webhook body exceeds limit');
+  }
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > limitBytes) throw new RangeError('webhook body exceeds limit');
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
+async function configureGitHubAppWebhook(
+  appId: string,
+  privateKey: string,
+  webhookUrl: string,
+  secret: string,
+): Promise<{ configured: boolean; subscribed: boolean }> {
+  const jwt = createGitHubAppJwt(appId, privateKey);
+  const app = (await githubJson('/app', jwt)) as Record<string, unknown>;
+  const events = Array.isArray(app.events) ? app.events.map((event) => String(event)) : [];
+  const subscribed = events.includes('workflow_job');
+  if (!subscribed) {
+    console.error(
+      JSON.stringify({
+        event: 'github_webhook_subscription_missing',
+        required_event: 'workflow_job',
+      }),
+    );
+    return { configured: false, subscribed: false };
+  }
+
+  await githubJson('/app/hook/config', jwt, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      url: webhookUrl,
+      content_type: 'json',
+      secret,
+      insecure_ssl: '0',
+    }),
+  });
+  const hook = (await githubJson('/app/hook/config', jwt)) as Record<string, unknown>;
+  if (
+    String(hook.url ?? '') !== webhookUrl ||
+    String(hook.content_type ?? '') !== 'json' ||
+    String(hook.insecure_ssl ?? '') !== '0'
+  ) {
+    throw new Error('GitHub App webhook configuration readback mismatch');
+  }
+  return { configured: true, subscribed: true };
 }
 
 function githubHeaders(token: string): Record<string, string> {
@@ -461,14 +592,17 @@ async function pollOnce(
   }
 }
 
-function healthResponse(state: PollState): string {
+function healthResponse(state: PollState, webhook: WebhookState): string {
   return JSON.stringify({
     ok: state.lastError === null,
     poll_running: state.running,
     last_attempt_at: state.lastAttemptAt,
     last_success_at: state.lastSuccessAt,
-    last_error: state.lastError,
     launch_cache_size: state.launched.size,
+    webhook_configured: webhook.configured,
+    workflow_job_subscribed: webhook.subscribed,
+    last_webhook_delivery_at: webhook.lastDeliveryAt,
+    last_webhook_wake_at: webhook.lastWakeAt,
   });
 }
 
@@ -502,12 +636,64 @@ async function main(): Promise<void> {
     lastError: null,
     launched: new Map(),
   };
+  const webhook: WebhookState = {
+    configured: false,
+    subscribed: false,
+    lastDeliveryAt: null,
+    lastWakeAt: null,
+  };
+  const webhookUrl = String(process.env.OVERCENTER_GITHUB_WEBHOOK_URL ?? '').trim();
+  const webhookSecret = deriveGitHubWebhookSecret(privateKey);
+  if (webhookUrl) {
+    if (!/^https:\/\/[^/]+\/github-webhook$/.test(webhookUrl)) {
+      throw new TypeError('OVERCENTER_GITHUB_WEBHOOK_URL must be an HTTPS /github-webhook URL');
+    }
+    const configured = await configureGitHubAppWebhook(appId, privateKey, webhookUrl, webhookSecret);
+    webhook.configured = configured.configured;
+    webhook.subscribed = configured.subscribed;
+  }
 
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'GET' && request.url === '/health') {
       response.statusCode = 200;
       response.setHeader('content-type', 'application/json');
-      response.end(healthResponse(state));
+      response.end(healthResponse(state, webhook));
+      return;
+    }
+    if (request.method === 'POST' && request.url === '/github-webhook') {
+      void (async () => {
+        try {
+          const body = await readRequestBody(request);
+          const signatureHeader = request.headers['x-hub-signature-256'];
+          const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
+          if (!verifyGitHubWebhookSignature(body, signature, webhookSecret)) {
+            response.statusCode = 401;
+            response.end('invalid signature');
+            return;
+          }
+          webhook.lastDeliveryAt = new Date().toISOString();
+          const eventHeader = request.headers['x-github-event'];
+          const event = Array.isArray(eventHeader) ? eventHeader[0] : eventHeader;
+          if (event !== 'workflow_job') {
+            response.statusCode = 204;
+            response.end();
+            return;
+          }
+          const payload = JSON.parse(body.toString('utf8')) as unknown;
+          if (!isWorkflowJobWakeHint(payload, config)) {
+            response.statusCode = 204;
+            response.end();
+            return;
+          }
+          webhook.lastWakeAt = new Date().toISOString();
+          response.statusCode = 202;
+          response.end('accepted');
+          queueMicrotask(() => void pollOnce(client, config, state, launcherUrl));
+        } catch (error) {
+          response.statusCode = error instanceof RangeError ? 413 : 400;
+          response.end('invalid webhook');
+        }
+      })();
       return;
     }
     response.statusCode = 404;
