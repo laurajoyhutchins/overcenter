@@ -1,0 +1,68 @@
+:root {
+  color-scheme: light;
+  --ink: #171717;
+  --muted: #66645f;
+  --paper: #f5f2ea;
+  --surface: #fffdf8;
+  --line: #d8d2c6;
+  --accent: #8f2d1f;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); color: var(--ink); }
+body { margin: 0; }
+a { color: inherit; text-underline-offset: 0.18em; }
+code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+.site-header {
+  position: sticky; top: 0; z-index: 10; display: flex; gap: 2rem; align-items: center;
+  justify-content: space-between; padding: 1rem max(1.25rem, calc((100vw - 1120px) / 2));
+  border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 94%, transparent);
+  backdrop-filter: blur(12px);
+}
+.wordmark { font-weight: 800; text-decoration: none; letter-spacing: -0.03em; }
+nav { display: flex; flex-wrap: wrap; gap: 0.85rem; font-size: 0.9rem; }
+nav a { text-decoration: none; color: var(--muted); }
+nav a:hover { color: var(--ink); }
+main, footer { width: min(1120px, calc(100% - 2.5rem)); margin: 0 auto; }
+.hero { padding: 7rem 0 4rem; }
+.hero.compact { padding-bottom: 2rem; }
+.hero h1 { max-width: 900px; margin: 0.3rem 0 1rem; font-size: clamp(2.6rem, 8vw, 6.7rem); line-height: 0.94; letter-spacing: -0.065em; }
+.hero.compact h1 { font-size: clamp(2.5rem, 6vw, 5rem); }
+.lede { max-width: 760px; font-size: 1.25rem; line-height: 1.6; color: var(--muted); }
+.eyebrow { margin: 0 0 0.5rem; text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.75rem; font-weight: 800; color: var(--accent); }
+.flow { max-width: 780px; margin: 2.5rem 0 0; padding: 1.5rem; overflow: auto; border: 1px solid var(--line); border-radius: 0.65rem; background: var(--surface); font-size: clamp(0.74rem, 2vw, 0.95rem); line-height: 1.55; }
+.metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-block: 1px solid var(--line); }
+.metrics div { padding: 1.5rem 1rem; border-right: 1px solid var(--line); }
+.metrics div:last-child { border-right: 0; }
+.metrics strong { display: block; font-size: 2rem; letter-spacing: -0.04em; }
+.metrics span { color: var(--muted); font-size: 0.85rem; }
+.section { padding: 4rem 0; border-bottom: 1px solid var(--line); }
+.section > h2 { margin: 0 0 1.5rem; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.045em; text-transform: capitalize; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.card, .evidence-row { padding: 1.4rem; border: 1px solid var(--line); border-radius: 0.65rem; background: var(--surface); }
+.card h3, .evidence-row h3 { margin-top: 0; font-size: 1.15rem; }
+.card p, .evidence-row dd { line-height: 1.55; }
+.status { display: inline-block; margin: 0 0 0.7rem; padding: 0.22rem 0.45rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 0.78rem; }
+.meta { color: var(--muted); font-size: 0.82rem; overflow-wrap: anywhere; }
+.triptych { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.triptych > div { padding: 1.4rem; border-left: 3px solid var(--accent); background: var(--surface); }
+.triptych strong { color: var(--accent); }
+.evidence-list { display: grid; gap: 1rem; }
+.evidence-row dl { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; }
+.evidence-row dt { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.evidence-row dd { margin: 0.35rem 0 0; font-size: 0.9rem; }
+.chip-grid { display: flex; flex-wrap: wrap; gap: 0.55rem; }
+.chip { padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.85rem; }
+.index-list { list-style: none; margin: 0; padding: 0; }
+.index-list li { display: flex; gap: 1rem; justify-content: space-between; padding: 0.55rem 0; border-bottom: 1px solid var(--line); }
+.index-list span { color: var(--muted); font-size: 0.8rem; text-align: right; }
+.cta { font-weight: 750; }
+footer { padding: 3rem 0 5rem; color: var(--muted); font-size: 0.85rem; }
+@media (max-width: 800px) {
+  .site-header { align-items: flex-start; flex-direction: column; gap: 0.7rem; }
+  .hero { padding-top: 4rem; }
+  .metrics, .grid, .triptych { grid-template-columns: 1fr; }
+  .metrics div { border-right: 0; border-bottom: 1px solid var(--line); }
+  .metrics div:last-child { border-bottom: 0; }
+  .evidence-row dl { grid-template-columns: 1fr; }
+}
