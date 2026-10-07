@@ -100,14 +100,14 @@ function experimentStatus(experiment: Experiment): string {
 function claimProvenance(claim: Claim): string {
   const verification = claim.evidenceBoundary
     ? `<p><span>Verification</span> ${escapeHtml(claim.evidenceBoundary)}</p>`
-    : '<p><span>Evidence</span> <a href="evidence.html">Proof obligation register</a></p>';
-  return `<div class="claim-provenance"><p><span>Source</span> <code>research/claims.md · ${escapeHtml(claim.id)}</code></p>${verification}</div>`;
+    : '';
+  return `<div class="claim-provenance"><p><span>Source</span> <code>research/claims.md · ${escapeHtml(claim.id)}</code></p>${verification}<p><span>Evidence</span> <a href="evidence.html">Proof obligation register</a></p></div>`;
 }
 
 export function generateHome(model: SiteModel): string {
   const demonstrated = model.claims.filter((claim) => claim.statusKind === 'demonstrated').length;
   const supported = model.experiments.filter(
-    (experiment) => experiment.outcome === 'supported',
+    (experiment) => experiment.outcomeKind === 'supported',
   ).length;
   const metrics = [
     [model.claims.length, 'registered claims'],
