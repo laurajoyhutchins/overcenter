@@ -246,13 +246,24 @@ if not any(
     raise SystemExit("runner launcher invoker binding readback mismatch")
 PY
 
-echo "Deploying private autoscaler service"
+existing_autoscaler_url="$(
+  gcloud run services describe "$AUTOSCALER_SERVICE" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --format='value(status.url)' 2>/dev/null || true
+)"
+autoscaler_env="GITHUB_APP_ID=4616688,OVERCENTER_RUNNER_CONFIG_PATH=config/gcp-runner-autoscaler.json,OVERCENTER_RUNNER_LAUNCHER_URL=${launcher_url},OVERCENTER_SOURCE_REVISION=${EXACT_REVISION}"
+if [[ "$existing_autoscaler_url" =~ ^https:// ]]; then
+  autoscaler_env="${autoscaler_env},OVERCENTER_GITHUB_WEBHOOK_URL=${existing_autoscaler_url}/github-webhook"
+fi
+
+echo "Deploying autoscaler and signed GitHub webhook receiver"
 gcloud run deploy "$AUTOSCALER_SERVICE" \
   --image="$CONTROL_IMAGE_IMMUTABLE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
   --service-account="$RUNTIME_SA" \
-  --set-env-vars="GITHUB_APP_ID=4616688,OVERCENTER_RUNNER_CONFIG_PATH=config/gcp-runner-autoscaler.json,OVERCENTER_RUNNER_LAUNCHER_URL=${launcher_url},OVERCENTER_SOURCE_REVISION=${EXACT_REVISION}" \
+  --set-env-vars="$autoscaler_env" \
   --set-secrets="GITHUB_APP_PRIVATE_KEY=overcenter-github-app-private-key:latest" \
   --command=node \
   --args="--experimental-strip-types,src/transport/gcp-runner-autoscaler.ts" \
@@ -336,7 +347,58 @@ if [[ ! "$service_url" =~ ^https:// ]]; then
   exit 1
 fi
 
-for private_url in "$launcher_url" "$service_url"; do
+if [[ ! "$existing_autoscaler_url" =~ ^https:// ]]; then
+  echo "Binding first-deployment webhook URL to stable Cloud Run service URL"
+  gcloud run services update "$AUTOSCALER_SERVICE" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --update-env-vars="OVERCENTER_GITHUB_WEBHOOK_URL=${service_url}/github-webhook" \
+    --quiet
+fi
+
+echo "Verifying bootstrapped GitHub webhook ingress"
+autoscaler_policy="${RUNNER_TEMP:-/tmp}/overcenter-gcp-runner-autoscaler-policy.json"
+gcloud run services get-iam-policy "$AUTOSCALER_SERVICE" \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --format=json > "$autoscaler_policy"
+python3 - "$autoscaler_policy" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    body = json.load(handle)
+if not any(
+    binding.get("role") == "roles/run.invoker"
+    and "allUsers" in (binding.get("members") or [])
+    for binding in body.get("bindings") or []
+):
+    raise SystemExit("autoscaler public webhook invoker bootstrap is missing")
+PY
+
+launcher_status="$(
+  curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${launcher_url}/health"
+)"
+if [[ "$launcher_status" != "403" ]]; then
+  echo "runner launcher must remain private; unauthenticated /health returned $launcher_status" >&2
+  exit 1
+fi
+
+webhook_health="$(
+  curl --silent --show-error --fail "${service_url}/health"
+)"
+python3 - "$webhook_health" <<'PY'
+import json
+import sys
+
+body = json.loads(sys.argv[1])
+if body.get("webhook_configured") is not True:
+    raise SystemExit("GitHub App webhook URL/secret configuration is not active")
+if body.get("workflow_job_subscribed") is not True:
+    raise SystemExit("GitHub App is not subscribed to workflow_job events")
+PY
+
+for private_url in "$launcher_url"; do
   unauth_status="$(
     curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${private_url}/health"
   )"
@@ -352,5 +414,6 @@ printf '%s\n' \
   "Runner digest:   ${runner_digest}" \
   "Control digest:  ${control_digest}" \
   "Launcher:        private Cloud Run; Cloud Build submission only" \
-  "Autoscaler:      private Cloud Run; GitHub observation only" \
+  "Autoscaler:      public HMAC webhook edge + authoritative GitHub observation" \
+  "Webhook:         workflow_job queued events wake observation; polling remains reconciliation" \
   "Hosted Actions:  deployment only, never per verification job"
