@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { buildSite } from '../examples/site/build.ts';
-import { PAGE_FILES, slug } from '../examples/site/render.ts';
+import { escapeHtml, PAGE_FILES, slug } from '../examples/site/render.ts';
 
 test('site projection conserves source records and internal links', async () => {
   const outDir = await mkdtemp(join(tmpdir(), 'overcenter-site-'));
@@ -62,14 +62,21 @@ test('site projection conserves source records and internal links', async () => 
         `claim source missing: ${claim.id}`,
       );
       if (claim.statusScope) {
-        assert.ok(claims.includes(claim.statusScope), `claim status scope missing: ${claim.id}`);
+        assert.ok(
+          claims.includes(escapeHtml(claim.statusScope)),
+          `claim status scope missing: ${claim.id}`,
+        );
       }
       if (claim.evidenceBoundary) {
         assert.ok(
-          claims.includes(claim.evidenceBoundary),
+          claims.includes(escapeHtml(claim.evidenceBoundary)),
           `claim evidence boundary missing: ${claim.id}`,
         );
       }
+      assert.ok(
+        claims.includes('<a href="evidence.html">Proof obligation register</a>'),
+        `claim evidence route missing: ${claim.id}`,
+      );
       assert.match(
         index,
         new RegExp(`claims\\.html#${anchor}`),
@@ -129,10 +136,14 @@ test('site projection conserves source records and internal links', async () => 
       false,
       'free-form demonstrated scope must not become a CSS class',
     );
-    assert.ok(siteCss.includes('.status-safety-constraint'));
-    assert.ok(siteCss.includes('background: var(--lemon)'));
-    assert.ok(siteCss.includes('.status-unknown,'));
-    assert.ok(siteCss.includes('background: var(--cream)'));
+    assert.match(
+      siteCss,
+      /\.status-safety-constraint \{[\s\S]*?background: var\(--lemon\);[\s\S]*?\}/,
+    );
+    assert.match(
+      siteCss,
+      /\.status-unknown,[\s\S]*?\.status-other \{[\s\S]*?background: var\(--cream\);[\s\S]*?\}/,
+    );
 
     for (const [file, html] of pages) {
       const currentLinks = [...html.matchAll(/aria-current="page"/g)];
