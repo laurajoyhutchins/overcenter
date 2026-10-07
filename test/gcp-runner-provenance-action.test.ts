@@ -54,7 +54,7 @@ test('records exact job-bound GCP runner provenance without interpreting reposit
   assert.match(output, new RegExp(`job=${valid.OC_JOB}`));
   assert.match(summary, /### Execution provenance/);
   assert.match(summary, /- provider: `gcp`/);
-  assert.match(summary, new RegExp(`- runner: \\`${valid.OC_RUNNER_NAME}\\``));
+  assert.ok(summary.includes('- runner: `' + valid.OC_RUNNER_NAME + '`'));
 });
 
 test('accepts the compatibility prefixed scheduling label', () => {
