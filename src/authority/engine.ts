@@ -781,11 +781,11 @@ export class KernelCore {
               contentionError: 'RECOVERY_CONTENTION_EXHAUSTED',
             }
           : {
-                action: 'retry source',
-                lifecycleError: 'SOURCE_RETRY_RUN_NOT_EXECUTING',
-                unresolvedError: 'SOURCE_RETRY_WITH_UNRESOLVED_EFFECT',
-                contentionError: 'SOURCE_RETRY_CONTENTION_EXHAUSTED',
-              };
+              action: 'retry source',
+              lifecycleError: 'SOURCE_RETRY_RUN_NOT_EXECUTING',
+              unresolvedError: 'SOURCE_RETRY_WITH_UNRESOLVED_EFFECT',
+              contentionError: 'SOURCE_RETRY_CONTENTION_EXHAUSTED',
+            };
 
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();

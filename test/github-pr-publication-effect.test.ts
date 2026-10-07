@@ -217,10 +217,7 @@ test('duplicate exact PR readback remains recovery-required', async () => {
   const baseGet = getProvider(() => published);
   const get = async (token: string, path: string): Promise<unknown> => {
     if (path.startsWith('/repos/acme/widget/pulls?') && published) {
-      return [
-        pull(),
-        { ...pull(), id: 3701, node_id: 'PR_node_38', number: 38 },
-      ];
+      return [pull(), { ...pull(), id: 3701, node_id: 'PR_node_38', number: 38 }];
     }
     return baseGet(token, path);
   };

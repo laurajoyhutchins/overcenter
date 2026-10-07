@@ -585,8 +585,7 @@ function sourceIntegrationPullRequestEvidenceMatches(
     read.operation_id === 'pulls/list' &&
     read.repository_id === p.repository_id &&
     typeof read.requested_repository_full_name === 'string' &&
-    read.requested_repository_full_name.toLowerCase() ===
-      p.repository_full_name.toLowerCase() &&
+    read.requested_repository_full_name.toLowerCase() === p.repository_full_name.toLowerCase() &&
     !!parameters &&
     parameters.head ===
       `${p.repository_full_name.split('/')[0]!}:${p.ref.slice('refs/heads/'.length)}` &&
