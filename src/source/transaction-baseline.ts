@@ -5,7 +5,10 @@ import { isPositiveSafeInteger } from '../validation.ts';
 import { repositorySnapshot } from '../evidence/repository-snapshot.ts';
 import type { RepositoryDelta } from './repository-delta.ts';
 import type { TransactionAssurancePlan } from './transaction-planner.ts';
-import type { SourceVerificationProfile } from './source-verification-profile.ts';
+import {
+  sourceVerificationRecipeStep,
+  type SourceVerificationProfile,
+} from './source-verification-profile.ts';
 
 export interface SourceTransactionContext {
   repository_id: number;
@@ -93,11 +96,7 @@ export function baselineSourceTransactionPlan(
     candidate_revision: delta.candidate_revision,
     candidate_tree: delta.candidate_tree,
   });
-  const packageScripts = profile.commands.map((command) => {
-    const match = /^npm run (.+)$/.exec(command);
-    if (!match) throw new Error('SOURCE_TRANSACTION_BASELINE_COMMAND_UNSUPPORTED');
-    return match[1]!;
-  });
+  const recipeSteps = profile.commands.map(sourceVerificationRecipeStep);
   return {
     base_revision: delta.base_revision,
     candidate_revision: delta.candidate_revision,
@@ -122,8 +121,8 @@ export function baselineSourceTransactionPlan(
             proposition_ids: [`baseline:${profile.id}`],
             obligation_ids: [],
             artifact_ids: [],
-            package_scripts: [...packageScripts].sort(),
-            uses_package_runtime: true,
+            package_scripts: [...recipeSteps].sort(),
+            uses_package_runtime: recipeSteps.some((step) => !step.startsWith('argv:')),
           },
         ],
       },
