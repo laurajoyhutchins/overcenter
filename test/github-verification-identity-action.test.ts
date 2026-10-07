@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -97,4 +97,27 @@ test('binds push verification directly to the checked-out revision', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, new RegExp(`candidate_sha=${merge}`));
   assert.match(result.stdout, /base_sha=\n/);
+});
+
+test('writes literal markdown summary without executing backticks', () => {
+  const { cwd, base, head, merge } = fixture();
+  const summary = join(cwd, 'summary.md');
+  const result = spawnSync('bash', [BINDER], {
+    cwd,
+    env: {
+      ...process.env,
+      OC_EVENT_NAME: 'pull_request',
+      OC_EVENT_SHA: merge,
+      OC_PR_HEAD_SHA: head,
+      OC_PR_BASE_SHA: base,
+      GITHUB_STEP_SUMMARY: summary,
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  const body = readFileSync(summary, 'utf8');
+  assert.match(body, /- event: `pull_request`/);
+  assert.match(body, new RegExp(`- candidate SHA: \\`${head}\\``));
+  assert.match(body, new RegExp(`- base SHA: \\`${base}\\``));
 });
