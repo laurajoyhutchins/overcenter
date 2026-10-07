@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-24.04-arm
+    runs-on: [self-hosted, "overcenter-gcp-${{ github.run_id }}-deploy-${{ github.run_attempt }}"]
     timeout-minutes: 45
     env:
       GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
