@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
 
-import { deriveVerificationIdentity } from '../.github/actions/bind-verification-identity/bind-verification-identity.ts';
+const BINDER = resolve(
+  '.github/actions/bind-verification-identity/bind-verification-identity.sh',
+);
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 }
 
-function fixture(): { cwd: string; base: string; head: string; merge: string; event: string } {
+function fixture(): { cwd: string; base: string; head: string; merge: string } {
   const cwd = mkdtempSync(join(tmpdir(), 'verification-identity-'));
   git(cwd, 'init');
   git(cwd, 'config', 'user.email', 'test@example.com');
@@ -32,65 +34,72 @@ function fixture(): { cwd: string; base: string; head: string; merge: string; ev
   git(cwd, 'merge', '--no-ff', '--no-edit', head);
   const merge = git(cwd, 'rev-parse', 'HEAD');
 
-  const event = join(cwd, 'event.json');
-  writeFileSync(
-    event,
-    JSON.stringify({ pull_request: { head: { sha: head }, base: { sha: base } } }),
-  );
-  return { cwd, base, head, merge, event };
+  return { cwd, base, head, merge };
+}
+
+function runBinder(
+  cwd: string,
+  env: Record<string, string>,
+): ReturnType<typeof spawnSync> {
+  return spawnSync('bash', [BINDER], {
+    cwd,
+    env: { ...process.env, ...env },
+    encoding: 'utf8',
+  });
 }
 
 test('binds pull-request verification to exact base, candidate, and tested tree', () => {
-  const { cwd, base, head, merge, event } = fixture();
-  const identity = deriveVerificationIdentity(cwd, {
-    GITHUB_EVENT_NAME: 'pull_request',
-    GITHUB_SHA: merge,
-    GITHUB_EVENT_PATH: event,
+  const { cwd, base, head, merge } = fixture();
+  const result = runBinder(cwd, {
+    OC_EVENT_NAME: 'pull_request',
+    OC_EVENT_SHA: merge,
+    OC_PR_HEAD_SHA: head,
+    OC_PR_BASE_SHA: base,
   });
-  assert.equal(identity.baseSha, base);
-  assert.equal(identity.candidateSha, head);
-  assert.equal(identity.testedSha, merge);
-  assert.equal(identity.candidateTree, identity.testedTree);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(`candidate_sha=${head}`));
+  assert.match(result.stdout, new RegExp(`base_sha=${base}`));
+  assert.match(result.stdout, new RegExp(`tested_sha=${merge}`));
+
+  const candidateTree = git(cwd, 'rev-parse', `${head}^{tree}`);
+  const testedTree = git(cwd, 'rev-parse', `${merge}^{tree}`);
+  assert.equal(candidateTree, testedTree);
+  assert.match(result.stdout, new RegExp(`candidate_tree=${candidateTree}`));
+  assert.match(result.stdout, new RegExp(`tested_tree=${testedTree}`));
 });
 
 test('fails closed when the event head is not the tested merge head parent', () => {
-  const { cwd, base, merge, event } = fixture();
-  writeFileSync(
-    event,
-    JSON.stringify({ pull_request: { head: { sha: base }, base: { sha: base } } }),
-  );
-  assert.throws(
-    () =>
-      deriveVerificationIdentity(cwd, {
-        GITHUB_EVENT_NAME: 'pull_request',
-        GITHUB_SHA: merge,
-        GITHUB_EVENT_PATH: event,
-      }),
-    /VERIFICATION_IDENTITY_HEAD_MISMATCH/,
-  );
+  const { cwd, base, merge } = fixture();
+  const result = runBinder(cwd, {
+    OC_EVENT_NAME: 'pull_request',
+    OC_EVENT_SHA: merge,
+    OC_PR_HEAD_SHA: base,
+    OC_PR_BASE_SHA: base,
+  });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /VERIFICATION_IDENTITY_HEAD_MISMATCH/);
 });
 
 test('fails closed when a pull-request verification is not a two-parent merge', () => {
-  const { cwd, head, event } = fixture();
+  const { cwd, base, head } = fixture();
   git(cwd, 'checkout', '--detach', head);
-  assert.throws(
-    () =>
-      deriveVerificationIdentity(cwd, {
-        GITHUB_EVENT_NAME: 'pull_request',
-        GITHUB_SHA: head,
-        GITHUB_EVENT_PATH: event,
-      }),
-    /VERIFICATION_IDENTITY_MERGE_PARENT_COUNT:1/,
-  );
+  const result = runBinder(cwd, {
+    OC_EVENT_NAME: 'pull_request',
+    OC_EVENT_SHA: head,
+    OC_PR_HEAD_SHA: head,
+    OC_PR_BASE_SHA: base,
+  });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /VERIFICATION_IDENTITY_MERGE_PARENT_COUNT:1/);
 });
 
 test('binds push verification directly to the checked-out revision', () => {
   const { cwd, merge } = fixture();
-  const identity = deriveVerificationIdentity(cwd, {
-    GITHUB_EVENT_NAME: 'push',
-    GITHUB_SHA: merge,
+  const result = runBinder(cwd, {
+    OC_EVENT_NAME: 'push',
+    OC_EVENT_SHA: merge,
   });
-  assert.equal(identity.candidateSha, merge);
-  assert.equal(identity.candidateTree, identity.testedTree);
-  assert.equal(identity.baseSha, '');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(`candidate_sha=${merge}`));
+  assert.match(result.stdout, /base_sha=\n/);
 });
