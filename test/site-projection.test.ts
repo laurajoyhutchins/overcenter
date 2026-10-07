@@ -45,6 +45,14 @@ test('site projection conserves source records and internal links', async () => 
     const index = pages.get('index-of-terms.html') ?? '';
 
     const demonstrated = model.claims.filter((claim) => claim.statusKind === 'demonstrated').length;
+    const demonstratedFromAuthority = model.claims.filter(
+      (claim) => claim.status === 'Demonstrated' || claim.status.startsWith('Demonstrated '),
+    ).length;
+    assert.equal(
+      demonstrated,
+      demonstratedFromAuthority,
+      'semantic demonstrated classification must preserve qualified demonstrated statuses',
+    );
     assert.ok(
       home.includes(`<strong>${demonstrated}</strong><span>demonstrated claims</span>`),
       'home metric must count every demonstrated status family member',
@@ -52,29 +60,34 @@ test('site projection conserves source records and internal links', async () => 
 
     for (const claim of model.claims) {
       const anchor = `claim-${slug(claim.id)}`;
-      assert.match(claims, new RegExp(`id="${anchor}"`), `claim vanished: ${claim.id}`);
+      const cardStart = claims.indexOf(`id="${anchor}"`);
+      assert.notEqual(cardStart, -1, `claim vanished: ${claim.id}`);
+      const cardEnd = claims.indexOf('</article>', cardStart);
+      assert.notEqual(cardEnd, -1, `claim card did not terminate: ${claim.id}`);
+      const claimCard = claims.slice(cardStart, cardEnd);
+
       assert.ok(
-        claims.includes(`class="status status-${claim.statusKind}"`),
+        claimCard.includes(`class="status status-${claim.statusKind}"`),
         `claim status lost bounded semantic class: ${claim.id}`,
       );
       assert.ok(
-        claims.includes(`research/claims.md · ${claim.id}`),
+        claimCard.includes(`research/claims.md · ${claim.id}`),
         `claim source missing: ${claim.id}`,
       );
       if (claim.statusScope) {
         assert.ok(
-          claims.includes(escapeHtml(claim.statusScope)),
+          claimCard.includes(escapeHtml(claim.statusScope)),
           `claim status scope missing: ${claim.id}`,
         );
       }
       if (claim.evidenceBoundary) {
         assert.ok(
-          claims.includes(escapeHtml(claim.evidenceBoundary)),
+          claimCard.includes(escapeHtml(claim.evidenceBoundary)),
           `claim evidence boundary missing: ${claim.id}`,
         );
       }
       assert.ok(
-        claims.includes('<a href="evidence.html">Proof obligation register</a>'),
+        claimCard.includes('<a href="evidence.html">Proof obligation register</a>'),
         `claim evidence route missing: ${claim.id}`,
       );
       assert.match(
