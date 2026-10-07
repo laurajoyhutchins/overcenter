@@ -250,10 +250,7 @@ function parseJobs(value: unknown): WorkflowJob[] {
   });
 }
 
-export function runnerSchedulingLabel(
-  job: WorkflowJob,
-  runnerLabel: string,
-): string | null {
+export function runnerSchedulingLabel(job: WorkflowJob, runnerLabel: string): string | null {
   if (job.status !== 'queued') return null;
   const base = runnerLabel.toLowerCase();
   const labels = new Set(job.labels.map((label) => label.toLowerCase()));
