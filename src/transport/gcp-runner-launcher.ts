@@ -35,8 +35,10 @@ export type RunnerExecutionSubmission = Readonly<{
   reused: boolean;
 }>;
 
+export type RunnerExecutionSubstrateKind = RunnerExecutionSubmission['substrate'] | 'routing';
+
 export interface RunnerExecutionSubstrate {
-  readonly kind: RunnerExecutionSubmission['substrate'];
+  readonly kind: RunnerExecutionSubstrateKind;
   submit(lease: RunnerExecutionLease): Promise<RunnerExecutionSubmission>;
 }
 
@@ -45,6 +47,8 @@ export type LauncherEnvironment = Readonly<{
   region: string;
   runtimeServiceAccount: string;
   runnerImage: string;
+  warmPoolTopic?: string;
+  warmPoolLabelPrefix?: string;
 }>;
 
 type RunnerBuildSubmission = Readonly<{
@@ -346,6 +350,9 @@ function requireLauncherEnvironment(env: NodeJS.ProcessEnv): LauncherEnvironment
   const region = String(env.GCP_REGION ?? '').trim();
   const runtimeServiceAccount = String(env.GCP_RUNNER_SERVICE_ACCOUNT ?? '').trim();
   const runnerImage = String(env.OVERCENTER_RUNNER_IMAGE ?? '').trim();
+  const warmPoolTopic = String(env.OVERCENTER_GCE_RUNNER_TOPIC ?? '').trim();
+  const warmPoolLabelPrefix =
+    String(env.OVERCENTER_GCE_RUNNER_LABEL_PREFIX ?? '').trim() || 'overcenter-gcp-warm';
 
   if (!/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(projectId)) {
     throw new TypeError('GCP_PROJECT_ID is invalid');
@@ -360,7 +367,20 @@ function requireLauncherEnvironment(env: NodeJS.ProcessEnv): LauncherEnvironment
   if (!runnerImage.startsWith(imagePrefix) || !/@sha256:[0-9a-f]{64}$/.test(runnerImage)) {
     throw new TypeError('OVERCENTER_RUNNER_IMAGE must be an immutable Artifact Registry digest');
   }
-  return Object.freeze({ projectId, region, runtimeServiceAccount, runnerImage });
+  if (warmPoolTopic && !/^[A-Za-z][A-Za-z0-9._~+%-]{2,254}$/.test(warmPoolTopic)) {
+    throw new TypeError('OVERCENTER_GCE_RUNNER_TOPIC is invalid');
+  }
+  if (!/^[A-Za-z0-9_.-]+$/.test(warmPoolLabelPrefix)) {
+    throw new TypeError('OVERCENTER_GCE_RUNNER_LABEL_PREFIX is invalid');
+  }
+  return Object.freeze({
+    projectId,
+    region,
+    runtimeServiceAccount,
+    runnerImage,
+    ...(warmPoolTopic ? { warmPoolTopic } : {}),
+    warmPoolLabelPrefix,
+  });
 }
 
 export function createRunnerBuild(
@@ -616,6 +636,25 @@ export function createGceWarmPoolRunnerSubstrate(
   });
 }
 
+export function createRunnerExecutionRouter(
+  cloudBuild: RunnerExecutionSubstrate,
+  warmPool: RunnerExecutionSubstrate,
+  warmPoolLabelPrefix: string,
+): RunnerExecutionSubstrate {
+  if (cloudBuild.kind !== 'cloud-build' || warmPool.kind !== 'gce-warm-pool') {
+    throw new TypeError('runner execution router received the wrong substrate kinds');
+  }
+  return Object.freeze({
+    kind: 'routing' as const,
+    async submit(lease: RunnerExecutionLease): Promise<RunnerExecutionSubmission> {
+      const label = lease.runner_label.toLowerCase();
+      const prefix = warmPoolLabelPrefix.toLowerCase();
+      const selected = label === prefix || label.startsWith(prefix + '-') ? warmPool : cloudBuild;
+      return await selected.submit(lease);
+    },
+  });
+}
+
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -678,7 +717,17 @@ async function handleRequest(
 
 async function main(): Promise<void> {
   const environment = requireLauncherEnvironment(process.env);
-  const substrate = createCloudBuildRunnerSubstrate(environment);
+  const cloudBuild = createCloudBuildRunnerSubstrate(environment);
+  const substrate = environment.warmPoolTopic
+    ? createRunnerExecutionRouter(
+        cloudBuild,
+        createGceWarmPoolRunnerSubstrate({
+          projectId: environment.projectId,
+          topic: environment.warmPoolTopic,
+        }),
+        environment.warmPoolLabelPrefix ?? 'overcenter-gcp-warm',
+      )
+    : cloudBuild;
   const configPath =
     String(process.env.OVERCENTER_RUNNER_CONFIG_PATH ?? '').trim() ||
     'config/gcp-runner-autoscaler.json';
