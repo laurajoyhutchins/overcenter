@@ -102,17 +102,15 @@ test('profile identity ignores array ordering but rejects missing and unknown pr
   );
 });
 
-
 test('source verification commands are transport-neutral argv, not npm-specific shell strings', () => {
   assert.ok(profileModule, 'source verification profile loader must exist');
   const pythonProfile = {
     ...profile('python/v1'),
     commands: ['python tools/check.py'],
   };
-  assert.deepEqual(
-    profileModule.validateSourceVerificationProfile(pythonProfile).commands,
-    ['python tools/check.py'],
-  );
+  assert.deepEqual(profileModule.validateSourceVerificationProfile(pythonProfile).commands, [
+    'python tools/check.py',
+  ]);
   assert.deepEqual(profileModule.sourceVerificationCommandArgv('python tools/check.py'), [
     'python',
     'tools/check.py',
