@@ -8,6 +8,7 @@ import { runInNewContext } from 'node:vm';
 import {
   RUNNER_EXECUTION_LEASE_SCHEMA,
   createCloudBuildRunnerSubstrate,
+  createRunnerExecutionRouter,
   createRunnerBuild,
   findReusableRunnerBuild,
   matchRepositoryBinding,
@@ -15,6 +16,7 @@ import {
   runnerBuildTags,
   runnerExecutionLease,
   type LauncherEnvironment,
+  type RunnerExecutionSubstrate,
 } from '../src/transport/gcp-runner-launcher.ts';
 
 const request = {
@@ -73,6 +75,41 @@ test('launcher derives an immutable substrate-neutral execution lease', () => {
   );
   assert.equal(Object.isFrozen(lease), true);
   assert.equal(createCloudBuildRunnerSubstrate(environment).kind, 'cloud-build');
+});
+
+test('runner router sends only the explicit warm label family to GCE', async () => {
+  const observed: string[] = [];
+  const substrate = (kind: 'cloud-build' | 'gce-warm-pool'): RunnerExecutionSubstrate => ({
+    kind,
+    async submit(lease) {
+      observed.push(kind + ':' + lease.runner_label);
+      return {
+        substrate: kind,
+        executionId: kind + '-execution',
+        reused: false,
+      };
+    },
+  });
+  const router = createRunnerExecutionRouter(
+    substrate('cloud-build'),
+    substrate('gce-warm-pool'),
+    'overcenter-gcp-warm',
+  );
+  assert.equal(router.kind, 'routing');
+
+  const ordinary = runnerExecutionLease(parseRunnerLaunchRequest(request));
+  const warm = runnerExecutionLease(
+    parseRunnerLaunchRequest({
+      ...request,
+      runner_label: 'overcenter-gcp-warm-123456-check',
+    }),
+  );
+  assert.equal((await router.submit(ordinary)).substrate, 'cloud-build');
+  assert.equal((await router.submit(warm)).substrate, 'gce-warm-pool');
+  assert.deepEqual(observed, [
+    'cloud-build:overcenter-gcp-123456-check',
+    'gce-warm-pool:overcenter-gcp-warm-123456-check',
+  ]);
 });
 
 test('launcher rejects stale workflow-dispatch-shaped requests', () => {
