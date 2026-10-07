@@ -49,7 +49,7 @@ jobs:
                 - -c
                 - |
                   set +e
-                  {
+                  (
                     set -euo pipefail
                     node - <<'NODE'
                   const crypto=require('crypto'),fs=require('fs');
