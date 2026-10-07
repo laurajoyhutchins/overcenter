@@ -54,11 +54,9 @@ trusted(
         4
   )
   {
-    return
-      y;
+    return y;
   }
-  return
-    0;
+  return 0;
 }
 `;
   const commented = `// leading commentary
