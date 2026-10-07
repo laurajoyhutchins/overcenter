@@ -293,9 +293,7 @@ function validateTcbReport(value: unknown): SemanticScalingTcbReport {
   return report;
 }
 
-function normalizeSemanticSpans(
-  spans: readonly LocatedSemanticSpan[],
-): LocatedSemanticSpan[] {
+function normalizeSemanticSpans(spans: readonly LocatedSemanticSpan[]): LocatedSemanticSpan[] {
   const byPath = new Map<string, LocatedSemanticSpan[]>();
   for (const span of spans) {
     requireString(span.path, 'hybrid_closure_semantic_spans.path');
@@ -333,10 +331,7 @@ function marginalSemanticSpans(
       if (previous.end_offset <= span.start_offset || previous.start_offset >= span.end_offset) {
         continue;
       }
-      if (
-        previous.start_offset <= span.start_offset &&
-        previous.end_offset >= span.end_offset
-      ) {
+      if (previous.start_offset <= span.start_offset && previous.end_offset >= span.end_offset) {
         if (
           previous.start_offset === span.start_offset &&
           previous.end_offset === span.end_offset &&
@@ -350,10 +345,7 @@ function marginalSemanticSpans(
         coveredSemanticLoc = span.semantic_loc;
         break;
       }
-      if (
-        span.start_offset <= previous.start_offset &&
-        span.end_offset >= previous.end_offset
-      ) {
+      if (span.start_offset <= previous.start_offset && span.end_offset >= previous.end_offset) {
         coveredSemanticLoc += previous.semantic_loc;
         continue;
       }
@@ -464,7 +456,6 @@ export function trustedUnitsForScope(
 
   return trusted;
 }
-
 
 export function trustedSpansForScope(
   scope: HybridScopeReport,
