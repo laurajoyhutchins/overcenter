@@ -172,10 +172,7 @@ export function verifyGitHubWebhookSignature(
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-export function isWorkflowJobWakeHint(
-  value: unknown,
-  config: RunnerAutoscalerConfig,
-): boolean {
+export function isWorkflowJobWakeHint(value: unknown, config: RunnerAutoscalerConfig): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const body = value as Record<string, unknown>;
   if (body.action !== 'queued') return false;
@@ -648,7 +645,12 @@ async function main(): Promise<void> {
     if (!/^https:\/\/[^/]+\/github-webhook$/.test(webhookUrl)) {
       throw new TypeError('OVERCENTER_GITHUB_WEBHOOK_URL must be an HTTPS /github-webhook URL');
     }
-    const configured = await configureGitHubAppWebhook(appId, privateKey, webhookUrl, webhookSecret);
+    const configured = await configureGitHubAppWebhook(
+      appId,
+      privateKey,
+      webhookUrl,
+      webhookSecret,
+    );
     webhook.configured = configured.configured;
     webhook.subscribed = configured.subscribed;
   }
