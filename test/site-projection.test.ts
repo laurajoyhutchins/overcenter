@@ -77,7 +77,10 @@ test('site projection conserves source records and internal links', async () => 
     }
     assert.ok(search.includes('id="site-record-search"'), 'structured search input missing');
     assert.ok(search.includes('data-search-record'), 'structured search records missing');
-    assert.ok(search.includes("addEventListener('input', update)"), 'structured search behavior missing');
+    assert.ok(
+      search.includes("addEventListener('input', update)"),
+      'structured search behavior missing',
+    );
     const expectedSearchRecords =
       model.claims.length +
       model.proofObligations.length +
