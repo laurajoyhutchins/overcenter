@@ -1,0 +1,110 @@
+name: Owner command · protected source recovery
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  parse:
+    name: Parse owner recovery authorization
+    if: >-
+      ${{ github.event.issue.number == 693 &&
+          github.actor == github.repository_owner &&
+          startsWith(github.event.comment.body, '/overcenter protected-recovery ') }}
+    runs-on: [self-hosted, "overcenter-gcp-${{ github.run_id }}-recovery-command-${{ github.run_attempt }}"]
+    timeout-minutes: 3
+    outputs:
+      base_sha: ${{ steps.command.outputs.base_sha }}
+      candidate_sha: ${{ steps.command.outputs.candidate_sha }}
+      candidate_tree_sha: ${{ steps.command.outputs.candidate_tree_sha }}
+      writable_paths_json: ${{ steps.command.outputs.writable_paths_json }}
+      reason: ${{ steps.command.outputs.reason }}
+    steps:
+      - name: Parse exact owner command
+        id: command
+        shell: bash
+        env:
+          RECOVERY_COMMAND_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+
+          const prefix = '/overcenter protected-recovery ';
+          const body = process.env.RECOVERY_COMMAND_BODY ?? '';
+          if (!body.startsWith(prefix)) throw new Error('PROTECTED_SOURCE_RECOVERY_COMMAND_INVALID');
+
+          const value = JSON.parse(body.slice(prefix.length));
+          if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            throw new Error('PROTECTED_SOURCE_RECOVERY_COMMAND_INVALID');
+          }
+          const keys = Object.keys(value).sort();
+          const expected = [
+            'base_sha',
+            'candidate_sha',
+            'candidate_tree_sha',
+            'reason',
+            'writable_paths',
+          ];
+          if (JSON.stringify(keys) !== JSON.stringify(expected)) {
+            throw new Error('PROTECTED_SOURCE_RECOVERY_COMMAND_KEYS_INVALID');
+          }
+          for (const key of ['base_sha', 'candidate_sha', 'candidate_tree_sha']) {
+            if (typeof value[key] !== 'string' || !/^[0-9a-f]{40}$/.test(value[key])) {
+              throw new Error('PROTECTED_SOURCE_RECOVERY_COMMAND_SHA_INVALID');
+            }
+          }
+          if (
+            !Array.isArray(value.writable_paths) ||
+            value.writable_paths.length === 0 ||
+            value.writable_paths.some(
+              (path) => typeof path !== 'string' || path.length === 0 || path.includes('\n'),
+            )
+          ) {
+            throw new Error('PROTECTED_SOURCE_RECOVERY_COMMAND_PATHS_INVALID');
+          }
+          const canonicalPaths = [...new Set(value.writable_paths)].sort();
+          if (
+            canonicalPaths.length !== value.writable_paths.length ||
+            JSON.stringify(canonicalPaths) !== JSON.stringify(value.writable_paths)
+          ) {
+            throw new Error('PROTECTED_SOURCE_RECOVERY_COMMAND_PATHS_NONCANONICAL');
+          }
+          if (
+            typeof value.reason !== 'string' ||
+            value.reason.length === 0 ||
+            value.reason.length > 500 ||
+            /[\r\n]/.test(value.reason)
+          ) {
+            throw new Error('PROTECTED_SOURCE_RECOVERY_COMMAND_REASON_INVALID');
+          }
+
+          const output = process.env.GITHUB_OUTPUT;
+          if (!output) throw new Error('GITHUB_OUTPUT_REQUIRED');
+          appendFileSync(
+            output,
+            [
+              `base_sha=${value.base_sha}`,
+              `candidate_sha=${value.candidate_sha}`,
+              `candidate_tree_sha=${value.candidate_tree_sha}`,
+              `writable_paths_json=${JSON.stringify(canonicalPaths)}`,
+              `reason=${value.reason}`,
+              '',
+            ].join('\n'),
+          );
+          NODE
+
+  verify:
+    name: Verify owner-authorized recovery
+    needs: parse
+    permissions:
+      contents: read
+    uses: ./.github/workflows/protected-source-recovery.yml
+    with:
+      base_sha: ${{ needs.parse.outputs.base_sha }}
+      candidate_sha: ${{ needs.parse.outputs.candidate_sha }}
+      candidate_tree_sha: ${{ needs.parse.outputs.candidate_tree_sha }}
+      writable_paths_json: ${{ needs.parse.outputs.writable_paths_json }}
+      reason: ${{ needs.parse.outputs.reason }}
