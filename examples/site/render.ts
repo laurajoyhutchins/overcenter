@@ -1,4 +1,11 @@
-import type { ArchitectureEntity, SiteModel } from './model.ts';
+import type {
+  ArchitectureEntity,
+  Claim,
+  ClaimStatusKind,
+  Experiment,
+  ExperimentOutcomeKind,
+  SiteModel,
+} from './model.ts';
 
 export const PAGE_FILES = [
   'index.html',
@@ -36,8 +43,12 @@ const NAV = [
   ['index-of-terms.html', 'Index'],
 ] as const;
 
-function page(title: string, description: string, body: string): string {
-  const nav = NAV.map(([href, label]) => `<a href="${href}">${label}</a>`).join('');
+function page(file: string, title: string, description: string, body: string): string {
+  const nav = NAV.map(([href, label]) =>
+    href === file
+      ? `<a href="${href}" aria-current="page">${label}</a>`
+      : `<a href="${href}">${label}</a>`,
+  ).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="${escapeHtml(description)}"><title>${escapeHtml(title)} · Overcenter</title><link rel="stylesheet" href="site.css"></head><body><header class="site-header"><a class="wordmark" href="index.html">Overcenter</a><nav aria-label="Primary">${nav}</nav></header><main>${body}</main><footer><p>Generated from repository authority and evidence records. This site is a projection, not project authority.</p></footer></body></html>`;
 }
 
@@ -53,12 +64,48 @@ function architectureAnchor(entity: ArchitectureEntity): string {
   return `${slug(entity.kind)}-${slug(entity.id)}`;
 }
 
-function statusTag(value: string): string {
-  return `<p class="status status-${slug(value)}">${escapeHtml(value)}</p>`;
+const CLAIM_STATUS_LABELS: Record<ClaimStatusKind, string> = {
+  demonstrated: 'Demonstrated',
+  'architectural-requirement': 'Architectural requirement',
+  'research-target': 'Research target',
+  'non-claim': 'Non-claim',
+  'safety-constraint': 'Safety constraint',
+  other: 'Other',
+};
+
+const EXPERIMENT_OUTCOME_LABELS: Record<ExperimentOutcomeKind, string> = {
+  supported: 'Supported',
+  mixed: 'Mixed',
+  pending: 'Pending',
+  unknown: 'Unknown',
+  other: 'Other',
+};
+
+function claimStatus(claim: Claim): string {
+  const label = claim.statusKind === 'other' ? claim.status : CLAIM_STATUS_LABELS[claim.statusKind];
+  const scope = claim.statusScope
+    ? `<p class="status-scope">${escapeHtml(claim.statusScope)}</p>`
+    : '';
+  return `<div class="status-block"><p class="status status-${claim.statusKind}">${escapeHtml(label)}</p>${scope}</div>`;
+}
+
+function experimentStatus(experiment: Experiment): string {
+  const label =
+    experiment.outcomeKind === 'other'
+      ? experiment.outcome
+      : EXPERIMENT_OUTCOME_LABELS[experiment.outcomeKind];
+  return `<p class="status status-${experiment.outcomeKind}">${escapeHtml(label)}</p>`;
+}
+
+function claimProvenance(claim: Claim): string {
+  const verification = claim.evidenceBoundary
+    ? `<p><span>Verification</span> ${escapeHtml(claim.evidenceBoundary)}</p>`
+    : '<p><span>Evidence</span> <a href="evidence.html">Proof obligation register</a></p>';
+  return `<div class="claim-provenance"><p><span>Source</span> <code>research/claims.md · ${escapeHtml(claim.id)}</code></p>${verification}</div>`;
 }
 
 export function generateHome(model: SiteModel): string {
-  const demonstrated = model.claims.filter((claim) => claim.status === 'Demonstrated').length;
+  const demonstrated = model.claims.filter((claim) => claim.statusKind === 'demonstrated').length;
   const supported = model.experiments.filter(
     (experiment) => experiment.outcome === 'supported',
   ).length;
@@ -72,6 +119,7 @@ export function generateHome(model: SiteModel): string {
     .map(([value, label]) => `<div><strong>${value}</strong><span>${label}</span></div>`)
     .join('');
   return page(
+    'index.html',
     'Home',
     model.thesis,
     `<section class="home-intro"><h1>Overcenter</h1><p class="lede">${escapeHtml(model.thesis)}</p><pre class="flow"><code>${escapeHtml(model.coreLoop)}</code></pre></section><section class="metrics">${metrics}</section>${section('About this site', '<p>These pages are generated from repository records. Claims, proof obligations, experiments, and architecture identifiers are not maintained separately here.</p><p><a href="claims.html">Browse claims</a></p>')}`,
@@ -80,6 +128,7 @@ export function generateHome(model: SiteModel): string {
 
 export function generateHowItWorks(model: SiteModel): string {
   return page(
+    'how-it-works.html',
     'How it works',
     'The authority loop and the boundary between judgment and execution correctness.',
     `${pageIntro('How Overcenter works', 'The kernel keeps known execution rules deterministic and leaves unresolved judgment to an agent or operator.', `<pre class="flow"><code>${escapeHtml(model.coreLoop)}</code></pre>`)}${section('Responsibility boundaries', '<dl class="responsibility-list"><div><dt>Deterministic software</dt><dd>Reconciliation, evidence checks, retry, and recovery when the rules are known.</dd></div><div><dt>Reasoning agent</dt><dd>Investigates cases that are not yet reducible to deterministic rules.</dd></div><div><dt>Human operator</dt><dd>Handles decisions that remain outside the automated boundary.</dd></div></dl>')}${section('Generated-site boundary', '<p>The generated site is read-only. Removing it does not change admission, execution, evidence, recovery, or settlement behavior.</p>')}`,
@@ -97,13 +146,14 @@ export function generateClaims(model: SiteModel): string {
         `<div class="grid">${claims
           .map(
             (claim) =>
-              `<article class="card" id="claim-${slug(claim.id)}"><h3>${escapeHtml(`${claim.id}. ${claim.title}`)}</h3>${statusTag(claim.status)}<p>${escapeHtml(claim.statement)}</p></article>`,
+              `<article class="card" id="claim-${slug(claim.id)}"><h3>${escapeHtml(`${claim.id}. ${claim.title}`)}</h3>${claimStatus(claim)}<p>${escapeHtml(claim.statement)}</p>${claimProvenance(claim)}</article>`,
           )
           .join('')}</div>`,
       ),
     )
     .join('');
   return page(
+    'claims.html',
     'Claims',
     'Overcenter claims, status, and scope.',
     `${pageIntro('Claims', 'Registered claims and their current status. Safety, liveness, provenance, and reuse are tracked separately.')}${body}`,
@@ -118,6 +168,7 @@ export function generateEvidence(model: SiteModel): string {
     )
     .join('');
   return page(
+    'evidence.html',
     'Evidence',
     'The layer-by-layer witness map behind Overcenter claims.',
     `${pageIntro('Evidence', 'Implementation, adversarial, formal, and live-provider evidence are reported separately.')}${section('Proof obligations', `<div class="evidence-list">${rows}</div>`)}`,
@@ -143,6 +194,7 @@ export function generateArchitecture(model: SiteModel): string {
     )
     .join('');
   return page(
+    'architecture.html',
     'Architecture',
     'A generated projection of Overcenter relational architecture entities.',
     `${pageIntro('Architecture', 'Identifiers are extracted directly from logic.sql and physics.sql. The site does not maintain a separate catalog.')}${body}`,
@@ -153,10 +205,11 @@ export function generateExperiments(model: SiteModel): string {
   const cards = model.experiments
     .map(
       (experiment) =>
-        `<article class="card" id="experiment-${slug(experiment.id)}"><h3>${escapeHtml(experiment.id)}</h3>${statusTag(experiment.outcome)}<p><strong>Question.</strong> ${escapeHtml(experiment.question)}</p><p><strong>Claim.</strong> ${escapeHtml(experiment.claim)}</p><p><strong>Result.</strong> ${escapeHtml(experiment.summary)}</p><p class="meta">Evidence: ${escapeHtml(experiment.evidenceStatus)}${experiment.evaluatedRevision ? ` · revision <code>${escapeHtml(experiment.evaluatedRevision)}</code>` : ''}</p></article>`,
+        `<article class="card" id="experiment-${slug(experiment.id)}"><h3>${escapeHtml(experiment.id)}</h3>${experimentStatus(experiment)}<p><strong>Question.</strong> ${escapeHtml(experiment.question)}</p><p><strong>Claim.</strong> ${escapeHtml(experiment.claim)}</p><p><strong>Result.</strong> ${escapeHtml(experiment.summary)}</p><p class="meta">Evidence: ${escapeHtml(experiment.evidenceStatus)}${experiment.evaluatedRevision ? ` · revision <code>${escapeHtml(experiment.evaluatedRevision)}</code>` : ''}</p></article>`,
     )
     .join('');
   return page(
+    'experiments.html',
     'Experiments',
     'Maintained Overcenter experiments and bounded outcomes.',
     `${pageIntro('Experiments', 'Maintained experiments, their questions, outcomes, and evidence status.')}${section('Experiment registry', `<div class="grid">${cards}</div>`)}`,
@@ -167,13 +220,13 @@ export function generateIndex(model: SiteModel): string {
   const claims = model.claims
     .map(
       (claim) =>
-        `<li><a href="claims.html#claim-${slug(claim.id)}">${escapeHtml(`${claim.id} · ${claim.title}`)}</a><span>${escapeHtml(claim.status)}</span></li>`,
+        `<li><a href="claims.html#claim-${slug(claim.id)}">${escapeHtml(`${claim.id} · ${claim.title}`)}</a><span>${escapeHtml(claim.statusKind === 'other' ? claim.status : CLAIM_STATUS_LABELS[claim.statusKind])}</span></li>`,
     )
     .join('');
   const experiments = model.experiments
     .map(
       (experiment) =>
-        `<li><a href="experiments.html#experiment-${slug(experiment.id)}">${escapeHtml(experiment.id)}</a><span>${escapeHtml(experiment.outcome)}</span></li>`,
+        `<li><a href="experiments.html#experiment-${slug(experiment.id)}">${escapeHtml(experiment.id)}</a><span>${escapeHtml(experiment.outcomeKind === 'other' ? experiment.outcome : EXPERIMENT_OUTCOME_LABELS[experiment.outcomeKind])}</span></li>`,
     )
     .join('');
   const architecture = model.architecture
@@ -183,6 +236,7 @@ export function generateIndex(model: SiteModel): string {
     )
     .join('');
   return page(
+    'index-of-terms.html',
     'Index',
     'A faceted index over claims, experiments, and architecture vocabulary.',
     `${pageIntro('Index', `${model.claims.length} claims, ${model.experiments.length} experiments, and ${model.architecture.length} architecture entities.`)}${section('Claims', `<ul class="index-list">${claims}</ul>`)}${section('Experiments', `<ul class="index-list">${experiments}</ul>`)}${section('Architecture', `<ul class="index-list">${architecture}</ul>`)}`,
