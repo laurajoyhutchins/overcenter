@@ -118,6 +118,6 @@ test('writes literal markdown summary without executing backticks', () => {
   assert.equal(result.stderr, '');
   const body = readFileSync(summary, 'utf8');
   assert.match(body, /- event: `pull_request`/);
-  assert.match(body, new RegExp(`- candidate SHA: \\`${head}\\``));
-  assert.match(body, new RegExp(`- base SHA: \\`${base}\\``));
+  assert.match(body, new RegExp('- candidate SHA: `' + head + '`'));
+  assert.match(body, new RegExp('- base SHA: `' + base + '`'));
 });
