@@ -96,7 +96,7 @@ jobs:
                     delete_branch 'perf/gcp-verification-substrate' 'f408a18c3b81ab4d74ae385fbc88ed3fc67268f2'
                     delete_branch 'fix/gcp-exact-job-runners' '606c0c307635afbf293ef6117406b73ef0173bda'
                     delete_branch 'test/gcp-exact-job-runners' '16e08d7c124bdd7ad17a225fa63ccca524fc6a0e'
-                  } > /workspace/diagnostic.txt 2>&1
+                  ) > /workspace/diagnostic.txt 2>&1
                   rc=$?
                   printf '\nLDT_RC=%s\n' "$rc" >> /workspace/diagnostic.txt
                   cat /workspace/diagnostic.txt
