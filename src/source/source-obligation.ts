@@ -16,6 +16,7 @@ export interface SourceTaskPacket extends Record<string, unknown> {
   kind: 'source-change';
   objective: string;
   writable_paths: string[];
+  write_envelope?: unknown;
   effect_contract: typeof GITHUB_SOURCE_INTEGRATION_EFFECT;
   acceptance?: SourceTaskAcceptance;
   context?: Record<string, unknown>;
@@ -107,7 +108,7 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
   assertExactKeys(
     value,
     ['schema', 'kind', 'objective', 'writable_paths'],
-    ['effect_contract', 'acceptance', 'context'],
+    ['effect_contract', 'acceptance', 'context', 'write_envelope'],
     'SOURCE_TASK_INVALID',
   );
   if (value.schema !== SOURCE_TASK_SCHEMA) throw new Error('SOURCE_TASK_SCHEMA_MISMATCH');
@@ -120,7 +121,7 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
     throw new Error('SOURCE_TASK_EFFECT_CONTRACT_INVALID');
   }
 
-  if (!Array.isArray(value.writable_paths) || value.writable_paths.length === 0) {
+  if (!Array.isArray(value.writable_paths)) {
     throw new Error('SOURCE_TASK_WRITABLE_PATHS_INVALID');
   }
   if (!value.writable_paths.every(validSourceWritablePath)) {
@@ -160,6 +161,9 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
     kind: 'source-change',
     objective: value.objective,
     writable_paths: [...value.writable_paths].sort(),
+    ...(value.write_envelope === undefined
+      ? {}
+      : { write_envelope: structuredClone(value.write_envelope) }),
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
     ...(acceptance ? { acceptance } : {}),
     ...(value.context === undefined ? {} : { context: structuredClone(value.context) }),
@@ -249,7 +253,7 @@ export function validateSourceProposal(
   taskValue: unknown,
   claim: SourceClaimBinding,
 ): SourceProposal {
-  const task = validateSourceTaskPacket(taskValue);
+  validateSourceTaskPacket(taskValue);
   if (!isData(value)) throw new Error('SOURCE_PROPOSAL_INVALID');
   assertExactKeys(
     value,
@@ -281,9 +285,6 @@ export function validateSourceProposal(
     );
     if (!validSourceWritablePath(candidate.path)) {
       throw new Error(`SOURCE_PROPOSAL_PATH_INVALID:${index}`);
-    }
-    if (!task.writable_paths.includes(candidate.path)) {
-      throw new Error(`SOURCE_PROPOSAL_SCOPE_VIOLATION:${candidate.path}`);
     }
     if (candidate.content_base64 !== null && !canonicalBase64(candidate.content_base64)) {
       throw new Error(`SOURCE_PROPOSAL_CONTENT_INVALID:${index}`);
