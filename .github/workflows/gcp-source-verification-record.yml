@@ -1,0 +1,93 @@
+name: GCP source verification record
+
+on:
+  workflow_call:
+    inputs:
+      candidate_sha:
+        description: Exact source candidate revision whose evidence is being recorded.
+        required: true
+        type: string
+      candidate_run_id:
+        description: Exact source-candidate run identifier.
+        required: true
+        type: string
+      evidence_result:
+        description: GitHub result of the candidate evidence job.
+        required: true
+        type: string
+      runtime_sha:
+        description: Exact trusted Overcenter runtime revision.
+        required: true
+        type: string
+      authority_ref:
+        description: Caller repository authority-state ref.
+        required: false
+        default: refs/overcenter/state
+        type: string
+      artifact_name:
+        description: Published source-verification artifact name.
+        required: false
+        default: overcenter-source-verification
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  record:
+    name: Source verification record
+    runs-on: [self-hosted, "overcenter-gcp-${{ github.run_id }}-record-${{ github.run_attempt }}"]
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact caller candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 2
+          persist-credentials: true
+
+      - name: Record GCP runner provenance
+        uses: $/.github/actions/record-gcp-runner-provenance
+
+      - name: Fetch exact caller authority state
+        shell: bash
+        env:
+          OVERCENTER_PROJECT_AUTHORITY_REF: ${{ inputs.authority_ref }}
+        run: |
+          set -euo pipefail
+          [[ "$OVERCENTER_PROJECT_AUTHORITY_REF" =~ ^refs/overcenter/[A-Za-z0-9._/-]+$ ]]
+          [[ "$OVERCENTER_PROJECT_AUTHORITY_REF" != *".."* ]]
+          git fetch --no-tags origin "+$OVERCENTER_PROJECT_AUTHORITY_REF:$OVERCENTER_PROJECT_AUTHORITY_REF"
+
+      - name: Check out exact trusted Overcenter runtime
+        uses: actions/checkout@v4
+        with:
+          repository: laurajoyhutchins/overcenter
+          ref: ${{ inputs.runtime_sha }}
+          path: trusted-runtime
+          persist-credentials: false
+
+      - name: Set up runtime-pinned Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: trusted-runtime/.node-version
+
+      - name: Record exact verification result
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          EVIDENCE_RESULT: ${{ inputs.evidence_result }}
+          OVERCENTER_RUNTIME_SHA: ${{ inputs.runtime_sha }}
+          OVERCENTER_PROJECT_AUTHORITY_REF: ${{ inputs.authority_ref }}
+        run: node --experimental-strip-types trusted-runtime/scripts/record-source-verification.ts
+
+      - name: Publish source verification record
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: source-verification/source-verification.json
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
