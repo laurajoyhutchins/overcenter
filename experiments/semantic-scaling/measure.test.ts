@@ -187,6 +187,66 @@ test('scope overlap cannot inflate marginal trusted semantic LOC', () => {
   assert.equal(result.tasks[0]?.provider_specific_marginal_semantic_loc, 3);
 });
 
+test('logical SLOC spans preserve weighted overlap and marginal semantics', () => {
+  const logicalReport: SemanticScalingTcbReport = {
+    ...structuredClone(report),
+    semantic_loc_basis: 'typescript-logical-sloc/v1',
+    properties: [
+      {
+        ...structuredClone(report.properties[0]!),
+        hybrid_closure_semantic_spans: [
+          { path: 'a.ts', start_offset: 0, end_offset: 100, semantic_loc: 2 },
+          { path: 'b.ts', start_offset: 0, end_offset: 20, semantic_loc: 1 },
+        ],
+      },
+      {
+        ...structuredClone(report.properties[1]!),
+        hybrid_closure_semantic_spans: [
+          { path: 'b.ts', start_offset: 0, end_offset: 100, semantic_loc: 2 },
+          { path: 'c.ts', start_offset: 0, end_offset: 20, semantic_loc: 1 },
+        ],
+      },
+    ],
+    architecture_tcb: {
+      effects: [
+        {
+          ...structuredClone(report.architecture_tcb.effects[0]!),
+          hybrid_closure_semantic_spans: [
+            { path: 'b.ts', start_offset: 0, end_offset: 100, semantic_loc: 2 },
+            { path: 'c.ts', start_offset: 0, end_offset: 20, semantic_loc: 1 },
+          ],
+        },
+        {
+          ...structuredClone(report.architecture_tcb.effects[1]!),
+          hybrid_closure_semantic_spans: [
+            { path: 'c.ts', start_offset: 0, end_offset: 100, semantic_loc: 2 },
+          ],
+        },
+      ],
+    },
+  };
+
+  const result = measureSemanticScaling(
+    plan,
+    logicalReport,
+    'c'.repeat(40),
+    'logical-tcb-digest',
+    'plan-digest',
+    readSource,
+  );
+
+  assert.equal(result.tasks[0]?.trusted_semantic_loc, 3);
+  assert.equal(result.tasks[0]?.marginal_semantic_loc, 3);
+  assert.equal(result.tasks[1]?.trusted_semantic_loc, 5);
+  assert.equal(result.tasks[1]?.marginal_semantic_loc, 2);
+  assert.equal(result.tasks[1]?.provider_specific_marginal_semantic_loc, 2);
+  assert.deepEqual(result.tasks[1]?.marginal_files, ['b.ts', 'c.ts']);
+  assert.equal(result.tasks[2]?.trusted_semantic_loc, 5);
+  assert.equal(result.tasks[2]?.marginal_semantic_loc, 1);
+  assert.equal(result.tasks[2]?.task_specific_marginal_semantic_loc, 1);
+  assert.deepEqual(result.tasks[2]?.marginal_files, ['c.ts']);
+});
+
 test('unknown TCB scopes fail closed', () => {
   const invalid: SemanticScalingMeasurementPlan = {
     ...plan,
