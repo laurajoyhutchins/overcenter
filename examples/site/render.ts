@@ -53,6 +53,10 @@ function architectureAnchor(entity: ArchitectureEntity): string {
   return `${slug(entity.kind)}-${slug(entity.id)}`;
 }
 
+function statusTag(value: string): string {
+  return `<p class="status status-${slug(value)}">${escapeHtml(value)}</p>`;
+}
+
 export function generateHome(model: SiteModel): string {
   const demonstrated = model.claims.filter((claim) => claim.status === 'Demonstrated').length;
   const supported = model.experiments.filter(
@@ -93,7 +97,7 @@ export function generateClaims(model: SiteModel): string {
         `<div class="grid">${claims
           .map(
             (claim) =>
-              `<article class="card" id="claim-${slug(claim.id)}"><h3>${escapeHtml(`${claim.id}. ${claim.title}`)}</h3><p class="status">${escapeHtml(claim.status)}</p><p>${escapeHtml(claim.statement)}</p></article>`,
+              `<article class="card" id="claim-${slug(claim.id)}"><h3>${escapeHtml(`${claim.id}. ${claim.title}`)}</h3>${statusTag(claim.status)}<p>${escapeHtml(claim.statement)}</p></article>`,
           )
           .join('')}</div>`,
       ),
@@ -149,7 +153,7 @@ export function generateExperiments(model: SiteModel): string {
   const cards = model.experiments
     .map(
       (experiment) =>
-        `<article class="card" id="experiment-${slug(experiment.id)}"><h3>${escapeHtml(experiment.id)}</h3><p class="status">${escapeHtml(experiment.outcome)}</p><p><strong>Question.</strong> ${escapeHtml(experiment.question)}</p><p><strong>Claim.</strong> ${escapeHtml(experiment.claim)}</p><p><strong>Result.</strong> ${escapeHtml(experiment.summary)}</p><p class="meta">Evidence: ${escapeHtml(experiment.evidenceStatus)}${experiment.evaluatedRevision ? ` · revision <code>${escapeHtml(experiment.evaluatedRevision)}</code>` : ''}</p></article>`,
+        `<article class="card" id="experiment-${slug(experiment.id)}"><h3>${escapeHtml(experiment.id)}</h3>${statusTag(experiment.outcome)}<p><strong>Question.</strong> ${escapeHtml(experiment.question)}</p><p><strong>Claim.</strong> ${escapeHtml(experiment.claim)}</p><p><strong>Result.</strong> ${escapeHtml(experiment.summary)}</p><p class="meta">Evidence: ${escapeHtml(experiment.evidenceStatus)}${experiment.evaluatedRevision ? ` · revision <code>${escapeHtml(experiment.evaluatedRevision)}</code>` : ''}</p></article>`,
     )
     .join('');
   return page(
