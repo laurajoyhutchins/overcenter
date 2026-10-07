@@ -3,7 +3,7 @@ import {
   observeCertifiedGitHubRepository,
   type CertifiedGitHubRepositoryEvidence,
 } from './certified-repository.ts';
-import { githubGet, isGitHubObjectId, sameGitHubObjectId, type GitHubJsonGet } from './rest.ts';
+import { GitHubAsyncReadRequired, githubGet, isGitHubObjectId, sameGitHubObjectId, type GitHubJsonGet } from './rest.ts';
 
 export interface CertifiedGitHubRefEvidence {
   provider: 'github';
@@ -119,6 +119,7 @@ export function observeCertifiedGitHubRefFence(
       evidence,
     };
   } catch (error: unknown) {
+    if (error instanceof GitHubAsyncReadRequired) throw error;
     return {
       state: 'INDETERMINATE',
       reason: 'OBSERVATION_FAILED',

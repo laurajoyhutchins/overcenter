@@ -39,24 +39,6 @@ export interface SourceIntegrationEvidence {
   state: 'integrated' | 'already-integrated';
 }
 
-const sourceIntegrationWitnessBrand: unique symbol = Symbol('source-integration-witness');
-const sourceIntegrationEvidenceByWitness = new WeakMap<object, SourceIntegrationEvidence>();
-
-export type TrustedSourceIntegrationWitness = {
-  readonly [sourceIntegrationWitnessBrand]: true;
-};
-
-export type SourceIntegrationResult =
-  | {
-      state: 'INTEGRATED' | 'ALREADY_INTEGRATED';
-      witness: TrustedSourceIntegrationWitness;
-      commit_sha: string;
-    }
-  | {
-      state: 'REREALIZE_REQUIRED' | 'REJECTED' | 'RECOVERY_REQUIRED';
-      reason: string;
-    };
-
 function git(repo: string, args: string[]): string {
   return execFileSync('git', ['-C', repo, ...args], {
     encoding: 'utf8',
@@ -137,24 +119,6 @@ export function validateSourceIntegrationEvidence(value: unknown): SourceIntegra
   return structuredClone(value) as unknown as SourceIntegrationEvidence;
 }
 
-function mintSourceIntegrationWitness(
-  evidence: SourceIntegrationEvidence,
-): TrustedSourceIntegrationWitness {
-  const witness = Object.freeze({
-    [sourceIntegrationWitnessBrand]: true as const,
-  });
-  sourceIntegrationEvidenceByWitness.set(witness, validateSourceIntegrationEvidence(evidence));
-  return witness;
-}
-
-export function trustedSourceIntegrationEvidence(
-  witness: TrustedSourceIntegrationWitness,
-): SourceIntegrationEvidence {
-  const evidence = sourceIntegrationEvidenceByWitness.get(witness);
-  if (!evidence) throw new Error('SOURCE_INTEGRATION_WITNESS_INVALID');
-  return structuredClone(evidence);
-}
-
 export function integrateVerifiedSourceCandidate(
   _repo: string,
   _taskValue: unknown,
@@ -167,7 +131,7 @@ export function integrateVerifiedSourceCandidate(
     ref?: string;
     performReservedMutation: (mutation: () => boolean) => boolean;
   },
-): SourceIntegrationResult {
+): { state: 'REJECTED'; reason: 'SOURCE_DIRECT_MAIN_INTEGRATION_RETIRED' } {
   return { state: 'REJECTED', reason: 'SOURCE_DIRECT_MAIN_INTEGRATION_RETIRED' };
 }
 
