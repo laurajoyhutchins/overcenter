@@ -26,7 +26,11 @@ import type {
 } from './facts.ts';
 import { validateGraph } from '../graph/topology.ts';
 import { settlementSemantics } from '../semantics.ts';
-import { reservedEffectReleaseWitnessSafe, reservedEffectReplaySafe } from '../effect-adapter.ts';
+import {
+  effectPostconditionBindingSafe,
+  reservedEffectReleaseWitnessSafe,
+  reservedEffectReplaySafe,
+} from '../effect-adapter.ts';
 import {
   effectReleaseAuthorityError,
   effectReservationAuthorityError,
@@ -45,6 +49,7 @@ export interface HistoryProjection {
   runs: Map<string, HistoricalRun>;
   receiptsByRun: Map<string, Receipt>;
   unresolvedReservationsByRun: Map<string, EffectReservation>;
+  reservationsByRun?: Map<string, EffectReservation>;
   receipts: Receipt[];
   currentBindingOrdinals: Map<string, number>;
   claimOrdinalsByRun: Map<string, number>;
@@ -147,6 +152,9 @@ export function replayProjection(
   const receiptsByRun = base ? new Map(base.history.receiptsByRun) : new Map<string, Receipt>();
   const unresolvedReservationsByRun = base
     ? new Map(base.history.unresolvedReservationsByRun)
+    : new Map<string, EffectReservation>();
+  const reservationsByRun = base?.history.reservationsByRun
+    ? new Map(base.history.reservationsByRun)
     : new Map<string, EffectReservation>();
   const receipts = base ? [...base.history.receipts] : [];
   const currentBindingOrdinals = base
@@ -309,10 +317,19 @@ export function replayProjection(
       if (current?.run?.id !== run.id || current.status !== 'EXECUTING') {
         throw new Error('EFFECT_RESERVATION_WHILE_NOT_EXECUTING');
       }
-      unresolvedReservationsByRun.set(run.id, {
+      if (
+        fact.effect_contract !== undefined &&
+        fact.postcondition !== undefined &&
+        !effectPostconditionBindingSafe(run.obligation, fact.effect_contract, fact.postcondition)
+      ) {
+        throw new Error('EFFECT_RESERVATION_POSTCONDITION_UNAUTHORIZED');
+      }
+      const reservation = {
         ...fact,
         reservation_commit: record.commit,
-      });
+      };
+      reservationsByRun.set(run.id, reservation);
+      unresolvedReservationsByRun.set(run.id, reservation);
     }
 
     if (record.effect_release != null) {
@@ -323,7 +340,11 @@ export function replayProjection(
       if (!reservation) throw new Error('EFFECT_RELEASE_WITHOUT_RESERVATION');
       const authorityError = effectReleaseAuthorityError(run, reservation, release);
       if (authorityError) throw new Error(authorityError);
-      if (release.effect_contract !== run.obligation.packet.effect_contract) {
+      if (
+        release.effect_contract !== run.obligation.packet.effect_contract ||
+        (reservation.effect_contract !== undefined &&
+          release.effect_contract !== reservation.effect_contract)
+      ) {
         throw new Error('EFFECT_RELEASE_CONTRACT_MISMATCH');
       }
       if (
@@ -419,9 +440,14 @@ export function replayProjection(
     }
 
     const unresolvedEffect = unresolvedReservationsByRun.has(run.id);
+    const reservation = unresolvedReservationsByRun.get(run.id);
+    const settledWork =
+      reservation?.postcondition === undefined
+        ? run.obligation
+        : { ...run.obligation, postcondition: structuredClone(reservation.postcondition) };
     const receipt = projectReceipt(
       fact,
-      run.obligation,
+      settledWork,
       record.commit,
       unresolvedEffect,
       notDispatchedRelease,
@@ -443,6 +469,7 @@ export function replayProjection(
       runs,
       receiptsByRun,
       unresolvedReservationsByRun,
+      reservationsByRun,
       receipts,
       currentBindingOrdinals,
       claimOrdinalsByRun,
