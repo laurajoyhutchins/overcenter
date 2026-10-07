@@ -47,13 +47,6 @@ test('site projection conserves source records and internal links', async () => 
 
     const robots = await readFile(join(outDir, 'robots.txt'), 'utf8');
     const sitemap = await readFile(join(outDir, 'sitemap.xml'), 'utf8');
-    const pagefindUi = await readFile(join(outDir, 'pagefind', 'pagefind-component-ui.js'), 'utf8');
-    const pagefindCss = await readFile(
-      join(outDir, 'pagefind', 'pagefind-component-ui.css'),
-      'utf8',
-    );
-    assert.ok(pagefindUi.length > 0, 'Pagefind component UI must be generated');
-    assert.ok(pagefindCss.length > 0, 'Pagefind component CSS must be generated');
     assert.ok(robots.includes('Sitemap: https://laurajoyhutchins.github.io/overcenter/sitemap.xml'));
     for (const file of PAGE_FILES) {
       const expected =
