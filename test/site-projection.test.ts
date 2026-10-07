@@ -87,7 +87,7 @@ test('site projection conserves source records and internal links', async () => 
       model.experiments.length +
       model.architecture.length;
     assert.equal(
-      [...search.matchAll(/data-search-record/g)].length,
+      [...search.matchAll(/<article class="search-record" data-search-record/g)].length,
       expectedSearchRecords,
       'structured search must conserve every searchable record',
     );
