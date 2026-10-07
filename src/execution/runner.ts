@@ -8,7 +8,7 @@ import {
   type ComputationExecution,
   type ProcessSpec,
 } from './protocol.ts';
-import { KernelCore, type Receipt } from '../authority/engine.ts';
+import type { KernelCore, Receipt } from '../authority/engine.ts';
 
 export const REPLAY_SAFE_TEST_COMPUTATION_PACKET_SCHEMA =
   'overcenter-replay-safe-test-computation-v1' as const;

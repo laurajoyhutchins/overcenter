@@ -1,5 +1,5 @@
 import type { EffectAuthority, KernelCore } from '../../authority/engine.ts';
-import { KUBERNETES_CONFIGMAP_EFFECT } from '../../effect-adapter.ts';
+import type { KUBERNETES_CONFIGMAP_EFFECT } from '../../effect-adapter.ts';
 
 export { KUBERNETES_CONFIGMAP_EFFECT } from '../../effect-adapter.ts';
 
