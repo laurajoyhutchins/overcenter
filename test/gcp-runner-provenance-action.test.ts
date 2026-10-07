@@ -35,24 +35,47 @@ const valid = {
   OC_RUN_ID: '37573726138',
   OC_RUN_ATTEMPT: '1',
   OC_JOB: 'check',
+  TARGET_REPOSITORY: 'laurajoyhutchins/arcata',
+  TARGET_JOB_ID: '112637857225',
+  RUNNER_LABEL: 'overcenter-gcp',
 };
 
-test('records exact GCP runner provenance without interpreting repository policy', () => {
+test('records exact job-bound GCP runner provenance without interpreting repository policy', () => {
   const { result, output, summary } = run(valid);
   assert.equal(result.status, 0, result.stderr);
   assert.match(output, /provider=gcp/);
   assert.match(output, new RegExp(`runner_name=${valid.OC_RUNNER_NAME}`));
   assert.match(output, new RegExp(`repository=${valid.OC_REPOSITORY}`));
+  assert.match(output, new RegExp(`job_id=${valid.TARGET_JOB_ID}`));
+  assert.match(output, new RegExp(`scheduling_label=${valid.RUNNER_LABEL}`));
   assert.match(output, new RegExp(`run_id=${valid.OC_RUN_ID}`));
   assert.match(output, new RegExp(`run_attempt=${valid.OC_RUN_ATTEMPT}`));
   assert.match(output, new RegExp(`job=${valid.OC_JOB}`));
   assert.match(summary, /### Execution provenance/);
 });
 
-test('fails closed for a non-Overcenter runner', () => {
-  const { result } = run({ ...valid, OC_RUNNER_NAME: 'github-hosted-123' });
+test('accepts the compatibility prefixed scheduling label', () => {
+  const { result, output } = run({
+    ...valid,
+    RUNNER_LABEL: 'overcenter-gcp-37573726138-check-1',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(output, /scheduling_label=overcenter-gcp-37573726138-check-1/);
+});
+
+test('fails closed when runner name is not bound to the exact job ID', () => {
+  const { result } = run({
+    ...valid,
+    OC_RUNNER_NAME: 'overcenter-gcp-999999-other-build',
+  });
   assert.equal(result.status, 2);
-  assert.match(result.stderr, /GCP_RUNNER_PROVENANCE_RUNNER_INVALID/);
+  assert.match(result.stderr, /GCP_RUNNER_PROVENANCE_RUNNER_JOB_MISMATCH/);
+});
+
+test('fails closed when launcher repository differs from GitHub repository', () => {
+  const { result } = run({ ...valid, TARGET_REPOSITORY: 'laurajoyhutchins/overcenter' });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /GCP_RUNNER_PROVENANCE_REPOSITORY_MISMATCH/);
 });
 
 test('fails closed for malformed run coordinates', () => {
@@ -61,8 +84,8 @@ test('fails closed for malformed run coordinates', () => {
   assert.match(result.stderr, /GCP_RUNNER_PROVENANCE_RUN_ID_INVALID/);
 });
 
-test('fails closed for malformed repository identity', () => {
-  const { result } = run({ ...valid, OC_REPOSITORY: 'arcata' });
+test('fails closed for an unadmitted scheduling label', () => {
+  const { result } = run({ ...valid, RUNNER_LABEL: 'other-substrate' });
   assert.equal(result.status, 2);
-  assert.match(result.stderr, /GCP_RUNNER_PROVENANCE_REPOSITORY_INVALID/);
+  assert.match(result.stderr, /GCP_RUNNER_PROVENANCE_SCHEDULING_LABEL_INVALID/);
 });
