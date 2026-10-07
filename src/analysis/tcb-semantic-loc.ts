@@ -1,10 +1,10 @@
 import {
-  createPrinter,
-  EmitHint,
-  NewLineKind,
+  SyntaxKind,
+  isImportDeclaration,
+  isInterfaceDeclaration,
+  isTypeAliasDeclaration,
   type Node,
-  type SourceFile,
-} from 'typescript';
+} from 'typescript/unstable/ast';
 
 export interface SemanticSpan {
   start_offset: number;
@@ -12,21 +12,86 @@ export interface SemanticSpan {
   semantic_loc: number;
 }
 
-const printer = createPrinter({
-  newLine: NewLineKind.LineFeed,
-  removeComments: true,
-});
-
-function renderedSemanticLoc(rendered: string): number {
-  return rendered.split('\n').filter((line) => line.trim().length > 0).length;
+function isTypeSpaceNode(node: Node): boolean {
+  return (
+    (node.kind >= SyntaxKind.FirstTypeNode && node.kind <= SyntaxKind.LastTypeNode) ||
+    node.kind === SyntaxKind.AnyKeyword ||
+    node.kind === SyntaxKind.UnknownKeyword ||
+    node.kind === SyntaxKind.NumberKeyword ||
+    node.kind === SyntaxKind.BigIntKeyword ||
+    node.kind === SyntaxKind.ObjectKeyword ||
+    node.kind === SyntaxKind.BooleanKeyword ||
+    node.kind === SyntaxKind.StringKeyword ||
+    node.kind === SyntaxKind.SymbolKeyword ||
+    node.kind === SyntaxKind.VoidKeyword ||
+    node.kind === SyntaxKind.UndefinedKeyword ||
+    node.kind === SyntaxKind.NeverKeyword ||
+    node.kind === SyntaxKind.IntrinsicKeyword ||
+    node.kind === SyntaxKind.ExpressionWithTypeArguments
+  );
 }
 
-export function canonicalSemanticLoc(node: Node, source: SourceFile): number {
-  const rendered =
-    node === source
-      ? printer.printFile(source)
-      : printer.printNode(EmitHint.Unspecified, node, source);
-  return renderedSemanticLoc(rendered);
+function isTypeOnlySpecifier(node: Node): boolean {
+  if (node.kind !== SyntaxKind.ImportSpecifier && node.kind !== SyntaxKind.ExportSpecifier) {
+    return false;
+  }
+  return (node as Node & { isTypeOnly?: boolean }).isTypeOnly === true;
+}
+
+function isTypeOnlyDeclaration(node: Node): boolean {
+  if (isInterfaceDeclaration(node) || isTypeAliasDeclaration(node) || isTypeOnlySpecifier(node)) {
+    return true;
+  }
+  if (
+    isImportDeclaration(node) &&
+    node.importClause?.phaseModifier === SyntaxKind.TypeKeyword
+  ) {
+    return true;
+  }
+  return (
+    node.kind === SyntaxKind.ExportDeclaration &&
+    (node as Node & { isTypeOnly?: boolean }).isTypeOnly === true
+  );
+}
+
+function isLogicalSourceLine(node: Node): boolean {
+  if (node.kind >= SyntaxKind.FirstStatement && node.kind <= SyntaxKind.LastStatement) return true;
+
+  switch (node.kind) {
+    case SyntaxKind.FunctionDeclaration:
+    case SyntaxKind.ClassDeclaration:
+    case SyntaxKind.EnumDeclaration:
+    case SyntaxKind.ModuleDeclaration:
+    case SyntaxKind.ImportEqualsDeclaration:
+    case SyntaxKind.ImportDeclaration:
+    case SyntaxKind.ExportAssignment:
+    case SyntaxKind.ExportDeclaration:
+    case SyntaxKind.Constructor:
+    case SyntaxKind.PropertyDeclaration:
+    case SyntaxKind.MethodDeclaration:
+    case SyntaxKind.GetAccessor:
+    case SyntaxKind.SetAccessor:
+    case SyntaxKind.ClassStaticBlockDeclaration:
+    case SyntaxKind.PropertyAssignment:
+    case SyntaxKind.ShorthandPropertyAssignment:
+    case SyntaxKind.SpreadAssignment:
+      return true;
+    default:
+      return false;
+  }
+}
+
+export function logicalSemanticLoc(node: Node): number {
+  let semanticLoc = 0;
+
+  const visit = (current: Node): void => {
+    if (isTypeSpaceNode(current) || isTypeOnlyDeclaration(current)) return;
+    if (isLogicalSourceLine(current)) semanticLoc += 1;
+    current.forEachChild(visit);
+  };
+
+  visit(node);
+  return semanticLoc;
 }
 
 export function maximalSemanticSpans<T extends SemanticSpan>(spans: readonly T[]): T[] {
