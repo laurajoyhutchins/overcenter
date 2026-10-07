@@ -10,6 +10,7 @@ export function dispatchSourceValidation(
   repositoryFullName: string,
   publication: SourceCandidatePublicationResult,
   runtimeSha: string,
+  workflowPath: string,
   post: (
     token: string,
     path: string,
@@ -22,17 +23,17 @@ export function dispatchSourceValidation(
   if (!/^[0-9a-f]{40}$/.test(runtimeSha)) throw new Error('SOURCE_VALIDATION_RUNTIME_INVALID');
   if (!/^refs\/heads\/overcenter\/candidate\/[A-Za-z0-9._-]+$/.test(publication.ref))
     throw new Error('SOURCE_VALIDATION_REF_INVALID');
+  const match = /^\.github\/workflows\/([A-Za-z0-9._-]+\.ya?ml)$/.exec(workflowPath);
+  if (!match) throw new Error('SOURCE_VALIDATION_WORKFLOW_INVALID');
   const path = githubRepositoryPath(
     repositoryFullName,
-    '/actions/workflows/agent-candidate-signal.yml/dispatches',
+    `/actions/workflows/${encodeURIComponent(match[1]!)}/dispatches`,
   );
-  if (
-    post(token, path, {
-      ref: publication.ref.slice('refs/heads/'.length),
-      inputs: { candidate_sha: publication.candidate_sha, runtime_sha: runtimeSha },
-    }) !== 204
-  )
-    throw new Error('SOURCE_VALIDATION_DISPATCH_FAILED');
+  const status = post(token, path, {
+    ref: publication.ref.slice('refs/heads/'.length),
+    inputs: { candidate_sha: publication.candidate_sha, runtime_sha: runtimeSha },
+  });
+  if (status !== 200 && status !== 204) throw new Error('SOURCE_VALIDATION_DISPATCH_FAILED');
 }
 
 function postDispatch(
