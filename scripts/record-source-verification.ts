@@ -35,7 +35,9 @@ const jobResponse = githubGet(
 );
 const matches =
   isData(jobResponse) && Array.isArray(jobResponse.jobs)
-    ? jobResponse.jobs.filter((job) => isData(job) && job.name === 'Record source verification')
+    ? jobResponse.jobs.filter(
+        (job) => isData(job) && job.name === plan.verification_profile.profile.record_job,
+      )
     : [];
 if (matches.length !== 1 || !isData(matches[0]) || !isPositiveSafeInteger(matches[0].id))
   throw new Error('SOURCE_PROOF_RECORD_JOB_UNAVAILABLE');
