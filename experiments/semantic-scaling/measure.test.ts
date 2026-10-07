@@ -141,6 +141,70 @@ test('reconstructs exact hybrid semantic units from report evidence', () => {
   assert.deepEqual([...units].sort(), ['a.ts:1', 'a.ts:4', 'b.ts:1']);
 });
 
+test('uses reported logical semantic spans instead of reconstructing physical lines', () => {
+  const aLength = sources['a.ts']!.length;
+  const bFirstStatementEnd = sources['b.ts']!.indexOf('\n');
+  const units = trustedUnitsForScope(
+    {
+      ...report.properties[0]!,
+      hybrid_closure_semantic_spans: [
+        {
+          path: 'a.ts',
+          start_offset: 0,
+          end_offset: aLength,
+          semantic_loc: 2,
+        },
+        {
+          path: 'b.ts',
+          start_offset: 0,
+          end_offset: bFirstStatementEnd,
+          semantic_loc: 1,
+        },
+      ],
+      hybrid_closure_semantic_line_ranges: [
+        { path: 'a.ts', ranges: [[1, 4]] },
+        { path: 'b.ts', ranges: [[1, 1]] },
+      ],
+    },
+    readSource,
+  );
+
+  assert.deepEqual([...units].sort(), [
+    `a.ts:0-${aLength}/0`,
+    `a.ts:0-${aLength}/1`,
+    `b.ts:0-${bFirstStatementEnd}/0`,
+  ]);
+});
+
+test('logical semantic span evidence fails closed on overlap and count drift', () => {
+  const base = {
+    ...report.properties[0]!,
+    hybrid_closure_files: ['a.ts'],
+    hybrid_closure_semantic_loc: 2,
+    hybrid_closure_semantic_spans: [
+      { path: 'a.ts', start_offset: 0, end_offset: 20, semantic_loc: 1 },
+      { path: 'a.ts', start_offset: 10, end_offset: 30, semantic_loc: 1 },
+    ],
+  };
+  assert.throws(
+    () => trustedUnitsForScope(base, readSource),
+    /SEMANTIC_SCALING_TCB_SPAN_OVERLAP/,
+  );
+  assert.throws(
+    () =>
+      trustedUnitsForScope(
+        {
+          ...base,
+          hybrid_closure_semantic_spans: [
+            { path: 'a.ts', start_offset: 0, end_offset: 20, semantic_loc: 1 },
+          ],
+        },
+        readSource,
+      ),
+    /SEMANTIC_SCALING_TCB_RECONSTRUCTION_MISMATCH/,
+  );
+});
+
 test('measures marginal TCB by deduplicated semantic units and keeps scope semantics separate', () => {
   const result = measureSemanticScaling(
     plan,
