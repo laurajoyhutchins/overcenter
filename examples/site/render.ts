@@ -122,12 +122,7 @@ function recordLinks(
   }
   for (const experiment of model.experiments) {
     for (const path of experiment.repositoryRefs) {
-      add(
-        path,
-        `experiments.html#experiment-${slug(experiment.id)}`,
-        experiment.id,
-        'experiment',
-      );
+      add(path, `experiments.html#experiment-${slug(experiment.id)}`, experiment.id, 'experiment');
     }
   }
   return refs;
