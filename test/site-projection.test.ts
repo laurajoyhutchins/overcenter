@@ -47,7 +47,9 @@ test('site projection conserves source records and internal links', async () => 
 
     const robots = await readFile(join(outDir, 'robots.txt'), 'utf8');
     const sitemap = await readFile(join(outDir, 'sitemap.xml'), 'utf8');
-    assert.ok(robots.includes('Sitemap: https://laurajoyhutchins.github.io/overcenter/sitemap.xml'));
+    assert.ok(
+      robots.includes('Sitemap: https://laurajoyhutchins.github.io/overcenter/sitemap.xml'),
+    );
     for (const file of PAGE_FILES) {
       const expected =
         file === 'index.html'
@@ -169,7 +171,10 @@ test('site projection conserves source records and internal links', async () => 
 
     for (const proof of model.proofObligations) {
       const anchor = `proof-${slug(proof.obligation)}`;
-      assert.ok(evidence.includes(`id="${anchor}"`), `proof obligation vanished: ${proof.obligation}`);
+      assert.ok(
+        evidence.includes(`id="${anchor}"`),
+        `proof obligation vanished: ${proof.obligation}`,
+      );
       assert.ok(
         index.includes(`evidence.html#${anchor}`),
         `proof obligation absent from index: ${proof.obligation}`,
