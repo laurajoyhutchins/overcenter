@@ -186,10 +186,7 @@ test('logical semantic span evidence fails closed on overlap and count drift', (
       { path: 'a.ts', start_offset: 10, end_offset: 30, semantic_loc: 1 },
     ],
   };
-  assert.throws(
-    () => trustedUnitsForScope(base, readSource),
-    /SEMANTIC_SCALING_TCB_SPAN_OVERLAP/,
-  );
+  assert.throws(() => trustedUnitsForScope(base, readSource), /SEMANTIC_SCALING_TCB_SPAN_OVERLAP/);
   assert.throws(
     () =>
       trustedUnitsForScope(
