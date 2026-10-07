@@ -3,6 +3,28 @@ name: Owner-authorized protected source recovery
 run-name: Recover protected source at ${{ inputs.candidate_sha }}
 
 on:
+  workflow_call:
+    inputs:
+      base_sha:
+        description: Exact accepted main revision
+        required: true
+        type: string
+      candidate_sha:
+        description: Exact one-parent recovery candidate
+        required: true
+        type: string
+      candidate_tree_sha:
+        description: Exact candidate tree
+        required: true
+        type: string
+      writable_paths_json:
+        description: Canonical JSON array of the exact protected paths changed
+        required: true
+        type: string
+      reason:
+        description: Why protected-source recovery is required
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       base_sha:
