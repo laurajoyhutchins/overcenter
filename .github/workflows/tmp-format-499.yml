@@ -1,9 +1,10 @@
-name: Temporary format #499 recut
+name: Temporary format 499 recut
 
 on:
   push:
     branches: [codex/499-provider-foundation-current-main]
-    paths: ['.github/workflows/tmp-format-499.yml']
+    paths:
+      - .github/workflows/tmp-format-499.yml
 
 permissions:
   contents: write
@@ -29,20 +30,10 @@ jobs:
           mapfile -t files < <(
             git ls-files '*.ts' biome.json package.json |
               grep -v '^src/generated/' |
-              grep -v '^src/providers/github/operations\.generated\.ts      - name: Commit only mechanical formatting and delete formatter
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm .github/workflows/tmp-format-499.yml
-          git add -A
-          git config user.name "overcenter-format"
-          git config user.email "actions@users.noreply.github.com"
-          git commit -m "Format #499 current-main recut"
-          git push origin HEAD:codex/499-provider-foundation-current-main
-
+              grep -v '^src/providers/github/operations\.generated\.ts$'
           )
           npx --yes "@biomejs/biome@2.5.14" format --write "${files[@]}"
-      - name: Commit only mechanical formatting and delete formatter
+      - name: Commit mechanical formatting and delete formatter
         shell: bash
         run: |
           set -euo pipefail
