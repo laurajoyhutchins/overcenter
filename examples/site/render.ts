@@ -385,7 +385,7 @@ const update = () => {
     record.hidden = !show;
     if (show) visible += 1;
   }
-  if (count) count.textContent = terms.length ? \`${visible} matching records\` : \`${records.length} records\`;
+  if (count) count.textContent = terms.length ? \`\${visible} matching records\` : \`\${records.length} records\`;
 };
 input?.addEventListener('input', update);
 update();
