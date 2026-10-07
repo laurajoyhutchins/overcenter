@@ -5,10 +5,9 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { Node as PrinterNode, SourceFile as PrinterSourceFile } from 'typescript';
 import { API, SymbolFlags, type Symbol as TypeScriptSymbol } from 'typescript/unstable/sync';
 import {
-  canonicalSemanticLoc,
+  logicalSemanticLoc,
   maximalSemanticSpans,
 } from '../src/analysis/tcb-semantic-loc.ts';
 import {
@@ -517,11 +516,8 @@ interface LocatedSemanticSpan {
   semantic_loc: number;
 }
 
-function measuredSemanticLoc(node: Node, source: SourceFile): number {
-  return canonicalSemanticLoc(
-    node as unknown as PrinterNode,
-    source as unknown as PrinterSourceFile,
-  );
+function measuredSemanticLoc(node: Node): number {
+  return logicalSemanticLoc(node);
 }
 
 function maximalLocatedSemanticSpans<T extends LocatedSemanticSpan>(spans: readonly T[]): T[] {
@@ -566,7 +562,7 @@ function sliceFor(entry: SymbolEntry): Slice {
     start_offset: start,
     end_offset: end,
     physical_loc: endLine - startLine + 1,
-    semantic_loc: measuredSemanticLoc(node, source),
+    semantic_loc: measuredSemanticLoc(node),
     sha256: createHash('sha256').update(selected).digest('hex'),
   };
 }
@@ -756,7 +752,7 @@ function lineRange(node: Node): {
     end_line: endLine,
     start_offset: start,
     end_offset: end,
-    semantic_loc: measuredSemanticLoc(node, source),
+    semantic_loc: measuredSemanticLoc(node),
   };
 }
 
@@ -1027,7 +1023,7 @@ function moduleClosure(rootPaths: string[]): ModuleClosure {
   const hashes: string[] = [];
   for (const path of closure.files) {
     const { text, source } = sourceFor(path);
-    semanticLoc += measuredSemanticLoc(source, source);
+    semanticLoc += measuredSemanticLoc(source);
     bytes += Buffer.byteLength(text);
     hashes.push(`${path}:${createHash('sha256').update(text).digest('hex')}`);
   }
@@ -1109,7 +1105,7 @@ try {
     const fileSemanticLoc = new Map<string, number>();
     for (const path of [...moduleFiles].sort()) {
       const { source } = sourceFor(path);
-      fileSemanticLoc.set(path, measuredSemanticLoc(source, source));
+      fileSemanticLoc.set(path, measuredSemanticLoc(source));
     }
     for (const declaration of symbolOnlyDeclarations) {
       fileSemanticLoc.set(
