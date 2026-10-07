@@ -41,10 +41,11 @@ jobs:
           import base64, json, sys
           body=json.load(open(sys.argv[1],encoding='utf-8'))
           print("BUILD_STATUS="+str(body.get("status")))
-          for raw in body.get("results",{}).get("buildStepOutputs",[]):
+          for index, raw in enumerate(body.get("results",{}).get("buildStepOutputs",[])):
               if not raw:
                   continue
-              raw=raw.strip()
-              raw += "=" * (-len(raw) % 4)
-              print(base64.b64decode(raw).decode("utf-8","replace"))
+              print("OUTPUT_INDEX=", index)
+              print("OUTPUT_TYPE=", type(raw).__name__)
+              print("OUTPUT_LEN=", len(raw))
+              print("OUTPUT_REPR=", repr(raw[:1000]))
           PY
