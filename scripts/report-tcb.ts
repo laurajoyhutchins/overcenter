@@ -1319,6 +1319,7 @@ try {
   const report = {
     schema: 'overcenter-tcb-report' as const,
     schema_version: 1 as const,
+    semantic_loc_basis: 'typescript-logical-sloc/v1' as const,
     generated_from: [...ARCHITECTURE_SQL_PATHS, 'tcb-policy.json'],
     architecture_tcb: architectureTcb,
     properties: reports,
@@ -1427,18 +1428,20 @@ try {
     const summary = [
       '## Trusted computing base analysis',
       '',
+      'Semantic LOC basis: `typescript-logical-sloc/v1`.',
+      '',
       reconciliation
         ? `Accepted-base comparison: **${reconciliation.admitted ? 'admitted' : 'rejected'}** against \`${reconciliation.baseline_revision}\`.`
         : 'Observation only: no accepted-base revision was supplied.',
       '',
-      '| Property | Hybrid TCB | Δ total | Δ under accepted scope | Classification | Symbol closure | Hostile evidence |',
+      '| Property | Hybrid TCB (logical SLOC) | Δ total | Δ under accepted scope | Classification | Symbol closure | Hostile evidence |',
       '| --- | ---: | ---: | ---: | --- | --- | --- |',
       ...reports.map((property) => {
         const delta = propertyDelta.get(property.id);
         return `| \`${property.id}\` | **${number(property.hybrid_closure_semantic_loc)}** | ${signed(delta?.delta_semantic_loc ?? null)} | ${signed(delta?.accepted_scope_delta_semantic_loc ?? null)} | ${delta?.classification ?? 'observation-only'} | ${property.symbol_closure_status} | ${property.hostile_evidence.status} |`;
       }),
       '',
-      '| Composition | Deduplicated hybrid union | Δ total | Δ under accepted scope | Classification | Hostile evidence |',
+      '| Composition | Deduplicated hybrid union (logical SLOC) | Δ total | Δ under accepted scope | Classification | Hostile evidence |',
       '| --- | ---: | ---: | ---: | --- | --- |',
       ...compositions.map((composition) => {
         const delta = compositionDelta.get(composition.id);
