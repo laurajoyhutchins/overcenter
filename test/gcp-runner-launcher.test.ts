@@ -237,6 +237,13 @@ test('dedicated launcher identity preserves the deployment authority split', () 
   assert.match(deploy, /--service-account="\$LAUNCHER_SA"/);
   assert.match(deploy, /--service-account="\$RUNTIME_SA"/);
   assert.match(deploy, /--image="\$CONTROL_IMAGE_IMMUTABLE"/);
+  assert.match(deploy, /git rev-parse .*infra\/gcp-runner-image/);
+  assert.match(deploy, /gcloud artifacts docker images describe/);
+  assert.match(deploy, /tree-\$\{runner_tree\}/);
+  assert.doesNotMatch(deploy, /RUNNER_IMAGE=.*git-\$\{EXACT_REVISION\}/);
+  assert.doesNotMatch(deploy, /--no-allow-unauthenticated/);
+  assert.match(deploy, /unauth_status/);
+  assert.match(deploy, /"403"/);
   assert.doesNotMatch(deploy, /gcloud projects add-iam-policy-binding/);
   assert.doesNotMatch(deploy, /gcloud iam service-accounts add-iam-policy-binding/);
   assert.doesNotMatch(deploy, /gcloud run services add-iam-policy-binding/);

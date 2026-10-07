@@ -30,7 +30,7 @@ The launcher runs privately as the dedicated `overcenter-runner-launcher` identi
 
 The Cloud Build authorization step runs as `overcenter-runtime`, reads the existing GitHub App private key from Secret Manager, and independently revalidates the repository and queued job before minting short-lived runner configuration. The same runtime identity has Artifact Registry Reader only on the `cloud-run-source-deploy` repository so the isolated Docker worker can pull the immutable runner image; it has no image-write authority. The GitHub runner itself executes in a nested Docker container on the ordinary Docker bridge, not Cloud Build's credential-bearing `cloudbuild` network. That nested container remains intentional isolation rather than accidental Docker-in-Docker: direct execution as a credential-bearing Cloud Build step would widen the runner's GCP authority. Startup probes both metadata-token endpoints concurrently, fails closed if either is reachable, and deletes the JIT configuration file before job execution.
 
-The runner image pins the GitHub Actions runner archive and SHA-256 digest. Deployment resolves the built image to an immutable Artifact Registry digest, and the launcher uses that digest rather than a mutable tag.
+The runner image pins the GitHub Actions runner archive and SHA-256 digest. Deployment keys the runner image tag to the exact Git tree for `infra/gcp-runner-image`, reuses an existing Artifact Registry version when that tree has already been built, resolves the version to an immutable digest, and gives the launcher only that digest.
 
 ## Operations
 

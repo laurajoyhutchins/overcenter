@@ -13,7 +13,6 @@ RUNTIME_SA="overcenter-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
 DEPLOYER_SA="overcenter-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
 LAUNCHER_SA="overcenter-runner-launcher@${PROJECT_ID}.iam.gserviceaccount.com"
 RUNNER_IMAGE_REPO="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/overcenter-gcp-runner"
-RUNNER_IMAGE="${RUNNER_IMAGE_REPO}:git-${EXACT_REVISION}"
 CONTROL_IMAGE_REPO="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/overcenter-gcp-runner-control"
 CONTROL_IMAGE="${CONTROL_IMAGE_REPO}:git-${EXACT_REVISION}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -33,52 +32,69 @@ done
 cd "$ROOT"
 test "$(git rev-parse HEAD)" = "$EXACT_REVISION"
 
-echo "Building immutable runner image for ${EXACT_REVISION}"
-build_id="$(
-  gcloud builds submit infra/gcp-runner-image \
-    --async \
-    --project="$PROJECT_ID" \
-    --region="$REGION" \
-    --tag="$RUNNER_IMAGE" \
-    --format='value(id)'
-)"
-test -n "$build_id"
+runner_tree="$(git rev-parse "${EXACT_REVISION}:infra/gcp-runner-image")"
+if [[ ! "$runner_tree" =~ ^[0-9a-f]{40,64}$ ]]; then
+  echo "runner image source tree did not resolve to a Git object id" >&2
+  exit 1
+fi
+RUNNER_IMAGE="${RUNNER_IMAGE_REPO}:tree-${runner_tree}"
 
-build_status=""
-for _ in $(seq 1 300); do
-  build_status="$(
+runner_digest="$(
+  gcloud artifacts docker images describe "$RUNNER_IMAGE" \
+    --project="$PROJECT_ID" \
+    --format='value(image_summary.digest)' 2>/dev/null || true
+)"
+if [[ "$runner_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  echo "Reusing immutable runner image for source tree ${runner_tree}"
+else
+  echo "Building immutable runner image for source tree ${runner_tree}"
+  build_id="$(
+    gcloud builds submit infra/gcp-runner-image \
+      --async \
+      --project="$PROJECT_ID" \
+      --region="$REGION" \
+      --tag="$RUNNER_IMAGE" \
+      --format='value(id)'
+  )"
+  test -n "$build_id"
+
+  build_status=""
+  for _ in $(seq 1 300); do
+    build_status="$(
+      gcloud builds describe "$build_id" \
+        --project="$PROJECT_ID" \
+        --region="$REGION" \
+        --format='value(status)'
+    )"
+    case "$build_status" in
+      SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED)
+        break
+        ;;
+    esac
+    sleep 2
+  done
+  if [[ "$build_status" != "SUCCESS" ]]; then
+    echo "runner image build failed: $build_status" >&2
     gcloud builds describe "$build_id" \
       --project="$PROJECT_ID" \
       --region="$REGION" \
-      --format='value(status)'
-  )"
-  case "$build_status" in
-    SUCCESS|FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED)
-      break
-      ;;
-  esac
-  sleep 2
-done
-if [[ "$build_status" != "SUCCESS" ]]; then
-  echo "runner image build failed: $build_status" >&2
-  gcloud builds describe "$build_id" \
-    --project="$PROJECT_ID" \
-    --region="$REGION" \
-    --format='value(failureInfo.detail)' >&2 || true
-  exit 1
-fi
+      --format='value(failureInfo.detail)' >&2 || true
+    exit 1
+  fi
 
-runner_digest="$(
-  gcloud builds describe "$build_id" \
-    --project="$PROJECT_ID" \
-    --region="$REGION" \
-    --format='value(results.images[0].digest)' | tail -n1
-)"
+  runner_digest="$(
+    gcloud builds describe "$build_id" \
+      --project="$PROJECT_ID" \
+      --region="$REGION" \
+      --format='value(results.images[0].digest)' | tail -n1
+  )"
+fi
 if [[ ! "$runner_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-  echo "runner image build returned no immutable digest" >&2
+  echo "runner image resolution returned no immutable digest" >&2
   exit 1
 fi
 RUNNER_IMAGE_IMMUTABLE="${RUNNER_IMAGE_REPO}@${runner_digest}"
+printf 'Runner image source tree: %s\n' "$runner_tree"
 printf 'Runner image: %s\n' "$RUNNER_IMAGE_IMMUTABLE"
 
 echo "Building immutable runner control image for ${EXACT_REVISION}"
@@ -140,7 +156,6 @@ gcloud run deploy "$LAUNCHER_SERVICE" \
   --command=node \
   --args="--experimental-strip-types,src/transport/gcp-runner-launcher.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
-  --no-allow-unauthenticated \
   --min=1 \
   --max=1 \
   --cpu-boost \
@@ -242,7 +257,6 @@ gcloud run deploy "$AUTOSCALER_SERVICE" \
   --command=node \
   --args="--experimental-strip-types,src/transport/gcp-runner-autoscaler.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
-  --no-allow-unauthenticated \
   --min=1 \
   --max=1 \
   --no-cpu-throttling \
