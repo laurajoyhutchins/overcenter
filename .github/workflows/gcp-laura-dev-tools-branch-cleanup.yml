@@ -120,14 +120,18 @@ jobs:
           python - "$RUNNER_TEMP/build.json" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import base64,json,sys
           body=json.load(open(sys.argv[1],encoding='utf-8'))
+          def decode(raw):
+              raw=raw.strip()
+              raw += '=' * (-len(raw) % 4)
+              return decode(raw)
           print('Status:', body.get('status'))
           for raw in body.get('results',{}).get('buildStepOutputs',[]):
               if raw:
-                  print(base64.b64decode(raw).decode('utf-8','replace'))
+                  print(decode(raw))
           outputs=[]
           for raw in body.get('results',{}).get('buildStepOutputs',[]):
               if raw:
-                  outputs.append(base64.b64decode(raw).decode('utf-8','replace'))
+                  outputs.append(decode(raw))
           text='\n'.join(outputs)
           if body.get('status') != 'SUCCESS' or 'LDT_RC=0' not in text:
               raise SystemExit(1)
