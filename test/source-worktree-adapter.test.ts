@@ -96,7 +96,10 @@ test('adapter reports out-of-envelope edits for the trusted broker to reject', (
       { command: process.execPath, args: ['-e', script] },
       { stdio: 'ignore' },
     );
-    assert.deepEqual(result.proposal.files.map((file) => file.path), ['outside.txt']);
+    assert.deepEqual(
+      result.proposal.files.map((file) => file.path),
+      ['outside.txt'],
+    );
     assert.throws(
       () => validateSourceProposal(result.proposal, task, claim),
       /SOURCE_PROPOSAL_SCOPE_VIOLATION:outside\.txt/,
