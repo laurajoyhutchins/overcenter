@@ -337,7 +337,9 @@ export async function githubConditionalJson(path: string, token: string): Promis
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`GitHub GET ${path} failed with HTTP ${response.status}: ${text.slice(0, 300)}`);
+    throw new Error(
+      `GitHub GET ${path} failed with HTTP ${response.status}: ${text.slice(0, 300)}`,
+    );
   }
   const value = text ? (JSON.parse(text) as unknown) : null;
   const etag = response.headers.get('etag');

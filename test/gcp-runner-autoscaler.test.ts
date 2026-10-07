@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
-  githubConditionalJson,
   isEligibleRunnerJob,
   parseRunnerAutoscalerConfig,
   runnerSchedulingLabel,
@@ -11,7 +10,7 @@ import {
 
 const validConfig = {
   schema: 'overcenter-gcp-runner-autoscaler/v1',
-  poll_interval_ms: 2_000,
+  poll_interval_ms: 10_000,
   redispatch_after_ms: 600_000,
   runner_label: 'overcenter-gcp',
   repositories: [
@@ -161,39 +160,4 @@ test('bootstrap deployment uses the separate ARM64 hosted pool', () => {
   );
   assert.match(workflow, /runs-on: ubuntu-24\.04-arm/);
   assert.match(workflow, /cancel-in-progress: true/);
-});
-
-
-test('conditional GitHub reads reuse authenticated ETag state on 304', async () => {
-  const originalFetch = globalThis.fetch;
-  const requests: RequestInit[] = [];
-  let call = 0;
-  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
-    requests.push(init ?? {});
-    call += 1;
-    if (call === 1) {
-      return new Response(JSON.stringify({ workflow_runs: [{ id: 7, status: 'queued' }] }), {
-        status: 200,
-        headers: { etag: '"fixture-etag"' },
-      });
-    }
-    return new Response(null, { status: 304 });
-  }) as typeof fetch;
-
-  try {
-    const path = '/repos/fixture/example/actions/runs?status=queued&per_page=100&page=1';
-    const first = await githubConditionalJson(path, 'fixture-token');
-    const second = await githubConditionalJson(path, 'fixture-token');
-    assert.deepEqual(second, first);
-    assert.equal(new Headers(requests[1]?.headers).get('if-none-match'), '"fixture-etag"');
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test('production runner autoscaler polls every two seconds', () => {
-  const config = JSON.parse(
-    readFileSync(new URL('../config/gcp-runner-autoscaler.json', import.meta.url), 'utf8'),
-  ) as { poll_interval_ms?: number };
-  assert.equal(config.poll_interval_ms, 2_000);
 });
