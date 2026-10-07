@@ -35,6 +35,15 @@ const report: SemanticScalingTcbReport = {
       hybrid_closure_semantic_loc: 3,
       hybrid_closure_sha256: 'general',
       hybrid_closure_files: ['a.ts', 'b.ts'],
+      hybrid_closure_semantic_spans: [
+        { path: 'a.ts', start_offset: 0, end_offset: sources['a.ts']!.length, semantic_loc: 2 },
+        {
+          path: 'b.ts',
+          start_offset: 0,
+          end_offset: sources['b.ts']!.split('\n')[0]!.length,
+          semantic_loc: 1,
+        },
+      ],
       module_closure_files: ['a.ts'],
       symbol_closure_declarations: [
         {
@@ -52,6 +61,15 @@ const report: SemanticScalingTcbReport = {
       hybrid_closure_semantic_loc: 3,
       hybrid_closure_sha256: 'provider',
       hybrid_closure_files: ['b.ts', 'c.ts'],
+      hybrid_closure_semantic_spans: [
+        { path: 'b.ts', start_offset: 0, end_offset: sources['b.ts']!.length, semantic_loc: 2 },
+        {
+          path: 'c.ts',
+          start_offset: 0,
+          end_offset: sources['c.ts']!.split('\n')[0]!.length,
+          semantic_loc: 1,
+        },
+      ],
       module_closure_files: ['b.ts'],
       symbol_closure_declarations: [
         {
@@ -72,6 +90,15 @@ const report: SemanticScalingTcbReport = {
         hybrid_closure_semantic_loc: 3,
         hybrid_closure_sha256: 'effect',
         hybrid_closure_files: ['b.ts', 'c.ts'],
+        hybrid_closure_semantic_spans: [
+          { path: 'b.ts', start_offset: 0, end_offset: sources['b.ts']!.length, semantic_loc: 2 },
+          {
+            path: 'c.ts',
+            start_offset: 0,
+            end_offset: sources['c.ts']!.split('\n')[0]!.length,
+            semantic_loc: 1,
+          },
+        ],
         hybrid_closure_semantic_line_ranges: [
           { path: 'b.ts', ranges: [[1, 2]] },
           { path: 'c.ts', ranges: [[1, 1]] },
@@ -82,6 +109,9 @@ const report: SemanticScalingTcbReport = {
         hybrid_closure_semantic_loc: 2,
         hybrid_closure_sha256: 'task-specific',
         hybrid_closure_files: ['c.ts'],
+        hybrid_closure_semantic_spans: [
+          { path: 'c.ts', start_offset: 0, end_offset: sources['c.ts']!.length, semantic_loc: 2 },
+        ],
         hybrid_closure_semantic_line_ranges: [{ path: 'c.ts', ranges: [[1, 2]] }],
       },
     ],
@@ -209,6 +239,26 @@ test('unknown TCB scopes fail closed', () => {
       ),
     /SEMANTIC_SCALING_TCB_PROPERTY_UNKNOWN/,
   );
+});
+
+test('semantic scaling uses logical spans rather than diagnostic physical line ranges', () => {
+  const logical = structuredClone(report);
+  logical.architecture_tcb.effects[0]!.hybrid_closure_semantic_line_ranges = [
+    { path: 'b.ts', ranges: [[1, 2]] },
+    { path: 'c.ts', ranges: [[1, 2]] },
+  ];
+
+  const result = measureSemanticScaling(
+    plan,
+    logical,
+    'f'.repeat(40),
+    'tcb-digest',
+    'plan-digest',
+    readSource,
+  );
+
+  assert.equal(result.tasks[1]?.trusted_semantic_loc, 5);
+  assert.equal(result.tasks[1]?.marginal_semantic_loc, 2);
 });
 
 test('TCB reconstruction fails closed when report counts do not match source', () => {

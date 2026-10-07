@@ -2,6 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 
+import { maximalSemanticSpans, type SemanticSpan } from '../../src/analysis/tcb-semantic-loc.ts';
+
 export const SEMANTIC_SCALING_MEASUREMENT_PLAN_SCHEMA =
   'overcenter-semantic-scaling-measurement-plan/v1' as const;
 export const SEMANTIC_SCALING_MEASUREMENT_RESULT_SCHEMA =
@@ -50,12 +52,17 @@ interface SymbolDeclaration {
   end_line: number;
 }
 
+interface LocatedSemanticSpan extends SemanticSpan {
+  path: string;
+}
+
 interface HybridScopeReport {
   hybrid_closure_semantic_loc: number;
   hybrid_closure_sha256: string;
   hybrid_closure_files: string[];
   module_closure_files?: string[];
   symbol_closure_declarations?: SymbolDeclaration[];
+  hybrid_closure_semantic_spans?: LocatedSemanticSpan[];
   hybrid_closure_semantic_line_ranges?: Array<{
     path: string;
     ranges: Array<[number, number]>;
@@ -89,7 +96,7 @@ interface ResolvedScope {
   key: string;
   role: SemanticScalingScopeRole;
   report: HybridScopeReport;
-  units: Set<string>;
+  units: LocatedSemanticSpan[];
 }
 
 export interface SemanticScalingMeasurementResult {
@@ -286,26 +293,96 @@ function validateTcbReport(value: unknown): SemanticScalingTcbReport {
   return report;
 }
 
-function setDifference(left: Set<string>, right: Set<string>): Set<string> {
-  return new Set([...left].filter((entry) => !right.has(entry)));
+function normalizeSemanticSpans(
+  spans: readonly LocatedSemanticSpan[],
+): LocatedSemanticSpan[] {
+  const byPath = new Map<string, LocatedSemanticSpan[]>();
+  for (const span of spans) {
+    requireString(span.path, 'hybrid_closure_semantic_spans.path');
+    const selected = byPath.get(span.path) ?? [];
+    selected.push(span);
+    byPath.set(span.path, selected);
+  }
+  return [...byPath.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .flatMap(([, selected]) => maximalSemanticSpans(selected));
 }
 
-function setIntersection(left: Set<string>, right: Set<string>): Set<string> {
-  return new Set([...left].filter((entry) => right.has(entry)));
+function semanticLoc(spans: readonly LocatedSemanticSpan[]): number {
+  return normalizeSemanticSpans(spans).reduce((sum, span) => sum + span.semantic_loc, 0);
 }
 
-function unionInto(target: Set<string>, source: Set<string>): void {
-  for (const entry of source) target.add(entry);
+function unionSemanticSpans(
+  ...groups: readonly (readonly LocatedSemanticSpan[])[]
+): LocatedSemanticSpan[] {
+  return normalizeSemanticSpans(groups.flatMap((group) => [...group]));
 }
 
-function unitPath(unit: string): string {
-  const separator = unit.lastIndexOf(':');
-  if (separator < 0) throw new Error(`SEMANTIC_SCALING_UNIT_INVALID:${unit}`);
-  return unit.slice(0, separator);
+function marginalSemanticSpans(
+  current: readonly LocatedSemanticSpan[],
+  prior: readonly LocatedSemanticSpan[],
+): LocatedSemanticSpan[] {
+  const currentSpans = normalizeSemanticSpans(current);
+  const priorSpans = normalizeSemanticSpans(prior);
+  const marginal: LocatedSemanticSpan[] = [];
+
+  for (const span of currentSpans) {
+    let coveredSemanticLoc = 0;
+    for (const previous of priorSpans) {
+      if (previous.path !== span.path) continue;
+      if (previous.end_offset <= span.start_offset || previous.start_offset >= span.end_offset) {
+        continue;
+      }
+      if (
+        previous.start_offset <= span.start_offset &&
+        previous.end_offset >= span.end_offset
+      ) {
+        if (
+          previous.start_offset === span.start_offset &&
+          previous.end_offset === span.end_offset &&
+          previous.semantic_loc !== span.semantic_loc
+        ) {
+          throw new Error('SEMANTIC_SCALING_TCB_SPAN_CONFLICT');
+        }
+        if (previous.semantic_loc < span.semantic_loc) {
+          throw new Error('SEMANTIC_SCALING_TCB_SPAN_CONTAINMENT_INVALID');
+        }
+        coveredSemanticLoc = span.semantic_loc;
+        break;
+      }
+      if (
+        span.start_offset <= previous.start_offset &&
+        span.end_offset >= previous.end_offset
+      ) {
+        coveredSemanticLoc += previous.semantic_loc;
+        continue;
+      }
+      throw new Error('SEMANTIC_SCALING_TCB_SPANS_OVERLAP');
+    }
+
+    const marginalSemanticLoc = span.semantic_loc - coveredSemanticLoc;
+    if (marginalSemanticLoc < 0) {
+      throw new Error('SEMANTIC_SCALING_TCB_SPAN_CONTAINMENT_INVALID');
+    }
+    if (marginalSemanticLoc > 0) {
+      marginal.push({ ...span, semantic_loc: marginalSemanticLoc });
+    }
+  }
+
+  return marginal;
 }
 
-function digestUnits(units: Set<string>): string {
-  return sha256([...units].sort().join('\n'));
+function digestSemanticSpans(spans: readonly LocatedSemanticSpan[]): string {
+  return sha256(
+    JSON.stringify(
+      normalizeSemanticSpans(spans).map((span) => ({
+        path: span.path,
+        start_offset: span.start_offset,
+        end_offset: span.end_offset,
+        semantic_loc: span.semantic_loc,
+      })),
+    ),
+  );
 }
 
 export function trustedUnitsForScope(
@@ -388,6 +465,51 @@ export function trustedUnitsForScope(
   return trusted;
 }
 
+
+export function trustedSpansForScope(
+  scope: HybridScopeReport,
+  readSource: (path: string) => string = (path) => readFileSync(path, 'utf8'),
+): LocatedSemanticSpan[] {
+  if (scope.hybrid_closure_semantic_spans !== undefined) {
+    if (!Array.isArray(scope.hybrid_closure_semantic_spans)) {
+      throw new Error('SEMANTIC_SCALING_TCB_SPANS_INVALID');
+    }
+    const spans = normalizeSemanticSpans(scope.hybrid_closure_semantic_spans);
+    if (semanticLoc(spans) !== scope.hybrid_closure_semantic_loc) {
+      throw new Error(
+        `SEMANTIC_SCALING_TCB_SPAN_RECONSTRUCTION_MISMATCH:${semanticLoc(spans)}:${scope.hybrid_closure_semantic_loc}`,
+      );
+    }
+    const expectedFiles = new Set(scope.hybrid_closure_files);
+    const actualFiles = new Set(spans.map((span) => span.path));
+    if (
+      actualFiles.size !== expectedFiles.size ||
+      [...actualFiles].some((path) => !expectedFiles.has(path))
+    ) {
+      throw new Error('SEMANTIC_SCALING_TCB_FILE_SET_MISMATCH');
+    }
+    return spans;
+  }
+
+  return normalizeSemanticSpans(
+    [...trustedUnitsForScope(scope, readSource)].map((unit) => {
+      const separator = unit.lastIndexOf(':');
+      if (separator < 0) throw new Error(`SEMANTIC_SCALING_UNIT_INVALID:${unit}`);
+      const path = unit.slice(0, separator);
+      const line = Number(unit.slice(separator + 1));
+      if (!Number.isSafeInteger(line) || line < 1) {
+        throw new Error(`SEMANTIC_SCALING_UNIT_INVALID:${unit}`);
+      }
+      return {
+        path,
+        start_offset: line * 2,
+        end_offset: line * 2 + 1,
+        semantic_loc: 1,
+      };
+    }),
+  );
+}
+
 function resolveScope(
   report: SemanticScalingTcbReport,
   requested: SemanticScalingMeasurementScope,
@@ -402,7 +524,7 @@ function resolveScope(
       key: `property:${requested.id}`,
       role: requested.role,
       report: property,
-      units: trustedUnitsForScope(property, readSource),
+      units: trustedSpansForScope(property, readSource),
     };
   }
 
@@ -416,7 +538,7 @@ function resolveScope(
     key: `architecture-effect:${requested.id}`,
     role: requested.role,
     report: effect,
-    units: trustedUnitsForScope(effect, readSource),
+    units: trustedSpansForScope(effect, readSource),
   };
 }
 
@@ -429,32 +551,31 @@ export function measureSemanticScaling(
   readSource: (path: string) => string = (path) => readFileSync(path, 'utf8'),
 ): SemanticScalingMeasurementResult {
   requireString(sourceRevision, 'source_revision');
-  const priorUnits = new Set<string>();
+  let priorUnits: LocatedSemanticSpan[] = [];
   const priorScopes = new Set<string>();
   const priorExternalAssumptions = new Set<string>();
 
   const tasks = plan.tasks.map((task) => {
     const resolved = task.scopes.map((scope) => resolveScope(report, scope, readSource));
-    const trusted = new Set<string>();
+    const trusted = unionSemanticSpans(...resolved.map((scope) => scope.units));
     const assumptions = new Set<string>();
     for (const scope of resolved) {
-      unionInto(trusted, scope.units);
       for (const assumption of scope.report.external_assumptions ?? []) assumptions.add(assumption);
     }
 
-    const marginal = setDifference(trusted, priorUnits);
-    const reused = setIntersection(trusted, priorUnits);
+    const marginal = marginalSemanticSpans(trusted, priorUnits);
+    const trustedSemanticLoc = semanticLoc(trusted);
+    const marginalSemanticLoc = semanticLoc(marginal);
     const introduced = resolved.filter((scope) => !priorScopes.has(scope.key));
     const introducedAssumptions = [...assumptions]
       .filter((assumption) => !priorExternalAssumptions.has(assumption))
       .sort();
 
     const marginalForRole = (role: SemanticScalingScopeRole): number => {
-      const roleUnits = new Set<string>();
-      for (const scope of resolved) {
-        if (scope.role === role) unionInto(roleUnits, scope.units);
-      }
-      return setDifference(roleUnits, priorUnits).size;
+      const roleUnits = unionSemanticSpans(
+        ...resolved.filter((scope) => scope.role === role).map((scope) => scope.units),
+      );
+      return semanticLoc(marginalSemanticSpans(roleUnits, priorUnits));
     };
 
     const result = {
@@ -464,11 +585,11 @@ export function measureSemanticScaling(
       claim: task.claim,
       narrowed_from: task.narrowed_from ?? null,
       residual_judgment: task.residual_judgment ?? null,
-      trusted_semantic_loc: trusted.size,
-      marginal_semantic_loc: marginal.size,
-      reused_prior_semantic_loc: reused.size,
-      marginal_unit_sha256: digestUnits(marginal),
-      marginal_files: [...new Set([...marginal].map(unitPath))].sort(),
+      trusted_semantic_loc: trustedSemanticLoc,
+      marginal_semantic_loc: marginalSemanticLoc,
+      reused_prior_semantic_loc: trustedSemanticLoc - marginalSemanticLoc,
+      marginal_unit_sha256: digestSemanticSpans(marginal),
+      marginal_files: [...new Set(marginal.map((span) => span.path))].sort(),
       introduced_scopes: introduced
         .map((scope) => ({
           key: scope.key,
@@ -486,7 +607,7 @@ export function measureSemanticScaling(
       observation_support: [...task.observation_support].sort(),
     };
 
-    unionInto(priorUnits, trusted);
+    priorUnits = unionSemanticSpans(priorUnits, trusted);
     for (const scope of resolved) priorScopes.add(scope.key);
     for (const assumption of assumptions) priorExternalAssumptions.add(assumption);
     return result;
@@ -515,7 +636,7 @@ export function semanticScalingSummary(result: SemanticScalingMeasurementResult)
     '| --- | --- | --- | ---: | ---: | ---: | ---: | --- | ---: | --- |',
     ...rows,
     '',
-    'Marginal LOC is a deduplicated line-level projection reconstructed from the existing TCB report. Scope identities, roles, fingerprints, external-assumption deltas, and residual judgments remain separate so a zero-LOC delta cannot erase semantic growth or a judgment frontier.',
+    'Marginal LOC is a deduplicated logical-SLOC span projection consumed from the TCB report. Scope identities, roles, fingerprints, external-assumption deltas, and residual judgments remain separate so a zero-LOC delta cannot erase semantic growth or a judgment frontier.',
     '',
   ].join('\n');
 }
