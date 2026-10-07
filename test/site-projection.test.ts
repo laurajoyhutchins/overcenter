@@ -40,9 +40,54 @@ test('site projection conserves source records and internal links', async () => 
 
     const home = pages.get('index.html') ?? '';
     const claims = pages.get('claims.html') ?? '';
+    const evidence = pages.get('evidence.html') ?? '';
     const experiments = pages.get('experiments.html') ?? '';
     const architecture = pages.get('architecture.html') ?? '';
     const index = pages.get('index-of-terms.html') ?? '';
+
+    const robots = await readFile(join(outDir, 'robots.txt'), 'utf8');
+    const sitemap = await readFile(join(outDir, 'sitemap.xml'), 'utf8');
+    const pagefindUi = await readFile(join(outDir, 'pagefind', 'pagefind-component-ui.js'), 'utf8');
+    const pagefindCss = await readFile(
+      join(outDir, 'pagefind', 'pagefind-component-ui.css'),
+      'utf8',
+    );
+    assert.ok(pagefindUi.length > 0, 'Pagefind component UI must be generated');
+    assert.ok(pagefindCss.length > 0, 'Pagefind component CSS must be generated');
+    assert.ok(robots.includes('Sitemap: https://laurajoyhutchins.github.io/overcenter/sitemap.xml'));
+    for (const file of PAGE_FILES) {
+      const expected =
+        file === 'index.html'
+          ? 'https://laurajoyhutchins.github.io/overcenter/'
+          : `https://laurajoyhutchins.github.io/overcenter/${file}`;
+      assert.ok(sitemap.includes(`<loc>${expected}</loc>`), `sitemap missing: ${file}`);
+    }
+
+    for (const [file, html] of pages) {
+      assert.ok(html.includes('<main data-pagefind-body>'), `search body missing: ${file}`);
+      assert.ok(
+        html.includes('<pagefind-modal-trigger class="site-search"></pagefind-modal-trigger>'),
+        `search trigger missing: ${file}`,
+      );
+      assert.ok(
+        html.includes('pagefind/pagefind-component-ui.js'),
+        `Pagefind script missing: ${file}`,
+      );
+      assert.ok(html.includes('rel="canonical"'), `canonical metadata missing: ${file}`);
+      assert.ok(html.includes('property="og:title"'), `OpenGraph metadata missing: ${file}`);
+      assert.ok(
+        html.includes('type="application/ld+json"'),
+        `structured metadata missing: ${file}`,
+      );
+    }
+    for (const target of [
+      'how-it-works.html',
+      'evidence.html',
+      'experiments.html',
+      'architecture.html',
+    ]) {
+      assert.ok(home.includes(`href="${target}"`), `home route missing: ${target}`);
+    }
 
     const demonstrated = model.claims.filter((claim) => claim.statusKind === 'demonstrated').length;
     const demonstratedFromAuthority = model.claims.filter(
@@ -90,6 +135,14 @@ test('site projection conserves source records and internal links', async () => 
         claimCard.includes('<a href="evidence.html">Proof obligation register</a>'),
         `claim evidence route missing: ${claim.id}`,
       );
+      if (claim.repositoryRefs.length > 0) {
+        for (const path of claim.repositoryRefs) {
+          assert.ok(
+            claimCard.includes(path),
+            `claim referenced source missing from card: ${claim.id}:${path}`,
+          );
+        }
+      }
       assert.match(
         index,
         new RegExp(`claims\\.html#${anchor}`),
@@ -113,7 +166,48 @@ test('site projection conserves source records and internal links', async () => 
         new RegExp(`experiments\\.html#${anchor}`),
         `experiment absent from index: ${experiment.id}`,
       );
+      for (const path of experiment.repositoryRefs) {
+        assert.ok(
+          experiments.includes(path),
+          `experiment referenced source missing: ${experiment.id}:${path}`,
+        );
+      }
     }
+
+    for (const proof of model.proofObligations) {
+      const anchor = `proof-${slug(proof.obligation)}`;
+      assert.ok(evidence.includes(`id="${anchor}"`), `proof obligation vanished: ${proof.obligation}`);
+      assert.ok(
+        index.includes(`evidence.html#${anchor}`),
+        `proof obligation absent from index: ${proof.obligation}`,
+      );
+      for (const path of proof.repositoryRefs) {
+        assert.ok(
+          evidence.includes(path),
+          `proof referenced source missing: ${proof.obligation}:${path}`,
+        );
+      }
+    }
+
+    const referenceCounts = new Map<string, number>();
+    for (const refs of [
+      ...model.claims.map((claim) => claim.repositoryRefs),
+      ...model.proofObligations.map((proof) => proof.repositoryRefs),
+      ...model.experiments.map((experiment) => experiment.repositoryRefs),
+    ]) {
+      for (const path of refs) referenceCounts.set(path, (referenceCounts.get(path) ?? 0) + 1);
+    }
+    const sharedPaths = [...referenceCounts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([path]) => path);
+    assert.ok(sharedPaths.length > 0, 'relational index needs at least one shared source artifact');
+    for (const path of sharedPaths) {
+      assert.ok(index.includes(path), `shared source relationship missing: ${path}`);
+    }
+    assert.ok(index.includes('Claim families'), 'claim-family facet missing');
+    assert.ok(index.includes('Claim states'), 'claim-state facet missing');
+    assert.ok(index.includes('Architecture kinds'), 'architecture-kind facet missing');
+    assert.ok(index.includes('Shared source relationships'), 'relational source section missing');
 
     for (const entity of model.architecture) {
       const anchor = `${slug(entity.kind)}-${slug(entity.id)}`;
@@ -182,7 +276,8 @@ test('site projection conserves source records and internal links', async () => 
           href.startsWith('https://') ||
           href.startsWith('http://') ||
           href.startsWith('mailto:') ||
-          href === 'site.css'
+          href === 'site.css' ||
+          href.startsWith('pagefind/')
         ) {
           continue;
         }
