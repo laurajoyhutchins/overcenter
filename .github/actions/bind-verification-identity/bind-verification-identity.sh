@@ -70,15 +70,14 @@ fi
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
-    echo "### Verification identity"
-    echo
-    echo "- event: `$event_name`"
-    echo "- candidate SHA: `$candidate_sha`"
-    echo "- candidate tree: `$candidate_tree`"
+    printf '%s\n' '### Verification identity' ''
+    printf -- '- event: `%s`\n' "$event_name"
+    printf -- '- candidate SHA: `%s`\n' "$candidate_sha"
+    printf -- '- candidate tree: `%s`\n' "$candidate_tree"
     if [[ -n "$base_sha" ]]; then
-      echo "- base SHA: `$base_sha`"
+      printf -- '- base SHA: `%s`\n' "$base_sha"
     fi
-    echo "- tested SHA: `$tested_sha`"
-    echo "- tested tree: `$tested_tree`"
+    printf -- '- tested SHA: `%s`\n' "$tested_sha"
+    printf -- '- tested tree: `%s`\n' "$tested_tree"
   } >> "$GITHUB_STEP_SUMMARY"
 fi
