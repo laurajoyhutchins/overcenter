@@ -273,7 +273,7 @@ main { background: var(--cream); }
 .status-architectural-requirement {
   border-color: var(--teal);
   color: var(--phthalo-blue);
-  background: color-mix(in srgb, var(--mint) 34%, var(--white));
+  background: var(--white);
 }
 .status-non-claim {
   border-color: var(--line);
