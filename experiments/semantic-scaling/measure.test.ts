@@ -141,6 +141,47 @@ test('reconstructs exact hybrid semantic units from report evidence', () => {
   assert.deepEqual([...units].sort(), ['a.ts:1', 'a.ts:4', 'b.ts:1']);
 });
 
+test('reconstructs logical SLOC from stable AST-unit identities', () => {
+  const units = trustedUnitsForScope(
+    {
+      hybrid_closure_semantic_loc: 3,
+      hybrid_closure_sha256: 'logical',
+      hybrid_closure_files: ['a.ts', 'b.ts'],
+      module_closure_files: ['a.ts'],
+      symbol_closure_declarations: [
+        {
+          path: 'b.ts',
+          symbol: 'b',
+          start_line: 1,
+          end_line: 1,
+          start_offset: 0,
+          end_offset: 20,
+          semantic_loc: 1,
+        },
+      ],
+    },
+    readSource,
+    'typescript-logical-sloc/v1',
+    (path) => {
+      if (path === 'a.ts') {
+        return [
+          { key: 'a.ts:0-19-1', path, start_offset: 0, end_offset: 19 },
+          { key: 'a.ts:40-64-1', path, start_offset: 40, end_offset: 64 },
+        ];
+      }
+      if (path === 'b.ts') {
+        return [
+          { key: 'b.ts:0-19-1', path, start_offset: 0, end_offset: 19 },
+          { key: 'b.ts:20-40-1', path, start_offset: 20, end_offset: 40 },
+        ];
+      }
+      throw new Error(`unexpected logical-unit path: ${path}`);
+    },
+  );
+
+  assert.deepEqual([...units].sort(), ['a.ts:0-19-1', 'a.ts:40-64-1', 'b.ts:0-19-1']);
+});
+
 test('measures marginal TCB by deduplicated semantic units and keeps scope semantics separate', () => {
   const result = measureSemanticScaling(
     plan,
