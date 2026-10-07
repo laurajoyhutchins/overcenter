@@ -101,3 +101,57 @@ test('profile identity ignores array ordering but rejects missing and unknown pr
     /SOURCE_VERIFICATION_PROFILE_SCHEMA_MISMATCH/,
   );
 });
+
+
+test('source verification commands are transport-neutral argv, not npm-specific shell strings', () => {
+  assert.ok(profileModule, 'source verification profile loader must exist');
+  const pythonProfile = {
+    ...profile('python/v1'),
+    commands: ['python tools/check.py'],
+  };
+  assert.deepEqual(
+    profileModule.validateSourceVerificationProfile(pythonProfile).commands,
+    ['python tools/check.py'],
+  );
+  assert.deepEqual(profileModule.sourceVerificationCommandArgv('python tools/check.py'), [
+    'python',
+    'tools/check.py',
+  ]);
+  assert.deepEqual(
+    profileModule.sourceVerificationCommandArgv(
+      'uv run --project tools/sequence-codegen --frozen python tools/freeze_sequence_kernels.py --check',
+    ),
+    [
+      'uv',
+      'run',
+      '--project',
+      'tools/sequence-codegen',
+      '--frozen',
+      'python',
+      'tools/freeze_sequence_kernels.py',
+      '--check',
+    ],
+  );
+});
+
+test('source verification commands reject shell syntax and noncanonical spacing', () => {
+  assert.ok(profileModule, 'source verification profile loader must exist');
+  for (const command of [
+    'python tools/check.py && rm -rf /',
+    'python tools/check.py; echo forged',
+    'python  tools/check.py',
+    ' python tools/check.py',
+    'python tools/check.py ',
+    'python "$SCRIPT"',
+  ]) {
+    assert.throws(
+      () =>
+        profileModule.validateSourceVerificationProfile({
+          ...profile('invalid/v1'),
+          commands: [command],
+        }),
+      /SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID/,
+      command,
+    );
+  }
+});
