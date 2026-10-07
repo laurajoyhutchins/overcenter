@@ -19,7 +19,7 @@ jobs:
       REGION: us-west1
       WIF_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter
       DEPLOYER_SA: overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
-      BUILD_ID: 23506301-74c3-4b88-abb5-f0a173f53ede
+      BUILD_ID: 912e1459-f04f-49a8-8260-eb2ac4b5d774
     steps:
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
@@ -44,8 +44,8 @@ jobs:
           for index, raw in enumerate(body.get("results",{}).get("buildStepOutputs",[])):
               if not raw:
                   continue
+              raw=raw.strip()
+              raw += "=" * (-len(raw) % 4)
               print("OUTPUT_INDEX=", index)
-              print("OUTPUT_TYPE=", type(raw).__name__)
-              print("OUTPUT_LEN=", len(raw))
-              print("OUTPUT_REPR=", repr(raw[:1000]))
+              print(base64.urlsafe_b64decode(raw).decode("utf-8","replace"))
           PY
