@@ -929,6 +929,7 @@ interface HybridClosure {
   semantic_loc: number;
   files: string[];
   sha256: string;
+  semantic_spans: LocatedSemanticSpan[];
   semantic_line_ranges: Array<{
     path: string;
     ranges: Array<[number, number]>;
@@ -943,7 +944,6 @@ function hybridClosure(
   const trusted = new Map<string, Set<number>>();
   const fingerprintMaterial = [`module:${module.sha256}`];
   const moduleFiles = new Set(module.files);
-  let semanticLoc = module.semantic_loc;
 
   for (const path of module.files) {
     const { text } = sourceFor(path);
@@ -957,10 +957,19 @@ function hybridClosure(
   const symbolOnlyDeclarations = maximalLocatedSemanticSpans(
     symbols.declarations.filter((declaration) => !moduleFiles.has(declaration.path)),
   );
-  semanticLoc += symbolOnlyDeclarations.reduce(
-    (sum, declaration) => sum + declaration.semantic_loc,
-    0,
-  );
+  const semanticSpans = maximalLocatedSemanticSpans([
+    ...module.files.map((path) => {
+      const { text, source } = sourceFor(path);
+      return {
+        path,
+        start_offset: 0,
+        end_offset: text.length,
+        semantic_loc: measuredSemanticLoc(source),
+      };
+    }),
+    ...symbolOnlyDeclarations,
+  ]);
+  const semanticLoc = semanticSpans.reduce((sum, span) => sum + span.semantic_loc, 0);
 
   for (const declaration of symbols.declarations) {
     const { text } = sourceFor(declaration.path);
@@ -1009,6 +1018,7 @@ function hybridClosure(
     semantic_loc: semanticLoc,
     files: [...trusted.keys()].sort(),
     sha256: createHash('sha256').update(fingerprintMaterial.sort().join('\n')).digest('hex'),
+    semantic_spans: semanticSpans,
     semantic_line_ranges: semanticLineRanges,
   };
 }
@@ -1072,6 +1082,7 @@ try {
       hybrid_closure_semantic_loc: hybrid.semantic_loc,
       hybrid_closure_sha256: hybrid.sha256,
       hybrid_closure_files: hybrid.files,
+      hybrid_closure_semantic_spans: hybrid.semantic_spans,
       symbol_closure_files: symbols.files,
       symbol_closure_files_outside_module_closure: symbolFilesOutsideModuleClosure,
       symbol_closure_declarations: symbols.declarations,
@@ -1239,6 +1250,7 @@ try {
         hybrid_closure_semantic_loc: hybrid.semantic_loc,
         hybrid_closure_sha256: hybrid.sha256,
         hybrid_closure_files: hybrid.files,
+        hybrid_closure_semantic_spans: hybrid.semantic_spans,
         hybrid_closure_semantic_line_ranges: hybrid.semantic_line_ranges,
       };
     })
