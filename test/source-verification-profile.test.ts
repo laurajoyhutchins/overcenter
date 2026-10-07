@@ -64,6 +64,27 @@ test('verification profile is loaded from the exact base and binds a canonical i
   assert.notEqual(read(repo, candidate).sha256, initial.sha256);
 });
 
+test('profile accepts canonical direct argv commands and rejects shell syntax', () => {
+  assert.ok(profileModule, 'source verification profile loader must exist');
+  const direct = profileModule.validateSourceVerificationProfile({
+    ...profile(),
+    commands: ['python tools/check.py'],
+  });
+  assert.deepEqual(direct.commands, ['python tools/check.py']);
+  assert.equal(
+    profileModule.sourceVerificationRecipeStep('python tools/check.py'),
+    'argv:["python","tools/check.py"]',
+  );
+  assert.throws(
+    () =>
+      profileModule.validateSourceVerificationProfile({
+        ...profile(),
+        commands: ['python tools/check.py && echo forged'],
+      }),
+    /SOURCE_VERIFICATION_PROFILE_COMMANDS_INVALID/,
+  );
+});
+
 test('profile identity ignores array ordering but rejects missing and unknown profiles', (t) => {
   assert.ok(profileModule, 'source verification profile loader must exist');
   const { repo, git, base } = fixture(t);
