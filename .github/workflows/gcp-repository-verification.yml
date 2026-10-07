@@ -1,0 +1,71 @@
+name: GCP repository verification
+
+on:
+  workflow_call:
+    inputs:
+      job_key:
+        description: Stable semantic job key used only to derive a unique scheduling label.
+        required: true
+        type: string
+      job_name:
+        description: Human-readable verification job name.
+        required: false
+        default: Repository verification
+        type: string
+      timeout_minutes:
+        description: Maximum execution time for the repository verification job.
+        required: false
+        default: 5
+        type: number
+      python_version:
+        description: Python version to install before repository verification; empty skips setup-python.
+        required: false
+        default: ""
+        type: string
+      setup_uv:
+        description: Whether to install uv before executing the repository command.
+        required: false
+        default: false
+        type: boolean
+      command:
+        description: Repository-owned verification command executed from the caller checkout.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: ${{ inputs.job_name }}
+    runs-on: [self-hosted, "overcenter-gcp-${{ github.run_id }}-${{ inputs.job_key }}-${{ github.run_attempt }}"]
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    steps:
+      - name: Check out caller repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Bind verification identity
+        uses: $/.github/actions/bind-verification-identity
+
+      - name: Record GCP runner provenance
+        uses: $/.github/actions/record-gcp-runner-provenance
+
+      - name: Set up Python
+        if: ${{ inputs.python_version != '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Set up uv
+        if: ${{ inputs.setup_uv }}
+        uses: astral-sh/setup-uv@v6
+
+      - name: Execute repository-owned verification
+        shell: bash
+        env:
+          OVERCENTER_REPOSITORY_VERIFICATION_COMMAND: ${{ inputs.command }}
+        run: |
+          set -euo pipefail
+          bash -ceu "$OVERCENTER_REPOSITORY_VERIFICATION_COMMAND"
