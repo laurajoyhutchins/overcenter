@@ -24,4 +24,9 @@ runs:
   steps:
     - id: bind
       shell: bash
-      run: node --experimental-strip-types "$GITHUB_ACTION_PATH/bind-verification-identity.ts"
+      env:
+        OC_EVENT_NAME: ${{ github.event_name }}
+        OC_EVENT_SHA: ${{ github.sha }}
+        OC_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        OC_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: bash "$GITHUB_ACTION_PATH/bind-verification-identity.sh"
