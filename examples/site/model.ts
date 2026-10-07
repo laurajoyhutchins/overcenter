@@ -18,6 +18,7 @@ export interface Claim {
   statusScope?: string;
   statement: string;
   evidenceBoundary?: string;
+  repositoryRefs: string[];
 }
 
 export interface ProofObligation {
@@ -27,6 +28,7 @@ export interface ProofObligation {
   formal: string;
   liveProvider: string;
   boundary: string;
+  repositoryRefs: string[];
 }
 
 export type ExperimentOutcomeKind = 'supported' | 'mixed' | 'pending' | 'unknown' | 'other';
@@ -40,6 +42,7 @@ export interface Experiment {
   summary: string;
   evidenceStatus: string;
   evaluatedRevision?: string;
+  repositoryRefs: string[];
 }
 
 export interface ArchitectureEntity {
@@ -64,6 +67,8 @@ interface ExperimentRegistry {
     evidence?: {
       status?: string;
       evaluated_revision?: string;
+      artifacts?: string[];
+      pending_reason?: string;
     };
     outcome?: {
       state?: string;
@@ -125,6 +130,19 @@ function extractClaimStatement(lines: string[]): string {
     }
   }
   return 'See the canonical claim record for scope and evidence.';
+}
+
+function extractRepositoryRefs(...texts: string[]): string[] {
+  const refs = new Set<string>();
+  const pattern =
+    /(?:^|[^A-Za-z0-9._/-])((?:\.github|src|test|experiments|architecture|research|scripts|formal)\/[A-Za-z0-9._/#-]+)/g;
+  for (const text of texts) {
+    for (const match of text.matchAll(pattern)) {
+      const path = match[1]?.replace(/[.,;:)]+$/, '');
+      if (path) refs.add(path);
+    }
+  }
+  return [...refs].sort();
 }
 
 function extractLabeledParagraph(lines: string[], label: string): string | undefined {
@@ -211,6 +229,7 @@ function parseClaims(markdown: string): Claim[] {
       ...(classified.scope ? { statusScope: classified.scope } : {}),
       statement: extractClaimStatement(section),
       ...(evidenceBoundary ? { evidenceBoundary } : {}),
+      repositoryRefs: extractRepositoryRefs(section.join('\n')),
     });
     index = cursor - 1;
   }
@@ -252,6 +271,7 @@ function parseProofObligations(markdown: string): ProofObligation[] {
       formal: cells[3] ?? '',
       liveProvider: cells[4] ?? '',
       boundary: cells[5] ?? '',
+      repositoryRefs: extractRepositoryRefs(...cells),
     });
   }
 
@@ -304,6 +324,12 @@ function parseExperiments(registryJson: string): Experiment[] {
         ...(entry.evidence?.evaluated_revision
           ? { evaluatedRevision: entry.evidence.evaluated_revision }
           : {}),
+        repositoryRefs: extractRepositoryRefs(
+          entry.claim,
+          entry.outcome?.summary ?? '',
+          entry.evidence?.pending_reason ?? '',
+          ...(entry.evidence?.artifacts ?? []),
+        ),
       };
     })
     .sort((left, right) => left.id.localeCompare(right.id));

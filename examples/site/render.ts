@@ -33,6 +33,9 @@ export function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
+const SITE_ROOT = 'https://laurajoyhutchins.github.io/overcenter/';
+const REPOSITORY_ROOT = 'https://github.com/laurajoyhutchins/overcenter/blob/main/';
+
 const NAV = [
   ['index.html', 'Home'],
   ['how-it-works.html', 'How it works'],
@@ -49,19 +52,80 @@ function page(file: string, title: string, description: string, body: string): s
       ? `<a href="${href}" aria-current="page">${label}</a>`
       : `<a href="${href}">${label}</a>`,
   ).join('');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="${escapeHtml(description)}"><title>${escapeHtml(title)} · Overcenter</title><link rel="stylesheet" href="site.css"></head><body><header class="site-header"><a class="wordmark" href="index.html">Overcenter</a><nav aria-label="Primary">${nav}</nav></header><main>${body}</main><footer><p>Generated from repository authority and evidence records. This site is a projection, not project authority.</p></footer></body></html>`;
+  const canonical = file === 'index.html' ? SITE_ROOT : `${SITE_ROOT}${file}`;
+  const structuredData = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareSourceCode',
+    name: 'Overcenter',
+    description,
+    url: canonical,
+    codeRepository: 'https://github.com/laurajoyhutchins/overcenter',
+    license: 'https://www.apache.org/licenses/LICENSE-2.0',
+    programmingLanguage: 'TypeScript',
+  }).replaceAll('<', '\\u003c');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${canonical}"><meta property="og:site_name" content="Overcenter"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(title)} · Overcenter"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${canonical}"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="${escapeHtml(title)} · Overcenter"><meta name="twitter:description" content="${escapeHtml(description)}"><title>${escapeHtml(title)} · Overcenter</title><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="pagefind/pagefind-component-ui.css"><script src="pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">${structuredData}</script></head><body><pagefind-config base-url="/overcenter/"></pagefind-config><header class="site-header" data-pagefind-ignore><a class="wordmark" href="index.html">Overcenter</a><div class="site-nav-group"><nav aria-label="Primary">${nav}</nav><pagefind-modal-trigger class="site-search"></pagefind-modal-trigger></div><pagefind-modal></pagefind-modal></header><main data-pagefind-body>${body}</main><footer data-pagefind-ignore><p>Generated from repository authority and evidence records. This site is a projection, not project authority.</p></footer></body></html>`;
 }
 
 function pageIntro(title: string, lede: string, extra = ''): string {
   return `<section class="page-intro"><h1>${escapeHtml(title)}</h1><p class="lede">${escapeHtml(lede)}</p>${extra}</section>`;
 }
 
-function section(title: string, body: string): string {
-  return `<section class="section"><h2>${escapeHtml(title)}</h2>${body}</section>`;
+function section(title: string, body: string, id?: string): string {
+  const idAttribute = id ? ` id="${escapeHtml(id)}"` : '';
+  return `<section class="section"${idAttribute}><h2>${escapeHtml(title)}</h2>${body}</section>`;
 }
 
 function architectureAnchor(entity: ArchitectureEntity): string {
   return `${slug(entity.kind)}-${slug(entity.id)}`;
+}
+
+function proofAnchor(obligation: string): string {
+  return `proof-${slug(obligation)}`;
+}
+
+function repositorySourceUrl(path: string): string {
+  return `${REPOSITORY_ROOT}${path
+    .split('/')
+    .map((part) => encodeURIComponent(part))
+    .join('/')}`;
+}
+
+function sourceLinks(paths: string[]): string {
+  if (paths.length === 0) return '';
+  return `<ul class="source-links">${paths
+    .map(
+      (path) =>
+        `<li><a href="${repositorySourceUrl(path)}"><code>${escapeHtml(path)}</code></a></li>`,
+    )
+    .join('')}</ul>`;
+}
+
+function recordLinks(
+  model: SiteModel,
+): Map<string, Array<{ href: string; label: string; kind: string }>> {
+  const refs = new Map<string, Array<{ href: string; label: string; kind: string }>>();
+  const add = (path: string, href: string, label: string, kind: string) => {
+    const current = refs.get(path) ?? [];
+    if (!current.some((entry) => entry.href === href)) current.push({ href, label, kind });
+    refs.set(path, current);
+  };
+
+  for (const claim of model.claims) {
+    for (const path of claim.repositoryRefs) {
+      add(path, `claims.html#claim-${slug(claim.id)}`, `${claim.id} · ${claim.title}`, 'claim');
+    }
+  }
+  for (const proof of model.proofObligations) {
+    for (const path of proof.repositoryRefs) {
+      add(path, `evidence.html#${proofAnchor(proof.obligation)}`, proof.obligation, 'proof');
+    }
+  }
+  for (const experiment of model.experiments) {
+    for (const path of experiment.repositoryRefs) {
+      add(path, `experiments.html#experiment-${slug(experiment.id)}`, experiment.id, 'experiment');
+    }
+  }
+  return refs;
 }
 
 const CLAIM_STATUS_LABELS: Record<ClaimStatusKind, string> = {
@@ -101,7 +165,11 @@ function claimProvenance(claim: Claim): string {
   const verification = claim.evidenceBoundary
     ? `<p><span>Verification</span> ${escapeHtml(claim.evidenceBoundary)}</p>`
     : '';
-  return `<div class="claim-provenance"><p><span>Source</span> <code>research/claims.md · ${escapeHtml(claim.id)}</code></p>${verification}<p><span>Evidence</span> <a href="evidence.html">Proof obligation register</a></p></div>`;
+  const implementation =
+    claim.repositoryRefs.length > 0
+      ? `<div><span>Referenced source</span>${sourceLinks(claim.repositoryRefs)}</div>`
+      : '';
+  return `<div class="claim-provenance"><p><span>Source</span> <a href="${repositorySourceUrl('research/claims.md')}"><code>research/claims.md · ${escapeHtml(claim.id)}</code></a></p>${verification}<p><span>Evidence</span> <a href="evidence.html">Proof obligation register</a></p>${implementation}</div>`;
 }
 
 export function generateHome(model: SiteModel): string {
@@ -122,7 +190,7 @@ export function generateHome(model: SiteModel): string {
     'index.html',
     'Home',
     model.thesis,
-    `<section class="home-intro"><h1>Overcenter</h1><p class="lede">${escapeHtml(model.thesis)}</p><pre class="flow"><code>${escapeHtml(model.coreLoop)}</code></pre></section><section class="metrics">${metrics}</section>${section('About this site', '<p>These pages are generated from repository records. Claims, proof obligations, experiments, and architecture identifiers are not maintained separately here.</p><p><a href="claims.html">Browse claims</a></p>')}`,
+    `<section class="home-intro"><h1>Overcenter</h1><p class="lede">${escapeHtml(model.thesis)}</p><pre class="flow"><code>${escapeHtml(model.coreLoop)}</code></pre></section><section class="metrics">${metrics}</section>${section('Start here', '<ul class="route-list"><li><a href="how-it-works.html"><strong>Understand the model</strong><span>Authority, judgment, and deterministic execution boundaries.</span></a></li><li><a href="evidence.html"><strong>Inspect what is proved</strong><span>Implementation, adversarial, formal, and live-provider evidence.</span></a></li><li><a href="experiments.html"><strong>See the experiments</strong><span>Maintained questions, outcomes, revisions, and source artifacts.</span></a></li><li><a href="architecture.html"><strong>Browse the implementation model</strong><span>Relational architecture identifiers derived from SQL authority.</span></a></li></ul>')}${section('About this site', '<p>These pages are generated from repository records. Claims, proof obligations, experiments, and architecture identifiers are not maintained separately here.</p>')}`,
   );
 }
 
@@ -149,6 +217,7 @@ export function generateClaims(model: SiteModel): string {
               `<article class="card" id="claim-${slug(claim.id)}"><h3>${escapeHtml(`${claim.id}. ${claim.title}`)}</h3>${claimStatus(claim)}<p>${escapeHtml(claim.statement)}</p>${claimProvenance(claim)}</article>`,
           )
           .join('')}</div>`,
+        `family-${slug(family)}`,
       ),
     )
     .join('');
@@ -163,8 +232,8 @@ export function generateClaims(model: SiteModel): string {
 export function generateEvidence(model: SiteModel): string {
   const rows = model.proofObligations
     .map(
-      (row, index) =>
-        `<article class="evidence-row" id="evidence-${index + 1}"><h3>${escapeHtml(row.obligation)}</h3><dl><div><dt>Implementation</dt><dd>${escapeHtml(row.implementation)}</dd></div><div><dt>Local adversarial</dt><dd>${escapeHtml(row.localAdversarial)}</dd></div><div><dt>Formal</dt><dd>${escapeHtml(row.formal)}</dd></div><div><dt>Live provider</dt><dd>${escapeHtml(row.liveProvider)}</dd></div><div><dt>Current boundary</dt><dd>${escapeHtml(row.boundary)}</dd></div></dl></article>`,
+      (row) =>
+        `<article class="evidence-row" id="${proofAnchor(row.obligation)}"><h3>${escapeHtml(row.obligation)}</h3><dl><div><dt>Implementation</dt><dd>${escapeHtml(row.implementation)}</dd></div><div><dt>Local adversarial</dt><dd>${escapeHtml(row.localAdversarial)}</dd></div><div><dt>Formal</dt><dd>${escapeHtml(row.formal)}</dd></div><div><dt>Live provider</dt><dd>${escapeHtml(row.liveProvider)}</dd></div><div><dt>Current boundary</dt><dd>${escapeHtml(row.boundary)}</dd></div></dl>${row.repositoryRefs.length > 0 ? `<div class="evidence-sources"><strong>Referenced source</strong>${sourceLinks(row.repositoryRefs)}</div>` : ''}</article>`,
     )
     .join('');
   return page(
@@ -190,6 +259,7 @@ export function generateArchitecture(model: SiteModel): string {
               `<div class="chip" id="${architectureAnchor(entity)}">${escapeHtml(entity.id)}</div>`,
           )
           .join('')}</div>`,
+        `architecture-kind-${slug(kind)}`,
       ),
     )
     .join('');
@@ -205,7 +275,7 @@ export function generateExperiments(model: SiteModel): string {
   const cards = model.experiments
     .map(
       (experiment) =>
-        `<article class="card" id="experiment-${slug(experiment.id)}"><h3>${escapeHtml(experiment.id)}</h3>${experimentStatus(experiment)}<p><strong>Question.</strong> ${escapeHtml(experiment.question)}</p><p><strong>Claim.</strong> ${escapeHtml(experiment.claim)}</p><p><strong>Result.</strong> ${escapeHtml(experiment.summary)}</p><p class="meta">Evidence: ${escapeHtml(experiment.evidenceStatus)}${experiment.evaluatedRevision ? ` · revision <code>${escapeHtml(experiment.evaluatedRevision)}</code>` : ''}</p></article>`,
+        `<article class="card" id="experiment-${slug(experiment.id)}"><h3>${escapeHtml(experiment.id)}</h3>${experimentStatus(experiment)}<p><strong>Question.</strong> ${escapeHtml(experiment.question)}</p><p><strong>Claim.</strong> ${escapeHtml(experiment.claim)}</p><p><strong>Result.</strong> ${escapeHtml(experiment.summary)}</p><p class="meta">Evidence: ${escapeHtml(experiment.evidenceStatus)}${experiment.evaluatedRevision ? ` · revision <code>${escapeHtml(experiment.evaluatedRevision)}</code>` : ''}</p>${experiment.repositoryRefs.length > 0 ? `<div class="experiment-sources"><strong>Referenced source</strong>${sourceLinks(experiment.repositoryRefs)}</div>` : ''}</article>`,
     )
     .join('');
   return page(
@@ -217,6 +287,65 @@ export function generateExperiments(model: SiteModel): string {
 }
 
 export function generateIndex(model: SiteModel): string {
+  const familyCounts = new Map<string, number>();
+  const statusCounts = new Map<string, number>();
+  const architectureCounts = new Map<string, number>();
+  for (const claim of model.claims) {
+    familyCounts.set(claim.family, (familyCounts.get(claim.family) ?? 0) + 1);
+    const label =
+      claim.statusKind === 'other' ? claim.status : CLAIM_STATUS_LABELS[claim.statusKind];
+    statusCounts.set(label, (statusCounts.get(label) ?? 0) + 1);
+  }
+  for (const entity of model.architecture) {
+    architectureCounts.set(entity.kind, (architectureCounts.get(entity.kind) ?? 0) + 1);
+  }
+
+  const facets = `<div class="facet-grid"><div><h3>Claim families</h3><ul class="index-list">${[
+    ...familyCounts.entries(),
+  ]
+    .map(
+      ([family, count]) =>
+        `<li><a href="claims.html#family-${slug(family)}">${escapeHtml(family)}</a><span>${count}</span></li>`,
+    )
+    .join('')}</ul></div><div><h3>Claim states</h3><ul class="index-list">${[
+    ...statusCounts.entries(),
+  ]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([status, count]) => `<li><span>${escapeHtml(status)}</span><span>${count}</span></li>`)
+    .join('')}</ul></div><div><h3>Architecture kinds</h3><ul class="index-list">${[
+    ...architectureCounts.entries(),
+  ]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(
+      ([kind, count]) =>
+        `<li><a href="architecture.html#architecture-kind-${slug(kind)}">${escapeHtml(kind.replaceAll('_', ' '))}</a><span>${count}</span></li>`,
+    )
+    .join('')}</ul></div></div>`;
+
+  const proofObligations = model.proofObligations
+    .map(
+      (proof) =>
+        `<li><a href="evidence.html#${proofAnchor(proof.obligation)}">${escapeHtml(proof.obligation)}</a><span>proof obligation</span></li>`,
+    )
+    .join('');
+
+  const sharedSources = [...recordLinks(model).entries()]
+    .filter(([, references]) => references.length > 1)
+    .sort(([leftPath, leftRefs], [rightPath, rightRefs]) => {
+      const count = rightRefs.length - leftRefs.length;
+      return count !== 0 ? count : leftPath.localeCompare(rightPath);
+    })
+    .map(
+      ([path, references]) =>
+        `<article class="reference-entry"><h3><a href="${repositorySourceUrl(path)}"><code>${escapeHtml(path)}</code></a></h3><ul>${references
+          .map(
+            (reference) =>
+              `<li><a href="${reference.href}">${escapeHtml(reference.label)}</a><span>${escapeHtml(reference.kind)}</span></li>`,
+          )
+          .join('')}</ul></article>`,
+    )
+    .join('');
+
   const claims = model.claims
     .map(
       (claim) =>
@@ -238,8 +367,8 @@ export function generateIndex(model: SiteModel): string {
   return page(
     'index-of-terms.html',
     'Index',
-    'A faceted index over claims, experiments, and architecture vocabulary.',
-    `${pageIntro('Index', `${model.claims.length} claims, ${model.experiments.length} experiments, and ${model.architecture.length} architecture entities.`)}${section('Claims', `<ul class="index-list">${claims}</ul>`)}${section('Experiments', `<ul class="index-list">${experiments}</ul>`)}${section('Architecture', `<ul class="index-list">${architecture}</ul>`)}`,
+    'A faceted, relational index over claims, evidence, experiments, and architecture vocabulary.',
+    `${pageIntro('Index', `${model.claims.length} claims, ${model.proofObligations.length} proof obligations, ${model.experiments.length} experiments, and ${model.architecture.length} architecture entities.`)}${section('Facets', facets)}${sharedSources ? section('Shared source relationships', `<div class="reference-index">${sharedSources}</div>`) : ''}${section('Proof obligations', `<ul class="index-list">${proofObligations}</ul>`)}${section('Claims', `<ul class="index-list">${claims}</ul>`)}${section('Experiments', `<ul class="index-list">${experiments}</ul>`)}${section('Architecture', `<ul class="index-list">${architecture}</ul>`)}`,
   );
 }
 
