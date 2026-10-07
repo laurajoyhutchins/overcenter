@@ -15,6 +15,29 @@ test('site projection conserves source records and internal links', async () => 
       pages.set(file, await readFile(join(outDir, file), 'utf8'));
     }
 
+    const siteCss = await readFile(join(outDir, 'site.css'), 'utf8');
+    for (const token of [
+      '--ink: #111827',
+      '--cream: #F8F6ED',
+      '--midnight: #041019',
+      '--phthalo-blue: #063B5D',
+      '--phthalo-green: #0B6B5D',
+      '--teal: #0E8F84',
+      '--cyan: #35E2D2',
+      '--mint: #B9F5DB',
+      '--blush: #FF8FC8',
+      '--periwinkle: #9ED4FF',
+      '--violet: #9287FF',
+      '--lemon: #FFF250',
+      'Georgia',
+      'Verdana',
+      'Trebuchet MS',
+      'Courier New',
+    ]) {
+      assert.ok(siteCss.includes(token), `Phthalo site contract missing: ${token}`);
+    }
+    assert.ok(siteCss.includes('background: var(--midnight)'));
+
     const claims = pages.get('claims.html') ?? '';
     const experiments = pages.get('experiments.html') ?? '';
     const architecture = pages.get('architecture.html') ?? '';
@@ -23,6 +46,11 @@ test('site projection conserves source records and internal links', async () => 
     for (const claim of model.claims) {
       const anchor = `claim-${slug(claim.id)}`;
       assert.match(claims, new RegExp(`id="${anchor}"`), `claim vanished: ${claim.id}`);
+      assert.match(
+        claims,
+        new RegExp(`class="status status-${slug(claim.status)}"`),
+        `claim status lost semantic class: ${claim.id}`,
+      );
       assert.match(
         index,
         new RegExp(`claims\\.html#${anchor}`),
@@ -36,6 +64,11 @@ test('site projection conserves source records and internal links', async () => 
         experiments,
         new RegExp(`id="${anchor}"`),
         `experiment vanished: ${experiment.id}`,
+      );
+      assert.match(
+        experiments,
+        new RegExp(`class="status status-${slug(experiment.outcome)}"`),
+        `experiment status lost semantic class: ${experiment.id}`,
       );
       assert.match(
         index,
