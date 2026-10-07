@@ -58,6 +58,21 @@ test('site projection conserves source records and internal links', async () => 
       );
     }
 
+    const rendered = [...pages.values()].join('\n');
+    for (const phrase of [
+      'Executable research prototype',
+      'Say exactly what is established.',
+      'Green means something specific.',
+      'Vocabulary becomes a navigable surface.',
+      'Failures teach architecture too.',
+      'One corpus, many ways in.',
+      'Resolution frontier',
+    ]) {
+      assert.equal(rendered.includes(phrase), false, `stock site copy returned: ${phrase}`);
+    }
+    assert.equal(rendered.includes('class="eyebrow"'), false);
+    assert.equal(rendered.includes('class="triptych"'), false);
+
     const anchorsByPage = new Map<string, Set<string>>();
     for (const [file, html] of pages) {
       anchorsByPage.set(

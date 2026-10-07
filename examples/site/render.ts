@@ -41,8 +41,8 @@ function page(title: string, description: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="${escapeHtml(description)}"><title>${escapeHtml(title)} · Overcenter</title><link rel="stylesheet" href="site.css"></head><body><header class="site-header"><a class="wordmark" href="index.html">Overcenter</a><nav aria-label="Primary">${nav}</nav></header><main>${body}</main><footer><p>Generated from repository authority and evidence records. This site is a projection, not project authority.</p></footer></body></html>`;
 }
 
-function hero(eyebrow: string, title: string, lede: string, extra = ''): string {
-  return `<section class="hero compact"><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p class="lede">${escapeHtml(lede)}</p>${extra}</section>`;
+function pageIntro(title: string, lede: string, extra = ''): string {
+  return `<section class="page-intro"><h1>${escapeHtml(title)}</h1><p class="lede">${escapeHtml(lede)}</p>${extra}</section>`;
 }
 
 function section(title: string, body: string): string {
@@ -70,7 +70,7 @@ export function generateHome(model: SiteModel): string {
   return page(
     'Home',
     model.thesis,
-    `<section class="hero"><p class="eyebrow">Executable research prototype</p><h1>${escapeHtml(model.thesis)}</h1><p class="lede">Reasoning agents make judgments. Deterministic software owns execution correctness.</p><pre class="flow"><code>${escapeHtml(model.coreLoop)}</code></pre></section><section class="metrics">${metrics}</section>${section('Follow a claim to its evidence', '<p>The site is generated from the same claim taxonomy, proof map, experiment registry, and relational architecture model that live in the repository.</p><p><a class="cta" href="claims.html">Browse claims →</a></p>')}`,
+    `<section class="home-intro"><h1>Overcenter</h1><p class="lede">${escapeHtml(model.thesis)}</p><pre class="flow"><code>${escapeHtml(model.coreLoop)}</code></pre></section><section class="metrics">${metrics}</section>${section('About this site', '<p>These pages are generated from repository records. Claims, proof obligations, experiments, and architecture identifiers are not maintained separately here.</p><p><a href="claims.html">Browse claims</a></p>')}`,
   );
 }
 
@@ -78,7 +78,7 @@ export function generateHowItWorks(model: SiteModel): string {
   return page(
     'How it works',
     'The authority loop and the boundary between judgment and execution correctness.',
-    `${hero('Authority loop', 'Workers propose. Authority decides.', 'Known correctness rules stay deterministic; unresolved judgment moves outward.', `<pre class="flow"><code>${escapeHtml(model.coreLoop)}</code></pre>`)}${section('Resolution frontier', '<div class="triptych"><div><strong>1</strong><h3>Deterministic software</h3><p>Known reconciliation, evidence, retry, and recovery.</p></div><div><strong>2</strong><h3>Reasoning agent</h3><p>Investigates what remains uncertain.</p></div><div><strong>3</strong><h3>Human operator</h3><p>Receives the irreducible residue.</p></div></div>')}${section('Projection boundary', '<p>Delete every generated page and the kernel behaves identically. The site cannot claim work, authorize effects, settle evidence, or advance project truth.</p>')}`,
+    `${pageIntro('How Overcenter works', 'The kernel keeps known execution rules deterministic and leaves unresolved judgment to an agent or operator.', `<pre class="flow"><code>${escapeHtml(model.coreLoop)}</code></pre>`)}${section('Responsibility boundaries', '<dl class="responsibility-list"><div><dt>Deterministic software</dt><dd>Reconciliation, evidence checks, retry, and recovery when the rules are known.</dd></div><div><dt>Reasoning agent</dt><dd>Investigates cases that are not yet reducible to deterministic rules.</dd></div><div><dt>Human operator</dt><dd>Handles decisions that remain outside the automated boundary.</dd></div></dl>')}${section('Generated-site boundary', '<p>The generated site is read-only. Removing it does not change admission, execution, evidence, recovery, or settlement behavior.</p>')}`,
   );
 }
 
@@ -102,7 +102,7 @@ export function generateClaims(model: SiteModel): string {
   return page(
     'Claims',
     'Overcenter claims, status, and scope.',
-    `${hero('Claim taxonomy', 'Say exactly what is established.', 'Safety, liveness, provenance, and reuse remain separate promises.')}${body}`,
+    `${pageIntro('Claims', 'Registered claims and their current status. Safety, liveness, provenance, and reuse are tracked separately.')}${body}`,
   );
 }
 
@@ -116,7 +116,7 @@ export function generateEvidence(model: SiteModel): string {
   return page(
     'Evidence',
     'The layer-by-layer witness map behind Overcenter claims.',
-    `${hero('Witness map', 'Green means something specific.', 'Implementation, adversarial, formal, and live-provider evidence remain distinct.')}${section('Proof obligations', `<div class="evidence-list">${rows}</div>`)}`,
+    `${pageIntro('Evidence', 'Implementation, adversarial, formal, and live-provider evidence are reported separately.')}${section('Proof obligations', `<div class="evidence-list">${rows}</div>`)}`,
   );
 }
 
@@ -141,7 +141,7 @@ export function generateArchitecture(model: SiteModel): string {
   return page(
     'Architecture',
     'A generated projection of Overcenter relational architecture entities.',
-    `${hero('Relational architecture', 'Vocabulary becomes a navigable surface.', 'Identifiers come directly from logic.sql and physics.sql; the site keeps no shadow catalog.')}${body}`,
+    `${pageIntro('Architecture', 'Identifiers are extracted directly from logic.sql and physics.sql. The site does not maintain a separate catalog.')}${body}`,
   );
 }
 
@@ -155,7 +155,7 @@ export function generateExperiments(model: SiteModel): string {
   return page(
     'Experiments',
     'Maintained Overcenter experiments and bounded outcomes.',
-    `${hero('Maintained experiments', 'Failures teach architecture too.', 'The registry explains evidence; it does not decide project truth.')}${section('Experiment corpus', `<div class="grid">${cards}</div>`)}`,
+    `${pageIntro('Experiments', 'Maintained experiments, their questions, outcomes, and evidence status.')}${section('Experiment registry', `<div class="grid">${cards}</div>`)}`,
   );
 }
 
@@ -181,7 +181,7 @@ export function generateIndex(model: SiteModel): string {
   return page(
     'Index',
     'A faceted index over claims, experiments, and architecture vocabulary.',
-    `${hero('Faceted index', 'One corpus, many ways in.', `${model.claims.length} claims · ${model.experiments.length} experiments · ${model.architecture.length} architecture entities`)}${section('Claims', `<ul class="index-list">${claims}</ul>`)}${section('Experiments', `<ul class="index-list">${experiments}</ul>`)}${section('Architecture', `<ul class="index-list">${architecture}</ul>`)}`,
+    `${pageIntro('Index', `${model.claims.length} claims, ${model.experiments.length} experiments, and ${model.architecture.length} architecture entities.`)}${section('Claims', `<ul class="index-list">${claims}</ul>`)}${section('Experiments', `<ul class="index-list">${experiments}</ul>`)}${section('Architecture', `<ul class="index-list">${architecture}</ul>`)}`,
   );
 }
 
