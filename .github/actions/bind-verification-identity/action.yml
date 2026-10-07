@@ -1,0 +1,27 @@
+name: Bind verification identity
+description: Bind a checked-out GitHub verification tree to its exact event, candidate, and base identities.
+outputs:
+  verification-event:
+    description: GitHub event that owns this verification.
+    value: ${{ steps.bind.outputs.verification_event }}
+  candidate-sha:
+    description: Exact candidate revision represented by the verification.
+    value: ${{ steps.bind.outputs.candidate_sha }}
+  candidate-tree:
+    description: Git tree for the exact candidate revision.
+    value: ${{ steps.bind.outputs.candidate_tree }}
+  base-sha:
+    description: Exact pull-request base revision, empty for non-PR events.
+    value: ${{ steps.bind.outputs.base_sha }}
+  tested-sha:
+    description: Exact checked-out revision that was executed.
+    value: ${{ steps.bind.outputs.tested_sha }}
+  tested-tree:
+    description: Git tree for the exact checked-out revision that was executed.
+    value: ${{ steps.bind.outputs.tested_tree }}
+runs:
+  using: composite
+  steps:
+    - id: bind
+      shell: bash
+      run: node --experimental-strip-types "$GITHUB_ACTION_PATH/bind-verification-identity.ts"
