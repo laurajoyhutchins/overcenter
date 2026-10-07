@@ -13,6 +13,7 @@ import type { DurableFactStore } from './store.ts';
 import {
   observePostcondition,
   observePostconditionAsync,
+  validatePostcondition,
   type ObservationContext,
 } from '../observation/observe.ts';
 import {
@@ -63,6 +64,8 @@ import {
 } from './transaction-admission.ts';
 import {
   effectAdapterCapabilities,
+  effectPostconditionBindingSafe,
+  GITHUB_SOURCE_INTEGRATION_EFFECT,
   reservedEffectReleaseWitnessSafe,
   type EffectVerifier,
   type RegisteredEffectContract,
@@ -196,6 +199,7 @@ export class KernelCore {
   authorizeEffect<E extends RegisteredEffectContract | undefined = undefined>(
     permit: ExecutionPermit,
     effectContract?: E,
+    boundPostcondition?: Postcondition,
   ): E extends RegisteredEffectContract
     ? EffectAuthority<E, EffectVerifier<Extract<E, RegisteredEffectContract>>>
     : EffectAuthority<string, Postcondition['verifier']> {
@@ -213,9 +217,24 @@ export class KernelCore {
       (typeof work.packet.effect_contract === 'string'
         ? work.packet.effect_contract
         : 'overcenter/execution-effect');
+    const postcondition = boundPostcondition ?? work.postcondition;
+    if (boundPostcondition !== undefined) {
+      validatePostcondition(postcondition);
+      if (!effectPostconditionBindingSafe(work, authorityContract, postcondition)) {
+        throw new Error('EFFECT_POSTCONDITION_BINDING_UNAUTHORIZED');
+      }
+      if (
+        authorityContract === GITHUB_SOURCE_INTEGRATION_EFFECT &&
+        postcondition.verifier === 'source-integration/v1' &&
+        (postcondition.expected_base_sha !== permit.source_revision ||
+          postcondition.ref !== `refs/heads/overcenter/candidate/${permit.id}`)
+      ) {
+        throw new Error('SOURCE_PUBLICATION_BINDING_MISMATCH');
+      }
+    }
     const authority = Object.freeze({
       [effectAuthorityBrand]: authorityContract,
-      postcondition: Object.freeze(work.postcondition),
+      postcondition: Object.freeze(structuredClone(postcondition)),
     }) as E extends RegisteredEffectContract
       ? EffectAuthority<E, EffectVerifier<Extract<E, RegisteredEffectContract>>>
       : EffectAuthority<string, Postcondition['verifier']>;
@@ -255,7 +274,12 @@ export class KernelCore {
       throw new Error('CURRENT_REALIZATION_REFRESH_UNRESOLVED_EFFECT');
     }
 
-    const observed = this.#observe(run.obligation.postcondition);
+    const reservation = history.reservationsByRun?.get(run.id);
+    const refreshWork =
+      reservation?.postcondition === undefined
+        ? run.obligation
+        : { ...run.obligation, postcondition: structuredClone(reservation.postcondition) };
+    const observed = this.#observe(refreshWork.postcondition);
     const fact = this.#receiptFact(
       run,
       run.obligation_id,
@@ -263,7 +287,7 @@ export class KernelCore {
       observed,
       currentRealizationRefreshDiagnostic(prior.settlement_commit),
     );
-    projectReceipt(fact, run.obligation, undefined, false);
+    projectReceipt(fact, refreshWork, undefined, false);
     const commit = this.#store.append(
       head,
       `overcenter: refresh realization ${run.obligation_id} ${run.id}`,
@@ -391,6 +415,13 @@ export class KernelCore {
   }
 
   beginEffect(permit: ExecutionPermit): string {
+    return this.#reserveEffect(permit);
+  }
+
+  #reserveEffect(
+    permit: ExecutionPermit,
+    binding?: { effect_contract: string; postcondition: Postcondition },
+  ): string {
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();
       const { history, project } = this.#historicalProjection(head);
@@ -422,6 +453,12 @@ export class KernelCore {
         obligation_id: run.obligation_id,
         execution_generation: run.execution_generation,
         execution_authority_commit: run.execution_authority_commit,
+        ...(binding === undefined
+          ? {}
+          : {
+              effect_contract: binding.effect_contract,
+              postcondition: structuredClone(binding.postcondition),
+            }),
       };
       const commit = this.#store.append(
         head,
@@ -438,7 +475,10 @@ export class KernelCore {
     effect: (attempt: EffectAttemptBinding) => Promise<T> | T,
   ): Promise<T> {
     const permit = effectAuthorityPermit(authority);
-    const reservationCommit = this.beginEffect(permit);
+    const reservationCommit = this.#reserveEffect(permit, {
+      effect_contract: authority[effectAuthorityBrand],
+      postcondition: authority.postcondition,
+    });
     const attempt: EffectAttemptBinding = Object.freeze({
       run_id: permit.id,
       obligation_id: permit.obligation_id,
@@ -455,7 +495,10 @@ export class KernelCore {
     effect: (attempt: EffectAttemptBinding) => T,
   ): T {
     const permit = effectAuthorityPermit(authority);
-    const reservationCommit = this.beginEffect(permit);
+    const reservationCommit = this.#reserveEffect(permit, {
+      effect_contract: authority[effectAuthorityBrand],
+      postcondition: authority.postcondition,
+    });
     const attempt: EffectAttemptBinding = Object.freeze({
       run_id: permit.id,
       obligation_id: permit.obligation_id,
@@ -720,7 +763,11 @@ export class KernelCore {
       return { receipt: prior };
     }
     if (!state.obligations[known.obligation_id]) throw new Error('UNKNOWN_OBLIGATION');
-    const work = known.obligation;
+    const reservation = history.unresolvedReservationsByRun.get(runId);
+    const work =
+      reservation?.postcondition === undefined
+        ? known.obligation
+        : { ...known.obligation, postcondition: structuredClone(reservation.postcondition) };
     const run = this.#requireExecutionPermit(history, permit);
     const lifecycle = project.lifecycles.get(run.obligation_id);
     if (lifecycle?.run?.id !== runId) {
