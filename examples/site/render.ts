@@ -301,7 +301,7 @@ function searchRecord(
   title: string,
   href: string,
   detail: string,
-  searchable: string[],
+  searchable: Array<string | undefined>,
 ): string {
   return `<article class="search-record" data-search-record data-search-text="${escapeHtml(
     searchText([kind, title, detail, ...searchable]),
