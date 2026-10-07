@@ -37,6 +37,7 @@ if (process.env.OVERCENTER_DISPATCH_SOURCE_VALIDATION === '1') {
     context.repository_full_name,
     result.publication,
     context.runtime_sha,
+    transactionPlan.verification_profile.profile.workflow_path,
   );
 }
 
