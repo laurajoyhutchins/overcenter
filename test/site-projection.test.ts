@@ -116,7 +116,6 @@ test('site projection conserves source records and internal links', async () => 
       );
     }
 
-
     const demonstrated = model.claims.filter((claim) => claim.statusKind === 'demonstrated').length;
     const demonstratedFromAuthority = model.claims.filter(
       (claim) => claim.status === 'Demonstrated' || claim.status.startsWith('Demonstrated '),
