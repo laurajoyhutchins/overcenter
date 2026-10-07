@@ -1,6 +1,6 @@
 import type { KernelCore } from '../../authority/engine.ts';
 import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../../effect-adapter.ts';
-import type { ExecutionPermit } from '../../model.ts';
+import type { ExecutionPermit, SourceIntegrationPostcondition } from '../../model.ts';
 import { GITHUB_API_VERSION } from './contract.ts';
 import { canonicalGitHubRef, observeCertifiedGitHubRefFence } from './certified-ref.ts';
 import { githubGetAsync, runGitHubReadObserverAsync, type GitHubJsonGetAsync } from './rest.ts';
@@ -39,15 +39,21 @@ export async function performGitHubPullRequestPublicationEffect(
     get = githubGetAsync,
     post = githubPost,
     clock = () => new Date().toISOString(),
+    postcondition,
   }: {
     token: string;
     get?: GitHubJsonGetAsync;
     post?: GitHubPullRequestPost;
     clock?: () => string;
+    postcondition?: SourceIntegrationPostcondition;
   },
 ): Promise<void> {
   if (!token) throw new Error('GITHUB_TOKEN_UNAVAILABLE');
-  const authority = kernel.authorizeEffect(permit, GITHUB_SOURCE_INTEGRATION_EFFECT);
+  const authority = kernel.authorizeEffect(
+    permit,
+    GITHUB_SOURCE_INTEGRATION_EFFECT,
+    postcondition,
+  );
   const p = authority.postcondition;
   if (
     p.provider !== 'github' ||
