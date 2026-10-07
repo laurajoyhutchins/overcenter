@@ -154,7 +154,7 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
         workflow_path: '.github/workflows/agent-candidate-signal.yml',
         required_evidence_jobs: ['Verify source candidate / Candidate evidence'],
         record_job: 'Record source verification',
-        commands: ['npm run lint', 'npm run typecheck', 'npm run test:unit'],
+        commands: ['python tools/check.py'],
         protected_paths: ['.github', '.overcenter', 'baseline.txt'],
         baseline_test_roots: ['test'],
       },
@@ -220,6 +220,12 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
   assert.deepEqual(first.observed_write_set, ['test/new.test.ts', 'value.ts']);
   assert.equal(first.verification_profile.profile.id, 'fixture');
   assert.match(first.verification_profile.sha256, /^[0-9a-f]{64}$/);
+  const candidateFrontier = first.assurance.evidence_frontiers.find(
+    (frontier) => frontier.revision === candidate,
+  );
+  assert.ok(candidateFrontier);
+  assert.deepEqual(candidateFrontier.candidates[0]?.package_scripts, ['verify:repository']);
+  assert.equal(candidateFrontier.candidates[0]?.uses_package_runtime, false);
   validateSourceTransactionTask(first, task);
   assert.throws(
     () =>
