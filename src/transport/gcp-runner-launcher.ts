@@ -119,8 +119,12 @@ export function matchRepositoryBinding(
   request: RunnerLaunchRequest,
   expectedRunnerLabel?: string,
 ): RepositoryBinding {
-  if (expectedRunnerLabel !== undefined && request.runner_label !== expectedRunnerLabel) {
-    throw new Error('runner launch label mismatch');
+  if (expectedRunnerLabel !== undefined) {
+    const actual = request.runner_label.toLowerCase();
+    const expected = expectedRunnerLabel.toLowerCase();
+    if (actual !== expected && !actual.startsWith(expected + '-')) {
+      throw new Error('runner launch label mismatch');
+    }
   }
   const binding = repositories.find(
     (candidate) => candidate.full_name.toLowerCase() === request.repository.toLowerCase(),
