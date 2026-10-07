@@ -128,9 +128,13 @@ export function runSourceWorktreeAdapter(
 
   const root = mkdtempSync(join(tmpdir(), 'overcenter-source-worker-'));
   try {
-    execFileSync('git', ['-C', repo, 'worktree', 'add', '--detach', root, assignment.claim.source_sha], {
-      stdio: 'ignore',
-    });
+    execFileSync(
+      'git',
+      ['-C', repo, 'worktree', 'add', '--detach', root, assignment.claim.source_sha],
+      {
+        stdio: 'ignore',
+      },
+    );
     if (git(root, ['rev-parse', 'HEAD']) !== assignment.claim.source_sha) {
       throw new Error('SOURCE_WORKTREE_BASE_MISMATCH');
     }
