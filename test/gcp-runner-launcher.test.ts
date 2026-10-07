@@ -132,11 +132,17 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   assert.deepEqual(build.options, { logging: 'CLOUD_LOGGING_ONLY' });
 
   const steps = build.steps as Array<Record<string, unknown>>;
-  assert.equal(steps.length, 2);
-  assert.equal(steps[0]?.id, 'authorize-job');
-  assert.equal(steps[1]?.id, 'github-runner');
+  assert.equal(steps.length, 3);
+  assert.equal(steps[0]?.id, 'prefetch-runner-image');
+  assert.deepEqual(steps[0]?.waitFor, ['-']);
+  assert.deepEqual(steps[0]?.args, ['pull', environment.runnerImage]);
+  assert.equal(steps[1]?.id, 'authorize-job');
+  assert.equal(steps[1]?.name, 'node:22.16.0-bookworm-slim');
+  assert.deepEqual(steps[1]?.waitFor, ['-']);
+  assert.equal(steps[2]?.id, 'github-runner');
+  assert.deepEqual(steps[2]?.waitFor, ['authorize-job', 'prefetch-runner-image']);
 
-  const args = steps[1]?.args as string[];
+  const args = steps[2]?.args as string[];
   const script = args[1] ?? '';
   assert.match(script, /docker run --rm --network bridge --dns 8\.8\.8\.8 --dns 8\.8\.4\.4/);
   assert.match(script, /RUNNER_LABEL=overcenter-gcp-123456-check/);
@@ -147,11 +153,12 @@ test('launcher creates a secret-backed isolated one-job Cloud Build', () => {
   assert.doesNotMatch(script, /registration-token/);
   assert.match(script, /@sha256:a{64}/);
 
-  const authorization = JSON.stringify(steps[0]);
+  const authorization = JSON.stringify(steps[1]);
   assert.match(authorization, /generate-jitconfig/);
   assert.match(authorization, /encoded_jit_config/);
   assert.match(authorization, /RUNNER_NAME=overcenter-gcp-111891233183-\$BUILD_ID/);
   assert.match(authorization, /RUNNER_LABEL=overcenter-gcp-123456-check/);
+  assert.match(authorization, /const \[identity, job\] = await Promise\.all/);
   assert.doesNotMatch(authorization, /registration-token/);
 
   const secrets = build.availableSecrets as {
