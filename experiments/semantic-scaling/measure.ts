@@ -50,10 +50,18 @@ interface SymbolDeclaration {
   end_line: number;
 }
 
+interface SemanticSpanReport {
+  path: string;
+  start_offset: number;
+  end_offset: number;
+  semantic_loc: number;
+}
+
 interface HybridScopeReport {
   hybrid_closure_semantic_loc: number;
   hybrid_closure_sha256: string;
   hybrid_closure_files: string[];
+  hybrid_closure_semantic_spans?: SemanticSpanReport[];
   module_closure_files?: string[];
   symbol_closure_declarations?: SymbolDeclaration[];
   hybrid_closure_semantic_line_ranges?: Array<{
@@ -315,7 +323,46 @@ export function trustedUnitsForScope(
   const trusted = new Set<string>();
   const reconstructedFiles = new Set<string>();
 
-  if (scope.hybrid_closure_semantic_line_ranges !== undefined) {
+  if (scope.hybrid_closure_semantic_spans !== undefined) {
+    const byPath = new Map<string, SemanticSpanReport[]>();
+    for (const span of scope.hybrid_closure_semantic_spans) {
+      requireString(span.path, 'hybrid_closure_semantic_spans.path');
+      if (
+        !Number.isSafeInteger(span.start_offset) ||
+        !Number.isSafeInteger(span.end_offset) ||
+        !Number.isSafeInteger(span.semantic_loc) ||
+        span.start_offset < 0 ||
+        span.end_offset <= span.start_offset ||
+        span.semantic_loc < 0
+      ) {
+        throw new Error(`SEMANTIC_SCALING_TCB_SPAN_INVALID:${span.path}`);
+      }
+      if (span.end_offset > readSource(span.path).length) {
+        throw new Error(`SEMANTIC_SCALING_TCB_SPAN_OUT_OF_BOUNDS:${span.path}`);
+      }
+      reconstructedFiles.add(span.path);
+      const selected = byPath.get(span.path) ?? [];
+      selected.push(span);
+      byPath.set(span.path, selected);
+    }
+
+    for (const [path, spans] of byPath) {
+      const ordered = [...spans].sort(
+        (left, right) =>
+          left.start_offset - right.start_offset || left.end_offset - right.end_offset,
+      );
+      let previousEnd = -1;
+      for (const span of ordered) {
+        if (span.start_offset < previousEnd) {
+          throw new Error(`SEMANTIC_SCALING_TCB_SPAN_OVERLAP:${path}`);
+        }
+        for (let unit = 0; unit < span.semantic_loc; unit += 1) {
+          trusted.add(`${path}:${span.start_offset}-${span.end_offset}/${unit}`);
+        }
+        previousEnd = span.end_offset;
+      }
+    }
+  } else if (scope.hybrid_closure_semantic_line_ranges !== undefined) {
     for (const entry of scope.hybrid_closure_semantic_line_ranges) {
       requireString(entry.path, 'hybrid_closure_semantic_line_ranges.path');
       if (reconstructedFiles.has(entry.path)) {
