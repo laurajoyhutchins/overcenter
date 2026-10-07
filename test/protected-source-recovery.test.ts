@@ -176,3 +176,26 @@ test('rejects a candidate that is not the direct child of the accepted base', (t
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /PROTECTED_SOURCE_RECOVERY_DIRECT_CHILD_REQUIRED/);
 });
+
+
+test('owner comment ingress preserves owner identity and reuses the accepted recovery workflow', () => {
+  const commandWorkflow = readFileSync(
+    '.github/workflows/protected-source-recovery-command.yml',
+    'utf8',
+  );
+  const recoveryWorkflow = readFileSync('.github/workflows/protected-source-recovery.yml', 'utf8');
+
+  assert.match(commandWorkflow, /github\.event\.issue\.number == 693/);
+  assert.match(commandWorkflow, /github\.actor == github\.repository_owner/);
+  assert.match(commandWorkflow, /\/overcenter protected-recovery /);
+  assert.match(commandWorkflow, /uses: \.\/\.github\/workflows\/protected-source-recovery\.yml/);
+  assert.match(commandWorkflow, /writable_paths_json: \$\{\{ needs\.parse\.outputs\.writable_paths_json \}\}/);
+
+  assert.match(recoveryWorkflow, /workflow_call:/);
+  assert.match(recoveryWorkflow, /test "\$GITHUB_ACTOR" = "\$GITHUB_REPOSITORY_OWNER"/);
+  assert.match(recoveryWorkflow, /test "\$BASE_SHA" = "\$GITHUB_SHA"/);
+  assert.match(
+    recoveryWorkflow,
+    /trusted-runtime\/scripts\/verify-protected-source-recovery\.ts/,
+  );
+});
