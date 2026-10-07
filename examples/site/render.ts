@@ -290,7 +290,10 @@ export function generateExperiments(model: SiteModel): string {
 }
 
 function searchText(values: Array<string | undefined>): string {
-  return values.filter((value): value is string => Boolean(value)).join(' ').toLowerCase();
+  return values
+    .filter((value): value is string => Boolean(value))
+    .join(' ')
+    .toLowerCase();
 }
 
 function searchRecord(
@@ -364,7 +367,11 @@ export function generateSearch(model: SiteModel): string {
     ),
   );
   const records = [...claims, ...proofs, ...experiments, ...architecture].join('');
-  const total = model.claims.length + model.proofObligations.length + model.experiments.length + model.architecture.length;
+  const total =
+    model.claims.length +
+    model.proofObligations.length +
+    model.experiments.length +
+    model.architecture.length;
   const script = `<script type="module">
 const input = document.querySelector('#site-record-search');
 const count = document.querySelector('#site-search-count');
