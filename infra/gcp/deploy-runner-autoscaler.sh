@@ -356,14 +356,25 @@ if [[ ! "$existing_autoscaler_url" =~ ^https:// ]]; then
     --quiet
 fi
 
-echo "Allowing GitHub Hookshot to reach the HMAC-verified autoscaler webhook"
-gcloud run services add-iam-policy-binding "$AUTOSCALER_SERVICE" \
+echo "Verifying bootstrapped GitHub webhook ingress"
+autoscaler_policy="${RUNNER_TEMP:-/tmp}/overcenter-gcp-runner-autoscaler-policy.json"
+gcloud run services get-iam-policy "$AUTOSCALER_SERVICE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
-  --member=allUsers \
-  --role=roles/run.invoker \
-  --condition=None \
-  --quiet >/dev/null
+  --format=json > "$autoscaler_policy"
+python3 - "$autoscaler_policy" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    body = json.load(handle)
+if not any(
+    binding.get("role") == "roles/run.invoker"
+    and "allUsers" in (binding.get("members") or [])
+    for binding in body.get("bindings") or []
+):
+    raise SystemExit("autoscaler public webhook invoker bootstrap is missing")
+PY
 
 launcher_status="$(
   curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${launcher_url}/health"
