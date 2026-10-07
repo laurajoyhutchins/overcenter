@@ -63,9 +63,9 @@ test('launcher rejects stale workflow-dispatch-shaped requests', () => {
 
 test('JIT registration preserves every requested job label so specific jobs can be scheduled', async () => {
   const build = createRunnerBuild(environment, request);
-  const step = (
-    build.steps as Array<{ id?: string; args: string[]; env?: string[] }>
-  ).find((candidate) => candidate.id === 'authorize-job');
+  const step = (build.steps as Array<{ id?: string; args: string[]; env?: string[] }>).find(
+    (candidate) => candidate.id === 'authorize-job',
+  );
   assert.ok(step);
   assert.ok(step.env);
   const env = Object.fromEntries(
