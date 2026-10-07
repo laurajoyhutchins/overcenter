@@ -5,9 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 
-const BINDER = resolve(
-  '.github/actions/bind-verification-identity/bind-verification-identity.sh',
-);
+const BINDER = resolve('.github/actions/bind-verification-identity/bind-verification-identity.sh');
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
@@ -37,10 +35,7 @@ function fixture(): { cwd: string; base: string; head: string; merge: string } {
   return { cwd, base, head, merge };
 }
 
-function runBinder(
-  cwd: string,
-  env: Record<string, string>,
-): ReturnType<typeof spawnSync> {
+function runBinder(cwd: string, env: Record<string, string>) {
   return spawnSync('bash', [BINDER], {
     cwd,
     env: { ...process.env, ...env },
