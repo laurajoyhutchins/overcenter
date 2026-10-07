@@ -152,7 +152,7 @@ gcloud run deploy "$LAUNCHER_SERVICE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
   --service-account="$LAUNCHER_SA" \
-  --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=${REGION},GCP_RUNNER_SERVICE_ACCOUNT=${RUNTIME_SA},OVERCENTER_RUNNER_IMAGE=${RUNNER_IMAGE_IMMUTABLE},OVERCENTER_RUNNER_CONFIG_PATH=config/gcp-runner-autoscaler.json,OVERCENTER_SOURCE_REVISION=${EXACT_REVISION}" \
+  --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=${REGION},GCP_RUNNER_SERVICE_ACCOUNT=${RUNTIME_SA},OVERCENTER_RUNNER_IMAGE=${RUNNER_IMAGE_IMMUTABLE},OVERCENTER_RUNNER_CONFIG_PATH=config/gcp-runner-autoscaler.json,OVERCENTER_GCE_RUNNER_TOPIC=overcenter-gce-runners,OVERCENTER_GCE_RUNNER_LABEL_PREFIX=overcenter-gcp-warm,OVERCENTER_SOURCE_REVISION=${EXACT_REVISION}" \
   --command=node \
   --args="--experimental-strip-types,src/transport/gcp-runner-launcher.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
@@ -200,6 +200,8 @@ env = {
 expected = {
     "GCP_RUNNER_SERVICE_ACCOUNT": runner_sa,
     "OVERCENTER_RUNNER_IMAGE": runner_image,
+    "OVERCENTER_GCE_RUNNER_TOPIC": "overcenter-gce-runners",
+    "OVERCENTER_GCE_RUNNER_LABEL_PREFIX": "overcenter-gcp-warm",
     "OVERCENTER_SOURCE_REVISION": expected_revision,
 }
 for name, value in expected.items():
@@ -362,7 +364,7 @@ printf '%s\n' \
   "Source revision: ${EXACT_REVISION}" \
   "Runner digest:   ${runner_digest}" \
   "Control digest:  ${control_digest}" \
-  "Launcher:        private Cloud Run; Cloud Build submission only" \
+  "Launcher:        private Cloud Run; Cloud Build default + warm-GCE canary routing" \
   "Autoscaler:      private Cloud Run; authoritative GitHub observation" \
   "Observation:     2s ETag conditional polling; signed webhook support remains dormant" \
   "Hosted Actions:  deployment only, never per verification job"
