@@ -55,7 +55,7 @@ jobs:
                   const crypto=require('crypto'),fs=require('fs');
                   const repo='laurajoyhutchins/laura-dev-tools';
                   const repoId=1383875536;
-                  const rev='324b84814b4e7b006911584a942202f23ac96bc5';
+                  const rev='afc0e88102385a2f2646abd2b692dea0ec5593d7';
                   const b64=v=>Buffer.from(JSON.stringify(v)).toString('base64url');
                   const now=Math.floor(Date.now()/1000);
                   const unsigned=b64({alg:'RS256',typ:'JWT'})+'.'+b64({iat:now-60,exp:now+540,iss:process.env.GITHUB_APP_ID});
@@ -82,7 +82,7 @@ jobs:
                   cp -a "$$root"/. /workspace/ldt/
                   cd /workspace/ldt
                   npm install --ignore-scripts --no-audit --no-fund
-                  npm run build
+                  npm run verify
                   export LAURA_DEV_TOOLS_GITHUB_APP_ID="$$GITHUB_APP_ID"
                   export LAURA_DEV_TOOLS_GITHUB_APP_PRIVATE_KEY="$$GITHUB_APP_PRIVATE_KEY"
                   export LAURA_DEV_TOOLS_OPERATION='git.branch.delete'
@@ -122,18 +122,18 @@ jobs:
           python - "$RUNNER_TEMP/build.json" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import base64,json,sys
           body=json.load(open(sys.argv[1],encoding='utf-8'))
-          def decode(raw):
+          def decode_output(raw):
               raw=raw.strip()
               raw += '=' * (-len(raw) % 4)
-              return decode(raw)
+              return base64.urlsafe_b64decode_output(raw).decode('utf-8','replace')
           print('Status:', body.get('status'))
           for raw in body.get('results',{}).get('buildStepOutputs',[]):
               if raw:
-                  print(decode(raw))
+                  print(decode_output(raw))
           outputs=[]
           for raw in body.get('results',{}).get('buildStepOutputs',[]):
               if raw:
-                  outputs.append(decode(raw))
+                  outputs.append(decode_output(raw))
           text='\n'.join(outputs)
           if body.get('status') != 'SUCCESS' or 'LDT_RC=0' not in text:
               raise SystemExit(1)
