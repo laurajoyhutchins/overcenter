@@ -25,6 +25,11 @@ const validConfig = {
       owner_id: 219_002_713,
     },
     {
+      full_name: 'laurajoyhutchins/laura-dev-tools',
+      repository_id: 1_383_875_536,
+      owner_id: 219_002_713,
+    },
+    {
       full_name: 'laurajoyhutchins/overcenter',
       repository_id: 1_354_872_053,
       owner_id: 219_002_713,
@@ -38,8 +43,10 @@ test('autoscaler config preserves immutable repository identities', () => {
   assert.equal(parsed.repositories[0]?.owner_id, 219_002_713);
   assert.equal(parsed.repositories[1]?.repository_id, 1_384_608_118);
   assert.equal(parsed.repositories[1]?.owner_id, 219_002_713);
-  assert.equal(parsed.repositories[2]?.repository_id, 1_354_872_053);
+  assert.equal(parsed.repositories[2]?.repository_id, 1_383_875_536);
   assert.equal(parsed.repositories[2]?.owner_id, 219_002_713);
+  assert.equal(parsed.repositories[3]?.repository_id, 1_354_872_053);
+  assert.equal(parsed.repositories[3]?.owner_id, 219_002_713);
 });
 
 test('autoscaler config rejects the retired GitHub-hosted dispatch layer', () => {
@@ -153,11 +160,15 @@ test('deployment lane keeps only the latest exact substrate revision', () => {
   assert.match(workflow, /cancel-in-progress: true/);
 });
 
-test('bootstrap deployment uses the separate ARM64 hosted pool', () => {
+test('autoscaler deployment uses a unique exact-job GCP runner', () => {
   const workflow = readFileSync(
     new URL('../.github/workflows/gcp-runner-autoscaler-deploy.yml', import.meta.url),
     'utf8',
   );
-  assert.match(workflow, /runs-on: ubuntu-24\.04-arm/);
+  assert.match(
+    workflow,
+    /runs-on: \[self-hosted, "overcenter-gcp-\$\{\{ github\.run_id \}\}-deploy-\$\{\{ github\.run_attempt \}\}"\]/,
+  );
+  assert.doesNotMatch(workflow, /runs-on: ubuntu-/);
   assert.match(workflow, /cancel-in-progress: true/);
 });
