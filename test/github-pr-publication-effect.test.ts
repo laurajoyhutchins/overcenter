@@ -30,6 +30,19 @@ function ref(refName: string, sha: string) {
   return { ref: refName, object: { type: 'commit', sha } };
 }
 
+function publicationPostcondition() {
+  return {
+    verifier: 'source-integration/v1' as const,
+    provider: 'github' as const,
+    repository_id: 42,
+    repository_full_name: 'acme/widget',
+    ref: HEAD_REF,
+    commit_sha: HEAD,
+    base_ref: 'main',
+    expected_base_sha: BASE,
+  };
+}
+
 function pull() {
   return {
     id: 3700,
@@ -48,21 +61,12 @@ function define(kernel: OvercenterKernel) {
   kernel.initialize();
   kernel.define({
     id: 'publish-pr',
-    packet: { effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT },
-    postcondition: {
-      verifier: 'source-integration/v1',
-      provider: 'github',
-      repository_id: 42,
-      repository_full_name: 'acme/widget',
-      ref: HEAD_REF,
-      commit_sha: HEAD,
-      base_ref: 'main',
-      expected_base_sha: BASE,
-    },
+    packet: { kind: 'source-change', effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT },
+    postcondition: { verifier: 'source-integration/v1' },
   });
   const ready = kernel.deriveReadyWork();
   assert.ok(ready);
-  return kernel.claim(ready.id, ready.revision);
+  return kernel.claim(ready.id, ready.revision, { sourceRevision: BASE });
 }
 
 function getProvider(published: () => boolean, headSha = HEAD, baseSha = BASE) {
@@ -104,6 +108,7 @@ test('PR publication reuses admitted source effect, reserves before POST, and se
     await performGitHubPullRequestPublicationEffect(kernel, permit, {
       token: 'token',
       get,
+      postcondition: publicationPostcondition(),
       post,
     });
     const settled = await kernel.resolveAsync(permit);
@@ -135,6 +140,7 @@ test('timeout after PR creation reconciles to DONE without a second mutation', a
       performGitHubPullRequestPublicationEffect(kernel, permit, {
         token: 'token',
         get,
+        postcondition: publicationPostcondition(),
         post: async () => {
           posts += 1;
           published = true;
@@ -169,6 +175,7 @@ test('stale head fails before reservation and POST', async () => {
       performGitHubPullRequestPublicationEffect(kernel, permit, {
         token: 'token',
         get,
+        postcondition: publicationPostcondition(),
         post: async () => {
           posts += 1;
           return { status: 201, body: '{}' };
@@ -196,6 +203,7 @@ test('stale base fails before reservation and POST', async () => {
       performGitHubPullRequestPublicationEffect(kernel, permit, {
         token: 'token',
         get,
+        postcondition: publicationPostcondition(),
         post: async () => {
           posts += 1;
           return { status: 201, body: '{}' };
@@ -234,6 +242,7 @@ test('duplicate exact PR readback remains recovery-required', async () => {
     await performGitHubPullRequestPublicationEffect(kernel, permit, {
       token: 'token',
       get,
+      postcondition: publicationPostcondition(),
       post: async () => {
         published = true;
         return { status: 201, body: '{}' };
@@ -264,6 +273,7 @@ test('ambiguous create with no observed PR remains recovery-required', async () 
       performGitHubPullRequestPublicationEffect(kernel, permit, {
         token: 'token',
         get,
+        postcondition: publicationPostcondition(),
         post: async () => {
           posts += 1;
           throw new Error('transport timeout');
@@ -280,6 +290,7 @@ test('ambiguous create with no observed PR remains recovery-required', async () 
       performGitHubPullRequestPublicationEffect(kernel, permit, {
         token: 'token',
         get,
+        postcondition: publicationPostcondition(),
         post: async () => {
           posts += 1;
           return { status: 201, body: '{}' };
