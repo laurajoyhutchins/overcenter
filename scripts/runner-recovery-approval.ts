@@ -47,7 +47,7 @@ const SIDE_EFFECTS = [
 
 const SHA40 = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const REQUEST_ID = /^[1-9][0-9]*\.([1-9][0-9]*)$/;
+const REQUEST_ID = /^([1-9][0-9]*)\.([1-9][0-9]*)$/;
 
 export interface EvidenceReference {
   uri: string;
@@ -303,6 +303,7 @@ export interface RunnerRecoveryReviewInput {
   expectedEnvironment: string;
   expectedReviewer: string;
   gateJobResult: ApprovalGateResult;
+  runId: number;
   requestId: string;
   runAttempt: number;
   expiresAt: string;
@@ -347,11 +348,16 @@ function reviewReceipt(
 export function classifyRunnerRecoveryApproval(
   input: RunnerRecoveryReviewInput,
 ): RunnerRecoveryReviewReceipt {
-  if (!isPositiveSafeInteger(input.runAttempt)) {
+  if (!isPositiveSafeInteger(input.runId) || !isPositiveSafeInteger(input.runAttempt)) {
     return reviewReceipt(input, 'replay_blocked', null, null, 'request_replay_blocked');
   }
   const requestIdMatch = REQUEST_ID.exec(input.requestId);
-  if (!requestIdMatch || Number(requestIdMatch[1]) !== input.runAttempt || input.runAttempt !== 1) {
+  if (
+    !requestIdMatch ||
+    Number(requestIdMatch[1]) !== input.runId ||
+    Number(requestIdMatch[2]) !== input.runAttempt ||
+    input.runAttempt !== 1
+  ) {
     return reviewReceipt(input, 'replay_blocked', null, null, 'request_replay_blocked');
   }
   if (!input.evidenceAvailable) {
@@ -400,6 +406,9 @@ export interface RunnerRecoverySettlementInput {
   requestId: string;
   runId: number;
   runAttempt: number;
+  manifestSha256: string;
+  targetSha: string;
+  targetTreeSha: string;
   operationResult: OperationResult;
   readbackResult: ReadbackResult;
 }
@@ -409,6 +418,10 @@ export interface RunnerRecoverySettlementReceipt {
   request_id: string;
   run_id: number;
   run_attempt: number;
+  manifest_sha256: string;
+  target_sha: string;
+  target_tree_sha: string;
+  binding_valid: boolean;
   review_state: RunnerRecoveryReviewState;
   reviewed_by: string | null;
   review_comment: string | null;
@@ -420,8 +433,20 @@ export interface RunnerRecoverySettlementReceipt {
 export function settleRunnerRecovery(
   input: RunnerRecoverySettlementInput,
 ): RunnerRecoverySettlementReceipt {
+  const bindingValid =
+    isPositiveSafeInteger(input.runId) &&
+    input.runAttempt === 1 &&
+    input.requestId === String(input.runId) + '.' + String(input.runAttempt) &&
+    input.review.schema === REVIEW_SCHEMA &&
+    input.review.request_id === input.requestId &&
+    sha40(input.targetSha) &&
+    sha40(input.targetTreeSha) &&
+    SHA256.test(input.manifestSha256);
+
   let outcome: RunnerRecoverySettlementReceipt['outcome'];
-  if (input.review.review_state === 'rejected') {
+  if (!bindingValid) {
+    outcome = 'indeterminate';
+  } else if (input.review.review_state === 'rejected') {
     outcome = 'rejected';
   } else if (input.review.review_state !== 'approved' || input.review.outcome !== 'approved') {
     outcome = 'not_authorized';
@@ -440,6 +465,10 @@ export function settleRunnerRecovery(
     request_id: input.requestId,
     run_id: input.runId,
     run_attempt: input.runAttempt,
+    manifest_sha256: input.manifestSha256,
+    target_sha: input.targetSha,
+    target_tree_sha: input.targetTreeSha,
+    binding_valid: bindingValid,
     review_state: input.review.review_state,
     reviewed_by: input.review.reviewed_by,
     review_comment: input.review.review_comment,
