@@ -191,7 +191,8 @@ jobs:
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    permissions: {}
+    permissions:
+      actions: read
     steps:
       - name: Write truthful outcome receipt
         shell: bash
@@ -202,13 +203,47 @@ jobs:
           CANDIDATE_SHA: ${{ needs.prepare.outputs.candidate_sha }}
           CANDIDATE_TREE_SHA: ${{ needs.prepare.outputs.candidate_tree_sha }}
           REQUEST_REASON: ${{ inputs.reason }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          node --input-type=module <<'NODE'
+          node --experimental-strip-types --input-type=module <<'NODE'
           import { writeFileSync } from 'node:fs';
-          const gateResult = process.env.GATE_RESULT;
+          import { pathToFileURL } from 'node:url';
+
+          const modulePath = `${process.env.GITHUB_WORKSPACE}/scripts/owner-approval-canary-receipt.ts`;
+          const { classifyCanaryApproval } = await import(pathToFileURL(modulePath));
+          const endpoint = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/approvals`;
+          let evidenceAvailable = false;
+          let evidenceHttpStatus = null;
+          let approvals = [];
+          try {
+            const response = await fetch(endpoint, {
+              headers: {
+                accept: 'application/vnd.github+json',
+                authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+                'x-github-api-version': '2022-11-28',
+              },
+            });
+            evidenceHttpStatus = response.status;
+            if (response.ok) {
+              const body = await response.json();
+              if (!Array.isArray(body)) throw new Error('OWNER_APPROVAL_EVIDENCE_SHAPE_INVALID');
+              approvals = body;
+              evidenceAvailable = true;
+            }
+          } catch (error) {
+            process.stderr.write(`approval_evidence_read_failed=${error?.name ?? 'Error'}\n`);
+          }
+
+          const review = classifyCanaryApproval({
+            gateJobResult: process.env.GATE_RESULT,
+            evidenceAvailable,
+            approvals,
+            environmentName: 'overcenter-owner-approval',
+            expectedReviewer: 'laurajoyhutchins',
+          });
           const receipt = {
-            schema: 'overcenter-owner-approval-canary-receipt/v1',
+            schema: 'overcenter-owner-approval-canary-receipt/v2',
             request_id: process.env.REQUEST_ID,
             operation: 'approval-canary/no-side-effect/v1',
             repository_full_name: process.env.GITHUB_REPOSITORY,
@@ -217,16 +252,16 @@ jobs:
             manifest_sha256: process.env.MANIFEST_SHA256,
             requested_by: process.env.GITHUB_ACTOR,
             reason: process.env.REQUEST_REASON,
-            approval_job_result: gateResult,
-            outcome: gateResult === 'success' ? 'approved_no_side_effect_canary' : 'approval_not_settled',
+            approval_job_result: process.env.GATE_RESULT,
+            approval_evidence_source: 'github-actions-run-approvals-api',
+            approval_evidence_http_status: evidenceHttpStatus,
+            ...review,
             workflow_run_id: Number(process.env.GITHUB_RUN_ID),
             workflow_run_attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
             side_effects: [],
           };
-          writeFileSync(
-            process.env.RUNNER_TEMP + '/owner-approval-canary-receipt.json',
-            JSON.stringify(receipt, null, 2) + '\n',
-          );
+          const path = process.env.RUNNER_TEMP + '/owner-approval-canary-receipt.json';
+          writeFileSync(path, JSON.stringify(receipt, null, 2) + '\n');
           process.stdout.write(JSON.stringify(receipt, null, 2) + '\n');
           NODE
 
