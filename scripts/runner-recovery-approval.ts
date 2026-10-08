@@ -65,7 +65,8 @@ export interface RunnerRecoveryManifestInput {
   evidenceRefs: EvidenceReference[];
   resources: string[];
   identityPrincipal: string;
-  privilegeCeiling: string[];
+  operationCapabilityCeiling: string[];
+  effectiveIamGrantSnapshotSha256: string;
   runId: number;
   runAttempt: number;
   createdAt: string;
@@ -90,7 +91,8 @@ export interface RunnerRecoveryManifest {
   evidence_refs: EvidenceReference[];
   resource_set: readonly string[];
   identity_principal: typeof IDENTITY;
-  privilege_ceiling: readonly string[];
+  operation_capability_ceiling: readonly string[];
+  effective_iam_grant_snapshot_sha256: string;
   created_at: string;
   expires_at: string;
   requested_by: typeof OWNER;
@@ -136,7 +138,8 @@ function readManifestInput(value: unknown): RunnerRecoveryManifestInput {
       'evidenceRefs',
       'resources',
       'identityPrincipal',
-      'privilegeCeiling',
+      'operationCapabilityCeiling',
+      'effectiveIamGrantSnapshotSha256',
       'runId',
       'runAttempt',
       'createdAt',
@@ -186,7 +189,8 @@ function readManifestInput(value: unknown): RunnerRecoveryManifestInput {
     !isPositiveSafeInteger(value.runAttempt) ||
     !Array.isArray(value.evidenceRefs) ||
     !Array.isArray(value.resources) ||
-    !Array.isArray(value.privilegeCeiling) ||
+    !Array.isArray(value.operationCapabilityCeiling) ||
+    typeof value.effectiveIamGrantSnapshotSha256 !== 'string' ||
     !Array.isArray(value.sideEffects)
   ) {
     fail('RUNNER_RECOVERY_MANIFEST_INPUT_INVALID');
@@ -232,8 +236,11 @@ export function createRunnerRecoveryManifest(
   if (!exactArray(input.resources, RESOURCE_SET)) {
     fail('RUNNER_RECOVERY_RESOURCE_SCOPE_MISMATCH');
   }
-  if (!exactArray(input.privilegeCeiling, PRIVILEGE_CEILING)) {
+  if (!exactArray(input.operationCapabilityCeiling, PRIVILEGE_CEILING)) {
     fail('RUNNER_RECOVERY_PRIVILEGE_CEILING_MISMATCH');
+  }
+  if (!SHA256.test(input.effectiveIamGrantSnapshotSha256)) {
+    fail('RUNNER_RECOVERY_IAM_SNAPSHOT_INVALID');
   }
   if (!exactArray(input.sideEffects, SIDE_EFFECTS)) {
     fail('RUNNER_RECOVERY_SIDE_EFFECT_SET_MISMATCH');
@@ -275,7 +282,8 @@ export function createRunnerRecoveryManifest(
     evidence_refs: evidenceRefs,
     resource_set: RESOURCE_SET,
     identity_principal: IDENTITY,
-    privilege_ceiling: PRIVILEGE_CEILING,
+    operation_capability_ceiling: PRIVILEGE_CEILING,
+    effective_iam_grant_snapshot_sha256: input.effectiveIamGrantSnapshotSha256,
     created_at: input.createdAt,
     expires_at: input.expiresAt,
     requested_by: OWNER,
