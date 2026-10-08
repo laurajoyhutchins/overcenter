@@ -24,7 +24,9 @@ try {
     stdio: 'inherit',
   });
   const roots = trusted.profile.baseline_test_roots;
-  const archive = execFileSync('git', ['-C', repo, 'archive', '--format=tar', base, ...roots]);
+  const archive = execFileSync('git', ['-C', repo, 'archive', '--format=tar', base, ...roots], {
+    maxBuffer: 64 * 1024 * 1024,
+  });
   for (const root of roots) rmSync(join(worktree, root), { recursive: true, force: true });
   const extracted = spawnSync('tar', ['-xf', '-', '-C', worktree], {
     input: archive,
