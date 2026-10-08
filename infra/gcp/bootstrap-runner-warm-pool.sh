@@ -125,7 +125,7 @@ PY
 
 template="overcenter-gce-runner-${REVISION:0:12}"
 if ! gcloud compute instance-templates describe "$template" --project="$PROJECT_ID" >/dev/null 2>&1; then
-  gcloud compute instance-templates create "$template"     --project="$PROJECT_ID"     --machine-type=e2-standard-4     --image-family=cos-stable     --image-project=cos-cloud     --boot-disk-size=30GB     --boot-disk-type=pd-balanced     --service-account="$RUNTIME_SA"     --scopes=https://www.googleapis.com/auth/cloud-platform     --metadata-from-file="startup-script=$startup_script"     --network-interface="network=$NETWORK,subnet=$SUBNET,no-address"     --shielded-secure-boot
+  gcloud compute instance-templates create "$template"     --project="$PROJECT_ID"     --machine-type=e2-standard-4     --image-family=cos-stable     --image-project=cos-cloud     --boot-disk-size=30GB     --boot-disk-type=pd-balanced     --service-account="$RUNTIME_SA"     --scopes=https://www.googleapis.com/auth/cloud-platform     --metadata-from-file="startup-script=$startup_script"     --network-interface="network=$NETWORK,subnet=https://www.googleapis.com/compute/v1/projects/$PROJECT_ID/regions/$REGION/subnetworks/$SUBNET,no-address"     --shielded-secure-boot
 fi
 
 if ! gcloud compute instance-groups managed describe "$MIG"   --project="$PROJECT_ID" --zone="$ZONE" >/dev/null 2>&1; then
