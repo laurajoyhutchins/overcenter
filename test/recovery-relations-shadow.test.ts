@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  deriveRecoveryDecision,
   deriveRecoveryPlan,
   explainRecoveryEvent,
+  fallbackPreservesAuthority,
   possibleEffectWorlds,
   recoveryEventsPermittedInAllWorlds,
   shadowRecoveryRouting,
   type PossibleEffectWorld,
+  type RecoveryPolicy,
 } from '../src/authority/recovery.ts';
 import type { SettlementRelations } from '../src/authority/settlement.ts';
 
@@ -31,6 +34,15 @@ function retryEstablished(value: SettlementRelations): boolean {
     (value.object_supports_accepted_absence &&
       (!value.accepted_absence_requires_replay_safety || value.object_supports_replay_safety))
   );
+}
+
+function policy(overrides: Partial<RecoveryPolicy> = {}): RecoveryPolicy {
+  return {
+    observation_available: false,
+    observation_attempts_remaining: 0,
+    operator_judgment_available: false,
+    ...overrides,
+  };
 }
 
 test('possible-world recovery shadows every reachable settlement relation valuation', () => {
@@ -177,5 +189,198 @@ test('conflicting terminal facts preserve both worlds and fail closed', () => {
       }),
     ).agrees,
     false,
+  );
+});
+
+test('recovery decision settles or retries before considering degraded operation', () => {
+  const fallback = {
+    obligation_id: 'degraded',
+    admitted: true,
+    required_safety_supported: true,
+    ordinary_authority: [{ effect_contract: 'github-status', coordinate }],
+    fallback_authority: [],
+  };
+  assert.equal(
+    deriveRecoveryDecision(
+      coordinate,
+      relations({ event_asserts_postcondition: true }),
+      policy({ fallback }),
+    ).disposition,
+    'settle',
+  );
+  assert.equal(
+    deriveRecoveryDecision(
+      coordinate,
+      relations({ object_supports_not_dispatched: true }),
+      policy({ fallback }),
+    ).disposition,
+    'retry-fresh-execution',
+  );
+});
+
+test('ambiguous recovery spends bounded observation before degrading', () => {
+  const decision = deriveRecoveryDecision(
+    coordinate,
+    relations(),
+    policy({
+      observation_available: true,
+      observation_attempts_remaining: 2,
+      fallback: {
+        obligation_id: 'read-only-fallback',
+        admitted: true,
+        required_safety_supported: true,
+        ordinary_authority: [{ effect_contract: 'provider-write', coordinate }],
+        fallback_authority: [],
+      },
+    }),
+  );
+  assert.equal(decision.disposition, 'reobserve');
+  assert.equal(decision.reason, 'observation-budget-available');
+});
+
+test('admitted fallback may remove effect authority but never add it', () => {
+  const narrower = {
+    obligation_id: 'read-only-fallback',
+    admitted: true,
+    required_safety_supported: true,
+    ordinary_authority: [
+      { effect_contract: 'provider-read', coordinate: 'resource-a' },
+      { effect_contract: 'provider-write', coordinate: 'resource-a' },
+    ],
+    fallback_authority: [{ effect_contract: 'provider-read', coordinate: 'resource-a' }],
+  };
+  assert.equal(fallbackPreservesAuthority(narrower), true);
+  assert.deepEqual(
+    deriveRecoveryDecision(coordinate, relations(), policy({ fallback: narrower })),
+    {
+      effect_plan: deriveRecoveryPlan(coordinate, relations()),
+      disposition: 'degrade',
+      reason: 'admitted-authority-narrowing-fallback',
+      fallback_obligation_id: 'read-only-fallback',
+    },
+  );
+
+  assert.equal(
+    fallbackPreservesAuthority({
+      ...narrower,
+      fallback_authority: [
+        { effect_contract: 'provider-read', coordinate: 'resource-a' },
+        { effect_contract: 'break-glass-admin', coordinate: 'resource-a' },
+      ],
+    }),
+    false,
+  );
+});
+
+test('admitted fallback without supported safety proposition cannot degrade', () => {
+  const decision = deriveRecoveryDecision(
+    coordinate,
+    relations(),
+    policy({
+      fallback: {
+        obligation_id: 'unsupported-fallback',
+        admitted: true,
+        required_safety_supported: false,
+        ordinary_authority: [{ effect_contract: 'provider-write', coordinate }],
+        fallback_authority: [],
+      },
+      operator_judgment_available: true,
+    }),
+  );
+  assert.equal(decision.disposition, 'escalate');
+  assert.equal(decision.reason, 'operator-judgment-required');
+});
+
+test('same effect contract at a different coordinate is not authority preserving', () => {
+  assert.equal(
+    fallbackPreservesAuthority({
+      obligation_id: 'coordinate-drift',
+      admitted: true,
+      required_safety_supported: true,
+      ordinary_authority: [{ effect_contract: 'provider-write', coordinate: 'resource-a' }],
+      fallback_authority: [{ effect_contract: 'provider-write', coordinate: 'resource-b' }],
+    }),
+    false,
+  );
+});
+
+test('broader or unadmitted fallback cannot escape into degraded operation', () => {
+  const broader = {
+    obligation_id: 'overpowered-fallback',
+    admitted: true,
+    required_safety_supported: true,
+    ordinary_authority: [{ effect_contract: 'provider-read', coordinate: 'resource-a' }],
+    fallback_authority: [
+      { effect_contract: 'provider-read', coordinate: 'resource-a' },
+      { effect_contract: 'provider-write', coordinate: 'resource-a' },
+    ],
+  };
+  assert.equal(
+    deriveRecoveryDecision(
+      coordinate,
+      relations(),
+      policy({ fallback: broader, operator_judgment_available: true }),
+    ).disposition,
+    'escalate',
+  );
+
+  assert.equal(
+    deriveRecoveryDecision(
+      coordinate,
+      relations(),
+      policy({
+        fallback: {
+          ...broader,
+          admitted: false,
+          required_safety_supported: true,
+          fallback_authority: [],
+        },
+      }),
+    ).disposition,
+    'safe-hold',
+  );
+});
+
+test('conflicting terminal evidence never selects a degraded fallback', () => {
+  const decision = deriveRecoveryDecision(
+    coordinate,
+    relations({
+      event_asserts_postcondition: true,
+      object_supports_not_dispatched: true,
+    }),
+    policy({
+      fallback: {
+        obligation_id: 'otherwise-safe-fallback',
+        admitted: true,
+        required_safety_supported: true,
+        ordinary_authority: [{ effect_contract: 'provider-write', coordinate }],
+        fallback_authority: [],
+      },
+      operator_judgment_available: true,
+    }),
+  );
+  assert.equal(decision.disposition, 'escalate');
+  assert.equal(decision.reason, 'conflicting-terminal-evidence');
+});
+
+test('exhausted recovery with no admitted fallback or judgment holds safely', () => {
+  const decision = deriveRecoveryDecision(
+    coordinate,
+    relations(),
+    policy({ observation_available: true, observation_attempts_remaining: 0 }),
+  );
+  assert.equal(decision.disposition, 'safe-hold');
+  assert.equal(decision.reason, 'no-safe-recovery-action');
+});
+
+test('invalid observation budgets fail closed', () => {
+  assert.throws(
+    () =>
+      deriveRecoveryDecision(
+        coordinate,
+        relations(),
+        policy({ observation_attempts_remaining: -1 }),
+      ),
+    /RECOVERY_OBSERVATION_BUDGET_INVALID/,
   );
 });
