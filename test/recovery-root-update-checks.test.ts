@@ -171,6 +171,16 @@ test('runs both real check chains and bound evidence, recording projection separ
   assert.equal(result.accepted_checks.length, 4);
   assert.equal(result.candidate_checks.length, 4);
   assert.equal(result.evidence_check.exit_code, 0);
+  assert.match(result.evidence_check.stdout_sha256, /^[a-f0-9]{64}$/);
+  assert.match(result.evidence_check.stderr_sha256, /^[a-f0-9]{64}$/);
+  assert.match(
+    readFileSync(join(f.output, result.evidence_check.stdout_log), 'utf8'),
+    /"type":"test:summary"/,
+  );
+  assert.equal(
+    typeof readFileSync(join(f.output, result.evidence_check.stderr_log), 'utf8'),
+    'string',
+  );
   assert.match(result.projection.manifest_sha256, /^[a-f0-9]{64}$/);
   assert.equal(result.candidate_content_before, result.candidate_content_after);
 });
@@ -252,6 +262,31 @@ test('recomputes structural receipt and rejects forged status or digest', (t) =>
   const r = f.run();
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /STRUCTURAL_RECEIPT_MISMATCH/);
+});
+
+test('structured hostile evidence requires a complete successful summary', async () => {
+  const { verifyEvidenceEvents } = await import('../scripts/check-recovery-root-update.ts');
+  const events = [
+    { type: 'test:pass', data: { name: 'TCB semantic LOC is invariant to source layout and comments', nesting: 0 } },
+    { type: 'test:pass', data: { name: 'TCB semantic span union counts containing syntax once', nesting: 0 } },
+    { type: 'test:summary', data: { success: true } },
+  ];
+  assert.doesNotThrow(() => verifyEvidenceEvents(events.map((event) => JSON.stringify(event)).join('\\n')));
+  assert.throws(
+    () => verifyEvidenceEvents(events.slice(0, 2).map((event) => JSON.stringify(event)).join('\\n')),
+    /EVIDENCE_SUMMARY_REQUIRED/,
+  );
+  assert.throws(
+    () => verifyEvidenceEvents(events.map((event) => JSON.stringify(event)).join('\\n') + '\\nnot-json-warning'),
+    /SyntaxError/,
+  );
+  assert.throws(
+    () => verifyEvidenceEvents(
+      [...events.slice(0, 2), { type: 'test:summary', data: { success: false } }]
+        .map((event) => JSON.stringify(event)).join('\\n'),
+    ),
+    /EVIDENCE_SUMMARY_FAILED/,
+  );
 });
 
 test('absolute semantic LOC oracle rejects systematic undercounting', async () => {

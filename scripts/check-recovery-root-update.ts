@@ -210,18 +210,24 @@ try {
 }
 `;
 
-function verifyEvidenceEvents(log: string): void {
+export function verifyEvidenceEvents(log: string): void {
   const passed = new Set<string>();
+  let summaries = 0;
   for (const line of log.split('\n').filter(Boolean)) {
     const event = reportObject(JSON.parse(line));
     const data = reportObject(event.data);
     if (event.type === 'test:fail') fail('EVIDENCE_TEST_FAILED');
+    if (event.type === 'test:summary') {
+      summaries += 1;
+      if (data.success !== true) fail('EVIDENCE_SUMMARY_FAILED');
+    }
     if (event.type === 'test:pass' && evidenceTests.includes(String(data.name))) {
       if (data.skip || data.todo || data.nesting !== 0 || passed.has(String(data.name)))
         fail('EVIDENCE_COMPLETION_INVALID');
       passed.add(String(data.name));
     }
   }
+  if (summaries !== 1) fail('EVIDENCE_SUMMARY_REQUIRED');
   if (passed.size !== evidenceTests.length) fail('EVIDENCE_REQUIRED_TESTS_NOT_COMPLETED');
 }
 
@@ -355,7 +361,13 @@ export function checkRootUpdate(
       maxBuffer: 128 * 1024 * 1024,
     });
     const log = `${name.replaceAll('/', '-')}-${checkIndex++}.log`;
-    const bytes = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+    const stdoutLog = `${log}.stdout`;
+    const stderrLog = `${log}.stderr`;
+    const stdout = result.stdout ?? '';
+    const stderr = result.stderr ?? '';
+    const bytes = `${stdout}${stderr}`;
+    writeFileSync(join(output, stdoutLog), stdout);
+    writeFileSync(join(output, stderrLog), stderr);
     writeFileSync(join(output, log), bytes);
     if (result.error || result.status !== 0) fail(`CHECK_FAILED:${name}:${log}`);
     return {
@@ -365,6 +377,10 @@ export function checkRootUpdate(
       exit_code: result.status,
       log,
       log_sha256: rootDigest(bytes),
+      stdout_log: stdoutLog,
+      stdout_sha256: rootDigest(stdout),
+      stderr_log: stderrLog,
+      stderr_sha256: rootDigest(stderr),
     };
   };
   const reportDigest = (file: string, logical = false, baseline = false) => {
@@ -485,7 +501,7 @@ export function checkRootUpdate(
         rmSync(oraclePath, { force: true });
       }
       if (!semanticLocOracleCheck) fail('SEMANTIC_LOC_ORACLE_MISSING');
-      const log = readFileSync(join(output, semanticLocOracleCheck.log), 'utf8');
+      const log = readFileSync(join(output, semanticLocOracleCheck.stdout_log), 'utf8');
       const results = log
         .split('\n')
         .filter((line) => line.startsWith('OVERCENTER_ROOT_ORACLE_JSON='));
@@ -536,7 +552,7 @@ export function checkRootUpdate(
       `--test-reporter=${pathToFileURL(eventReporter).href}`,
       structural.evidence_path,
     ]);
-    const evidenceLog = readFileSync(join(output, evidenceCheck.log), 'utf8');
+    const evidenceLog = readFileSync(join(output, evidenceCheck.stdout_log), 'utf8');
     verifyEvidenceEvents(evidenceLog);
     if (readFileSync(eventReporter, 'utf8') !== reporterSource) fail('EVIDENCE_REPORTER_MUTATED');
     if (rootDigest(readFileSync(evidenceFile)) !== structural.evidence_sha256)
