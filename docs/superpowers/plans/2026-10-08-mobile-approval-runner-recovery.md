@@ -46,9 +46,9 @@ Before Task 2, verify that an independent protected-source transition mechanism 
 **Interfaces:**
 - `RunnerRecoveryManifestInput` contains `repositoryFullName`, `acceptedBaseSha`, `targetRef`, `targetSha`, `targetTreeSha`, `workflowBlobSha`, `scriptBlobSha`, `evidenceRefs`, `resources`, `identityPrincipal`, `privilegeCeiling`, `runId`, `runAttempt`, `createdAt`, `expiresAt`, `requestedBy`, `reason`, `humanImpact`, and `sideEffects`; the builder derives `request_id` as `runId.runAttempt`.
 - `createRunnerRecoveryManifest(input: RunnerRecoveryManifestInput): { manifest: RunnerRecoveryManifest; canonicalJson: string; sha256: string }` validates fixed operation/scope constants and returns canonical serialized bytes plus their SHA-256.
-- `RunnerRecoveryReviewInput` contains `evidenceAvailable`, normalized `approvals`, `expectedEnvironment`, `expectedReviewer`, `gateJobResult`, `requestId`, `runAttempt`, and `now`.
+- `RunnerRecoveryReviewInput` contains `evidenceAvailable`, normalized `approvals`, `expectedEnvironment`, `expectedReviewer`, `gateJobResult`, `runId`, `requestId`, `runAttempt`, `expiresAt`, and `now`; classification requires the request ID to match both run ID and attempt.
 - `classifyRunnerRecoveryApproval(input: RunnerRecoveryReviewInput): RunnerRecoveryReviewReceipt` preserves review state, reviewer login/comment when present, and a truthful outcome.
-- `RunnerRecoverySettlementInput` contains the review receipt, request/run identity, operation result, and independent readback result.
+- `RunnerRecoverySettlementInput` contains the review receipt, request/run identity, manifest digest, target commit/tree, operation result, and independent readback result.
 - `settleRunnerRecovery(input: RunnerRecoverySettlementInput): RunnerRecoverySettlementReceipt` distinguishes settled, failed, stale, rejected, and indeterminate outcomes without retrying the operation.
 
 - [ ] **Step 1: Write failing tests** for canonical manifest digest, required accepted base and exact target, fixed operation/resource/identity scope, rejection, owner approval, wrong reviewer, unavailable evidence, expiration, and indeterminate settlement.
