@@ -485,6 +485,7 @@ export function checkRootUpdate(
       } finally {
         rmSync(oraclePath, { force: true });
       }
+      if (!semanticLocOracleCheck) fail('SEMANTIC_LOC_ORACLE_MISSING');
       const log = readFileSync(join(output, semanticLocOracleCheck.log), 'utf8');
       const results = log.split('\n').filter((line) => line.startsWith('OVERCENTER_ROOT_ORACLE_JSON='));
       if (results.length !== 1) fail('SEMANTIC_LOC_ORACLE_RESULT_INVALID');

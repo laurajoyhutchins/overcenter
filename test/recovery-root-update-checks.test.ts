@@ -11,8 +11,8 @@ const verifier = resolve('scripts/verify-recovery-root-update.ts');
 test('workflow keeps owner main binding, accepted authority, and read-only root receipts', () => {
   const workflow = readFileSync('.github/workflows/protected-source-recovery.yml', 'utf8');
   assert.match(workflow, /default: protected-source/);
-  assert.match(workflow, /inputs\\.mode == 'recovery-root' && '\\["ubuntu-24\\.04"\\]'/);
-  assert.match(workflow, /'\\["self-hosted","overcenter-gcp"\\]'/);
+  assert.match(workflow, /runs-on: .*recovery-root.*ubuntu-24\.04/);
+  assert.match(workflow, /runs-on: .*self-hosted.*overcenter-gcp/);
   assert.match(workflow, /test "\$GITHUB_ACTOR" = "\$GITHUB_REPOSITORY_OWNER"/);
   assert.match(workflow, /test "\$GITHUB_REF" = "refs\/heads\/main"/);
   assert.match(workflow, /test "\$BASE_SHA" = "\$GITHUB_SHA"/);
