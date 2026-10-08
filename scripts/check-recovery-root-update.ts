@@ -212,14 +212,16 @@ try {
 
 export function verifyEvidenceEvents(log: string): void {
   const passed = new Set<string>();
-  let summaries = 0;
+  let aggregateSummaries = 0;
   for (const line of log.split('\n').filter(Boolean)) {
     const event = reportObject(JSON.parse(line));
     const data = reportObject(event.data);
     if (event.type === 'test:fail') fail('EVIDENCE_TEST_FAILED');
     if (event.type === 'test:summary') {
-      summaries += 1;
       if (data.success !== true) fail('EVIDENCE_SUMMARY_FAILED');
+      // Node emits one summary per file and one final aggregate summary.
+      // The aggregate has no file, and is the terminal completeness witness.
+      if (data.file === undefined) aggregateSummaries += 1;
     }
     if (event.type === 'test:pass' && evidenceTests.includes(String(data.name))) {
       if (data.skip || data.todo || data.nesting !== 0 || passed.has(String(data.name)))
@@ -227,7 +229,7 @@ export function verifyEvidenceEvents(log: string): void {
       passed.add(String(data.name));
     }
   }
-  if (summaries !== 1) fail('EVIDENCE_SUMMARY_REQUIRED');
+  if (aggregateSummaries !== 1) fail('EVIDENCE_SUMMARY_REQUIRED');
   if (passed.size !== evidenceTests.length) fail('EVIDENCE_REQUIRED_TESTS_NOT_COMPLETED');
 }
 

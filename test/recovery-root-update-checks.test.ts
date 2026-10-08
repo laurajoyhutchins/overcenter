@@ -305,6 +305,17 @@ test('structured hostile evidence requires a complete successful summary', async
   assert.doesNotThrow(() =>
     verifyEvidenceEvents(events.map((event) => JSON.stringify(event)).join('\n')),
   );
+  assert.doesNotThrow(() =>
+    verifyEvidenceEvents(
+      [
+        ...events.slice(0, 2),
+        { type: 'test:summary', data: { success: true, file: 'test/tcb-semantic-loc.test.ts' } },
+        events[2],
+      ]
+        .map((event) => JSON.stringify(event))
+        .join('\n'),
+    ),
+  );
   assert.throws(
     () =>
       verifyEvidenceEvents(events.slice(0, 2).map((event) => JSON.stringify(event)).join('\n')),
