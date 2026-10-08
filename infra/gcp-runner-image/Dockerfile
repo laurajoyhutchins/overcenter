@@ -4,6 +4,7 @@ ARG GO_VERSION=1.24.13
 ARG GO_SHA256=1fc94b57134d51669c72173ad5d49fd62afb0f1db9bf3f798fd98ee423f8d730
 ARG RUNNER_VERSION=2.337.0
 ARG RUNNER_SHA256=70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613
+ARG RUST_VERSION=1.98.1
 ARG RUSTUP_VERSION=1.28.2
 ARG RUSTUP_SHA256=20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c
 
@@ -44,6 +45,9 @@ RUN curl --fail --silent --show-error --location \
     && /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain none \
     && rm /tmp/rustup-init \
     && rustup --version
+
+RUN rustup toolchain install "${RUST_VERSION}" --profile minimal --component rustfmt \
+    && rustfmt --version
 
 WORKDIR /actions-runner
 
