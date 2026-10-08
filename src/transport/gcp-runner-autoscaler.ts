@@ -442,6 +442,41 @@ export function isEligibleRunnerJob(job: WorkflowJob, runnerLabel: string): bool
   return runnerSchedulingLabel(job, runnerLabel) !== null;
 }
 
+export async function mapBounded<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  visit: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
+    throw new TypeError('bounded map concurrency must be a positive integer');
+  }
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+  let failed = false;
+  let firstFailure: unknown;
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      for (;;) {
+        if (failed) return;
+        const index = nextIndex;
+        nextIndex += 1;
+        if (index >= items.length) return;
+        try {
+          results[index] = await visit(items[index] as T, index);
+        } catch (error) {
+          if (!failed) {
+            failed = true;
+            firstFailure = error;
+          }
+          return;
+        }
+      }
+    }),
+  );
+  if (failed) throw firstFailure;
+  return results;
+}
+
 async function verifyRepositoryIdentity(
   repository: RepositoryBinding,
   token: string,
@@ -487,8 +522,8 @@ async function queuedRunnerJobs(
   );
   for (const ids of runsByStatus) for (const runId of ids) runIds.add(runId);
 
-  const jobs: WorkflowJob[] = [];
-  for (const runId of runIds) {
+  const jobsByRun = await mapBounded([...runIds], 3, async (runId) => {
+    const jobs: WorkflowJob[] = [];
     for (let page = 1; ; page += 1) {
       const body = await githubConditionalJson(
         `/repos/${repository.full_name}/actions/runs/${runId}/jobs?filter=latest&per_page=100&page=${page}`,
@@ -498,8 +533,9 @@ async function queuedRunnerJobs(
       jobs.push(...pageJobs.filter((job) => isEligibleRunnerJob(job, runnerLabel)));
       if (pageJobs.length < 100) break;
     }
-  }
-  return jobs;
+    return jobs;
+  });
+  return jobsByRun.flat();
 }
 
 async function cloudRunIdentityToken(audience: string): Promise<string> {
@@ -569,6 +605,7 @@ async function pollOnce(
   pruneLaunches(state, config.redispatch_after_ms, now);
 
   try {
+    const scanStartedAt = Date.now();
     const scans = await Promise.all(
       config.repositories.map(async (repository) => {
         try {
@@ -585,6 +622,7 @@ async function pollOnce(
         }
       }),
     );
+    const scanDurationMs = Date.now() - scanStartedAt;
     const errors = scans.flatMap(({ repository, error }) =>
       error === null ? [] : [`${repository.full_name}: ${error}`],
     );
@@ -597,18 +635,22 @@ async function pollOnce(
         .map((job) => ({ repository, job })),
     );
 
+    let launchesSucceeded = 0;
     if (launchable.length > 0) {
       const identityToken = await cloudRunIdentityToken(launcherUrl);
-      for (const { repository, job } of launchable) {
+      await mapBounded(launchable, 4, async ({ repository, job }) => {
+        const launchStartedAt = Date.now();
         try {
           await launchRunner(launcherUrl, identityToken, config, repository, job);
-          state.launched.set(`${repository.repository_id}:${job.id}`, now);
+          state.launched.set(`${repository.repository_id}:${job.id}`, Date.now());
+          launchesSucceeded += 1;
           console.log(
             JSON.stringify({
               event: 'runner_launched',
               repository: repository.full_name,
               repository_id: repository.repository_id,
               job_id: job.id,
+              launch_duration_ms: Date.now() - launchStartedAt,
             }),
           );
         } catch (error) {
@@ -618,8 +660,18 @@ async function pollOnce(
             )}`,
           );
         }
-      }
+      });
     }
+    console.log(
+      JSON.stringify({
+        event: 'runner_poll_cycle',
+        scan_duration_ms: scanDurationMs,
+        cycle_duration_ms: Date.now() - now,
+        launchable_jobs: launchable.length,
+        launches_succeeded: launchesSucceeded,
+        errors: errors.length,
+      }),
+    );
     if (errors.length === 0) {
       state.lastSuccessAt = new Date().toISOString();
       state.lastError = null;
