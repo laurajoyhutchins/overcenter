@@ -123,57 +123,6 @@ jobs:
       name: overcenter-owner-approval
       url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
-      - name: Revalidate the immutable request after approval
-        shell: bash
-        env:
-          EXPECTED_MANIFEST_SHA256: ${{ needs.prepare.outputs.manifest_sha256 }}
-          EXPECTED_REQUEST_ID: ${{ needs.prepare.outputs.request_id }}
-          EXPECTED_CANDIDATE_SHA: ${{ needs.prepare.outputs.candidate_sha }}
-          EXPECTED_TREE_SHA: ${{ needs.prepare.outputs.candidate_tree_sha }}
-          REQUEST_REASON: ${{ inputs.reason }}
-        run: |
-          set -euo pipefail
-          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
-          test "$GITHUB_REPOSITORY_OWNER" = "laurajoyhutchins"
-          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
-          test "$GITHUB_REF" = "refs/heads/main"
-          test "$GITHUB_SHA" = "$EXPECTED_CANDIDATE_SHA"
-          node --input-type=module <<'NODE'
-          import { createHash } from 'node:crypto';
-          import { readFileSync } from 'node:fs';
-
-          const path = process.env.RUNNER_TEMP + '/owner-approval-canary-request.json';
-          const json = readFileSync(path, 'utf8');
-          const manifest = JSON.parse(json);
-          const actualHash = createHash('sha256').update(json).digest('hex');
-          if (actualHash !== process.env.EXPECTED_MANIFEST_SHA256) {
-            throw new Error('OWNER_APPROVAL_CANARY_MANIFEST_DIGEST_MISMATCH');
-          }
-          if (
-            manifest.schema !== 'overcenter-owner-approval-canary-request/v1' ||
-            manifest.request_id !== process.env.EXPECTED_REQUEST_ID ||
-            manifest.candidate_sha !== process.env.GITHUB_SHA ||
-            manifest.candidate_tree_sha !== process.env.EXPECTED_TREE_SHA ||
-            manifest.repository_full_name !== process.env.GITHUB_REPOSITORY ||
-            manifest.target_ref !== process.env.GITHUB_REF ||
-            manifest.requested_by !== process.env.GITHUB_ACTOR ||
-            manifest.reason !== process.env.REQUEST_REASON ||
-            manifest.operation !== 'approval-canary/no-side-effect/v1' ||
-            manifest.side_effects.length !== 0
-          ) {
-            throw new Error('OWNER_APPROVAL_CANARY_MANIFEST_BINDING_MISMATCH');
-          }
-          console.log('Exact request manifest revalidated; this canary performs no side effects.');
-          NODE
-        working-directory: ${{ runner.temp }}
-
-      - name: Record read-only canary completion
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Approval was granted for a canary whose declared side-effect set is empty."
-          echo "No credentials, tokens, provider APIs, or mutation commands are used by this job."
-
       - name: Download and verify the exact reviewed manifest
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
@@ -211,6 +160,13 @@ jobs:
           }
           console.log('Reviewed manifest digest and operation binding verified.');
           NODE
+      - name: Record read-only canary completion
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Approval was granted for a canary whose declared side-effect set is empty."
+          echo "No credentials, tokens, provider APIs, or mutation commands are used by this job."
+
 
   settle:
     name: Record canary outcome
