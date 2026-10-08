@@ -66,7 +66,7 @@ Successful verification requires exact-head CI, the protected-source control-pla
 - [x] Scope is one existing operation and preserves its identity/script.
 - [x] Environment remains protected and main-only.
 - [x] No identity or provider side effect occurs before owner approval.
-- [x] Exact request, reviewer, replay, expiry, and settlement evidence are bound.
+- [x] Accepted base, exact target, resource/identity ceiling, reviewer, expiry, replay, and settlement evidence are bound.
 - [x] Protected workflow edits remain blocked pending an independent source-transition mechanism.
 - [x] The mobile canary is separated from authorization to deploy.
 - [x] The first operation-level test is required to be harmless and independently read back.
