@@ -22,7 +22,7 @@ The accepted source-recovery verifier rejects `.github` paths as recovery-root c
 3. The job writes and publishes an immutable manifest before any environment wait. The manifest includes:
    - unique request ID (`run_id.attempt`), creation time, expiration, and reason;
    - operation kind and repository;
-   - exact target ref, commit, tree, and accepted verification evidence references/digests;
+   - accepted source base plus exact target ref, commit, tree, and accepted verification evidence references/digests;
    - exact deployment workflow and script paths plus blob digests;
    - canonical resource set derived from the accepted operation definition;
    - existing WIF principal and its approved privilege ceiling;
