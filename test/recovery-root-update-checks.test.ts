@@ -318,7 +318,12 @@ test('structured hostile evidence requires a complete successful summary', async
   );
   assert.throws(
     () =>
-      verifyEvidenceEvents(events.slice(0, 2).map((event) => JSON.stringify(event)).join('\n')),
+      verifyEvidenceEvents(
+        events
+          .slice(0, 2)
+          .map((event) => JSON.stringify(event))
+          .join('\n'),
+      ),
     /EVIDENCE_SUMMARY_REQUIRED/,
   );
   assert.throws(
@@ -329,11 +334,12 @@ test('structured hostile evidence requires a complete successful summary', async
     /SyntaxError/,
   );
   assert.throws(
-    () => verifyEvidenceEvents(
-      [...events.slice(0, 2), { type: 'test:summary', data: { success: false } }]
-        .map((event) => JSON.stringify(event))
-        .join('\n'),
-    ),
+    () =>
+      verifyEvidenceEvents(
+        [...events.slice(0, 2), { type: 'test:summary', data: { success: false } }]
+          .map((event) => JSON.stringify(event))
+          .join('\n'),
+      ),
     /EVIDENCE_SUMMARY_FAILED/,
   );
 });
