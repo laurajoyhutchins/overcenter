@@ -173,7 +173,11 @@ test('runner image installs rustfmt for the repository-pinned Rust toolchain', (
   const expectedVersion = toolchain.match(/channel = "([^"]+)"/)?.[1];
   assert.ok(expectedVersion);
   assert.ok(dockerfile.includes('ARG RUST_VERSION=' + expectedVersion));
-  assert.ok(dockerfile.includes('rustup toolchain install "${RUST_VERSION}" --profile minimal --component rustfmt'));
+  assert.ok(
+    dockerfile.includes(
+      'rustup toolchain install "${RUST_VERSION}" --profile minimal --component rustfmt',
+    ),
+  );
   assert.ok(dockerfile.includes('rustfmt --version'));
 });
 
