@@ -47,7 +47,7 @@ RUN curl --fail --silent --show-error --location \
     && rustup --version
 
 RUN rustup toolchain install "${RUST_VERSION}" --profile minimal --component rustfmt \
-    && rustfmt --version
+    && rustup run "${RUST_VERSION}" rustfmt --version
 
 WORKDIR /actions-runner
 
