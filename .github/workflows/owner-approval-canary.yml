@@ -43,6 +43,7 @@ jobs:
           test "$GITHUB_REPOSITORY_OWNER" = "laurajoyhutchins"
           test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
           test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_WORKFLOW_REF" = "laurajoyhutchins/overcenter/.github/workflows/owner-approval-canary.yml@refs/heads/main"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           tree_sha="$(git rev-parse 'HEAD^{tree}')"
           export CANDIDATE_TREE_SHA="$tree_sha"
