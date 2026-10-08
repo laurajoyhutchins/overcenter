@@ -256,7 +256,15 @@ for (const sourcePath of ['src/analysis/tcb-semantic-loc.ts', 'scripts/report-tc
       ['--experimental-strip-types', runner, f.trusted, f.repo, f.receiptPath, f.output],
       { encoding: 'utf8', env },
     );
-    assert.equal(r.status, 0, r.stderr);
+    if (sourcePath === 'src/analysis/tcb-semantic-loc.ts') {
+      // The synthetic helper intentionally lacks the semantic-LOC API.
+      // Accepted checks must see the candidate marker and pass first;
+      // the independent oracle must then reject the dummy helper.
+      assert.notEqual(r.status, 0);
+      assert.match(r.stderr, /CHECK_FAILED:candidate\/semantic-loc-oracle/);
+    } else {
+      assert.equal(r.status, 0, r.stderr);
+    }
   });
 }
 
