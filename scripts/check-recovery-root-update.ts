@@ -539,9 +539,20 @@ export function checkRootUpdate(
       structural.evidence_blob_sha,
     ]);
     const evidenceFile = join(evidence, structural.evidence_path);
-    if (existsSync(evidenceFile)) fail('EVIDENCE_ALREADY_IN_CANDIDATE');
-    mkdirSync(dirname(evidenceFile), { recursive: true });
-    writeFileSync(evidenceFile, evidenceBytes);
+    const evidenceAlreadyPresent = existsSync(evidenceFile);
+    if (evidenceAlreadyPresent) {
+      // A previously admitted hostile regression may already be in the exact
+      // candidate tree. Reuse it only if it is byte-identical to the separately
+      // authorized immutable evidence object. Never overwrite candidate source.
+      if (
+        rootGit(evidence, 'rev-parse', `HEAD:${structural.evidence_path}`) !==
+        structural.evidence_blob_sha
+      )
+        fail('EVIDENCE_PREEXISTING_BLOB_MISMATCH');
+    } else {
+      mkdirSync(dirname(evidenceFile), { recursive: true });
+      writeFileSync(evidenceFile, evidenceBytes);
+    }
     const eventReporter = join(scratch, 'evidence-reporter.mjs');
     const reporterSource =
       "export default async function* (events) { for await (const event of events) yield JSON.stringify(event) + '\\n'; }\n";
@@ -557,7 +568,7 @@ export function checkRootUpdate(
     if (readFileSync(eventReporter, 'utf8') !== reporterSource) fail('EVIDENCE_REPORTER_MUTATED');
     if (rootDigest(readFileSync(evidenceFile)) !== structural.evidence_sha256)
       fail('EVIDENCE_SOURCE_MUTATED');
-    rmSync(evidenceFile);
+    if (!evidenceAlreadyPresent) rmSync(evidenceFile);
     if (contentDigest(evidence) !== evidenceBefore) fail('EVIDENCE_CANDIDATE_MUTATED');
     assertExactCheckout(accepted, structural.base_sha);
     assertExactCheckout(candidate, structural.candidate_sha);

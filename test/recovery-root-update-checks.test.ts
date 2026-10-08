@@ -93,21 +93,29 @@ function fixture(t: import('node:test').TestContext, failure = '') {
   put('scripts/report-tcb.ts', report);
   put('src/analysis/tcb-semantic-loc.ts', 'export const x = 1;');
   put('test/baseline.test.ts', '');
+  const evidenceText =
+    failure === 'evidence'
+      ? "import test from 'node:test'; test('hostile',()=>{throw Error('hostile failure')});"
+      : failure === 'premature-exit'
+        ? 'process.exit(0);'
+        : "import test from 'node:test'; test('TCB semantic LOC is invariant to source layout and comments',()=>{}); test('TCB semantic span union counts containing syntax once',()=>{});";
+  const preexistingEvidence = failure.startsWith('preexisting-evidence');
+  if (preexistingEvidence) {
+    put(
+      'test/tcb-semantic-loc.test.ts',
+      failure === 'preexisting-evidence-mismatch' ? 'not the authorized evidence' : evidenceText,
+    );
+  }
   git('add', '.');
   git('commit', '-qm', 'base');
   const base = git('rev-parse', 'HEAD');
   const trusted = join(root, 'trusted');
   git('worktree', 'add', '--detach', trusted, base);
-  put(
-    'test/tcb-semantic-loc.test.ts',
-    failure === 'evidence'
-      ? "import test from 'node:test'; test('hostile',()=>{throw Error('hostile failure')});"
-      : failure === 'premature-exit'
-        ? 'process.exit(0);'
-        : "import test from 'node:test'; test('TCB semantic LOC is invariant to source layout and comments',()=>{}); test('TCB semantic span union counts containing syntax once',()=>{});",
-  );
-  git('add', '.');
-  git('commit', '-qm', 'evidence');
+  if (!preexistingEvidence || failure === 'preexisting-evidence-mismatch') {
+    put('test/tcb-semantic-loc.test.ts', evidenceText);
+    git('add', '.');
+    git('commit', '-qm', 'evidence');
+  }
   const evidence = git('rev-parse', 'HEAD');
   const blob = git('rev-parse', 'HEAD:test/tcb-semantic-loc.test.ts');
   git('checkout', '-q', '--detach', base);
@@ -183,6 +191,23 @@ test('runs both real check chains and bound evidence, recording projection separ
   );
   assert.match(result.projection.manifest_sha256, /^[a-f0-9]{64}$/);
   assert.equal(result.candidate_content_before, result.candidate_content_after);
+});
+
+test('reuses exact accepted hostile evidence without an injection', (t) => {
+  const f = fixture(t, 'preexisting-evidence');
+  const r = f.run();
+  assert.equal(r.status, 0, r.stderr);
+  const result = JSON.parse(readFileSync(join(f.output, 'verification.json'), 'utf8'));
+  assert.equal(result.evidence_check.exit_code, 0);
+  assert.equal(result.candidate_content_before, result.candidate_content_after);
+});
+
+test('rejects preexisting hostile evidence with another blob', (t) => {
+  const f = fixture(t, 'preexisting-evidence-mismatch');
+  const r = f.run();
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /EVIDENCE_PREEXISTING_BLOB_MISMATCH/);
+  assert.throws(() => readFileSync(join(f.output, 'verification.json')));
 });
 
 for (const sourcePath of ['src/analysis/tcb-semantic-loc.ts', 'scripts/report-tcb.ts']) {
