@@ -178,7 +178,7 @@ test('runner image installs rustfmt for the repository-pinned Rust toolchain', (
       'rustup toolchain install "${RUST_VERSION}" --profile minimal --component rustfmt',
     ),
   );
-  assert.ok(dockerfile.includes('rustfmt --version'));
+  assert.ok(dockerfile.includes('rustup run "${RUST_VERSION}" rustfmt --version'));
 });
 
 test('deployment lane keeps only the latest exact substrate revision', () => {
