@@ -171,6 +171,7 @@ test('records an owner approval only when the gate, reviewer, attempt, and expir
     expectedEnvironment: 'overcenter-owner-approval',
     expectedReviewer: 'laurajoyhutchins',
     gateJobResult: 'success',
+    runId: 37750000000,
     requestId: '37750000000.1',
     runAttempt: 1,
     expiresAt: '2026-10-08T07:30:00.000Z',
@@ -186,6 +187,24 @@ test('records an owner approval only when the gate, reviewer, attempt, and expir
   });
 });
 
+test('blocks a review record bound to another GitHub run id', async () => {
+  const { classifyRunnerRecoveryApproval } = await implementation();
+  const result = classifyRunnerRecoveryApproval({
+    evidenceAvailable: true,
+    approvals: [approval('approved')],
+    expectedEnvironment: 'overcenter-owner-approval',
+    expectedReviewer: 'laurajoyhutchins',
+    gateJobResult: 'success',
+    runId: 37750000001,
+    requestId: '37750000000.1',
+    runAttempt: 1,
+    expiresAt: '2026-10-08T07:30:00.000Z',
+    now: '2026-10-08T07:10:00.000Z',
+  });
+  assert.equal(result.review_state, 'replay_blocked');
+  assert.equal(result.outcome, 'request_replay_blocked');
+});
+
 test('preserves owner rejection and fails closed on unauthorized or unavailable evidence', async () => {
   const { classifyRunnerRecoveryApproval } = await implementation();
   const rejected = classifyRunnerRecoveryApproval({
@@ -194,6 +213,7 @@ test('preserves owner rejection and fails closed on unauthorized or unavailable 
     expectedEnvironment: 'overcenter-owner-approval',
     expectedReviewer: 'laurajoyhutchins',
     gateJobResult: 'failure',
+    runId: 37750000000,
     requestId: '37750000000.1',
     runAttempt: 1,
     expiresAt: '2026-10-08T07:30:00.000Z',
@@ -209,6 +229,7 @@ test('preserves owner rejection and fails closed on unauthorized or unavailable 
     expectedEnvironment: 'overcenter-owner-approval',
     expectedReviewer: 'laurajoyhutchins',
     gateJobResult: 'success',
+    runId: 37750000000,
     requestId: '37750000000.1',
     runAttempt: 1,
     expiresAt: '2026-10-08T07:30:00.000Z',
@@ -223,6 +244,7 @@ test('preserves owner rejection and fails closed on unauthorized or unavailable 
     expectedEnvironment: 'overcenter-owner-approval',
     expectedReviewer: 'laurajoyhutchins',
     gateJobResult: 'success',
+    runId: 37750000000,
     requestId: '37750000000.1',
     runAttempt: 1,
     expiresAt: '2026-10-08T07:30:00.000Z',
@@ -240,6 +262,7 @@ test('blocks expired approvals and attempts after the original run', async () =>
     expectedEnvironment: 'overcenter-owner-approval',
     expectedReviewer: 'laurajoyhutchins',
     gateJobResult: 'success',
+    runId: 37750000000,
     requestId: '37750000000.1',
     runAttempt: 1,
     expiresAt: '2026-10-08T07:30:00.000Z',
@@ -254,6 +277,7 @@ test('blocks expired approvals and attempts after the original run', async () =>
     expectedEnvironment: 'overcenter-owner-approval',
     expectedReviewer: 'laurajoyhutchins',
     gateJobResult: 'success',
+    runId: 37750000000,
     requestId: '37750000000.1',
     runAttempt: 2,
     expiresAt: '2026-10-08T07:30:00.000Z',
@@ -267,6 +291,8 @@ test('settles only on successful independent readback and preserves uncertain ou
   const { settleRunnerRecovery } = await implementation();
   const settled = settleRunnerRecovery({
     review: {
+      schema: 'overcenter-runner-recovery-review/v1',
+      request_id: '37750000000.1',
       review_state: 'approved',
       reviewed_by: 'laurajoyhutchins',
       review_comment: 'Reviewed exact request',
@@ -275,14 +301,44 @@ test('settles only on successful independent readback and preserves uncertain ou
     requestId: '37750000000.1',
     runId: 37750000000,
     runAttempt: 1,
+    manifestSha256: 'f'.repeat(64),
+    targetSha: 'b'.repeat(40),
+    targetTreeSha: 'c'.repeat(40),
     operationResult: 'success',
     readbackResult: 'target_verified',
   });
   assert.equal(settled.outcome, 'settled');
   assert.equal(settled.reviewed_by, 'laurajoyhutchins');
+  assert.equal(settled.binding_valid, true);
+  assert.equal(settled.manifest_sha256, 'f'.repeat(64));
+  assert.equal(settled.target_sha, 'b'.repeat(40));
+  assert.equal(settled.target_tree_sha, 'c'.repeat(40));
+
+  const mismatchedRun = settleRunnerRecovery({
+    review: {
+      schema: 'overcenter-runner-recovery-review/v1',
+      request_id: '37750000000.1',
+      review_state: 'approved',
+      reviewed_by: 'laurajoyhutchins',
+      review_comment: 'Reviewed exact request',
+      outcome: 'approved',
+    },
+    requestId: '37750000001.1',
+    runId: 37750000000,
+    runAttempt: 1,
+    manifestSha256: 'f'.repeat(64),
+    targetSha: 'b'.repeat(40),
+    targetTreeSha: 'c'.repeat(40),
+    operationResult: 'success',
+    readbackResult: 'target_verified',
+  });
+  assert.equal(mismatchedRun.outcome, 'indeterminate');
+  assert.equal(mismatchedRun.binding_valid, false);
 
   const uncertain = settleRunnerRecovery({
     review: {
+      schema: 'overcenter-runner-recovery-review/v1',
+      request_id: '37750000000.1',
       review_state: 'approved',
       reviewed_by: 'laurajoyhutchins',
       review_comment: 'Reviewed exact request',
@@ -291,6 +347,9 @@ test('settles only on successful independent readback and preserves uncertain ou
     requestId: '37750000000.1',
     runId: 37750000000,
     runAttempt: 1,
+    manifestSha256: 'f'.repeat(64),
+    targetSha: 'b'.repeat(40),
+    targetTreeSha: 'c'.repeat(40),
     operationResult: 'failure',
     readbackResult: 'unavailable',
   });
@@ -299,6 +358,8 @@ test('settles only on successful independent readback and preserves uncertain ou
 
   const rejected = settleRunnerRecovery({
     review: {
+      schema: 'overcenter-runner-recovery-review/v1',
+      request_id: '37750000000.1',
       review_state: 'rejected',
       reviewed_by: 'laurajoyhutchins',
       review_comment: 'No.',
@@ -307,6 +368,9 @@ test('settles only on successful independent readback and preserves uncertain ou
     requestId: '37750000000.1',
     runId: 37750000000,
     runAttempt: 1,
+    manifestSha256: 'f'.repeat(64),
+    targetSha: 'b'.repeat(40),
+    targetTreeSha: 'c'.repeat(40),
     operationResult: 'not_started',
     readbackResult: 'not_attempted',
   });
