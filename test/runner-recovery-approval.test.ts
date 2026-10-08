@@ -382,3 +382,90 @@ test('settles only on successful independent readback and preserves uncertain ou
   });
   assert.equal(rejected.outcome, 'rejected');
 });
+
+test('rejects caller-selected approval policies even when a reviewer appears to approve', async () => {
+  const { classifyRunnerRecoveryApproval } = await implementation();
+  const request = {
+    evidenceAvailable: true,
+    approvals: [approval('approved', 'other-user')],
+    expectedEnvironment: 'overcenter-owner-approval',
+    expectedReviewer: 'other-user',
+    gateJobResult: 'success',
+    runId: 37750000000,
+    requestId: '37750000000.1',
+    runAttempt: 1,
+    expiresAt: '2026-10-08T07:30:00.000Z',
+    now: '2026-10-08T07:10:00.000Z',
+  };
+  const wrongReviewer = classifyRunnerRecoveryApproval(request);
+  assert.equal(wrongReviewer.review_state, 'unauthorized');
+  assert.equal(wrongReviewer.outcome, 'review_policy_mismatch');
+
+  const wrongEnvironment = classifyRunnerRecoveryApproval({
+    ...request,
+    approvals: [approval('approved')],
+    expectedReviewer: 'laurajoyhutchins',
+    expectedEnvironment: 'unprotected-environment',
+  });
+  assert.equal(wrongEnvironment.review_state, 'unauthorized');
+  assert.equal(wrongEnvironment.outcome, 'review_policy_mismatch');
+});
+
+test('settlement flags execution without owner approval and contradictory execution evidence', async () => {
+  const { settleRunnerRecovery } = await implementation();
+  const request = {
+    review: {
+      schema: 'overcenter-runner-recovery-review/v1',
+      request_id: '37750000000.1',
+      review_state: 'rejected',
+      reviewed_by: 'laurajoyhutchins',
+      review_comment: 'Rejected',
+      outcome: 'rejected',
+    },
+    requestId: '37750000000.1',
+    runId: 37750000000,
+    runAttempt: 1,
+    manifestSha256: 'f'.repeat(64),
+    targetSha: 'b'.repeat(40),
+    targetTreeSha: 'c'.repeat(40),
+    operationResult: 'not_started',
+    readbackResult: 'not_attempted',
+  };
+
+  assert.equal(settleRunnerRecovery(request).outcome, 'rejected');
+  assert.equal(
+    settleRunnerRecovery({
+      ...request,
+      operationResult: 'success',
+      readbackResult: 'target_verified',
+    }).outcome,
+    'indeterminate',
+  );
+  assert.equal(
+    settleRunnerRecovery({
+      ...request,
+      review: {
+        ...request.review,
+        review_state: 'approved',
+        reviewed_by: 'other-user',
+        outcome: 'approved',
+      },
+      operationResult: 'success',
+      readbackResult: 'target_verified',
+    }).outcome,
+    'indeterminate',
+  );
+  assert.equal(
+    settleRunnerRecovery({
+      ...request,
+      review: {
+        ...request.review,
+        review_state: 'approved',
+        outcome: 'approved',
+      },
+      operationResult: 'success',
+      readbackResult: 'not_attempted',
+    }).outcome,
+    'indeterminate',
+  );
+});
