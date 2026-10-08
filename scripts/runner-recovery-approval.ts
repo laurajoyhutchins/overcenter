@@ -200,9 +200,11 @@ function readManifestInput(value: unknown): RunnerRecoveryManifestInput {
   return value as unknown as RunnerRecoveryManifestInput;
 }
 
-export function createRunnerRecoveryManifest(
-  inputValue: RunnerRecoveryManifestInput,
-): { manifest: RunnerRecoveryManifest; canonicalJson: string; sha256: string } {
+export function createRunnerRecoveryManifest(inputValue: RunnerRecoveryManifestInput): {
+  manifest: RunnerRecoveryManifest;
+  canonicalJson: string;
+  sha256: string;
+} {
   const input = readManifestInput(inputValue);
   if (input.repositoryFullName !== REPOSITORY) fail('RUNNER_RECOVERY_REPOSITORY_MISMATCH');
   if (!sha40(input.acceptedBaseSha) || !sha40(input.targetSha)) {
@@ -411,7 +413,12 @@ export function classifyRunnerRecoveryApproval(
 }
 
 export type OperationResult = 'success' | 'failure' | 'cancelled' | 'not_started' | 'unknown';
-export type ReadbackResult = 'target_verified' | 'not_applied' | 'mismatch' | 'unavailable' | 'not_attempted';
+export type ReadbackResult =
+  | 'target_verified'
+  | 'not_applied'
+  | 'mismatch'
+  | 'unavailable'
+  | 'not_attempted';
 
 export interface RunnerRecoverySettlementInput {
   review: RunnerRecoveryReviewReceipt;
