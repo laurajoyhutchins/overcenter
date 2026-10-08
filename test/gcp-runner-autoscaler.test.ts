@@ -152,6 +152,36 @@ test('runner image pins rustup bootstrap for repository verification', () => {
   assert.doesNotMatch(dockerfile, /docker\.sock|--privileged/);
 });
 
+test('runner image Go tooling matches the repository pin and verifies the installed toolchain', () => {
+  const dockerfile = readFileSync(
+    new URL('../infra/gcp-runner-image/Dockerfile', import.meta.url),
+    'utf8',
+  );
+  const expectedVersion = readFileSync(new URL('../.go-version', import.meta.url), 'utf8').trim();
+  assert.ok(dockerfile.includes('ARG GO_VERSION=' + expectedVersion));
+  assert.match(dockerfile, /^ARG GO_SHA256=[0-9a-f]{64}$/m);
+  assert.match(dockerfile, /sha256sum --check --strict/);
+  assert.match(dockerfile, /go env GOVERSION/);
+  assert.match(dockerfile, /command -v gofmt/);
+});
+
+test('runner image installs rustfmt for the repository-pinned Rust toolchain', () => {
+  const dockerfile = readFileSync(
+    new URL('../infra/gcp-runner-image/Dockerfile', import.meta.url),
+    'utf8',
+  );
+  const toolchain = readFileSync(new URL('../rust-toolchain.toml', import.meta.url), 'utf8');
+  const expectedVersion = toolchain.match(/channel = "([^"]+)"/)?.[1];
+  assert.ok(expectedVersion);
+  assert.ok(dockerfile.includes('ARG RUST_VERSION=' + expectedVersion));
+  assert.ok(
+    dockerfile.includes(
+      'rustup toolchain install "${RUST_VERSION}" --profile minimal --component rustfmt',
+    ),
+  );
+  assert.ok(dockerfile.includes('rustup run "${RUST_VERSION}" rustfmt --version'));
+});
+
 test('deployment lane keeps only the latest exact substrate revision', () => {
   const workflow = readFileSync(
     new URL('../.github/workflows/gcp-runner-autoscaler-deploy.yml', import.meta.url),
@@ -275,4 +305,5 @@ test('recovery authorization executes hostile invocation and revision cases', ()
     assert.notEqual(run(overrides).status, 0, JSON.stringify(overrides));
   }
 });
+
 
