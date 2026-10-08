@@ -47,7 +47,9 @@ test('only the read-only canary job enters the owner-protected environment', () 
 });
 
 test('settlement records an honest no-side-effect outcome even when approval does not succeed', () => {
-  const settle = job('settle', 'missing-job-boundary');
+  const settleStart = workflow.indexOf('  settle:\n');
+  assert.notEqual(settleStart, -1, 'missing settle job');
+  const settle = workflow.slice(settleStart);
   assert.match(settle, /if: always\(\) && needs\.prepare\.result == 'success'/);
   assert.match(settle, /approval_job_result: gateResult/);
   assert.match(settle, /approval_not_settled/);
