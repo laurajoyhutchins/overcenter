@@ -305,5 +305,3 @@ test('recovery authorization executes hostile invocation and revision cases', ()
     assert.notEqual(run(overrides).status, 0, JSON.stringify(overrides));
   }
 });
-
-
