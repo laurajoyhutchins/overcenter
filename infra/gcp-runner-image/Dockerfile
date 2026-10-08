@@ -26,14 +26,14 @@ RUN apt-get update -qq \
       unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl --fail --silent --show-error --location \\
-      --output /tmp/go.tar.gz \\
-      "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \\
-    && echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum --check --strict \\
-    && tar -C /usr/local -xzf /tmp/go.tar.gz \\
-    && rm /tmp/go.tar.gz \\
-    && test "$(go env GOVERSION)" = "go${GO_VERSION}" \\
-    && command -v go >/dev/null \\
+RUN curl --fail --silent --show-error --location \
+      --output /tmp/go.tar.gz \
+      "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
+    && echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum --check --strict \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz \
+    && test "$(go env GOVERSION)" = "go${GO_VERSION}" \
+    && command -v go >/dev/null \
     && command -v gofmt >/dev/null
 
 RUN curl --fail --silent --show-error --location \
