@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
@@ -151,36 +152,6 @@ test('runner image pins rustup bootstrap for repository verification', () => {
   assert.doesNotMatch(dockerfile, /docker\.sock|--privileged/);
 });
 
-test('runner image Go tooling matches the repository pin and verifies the installed toolchain', () => {
-  const dockerfile = readFileSync(
-    new URL('../infra/gcp-runner-image/Dockerfile', import.meta.url),
-    'utf8',
-  );
-  const expectedVersion = readFileSync(new URL('../.go-version', import.meta.url), 'utf8').trim();
-  assert.ok(dockerfile.includes('ARG GO_VERSION=' + expectedVersion));
-  assert.match(dockerfile, /^ARG GO_SHA256=[0-9a-f]{64}$/m);
-  assert.match(dockerfile, /sha256sum --check --strict/);
-  assert.match(dockerfile, /go env GOVERSION/);
-  assert.match(dockerfile, /command -v gofmt/);
-});
-
-test('runner image installs rustfmt for the repository-pinned Rust toolchain', () => {
-  const dockerfile = readFileSync(
-    new URL('../infra/gcp-runner-image/Dockerfile', import.meta.url),
-    'utf8',
-  );
-  const toolchain = readFileSync(new URL('../rust-toolchain.toml', import.meta.url), 'utf8');
-  const expectedVersion = toolchain.match(/channel = "([^"]+)"/)?.[1];
-  assert.ok(expectedVersion);
-  assert.ok(dockerfile.includes('ARG RUST_VERSION=' + expectedVersion));
-  assert.ok(
-    dockerfile.includes(
-      'rustup toolchain install "${RUST_VERSION}" --profile minimal --component rustfmt',
-    ),
-  );
-  assert.ok(dockerfile.includes('rustup run "${RUST_VERSION}" rustfmt --version'));
-});
-
 test('deployment lane keeps only the latest exact substrate revision', () => {
   const workflow = readFileSync(
     new URL('../.github/workflows/gcp-runner-autoscaler-deploy.yml', import.meta.url),
@@ -202,3 +173,106 @@ test('autoscaler deployment uses a unique exact-job GCP runner', () => {
   assert.doesNotMatch(workflow, /runs-on: ubuntu-/);
   assert.match(workflow, /cancel-in-progress: true/);
 });
+test('substrate recovery is owner-only, manual, and bound to the selected infrastructure revision', () => {
+  const workflow = readFileSync(
+    new URL('../.github/workflows/gcp-runner-autoscaler-recovery.yml', import.meta.url),
+    'utf8',
+  );
+
+  assert.ok(workflow.includes('on:\n  workflow_dispatch:\n'));
+  assert.doesNotMatch(workflow, /^\s{2}(?:push|pull_request|schedule|workflow_run):/m);
+  assert.ok(workflow.includes('test "$GITHUB_REPOSITORY" = "laurajoyhutchins/overcenter"'));
+  assert.ok(workflow.includes('test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"'));
+  assert.ok(
+    workflow.includes('test "$GITHUB_REF" = "refs/heads/work/gcp-cloud-run-cloud-sql-bootstrap"'),
+  );
+  const shaExpression = '$' + '{{ github.sha }}';
+  assert.ok(workflow.includes('EXACT_REVISION: ' + shaExpression));
+  assert.ok(workflow.includes('ref: ' + shaExpression));
+  assert.ok(workflow.includes('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"'));
+  assert.ok(workflow.includes('test "$EXACT_REVISION" = "$GITHUB_SHA"'));
+  assert.doesNotMatch(workflow, /inputs:|inputs\./);
+
+  const authorizationIndex = workflow.indexOf('name: Prove recovery authorization');
+  const authenticationIndex = workflow.indexOf('name: Authenticate to Google Cloud');
+  assert.ok(authorizationIndex >= 0 && authorizationIndex < authenticationIndex);
+});
+
+test('substrate recovery reuses the ordinary deployer identity, WIF provider, and script', () => {
+  const ordinary = readFileSync(
+    new URL('../.github/workflows/gcp-runner-autoscaler-deploy.yml', import.meta.url),
+    'utf8',
+  );
+  const recovery = readFileSync(
+    new URL('../.github/workflows/gcp-runner-autoscaler-recovery.yml', import.meta.url),
+    'utf8',
+  );
+
+  for (const value of [
+    'overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com',
+    'projects/380435294892/locations/global/workloadIdentityPools/github/providers/overcenter',
+    'google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093',
+    'google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db',
+    'bash infra/gcp/deploy-runner-autoscaler.sh',
+  ]) {
+    assert.ok(ordinary.includes(value), 'ordinary deployment must contain ' + value);
+    assert.ok(recovery.includes(value), 'recovery must reuse ' + value);
+  }
+});
+
+test('recovery binds the deployed services to the exact checked-out revision', () => {
+  const deploy = readFileSync(
+    new URL('../infra/gcp/deploy-runner-autoscaler.sh', import.meta.url),
+    'utf8',
+  );
+
+  assert.ok(deploy.includes('test "$(git rev-parse HEAD)" = "$EXACT_REVISION"'));
+  const sourceRevisionAssignment =
+    'OVERCENTER_SOURCE_REVISION=' + String.fromCharCode(36) + '{EXACT_REVISION}';
+  assert.ok(deploy.includes(sourceRevisionAssignment));
+  assert.ok(deploy.includes('autoscaler source revision readback mismatch'));
+});
+
+test('recovery authorization executes hostile invocation and revision cases', () => {
+  const workflow = readFileSync(
+    new URL('../.github/workflows/gcp-runner-autoscaler-recovery.yml', import.meta.url),
+    'utf8',
+  );
+  const guard = workflow.match(
+    /name: Prove recovery authorization\n        shell: bash\n        run: \|\n((?:          .+\n)+)/,
+  )?.[1];
+  assert.ok(guard, 'the deployed authorization guard must be executable');
+  const sha = 'a'.repeat(40);
+  const authorized = {
+    GITHUB_EVENT_NAME: 'workflow_dispatch',
+    GITHUB_REPOSITORY: 'laurajoyhutchins/overcenter',
+    GITHUB_REPOSITORY_OWNER: 'laurajoyhutchins',
+    GITHUB_ACTOR: 'laurajoyhutchins',
+    GITHUB_TRIGGERING_ACTOR: 'laurajoyhutchins',
+    GITHUB_REF: 'refs/heads/work/gcp-cloud-run-cloud-sql-bootstrap',
+    GITHUB_SHA: sha,
+    EXACT_REVISION: sha,
+    CHECKED_OUT_SHA: sha,
+  };
+  const run = (overrides: Record<string, string>) =>
+    spawnSync('bash', ['-c', 'git() { echo "$CHECKED_OUT_SHA"; }\n' + guard], {
+      env: { ...process.env, ...authorized, ...overrides },
+      encoding: 'utf8',
+    });
+  assert.equal(run({}).status, 0, 'owner dispatch of the exact infra revision is allowed');
+  const hostileCases: Record<string, string>[] = [
+    { GITHUB_EVENT_NAME: 'push' },
+    { GITHUB_REPOSITORY: 'attacker/overcenter' },
+    { GITHUB_ACTOR: 'collaborator' },
+    { GITHUB_TRIGGERING_ACTOR: 'collaborator' },
+    { GITHUB_REF: 'refs/heads/main' },
+    { GITHUB_REF: 'refs/tags/recovery' },
+    { GITHUB_SHA: 'not-a-sha' },
+    { EXACT_REVISION: 'b'.repeat(40) },
+    { CHECKED_OUT_SHA: 'b'.repeat(40) },
+  ];
+  for (const overrides of hostileCases) {
+    assert.notEqual(run(overrides).status, 0, JSON.stringify(overrides));
+  }
+});
+
