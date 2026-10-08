@@ -62,9 +62,9 @@ if ! gcloud pubsub subscriptions describe "$SUBSCRIPTION" --project="$PROJECT_ID
   gcloud pubsub subscriptions create "$SUBSCRIPTION"     --project="$PROJECT_ID"     --topic="$TOPIC"     --ack-deadline=120
 fi
 
-gcloud pubsub topics add-iam-policy-binding "$TOPIC"   --project="$PROJECT_ID"   --member="serviceAccount:${LAUNCHER_SA}"   --role="roles/pubsub.publisher"   --condition=None   --quiet >/dev/null
+gcloud pubsub topics add-iam-policy-binding "$TOPIC"   --project="$PROJECT_ID"   --member="serviceAccount:${LAUNCHER_SA}"   --role="roles/pubsub.publisher"   --quiet >/dev/null
 
-gcloud pubsub subscriptions add-iam-policy-binding "$SUBSCRIPTION"   --project="$PROJECT_ID"   --member="serviceAccount:${RUNTIME_SA}"   --role="roles/pubsub.subscriber"   --condition=None   --quiet >/dev/null
+gcloud pubsub subscriptions add-iam-policy-binding "$SUBSCRIPTION"   --project="$PROJECT_ID"   --member="serviceAccount:${RUNTIME_SA}"   --role="roles/pubsub.subscriber"   --quiet >/dev/null
 
 if ! gcloud compute networks describe "$NETWORK" --project="$PROJECT_ID" >/dev/null 2>&1; then
   gcloud compute networks create "$NETWORK"     --project="$PROJECT_ID"     --subnet-mode=custom
