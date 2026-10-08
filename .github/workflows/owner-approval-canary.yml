@@ -101,18 +101,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          {
-            echo "## Owner approval canary request"
-            echo
-            echo "- Request ID: `${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}`"
-            echo "- Operation: `approval-canary/no-side-effect/v1`"
-            echo "- Target: `${GITHUB_REPOSITORY}@$GITHUB_SHA`"
-            echo "- Tree: `$(git rev-parse 'HEAD^{tree}')`"
-            echo "- Requested by: `$GITHUB_ACTOR`"
-            echo "- Side effects: none"
-            echo
-            echo "Review the request artifact and this immutable revision before approving."
-          } >> "$GITHUB_STEP_SUMMARY"
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const path = process.env.RUNNER_TEMP + '/owner-approval-canary-request.json';
+          const json = readFileSync(path, 'utf8');
+          const manifest = JSON.parse(json);
+          const digest = createHash('sha256').update(json).digest('hex');
+          const escapeHtml = (value) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+          const fields = {
+            'Request ID': manifest.request_id,
+            Operation: manifest.operation,
+            Repository: manifest.repository_full_name,
+            'Target ref': manifest.target_ref,
+            'Candidate SHA': manifest.candidate_sha,
+            'Candidate tree SHA': manifest.candidate_tree_sha,
+            'Requested by': manifest.requested_by,
+            Reason: manifest.reason,
+            'Side effects': manifest.side_effects.length === 0 ? 'none' : JSON.stringify(manifest.side_effects),
+            'Manifest SHA-256': digest,
+          };
+          const rows = Object.entries(fields)
+            .map(([name, value]) => `<tr><th>${escapeHtml(name)}</th><td><code>${escapeHtml(value)}</code></td></tr>`)
+            .join('\n');
+          appendFileSync(
+            process.env.GITHUB_STEP_SUMMARY,
+            `## Owner approval canary request\n\n<table>\n${rows}\n</table>\n\nReview the request artifact and this immutable revision before approving.\n`,
+          );
+          NODE
 
   approval:
     name: Owner mobile approval (no side effects)

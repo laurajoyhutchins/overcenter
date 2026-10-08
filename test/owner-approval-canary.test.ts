@@ -56,3 +56,25 @@ test('settlement records an honest no-side-effect outcome even when approval doe
   assert.match(settle, /side_effects: \[\]/);
   assert.match(settle, /retention-days: 90/);
 });
+test('approval summary is rendered from the exact manifest before the environment gate', () => {
+  const prepare = job('prepare', 'approval');
+  assert.match(prepare, /Show the exact request before approval/);
+  assert.match(prepare, /const manifest = JSON\.parse\(json\)/);
+  assert.match(prepare, /const digest = createHash\('sha256'\)/);
+  assert.match(prepare, /appendFileSync\([\s\S]*GITHUB_STEP_SUMMARY/);
+  for (const field of [
+    'Request ID',
+    'Operation',
+    'Repository',
+    'Target ref',
+    'Candidate SHA',
+    'Candidate tree SHA',
+    'Requested by',
+    'Reason',
+    'Side effects',
+    'Manifest SHA-256',
+  ]) {
+    assert.ok(prepare.includes(field), `missing visible request field: ${field}`);
+  }
+  assert.doesNotMatch(prepare, /echo "- Request ID:/);
+});
