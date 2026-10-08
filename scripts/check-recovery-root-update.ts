@@ -507,8 +507,9 @@ export function checkRootUpdate(
       const results = log
         .split('\n')
         .filter((line) => line.startsWith('OVERCENTER_ROOT_ORACLE_JSON='));
-      if (results.length !== 1) fail('SEMANTIC_LOC_ORACLE_RESULT_INVALID');
-      assertSemanticLocOracle(JSON.parse(results[0].slice('OVERCENTER_ROOT_ORACLE_JSON='.length)));
+      const [result] = results;
+      if (results.length !== 1 || !result) fail('SEMANTIC_LOC_ORACLE_RESULT_INVALID');
+      assertSemanticLocOracle(JSON.parse(result.slice('OVERCENTER_ROOT_ORACLE_JSON='.length)));
     }
     if (contentDigest(exact) !== exactBefore) fail('CANDIDATE_CHECK_SOURCE_MUTATED');
     const baseline = snapshot('same-reporter-baseline', structural.base_sha);
