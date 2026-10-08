@@ -267,23 +267,36 @@ test('recomputes structural receipt and rejects forged status or digest', (t) =>
 test('structured hostile evidence requires a complete successful summary', async () => {
   const { verifyEvidenceEvents } = await import('../scripts/check-recovery-root-update.ts');
   const events = [
-    { type: 'test:pass', data: { name: 'TCB semantic LOC is invariant to source layout and comments', nesting: 0 } },
-    { type: 'test:pass', data: { name: 'TCB semantic span union counts containing syntax once', nesting: 0 } },
+    {
+      type: 'test:pass',
+      data: { name: 'TCB semantic LOC is invariant to source layout and comments', nesting: 0 },
+    },
+    {
+      type: 'test:pass',
+      data: { name: 'TCB semantic span union counts containing syntax once', nesting: 0 },
+    },
     { type: 'test:summary', data: { success: true } },
   ];
-  assert.doesNotThrow(() => verifyEvidenceEvents(events.map((event) => JSON.stringify(event)).join('\\n')));
+  assert.doesNotThrow(() =>
+    verifyEvidenceEvents(events.map((event) => JSON.stringify(event)).join('\n')),
+  );
   assert.throws(
-    () => verifyEvidenceEvents(events.slice(0, 2).map((event) => JSON.stringify(event)).join('\\n')),
+    () =>
+      verifyEvidenceEvents(events.slice(0, 2).map((event) => JSON.stringify(event)).join('\n')),
     /EVIDENCE_SUMMARY_REQUIRED/,
   );
   assert.throws(
-    () => verifyEvidenceEvents(events.map((event) => JSON.stringify(event)).join('\\n') + '\\nnot-json-warning'),
+    () =>
+      verifyEvidenceEvents(
+        events.map((event) => JSON.stringify(event)).join('\n') + '\nnot-json-warning',
+      ),
     /SyntaxError/,
   );
   assert.throws(
     () => verifyEvidenceEvents(
       [...events.slice(0, 2), { type: 'test:summary', data: { success: false } }]
-        .map((event) => JSON.stringify(event)).join('\\n'),
+        .map((event) => JSON.stringify(event))
+        .join('\n'),
     ),
     /EVIDENCE_SUMMARY_FAILED/,
   );
