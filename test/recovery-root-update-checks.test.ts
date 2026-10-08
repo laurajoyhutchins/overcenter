@@ -11,6 +11,8 @@ const verifier = resolve('scripts/verify-recovery-root-update.ts');
 test('workflow keeps owner main binding, accepted authority, and read-only root receipts', () => {
   const workflow = readFileSync('.github/workflows/protected-source-recovery.yml', 'utf8');
   assert.match(workflow, /default: protected-source/);
+  assert.match(workflow, /inputs\\.mode == 'recovery-root' && '\\["ubuntu-24\\.04"\\]'/);
+  assert.match(workflow, /'\\["self-hosted","overcenter-gcp"\\]'/);
   assert.match(workflow, /test "\$GITHUB_ACTOR" = "\$GITHUB_REPOSITORY_OWNER"/);
   assert.match(workflow, /test "\$GITHUB_REF" = "refs\/heads\/main"/);
   assert.match(workflow, /test "\$BASE_SHA" = "\$GITHUB_SHA"/);
@@ -250,6 +252,24 @@ test('recomputes structural receipt and rejects forged status or digest', (t) =>
   const r = f.run();
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /STRUCTURAL_RECEIPT_MISMATCH/);
+});
+
+test('absolute semantic LOC oracle rejects systematic undercounting', async () => {
+  const { assertSemanticLocOracle } = await import('../scripts/check-recovery-root-update.ts');
+  const correct = { 'function-control-flow': 5, 'class-method': 3, 'type-only': 0 };
+  assert.doesNotThrow(() => assertSemanticLocOracle(correct));
+  assert.throws(
+    () => assertSemanticLocOracle({ ...correct, 'function-control-flow': 0 }),
+    /SEMANTIC_LOC_ORACLE_MISMATCH/,
+  );
+  assert.throws(
+    () => assertSemanticLocOracle({ ...correct, 'class-method': 2 }),
+    /SEMANTIC_LOC_ORACLE_MISMATCH/,
+  );
+  assert.throws(
+    () => assertSemanticLocOracle({ ...correct, omitted: 0 }),
+    /SEMANTIC_LOC_ORACLE_SCOPE/,
+  );
 });
 
 test('trusted comparison rejects reporter-forged admitted status with omitted scopes or growth', async () => {

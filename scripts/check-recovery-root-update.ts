@@ -151,6 +151,66 @@ const evidenceTests = [
   'TCB semantic span union counts containing syntax once',
 ];
 
+const expectedSemanticLocOracle = {
+  'function-control-flow': 5,
+  'class-method': 3,
+  'type-only': 0,
+} as const;
+
+// Absolute expectations are independent of candidate TCB reports.
+export function assertSemanticLocOracle(value: unknown): void {
+  const actual = reportObject(value);
+  if (
+    JSON.stringify(Object.keys(actual).sort()) !==
+    JSON.stringify(Object.keys(expectedSemanticLocOracle).sort())
+  )
+    fail('SEMANTIC_LOC_ORACLE_SCOPE');
+  for (const [name, expected] of Object.entries(expectedSemanticLocOracle)) {
+    if (actual[name] !== expected) fail(`SEMANTIC_LOC_ORACLE_MISMATCH:${name}`);
+  }
+}
+
+const semanticLocOracleSource = `
+import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { API } from 'typescript/unstable/sync';
+import { logicalSemanticLoc } from './src/analysis/tcb-semantic-loc.ts';
+
+const root = mkdtempSync(join(tmpdir(), 'overcenter-semantic-oracle-'));
+const files = {
+  'function-control-flow': 'export function trusted(x: number) { const y = x + 1; if (y > 4) { return y; } return 0; }',
+  'class-method': 'class Trusted { run() { return 1; } }',
+  'type-only': 'interface Shape { size: number } type Alias = string;',
+};
+let api;
+let snapshot;
+try {
+  for (const [name, source] of Object.entries(files)) {
+    writeFileSync(join(root, name + '.ts'), source);
+  }
+  writeFileSync(join(root, 'tsconfig.json'), JSON.stringify({
+    compilerOptions: { module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, target: 'ES2023' },
+    files: Object.keys(files).map(name => name + '.ts'),
+  }));
+  api = new API({ cwd: root });
+  snapshot = api.updateSnapshot({ openProject: 'tsconfig.json' });
+  const measured = {};
+  for (const name of Object.keys(files)) {
+    const path = join(root, name + '.ts');
+    const source = snapshot.getDefaultProjectForFile(path)?.program.getSourceFile(path);
+    if (!source) throw new Error('RECOVERY_ROOT_ORACLE_SOURCE_MISSING:' + name);
+    measured[name] = logicalSemanticLoc(source);
+  }
+  process.stdout.write('OVERCENTER_ROOT_ORACLE_JSON=' + JSON.stringify(measured) + '\\n');
+} finally {
+  snapshot?.dispose();
+  api?.close();
+  rmSync(root, { recursive: true, force: true });
+}
+`;
+
+
 function verifyEvidenceEvents(log: string): void {
   const passed = new Set<string>();
   for (const line of log.split('\n').filter(Boolean)) {
@@ -410,6 +470,26 @@ export function checkRootUpdate(
       ...sourceChecks('candidate', exact),
       tcbCheck('candidate', exact, true),
     ];
+    // Relative TCB reconciliation cannot detect systematic undercounting
+    // by the same reporter on both baseline and candidate trees.
+    let semanticLocOracleCheck: ReturnType<typeof run> | null = null;
+    if (structural.writable_paths.includes('src/analysis/tcb-semantic-loc.ts')) {
+      const oraclePath = join(exact, '.recovery-root-semantic-oracle.mjs');
+      if (existsSync(oraclePath)) fail('SEMANTIC_LOC_ORACLE_PATH_EXISTS');
+      try {
+        writeFileSync(oraclePath, semanticLocOracleSource);
+        semanticLocOracleCheck = run('candidate/semantic-loc-oracle', exact, process.execPath, [
+          '--experimental-strip-types',
+          oraclePath,
+        ]);
+      } finally {
+        rmSync(oraclePath, { force: true });
+      }
+      const log = readFileSync(join(output, semanticLocOracleCheck.log), 'utf8');
+      const results = log.split('\n').filter((line) => line.startsWith('OVERCENTER_ROOT_ORACLE_JSON='));
+      if (results.length !== 1) fail('SEMANTIC_LOC_ORACLE_RESULT_INVALID');
+      assertSemanticLocOracle(JSON.parse(results[0].slice('OVERCENTER_ROOT_ORACLE_JSON='.length)));
+    }
     if (contentDigest(exact) !== exactBefore) fail('CANDIDATE_CHECK_SOURCE_MUTATED');
     const baseline = snapshot('same-reporter-baseline', structural.base_sha);
     const baselineBefore = contentDigest(baseline);
@@ -492,6 +572,7 @@ export function checkRootUpdate(
       accepted_checks: acceptedChecks,
       candidate_checks: candidateChecks,
       same_reporter_check: sameReporterCheck,
+      semantic_loc_oracle_check: semanticLocOracleCheck,
       trusted_tcb_reconciliation: trustedReconciliation,
       reports,
       evidence_check: evidenceCheck,
