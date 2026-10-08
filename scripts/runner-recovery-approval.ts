@@ -13,6 +13,7 @@ const SETTLEMENT_SCHEMA = 'overcenter-runner-recovery-settlement/v1' as const;
 const OPERATION = 'gcp-runner-autoscaler-recovery/v1' as const;
 const REPOSITORY = 'laurajoyhutchins/overcenter' as const;
 const OWNER = 'laurajoyhutchins' as const;
+const ENVIRONMENT = 'overcenter-owner-approval' as const;
 const TARGET_REF = 'refs/heads/work/gcp-cloud-run-cloud-sql-bootstrap' as const;
 const IDENTITY =
   'overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com' as const;
@@ -356,6 +357,9 @@ function reviewReceipt(
 export function classifyRunnerRecoveryApproval(
   input: RunnerRecoveryReviewInput,
 ): RunnerRecoveryReviewReceipt {
+  if (input.expectedEnvironment !== ENVIRONMENT || input.expectedReviewer !== OWNER) {
+    return reviewReceipt(input, 'unauthorized', null, null, 'review_policy_mismatch');
+  }
   if (!isPositiveSafeInteger(input.runId) || !isPositiveSafeInteger(input.runAttempt)) {
     return reviewReceipt(input, 'replay_blocked', null, null, 'request_replay_blocked');
   }
@@ -451,14 +455,27 @@ export function settleRunnerRecovery(
     sha40(input.targetTreeSha) &&
     SHA256.test(input.manifestSha256);
 
+  const ownerApproved =
+    input.review.review_state === 'approved' &&
+    input.review.outcome === 'approved' &&
+    input.review.reviewed_by === OWNER;
+
   let outcome: RunnerRecoverySettlementReceipt['outcome'];
   if (!bindingValid) {
     outcome = 'indeterminate';
-  } else if (input.review.review_state === 'rejected') {
+  } else if (
+    input.review.review_state === 'rejected' &&
+    input.review.outcome === 'rejected' &&
+    input.operationResult === 'not_started' &&
+    input.readbackResult === 'not_attempted'
+  ) {
     outcome = 'rejected';
-  } else if (input.review.review_state !== 'approved' || input.review.outcome !== 'approved') {
-    outcome = 'not_authorized';
-  } else if (input.operationResult === 'not_started' || input.readbackResult === 'not_attempted') {
+  } else if (!ownerApproved) {
+    outcome =
+      input.operationResult === 'not_started' && input.readbackResult === 'not_attempted'
+        ? 'not_authorized'
+        : 'indeterminate';
+  } else if (input.operationResult === 'not_started' && input.readbackResult === 'not_attempted') {
     outcome = 'not_started';
   } else if (input.operationResult === 'success' && input.readbackResult === 'target_verified') {
     outcome = 'settled';
