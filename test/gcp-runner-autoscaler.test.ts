@@ -151,7 +151,6 @@ test('runner image pins rustup bootstrap for repository verification', () => {
   assert.doesNotMatch(dockerfile, /docker\.sock|--privileged/);
 });
 
-
 test('runner image Go tooling matches the repository pin and verifies the installed toolchain', () => {
   const dockerfile = readFileSync(
     new URL('../infra/gcp-runner-image/Dockerfile', import.meta.url),
