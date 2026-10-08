@@ -44,9 +44,12 @@ Before Task 2, verify that an independent protected-source transition mechanism 
 - Test: `test/runner-recovery-approval.test.ts`
 
 **Interfaces:**
-- `createRunnerRecoveryManifest(input: RunnerRecoveryManifestInput): { manifest: RunnerRecoveryManifest; canonicalJson: string; sha256: string }`
-- `classifyRunnerRecoveryApproval(input: RunnerRecoveryReviewInput): RunnerRecoveryReviewReceipt`
-- `settleRunnerRecovery(input: RunnerRecoverySettlementInput): RunnerRecoverySettlementReceipt`
+- `RunnerRecoveryManifestInput` contains `repositoryFullName`, `acceptedBaseSha`, `targetRef`, `targetSha`, `targetTreeSha`, `workflowBlobSha`, `scriptBlobSha`, `evidenceRefs`, `resources`, `identityPrincipal`, `privilegeCeiling`, `requestId`, `createdAt`, `expiresAt`, `requestedBy`, `reason`, `humanImpact`, and `sideEffects`.
+- `createRunnerRecoveryManifest(input: RunnerRecoveryManifestInput): { manifest: RunnerRecoveryManifest; canonicalJson: string; sha256: string }` validates fixed operation/scope constants and returns canonical serialized bytes plus their SHA-256.
+- `RunnerRecoveryReviewInput` contains `evidenceAvailable`, normalized `approvals`, `expectedEnvironment`, `expectedReviewer`, `gateJobResult`, `requestId`, `runAttempt`, and `now`.
+- `classifyRunnerRecoveryApproval(input: RunnerRecoveryReviewInput): RunnerRecoveryReviewReceipt` preserves review state, reviewer login/comment when present, and a truthful outcome.
+- `RunnerRecoverySettlementInput` contains the review receipt, request/run identity, operation result, and independent readback result.
+- `settleRunnerRecovery(input: RunnerRecoverySettlementInput): RunnerRecoverySettlementReceipt` distinguishes settled, failed, stale, rejected, and indeterminate outcomes without retrying the operation.
 
 - [ ] **Step 1: Write failing tests** for canonical manifest digest, required accepted base and exact target, fixed operation/resource/identity scope, rejection, owner approval, wrong reviewer, unavailable evidence, expiration, and indeterminate settlement.
 - [ ] **Step 2: Run focused tests and confirm expected failures** with `node --experimental-strip-types --test test/runner-recovery-approval.test.ts`.
