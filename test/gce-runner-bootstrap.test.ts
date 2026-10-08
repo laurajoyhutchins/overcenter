@@ -51,7 +51,10 @@ test('COS warm host binds executable job storage and Docker credentials to priva
     new URL('../infra/gcp/start-runner-warm-host.sh', import.meta.url),
     'utf8',
   );
-  assert.match(host, /mount --bind \/var\/lib\/docker\/overcenter-runner \/var\/lib\/overcenter-runner/);
+  assert.match(
+    host,
+    /mount --bind \/var\/lib\/docker\/overcenter-runner \/var\/lib\/overcenter-runner/,
+  );
   assert.match(host, /export DOCKER_CONFIG="\/var\/lib\/docker\/overcenter-docker-config"/);
   assert.match(host, /chmod 0700 "\$DOCKER_CONFIG"/);
   assert.match(host, /iptables -I DOCKER-USER 1 -d 169\.254\.169\.254\/32 -j REJECT/);
