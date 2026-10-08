@@ -20,7 +20,7 @@ const resourceSet = [
   'secretmanager:projects/project-6b810532-a302-48dc-b56/secrets/overcenter-github-app-private-key:read',
 ];
 
-const privilegeCeiling = [
+const operationCapabilityCeiling = [
   'artifactregistry.repositories.uploadArtifacts',
   'cloudbuild.builds.create',
   'cloudbuild.builds.get',
@@ -48,7 +48,8 @@ const input = {
   ],
   resources: resourceSet,
   identityPrincipal: 'overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com',
-  privilegeCeiling,
+  operationCapabilityCeiling,
+  effectiveIamGrantSnapshotSha256: '1'.repeat(64),
   runId: 37750000000,
   runAttempt: 1,
   createdAt: '2026-10-08T07:00:00.000Z',
@@ -95,7 +96,8 @@ test('builds a canonical immutable manifest for the fixed recovery scope', async
     resource_set: resourceSet,
     identity_principal:
       'overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com',
-    privilege_ceiling: privilegeCeiling,
+    operation_capability_ceiling: operationCapabilityCeiling,
+    effective_iam_grant_snapshot_sha256: '1'.repeat(64),
     created_at: '2026-10-08T07:00:00.000Z',
     expires_at: '2026-10-08T07:30:00.000Z',
     requested_by: 'laurajoyhutchins',
@@ -130,7 +132,7 @@ test('rejects a broadened GCP resource set or identity ceiling', async () => {
   assert.throws(
     () => createRunnerRecoveryManifest({
       ...input,
-      privilegeCeiling: [...privilegeCeiling, 'resourcemanager.projects.setIamPolicy'],
+      operationCapabilityCeiling: [...operationCapabilityCeiling, 'resourcemanager.projects.setIamPolicy'],
     }),
     /RUNNER_RECOVERY_PRIVILEGE_CEILING_MISMATCH/,
   );
@@ -140,6 +142,10 @@ test('rejects a broadened GCP resource set or identity ceiling', async () => {
       identityPrincipal: 'overcenter-admin@project.iam.gserviceaccount.com',
     }),
     /RUNNER_RECOVERY_IDENTITY_MISMATCH/,
+  );
+  assert.throws(
+    () => createRunnerRecoveryManifest({ ...input, effectiveIamGrantSnapshotSha256: 'not-a-sha256' }),
+    /RUNNER_RECOVERY_IAM_SNAPSHOT_INVALID/,
   );
 });
 
