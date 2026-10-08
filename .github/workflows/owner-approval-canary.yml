@@ -1,0 +1,223 @@
+name: Owner approval canary
+
+run-name: Owner approval canary on ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why the no-side-effect approval canary is being run
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  prepare:
+    name: Prepare immutable canary request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      manifest_sha256: ${{ steps.manifest.outputs.sha256 }}
+      request_id: ${{ steps.manifest.outputs.request_id }}
+      candidate_sha: ${{ steps.manifest.outputs.candidate_sha }}
+      candidate_tree_sha: ${{ steps.manifest.outputs.candidate_tree_sha }}
+    steps:
+      - name: Check out the exact main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate owner request and publish immutable manifest
+        id: manifest
+        shell: bash
+        env:
+          REQUEST_REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REPOSITORY_OWNER" = "laurajoyhutchins"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_WORKFLOW_REF" = "laurajoyhutchins/overcenter/.github/workflows/owner-approval-canary.yml@refs/heads/main"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          tree_sha="$(git rev-parse 'HEAD^{tree}')"
+          export CANDIDATE_TREE_SHA="$tree_sha"
+
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { writeFileSync } from 'node:fs';
+
+          const reason = process.env.REQUEST_REASON ?? '';
+          if (reason.trim().length === 0 || reason.length > 500 || /[\r\n]/.test(reason)) {
+            throw new Error('OWNER_APPROVAL_CANARY_REASON_INVALID');
+          }
+          const manifest = {
+            schema: 'overcenter-owner-approval-canary-request/v1',
+            request_id: `${process.env.GITHUB_RUN_ID}.${process.env.GITHUB_RUN_ATTEMPT}`,
+            operation: 'approval-canary/no-side-effect/v1',
+            repository_full_name: process.env.GITHUB_REPOSITORY,
+            target_ref: process.env.GITHUB_REF,
+            candidate_sha: process.env.GITHUB_SHA,
+            candidate_tree_sha: process.env.CANDIDATE_TREE_SHA,
+            requested_by: process.env.GITHUB_ACTOR,
+            reason,
+            side_effects: [],
+          };
+          const json = JSON.stringify(manifest, null, 2) + '\n';
+          const sha256 = createHash('sha256').update(json).digest('hex');
+          writeFileSync(process.env.RUNNER_TEMP + '/owner-approval-canary-request.json', json);
+          process.stdout.write(json);
+          process.stdout.write(`manifest_sha256=${sha256}\n`);
+          process.stdout.write(`request_id=${manifest.request_id}\n`);
+          process.stdout.write(`candidate_sha=${manifest.candidate_sha}\n`);
+          process.stdout.write(`candidate_tree_sha=${manifest.candidate_tree_sha}\n`);
+          NODE
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { createHash } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          const path = process.env.RUNNER_TEMP + '/owner-approval-canary-request.json';
+          const json = readFileSync(path, 'utf8');
+          const manifest = JSON.parse(json);
+          console.log('sha256=' + createHash('sha256').update(json).digest('hex'));
+          console.log('request_id=' + manifest.request_id);
+          console.log('candidate_sha=' + manifest.candidate_sha);
+          console.log('candidate_tree_sha=' + manifest.candidate_tree_sha);
+          NODE
+
+      - name: Publish the reviewed request manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: owner-approval-canary-request-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/owner-approval-canary-request.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Show the exact request before approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Owner approval canary request"
+            echo
+            echo "- Request ID: `${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}`"
+            echo "- Operation: `approval-canary/no-side-effect/v1`"
+            echo "- Target: `${GITHUB_REPOSITORY}@$GITHUB_SHA`"
+            echo "- Tree: `$(git rev-parse 'HEAD^{tree}')`"
+            echo "- Requested by: `$GITHUB_ACTOR`"
+            echo "- Side effects: none"
+            echo
+            echo "Review the request artifact and this immutable revision before approving."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  approval:
+    name: Owner mobile approval (no side effects)
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions: {}
+    environment:
+      name: overcenter-owner-approval
+      url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Download and verify the exact reviewed manifest
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: owner-approval-canary-request-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/canary-request
+
+      - name: Verify request digest before the no-op gate
+        shell: bash
+        env:
+          EXPECTED_MANIFEST_SHA256: ${{ needs.prepare.outputs.manifest_sha256 }}
+          EXPECTED_REQUEST_ID: ${{ needs.prepare.outputs.request_id }}
+          EXPECTED_CANDIDATE_SHA: ${{ needs.prepare.outputs.candidate_sha }}
+          EXPECTED_TREE_SHA: ${{ needs.prepare.outputs.candidate_tree_sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_SHA" = "$EXPECTED_CANDIDATE_SHA"
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+
+          const path = process.env.RUNNER_TEMP + '/canary-request/owner-approval-canary-request.json';
+          const json = readFileSync(path, 'utf8');
+          const manifest = JSON.parse(json);
+          if (createHash('sha256').update(json).digest('hex') !== process.env.EXPECTED_MANIFEST_SHA256) {
+            throw new Error('OWNER_APPROVAL_CANARY_ARTIFACT_DIGEST_MISMATCH');
+          }
+          if (
+            manifest.request_id !== process.env.EXPECTED_REQUEST_ID ||
+            manifest.candidate_sha !== process.env.GITHUB_SHA ||
+            manifest.candidate_tree_sha !== process.env.EXPECTED_TREE_SHA ||
+            manifest.operation !== 'approval-canary/no-side-effect/v1' ||
+            manifest.side_effects.length !== 0
+          ) {
+            throw new Error('OWNER_APPROVAL_CANARY_ARTIFACT_BINDING_MISMATCH');
+          }
+          console.log('Reviewed manifest digest and operation binding verified.');
+          NODE
+      - name: Record read-only canary completion
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Approval was granted for a canary whose declared side-effect set is empty."
+          echo "No credentials, tokens, provider APIs, or mutation commands are used by this job."
+
+
+  settle:
+    name: Record canary outcome
+    needs: [prepare, approval]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Write truthful outcome receipt
+        shell: bash
+        env:
+          GATE_RESULT: ${{ needs.approval.result }}
+          MANIFEST_SHA256: ${{ needs.prepare.outputs.manifest_sha256 }}
+          REQUEST_ID: ${{ needs.prepare.outputs.request_id }}
+          CANDIDATE_SHA: ${{ needs.prepare.outputs.candidate_sha }}
+          CANDIDATE_TREE_SHA: ${{ needs.prepare.outputs.candidate_tree_sha }}
+          REQUEST_REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          const gateResult = process.env.GATE_RESULT;
+          const receipt = {
+            schema: 'overcenter-owner-approval-canary-receipt/v1',
+            request_id: process.env.REQUEST_ID,
+            operation: 'approval-canary/no-side-effect/v1',
+            repository_full_name: process.env.GITHUB_REPOSITORY,
+            candidate_sha: process.env.CANDIDATE_SHA,
+            candidate_tree_sha: process.env.CANDIDATE_TREE_SHA,
+            manifest_sha256: process.env.MANIFEST_SHA256,
+            requested_by: process.env.GITHUB_ACTOR,
+            reason: process.env.REQUEST_REASON,
+            approval_job_result: gateResult,
+            outcome: gateResult === 'success' ? 'approved_no_side_effect_canary' : 'approval_not_settled',
+            workflow_run_id: Number(process.env.GITHUB_RUN_ID),
+            workflow_run_attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            side_effects: [],
+          };
+          writeFileSync(
+            process.env.RUNNER_TEMP + '/owner-approval-canary-receipt.json',
+            JSON.stringify(receipt, null, 2) + '\n',
+          );
+          process.stdout.write(JSON.stringify(receipt, null, 2) + '\n');
+          NODE
+
+      - name: Publish canary outcome receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: owner-approval-canary-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/owner-approval-canary-receipt.json
+          if-no-files-found: error
+          retention-days: 90
