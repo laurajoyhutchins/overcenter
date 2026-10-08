@@ -24,12 +24,19 @@ try {
     stdio: 'inherit',
   });
   const roots = trusted.profile.baseline_test_roots;
-  const archive = execFileSync('git', ['-C', repo, 'archive', '--format=tar', base, ...roots]);
+  const archivePath = join(worktree, '.overcenter-baseline-tests.tar');
+  const archived = spawnSync(
+    'git',
+    ['-C', repo, 'archive', '--format=tar', '--output=' + archivePath, base, ...roots],
+    { stdio: 'inherit' },
+  );
+  if (archived.error) throw archived.error;
+  if (archived.status !== 0) throw new Error('SOURCE_BASE_TEST_ARCHIVE_FAILED');
   for (const root of roots) rmSync(join(worktree, root), { recursive: true, force: true });
-  const extracted = spawnSync('tar', ['-xf', '-', '-C', worktree], {
-    input: archive,
-    stdio: ['pipe', 'inherit', 'inherit'],
+  const extracted = spawnSync('tar', ['-xf', archivePath, '-C', worktree], {
+    stdio: 'inherit',
   });
+  rmSync(archivePath, { force: true });
   if (extracted.error) throw extracted.error;
   if (extracted.status !== 0) throw new Error('SOURCE_BASE_TEST_ARCHIVE_FAILED');
   const changedPaths = execFileSync('git', [
