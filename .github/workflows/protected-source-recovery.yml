@@ -5,6 +5,14 @@ run-name: Recover protected source at ${{ inputs.candidate_sha }}
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: Ordinary protected recovery or frozen owner root capability
+        required: true
+        type: choice
+        default: protected-source
+        options:
+          - protected-source
+          - recovery-root
       base_sha:
         description: Exact accepted main revision
         required: true
@@ -25,13 +33,23 @@ on:
         description: Why protected-source recovery is required
         required: true
         type: string
+      evidence_sha:
+        description: Exact evidence commit (root mode only)
+        required: false
+        type: string
+      evidence_blob_sha:
+        description: Exact test/tcb-semantic-loc.test.ts blob (root mode only)
+        required: false
+        type: string
 
 permissions: {}
 
 jobs:
   verify:
     name: Verify owner-authorized recovery
-    runs-on: [self-hosted, overcenter-gcp]
+    # Run untrusted root candidates on ephemeral GitHub-hosted infrastructure,
+    # never on the existing credentialed GCP verification runner.
+    runs-on: ${{ fromJSON(inputs.mode == 'recovery-root' && '["ubuntu-24.04"]' || '["self-hosted","overcenter-gcp"]') }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -41,6 +59,9 @@ jobs:
       CANDIDATE_TREE_SHA: ${{ inputs.candidate_tree_sha }}
       WRITABLE_PATHS_JSON: ${{ inputs.writable_paths_json }}
       RECOVERY_REASON: ${{ inputs.reason }}
+      RECOVERY_MODE: ${{ inputs.mode }}
+      EVIDENCE_SHA: ${{ inputs.evidence_sha }}
+      EVIDENCE_BLOB_SHA: ${{ inputs.evidence_blob_sha }}
     steps:
       - name: Bind owner and accepted base
         shell: bash
@@ -52,6 +73,14 @@ jobs:
           [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$CANDIDATE_TREE_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$BASE_SHA" = "$GITHUB_SHA"
+          case "$RECOVERY_MODE" in
+            protected-source) test -z "$EVIDENCE_SHA$EVIDENCE_BLOB_SHA" ;;
+            recovery-root)
+              [[ "$EVIDENCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+              [[ "$EVIDENCE_BLOB_SHA" =~ ^[0-9a-f]{40}$ ]]
+              ;;
+            *) exit 1 ;;
+          esac
 
       - name: Check out accepted verifier
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -82,11 +111,12 @@ jobs:
           import { writeFileSync } from 'node:fs';
           const writablePaths = JSON.parse(process.env.WRITABLE_PATHS_JSON ?? '');
           if (!Array.isArray(writablePaths)) throw new Error('PROTECTED_SOURCE_RECOVERY_WRITE_SET_INVALID');
+          const rootMode = process.env.RECOVERY_MODE === 'recovery-root';
           writeFileSync(
             process.env.RUNNER_TEMP + '/protected-source-recovery-authorization.json',
             JSON.stringify(
               {
-                schema: 'overcenter-protected-source-recovery-authorization/v1',
+                schema: rootMode ? 'overcenter-recovery-root-update-authorization/v1' : 'overcenter-protected-source-recovery-authorization/v1',
                 repository_full_name: process.env.GITHUB_REPOSITORY,
                 base_sha: process.env.BASE_SHA,
                 candidate_sha: process.env.CANDIDATE_SHA,
@@ -94,6 +124,11 @@ jobs:
                 writable_paths: writablePaths,
                 reason: process.env.RECOVERY_REASON,
                 authorized_by: process.env.GITHUB_ACTOR,
+                ...(rootMode ? {
+                  evidence_sha: process.env.EVIDENCE_SHA,
+                  evidence_path: 'test/tcb-semantic-loc.test.ts',
+                  evidence_blob_sha: process.env.EVIDENCE_BLOB_SHA,
+                } : {}),
               },
               null,
               2,
@@ -102,6 +137,7 @@ jobs:
           NODE
 
       - name: Verify exact recovery envelope
+        if: inputs.mode == 'protected-source'
         shell: bash
         env:
           ACCEPTED_BASE_SHA: ${{ inputs.base_sha }}
@@ -111,12 +147,66 @@ jobs:
             "$RUNNER_TEMP/protected-source-recovery-authorization.json" \
             "$GITHUB_WORKSPACE/candidate" \
             > "$RUNNER_TEMP/protected-source-recovery-structural.json"
+          node --experimental-strip-types trusted-runtime/scripts/verify-recovery-root-update.ts \
+            --guard-ordinary "$GITHUB_WORKSPACE/candidate" "$BASE_SHA" "$CANDIDATE_SHA"
+
+      - name: Check out immutable root evidence
+        if: inputs.mode == 'recovery-root'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.evidence_sha }}
+          fetch-depth: 0
+          path: recovery-evidence
+          persist-credentials: false
+
+      - name: Verify exact root envelope with accepted authority
+        if: inputs.mode == 'recovery-root'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C candidate fetch --no-tags "$GITHUB_WORKSPACE/recovery-evidence" "$EVIDENCE_SHA"
+          node --experimental-strip-types trusted-runtime/scripts/verify-recovery-root-update.ts \
+            "$RUNNER_TEMP/protected-source-recovery-authorization.json" \
+            "$GITHUB_WORKSPACE/candidate" > "$RUNNER_TEMP/recovery-root-structural.json"
+
+      - name: Install pinned accepted root toolchain
+        if: inputs.mode == 'recovery-root'
+        working-directory: trusted-runtime
+        run: npm install --ignore-scripts --package-lock=false
+
+      - name: Read accepted root runtime pins
+        if: inputs.mode == 'recovery-root'
+        id: root-runtime-versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          go_version="$(cat trusted-runtime/.go-version)"
+          [[ "$go_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "go-version=$go_version" >> "$GITHUB_OUTPUT"
+
+      - name: Use accepted Go runtime for root checks
+        if: inputs.mode == 'recovery-root'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: ${{ steps.root-runtime-versions.outputs.go-version }}
+          cache: false
+
+      - name: Use accepted Rust runtime for root checks
+        if: inputs.mode == 'recovery-root'
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(sed -n 's/^channel = "\([^"]*\)"$/\1/p' trusted-runtime/rust-toolchain.toml)"
+          [[ "$channel" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          rustup toolchain install "$channel" --profile minimal --component rustfmt --no-self-update
+          test "$(rustc +"$channel" --version | awk '{print $2}')" = "$channel"
 
       - name: Install pinned candidate toolchain
         working-directory: candidate
         run: npm install --ignore-scripts --package-lock=false
 
       - name: Run accepted repository checks
+        if: inputs.mode == 'protected-source'
         working-directory: candidate
         shell: bash
         run: |
@@ -127,6 +217,7 @@ jobs:
           npm run check:tcb
 
       - name: Mint exact recovery receipt
+        if: inputs.mode == 'protected-source'
         shell: bash
         env:
           RUN_ID: ${{ github.run_id }}
@@ -154,9 +245,61 @@ jobs:
           NODE
 
       - name: Publish recovery receipt
+        if: inputs.mode == 'protected-source'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: protected-source-recovery-receipt-${{ inputs.candidate_sha }}
           path: ${{ runner.temp }}/protected-source-recovery-receipt.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Run accepted and candidate root checks with bound hostile evidence
+        if: inputs.mode == 'recovery-root'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types trusted-runtime/scripts/check-recovery-root-update.ts \
+            "$GITHUB_WORKSPACE/trusted-runtime" "$GITHUB_WORKSPACE/candidate" \
+            "$RUNNER_TEMP/recovery-root-structural.json" "$RUNNER_TEMP/recovery-root-evidence"
+
+      - name: Mint verified root receipt awaiting owner transition
+        if: inputs.mode == 'recovery-root'
+        shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          const dir = process.env.RUNNER_TEMP + '/recovery-root-evidence';
+          const bytes = readFileSync(join(dir, 'verification.json'));
+          const verification = JSON.parse(bytes);
+          if (verification.schema !== 'overcenter-recovery-root-update-verification/v1') throw new Error('ROOT_VERIFICATION_REQUIRED');
+          const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+          const artifacts = readdirSync(dir).sort().map(path => ({path, sha256: digest(readFileSync(join(dir, path)))}));
+          const receipt = {
+            ...verification.structural,
+            schema: 'overcenter-recovery-root-update-receipt/v1',
+            status: 'verified-awaiting-owner-transition',
+            verification_sha256: digest(bytes),
+            artifact_manifest: artifacts,
+            artifact_manifest_sha256: digest(JSON.stringify(artifacts)),
+            workflow_run_id: Number(process.env.RUN_ID),
+            workflow_run_attempt: Number(process.env.RUN_ATTEMPT),
+            workflow_ref: process.env.GITHUB_WORKFLOW_REF,
+            accepted_workflow_sha: process.env.GITHUB_SHA,
+          };
+          writeFileSync(join(dir, 'receipt.json'), JSON.stringify(receipt, null, 2) + '\n');
+          console.log(JSON.stringify(receipt, null, 2));
+          NODE
+
+      - name: Publish verified root evidence
+        if: inputs.mode == 'recovery-root'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: root-update-${{ inputs.candidate_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/recovery-root-evidence/
           if-no-files-found: error
           retention-days: 30
