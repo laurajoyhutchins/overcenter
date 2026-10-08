@@ -4,9 +4,9 @@ set -euo pipefail
 export GCP_PROJECT_ID="project-6b810532-a302-48dc-b56"
 export GCP_REGION="us-west1"
 export GCP_ZONE="us-west1-a"
-export OVERCENTER_SOURCE_REVISION="d81c7234ffcf96dec70f28d593ca8cb7270b7772"
-export OVERCENTER_RUNNER_CONTROL_IMAGE="us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner-control@sha256:198369dd0e2d422e58b6cf6be10e3fd51b0bf462a8a58e484604f187ff98b466"
-export OVERCENTER_RUNNER_IMAGE="us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner@sha256:2f9b801f5177edadef6411e2ae6dc9c2a0e6afa556f1dac0a3daa76cbce1d85c"
+export OVERCENTER_SOURCE_REVISION="4ffc28597d200f99a06a48de555dd08c3eed379e"
+export OVERCENTER_RUNNER_CONTROL_IMAGE="us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner-control@sha256:a7daa09f506b3677e3768c8e0adcdd3547d725657c1ed4979246f6522248a525"
+export OVERCENTER_RUNNER_IMAGE="us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner@sha256:531519b387e4f557bb840f0cf10b53352cef5927e36cc4fd3b057cd3b8f6458b"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 tmp="$(mktemp)"
