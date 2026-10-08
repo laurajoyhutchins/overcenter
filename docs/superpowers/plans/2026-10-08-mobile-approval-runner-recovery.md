@@ -44,7 +44,7 @@ Before Task 2, verify that an independent protected-source transition mechanism 
 - Test: `test/runner-recovery-approval.test.ts`
 
 **Interfaces:**
-- `RunnerRecoveryManifestInput` contains `repositoryFullName`, `acceptedBaseSha`, `targetRef`, `targetSha`, `targetTreeSha`, `workflowBlobSha`, `scriptBlobSha`, `evidenceRefs`, `resources`, `identityPrincipal`, `privilegeCeiling`, `requestId`, `createdAt`, `expiresAt`, `requestedBy`, `reason`, `humanImpact`, and `sideEffects`.
+- `RunnerRecoveryManifestInput` contains `repositoryFullName`, `acceptedBaseSha`, `targetRef`, `targetSha`, `targetTreeSha`, `workflowBlobSha`, `scriptBlobSha`, `evidenceRefs`, `resources`, `identityPrincipal`, `privilegeCeiling`, `runId`, `runAttempt`, `createdAt`, `expiresAt`, `requestedBy`, `reason`, `humanImpact`, and `sideEffects`; the builder derives `request_id` as `runId.runAttempt`.
 - `createRunnerRecoveryManifest(input: RunnerRecoveryManifestInput): { manifest: RunnerRecoveryManifest; canonicalJson: string; sha256: string }` validates fixed operation/scope constants and returns canonical serialized bytes plus their SHA-256.
 - `RunnerRecoveryReviewInput` contains `evidenceAvailable`, normalized `approvals`, `expectedEnvironment`, `expectedReviewer`, `gateJobResult`, `requestId`, `runAttempt`, and `now`.
 - `classifyRunnerRecoveryApproval(input: RunnerRecoveryReviewInput): RunnerRecoveryReviewReceipt` preserves review state, reviewer login/comment when present, and a truthful outcome.
