@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   isEligibleRunnerJob,
+  mapBounded,
   parseRunnerAutoscalerConfig,
   runnerSchedulingLabel,
 } from '../src/transport/gcp-runner-autoscaler.ts';
@@ -171,4 +172,67 @@ test('autoscaler deployment uses a unique exact-job GCP runner', () => {
   );
   assert.doesNotMatch(workflow, /runs-on: ubuntu-/);
   assert.match(workflow, /cancel-in-progress: true/);
+});
+
+test('bounded runner work preserves scan order without serializing independent jobs', async () => {
+  let active = 0;
+  let peak = 0;
+  const visited: number[] = [];
+  const result = await mapBounded([0, 1, 2, 3, 4, 5, 6], 3, async (job) => {
+    active += 1;
+    peak = Math.max(peak, active);
+    visited.push(job);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    active -= 1;
+    return job * 2;
+  });
+  assert.deepEqual(result, [0, 2, 4, 6, 8, 10, 12]);
+  assert.deepEqual(visited.slice(0, 3), [0, 1, 2]);
+  assert.equal(peak, 3);
+  assert.equal(active, 0);
+});
+
+test('bounded runner work fails closed on invalid concurrency and propagates errors', async () => {
+  await assert.rejects(
+    mapBounded([1], 0, async (value) => value),
+    /bounded map concurrency must be a positive integer/,
+  );
+  await assert.rejects(
+    mapBounded([1], Number.POSITIVE_INFINITY, async (value) => value),
+    /bounded map concurrency must be a positive integer/,
+  );
+  await assert.rejects(
+    mapBounded([1, 2], 1, async (value) => {
+      if (value === 2) throw new Error('independent provider failure');
+      return value;
+    }),
+    /independent provider failure/,
+  );
+  assert.deepEqual(await mapBounded([], 2, async (value: number) => value), []);
+});
+
+test('bounded runner work drains in-flight requests before returning a failed scan', async () => {
+  let releaseSlow: (() => void) | undefined;
+  let slowFinished = false;
+  const slow = new Promise<void>((resolve) => {
+    releaseSlow = resolve;
+  });
+  const scan = mapBounded([1, 2, 3], 2, async (job) => {
+    if (job === 1) throw new Error('GitHub lookup failed');
+    await slow;
+    slowFinished = true;
+    return job;
+  });
+  let settled = false;
+  const observed = scan.catch((error: unknown) => {
+    settled = true;
+    throw error;
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(settled, false, 'the failing scan must still await its in-flight peer');
+  assert.equal(slowFinished, false);
+  assert.ok(releaseSlow);
+  releaseSlow();
+  await assert.rejects(observed, /GitHub lookup failed/);
+  assert.equal(slowFinished, true);
 });
