@@ -32,6 +32,10 @@ done
 cd "$ROOT"
 test "$(git rev-parse HEAD)" = "$EXACT_REVISION"
 
+# Record the concrete CLI components used for Cloud Build source staging.
+printf 'Google Cloud CLI components for exact revision %s:\n' "$EXACT_REVISION"
+gcloud version --format=json
+
 runner_tree="$(git rev-parse "${EXACT_REVISION}:infra/gcp-runner-image")"
 if [[ ! "$runner_tree" =~ ^[0-9a-f]{40,64}$ ]]; then
   echo "runner image source tree did not resolve to a Git object id" >&2
