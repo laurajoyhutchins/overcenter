@@ -1,10 +1,15 @@
-import { createSign } from 'node:crypto';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { createSign, randomUUID } from 'node:crypto';
+import { lstat, mkdir, rm, writeFile } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { parseRunnerExecutionLease, type RunnerExecutionLease } from './gcp-runner-launcher.ts';
+import {
+  warmRunnerOperationalEvent,
+  warmRunnerOperationalIdentity,
+  type WarmRunnerOperationalStage,
+} from './warm-runner-operational-observation.ts';
 
 const METADATA_TOKEN_URL =
   'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token';
@@ -402,6 +407,7 @@ async function runContainer(
   lease: RunnerExecutionLease,
   messageId: string,
   workspace: string,
+  observe: (stage: WarmRunnerOperationalStage, diagnostic?: string) => void,
 ): Promise<void> {
   const name = dockerName(messageId, lease.job_id);
   const created = await dockerRequest(
@@ -421,11 +427,13 @@ async function runContainer(
   const id = String(body.Id ?? '').trim();
   if (!id) throw new Error('Docker create response did not include a container id');
 
+  let executionError: unknown = null;
   try {
     const started = await dockerRequest('POST', '/v1.45/containers/' + id + '/start');
     if (started.statusCode !== 204) {
       throw new Error('Docker start failed with HTTP ' + started.statusCode);
     }
+    observe('container_started');
     const waited = await dockerRequest('POST', '/v1.45/containers/' + id + '/wait');
     if (waited.statusCode !== 200) {
       throw new Error('Docker wait failed with HTTP ' + waited.statusCode);
@@ -434,41 +442,60 @@ async function runContainer(
     if (Number(outcome.StatusCode) !== 0) {
       throw new Error('GitHub runner container exited with code ' + String(outcome.StatusCode));
     }
-  } finally {
-    await dockerRequest('DELETE', '/v1.45/containers/' + id + '?force=1').catch(() => undefined);
+    observe('container_exit_zero');
+  } catch (error: unknown) {
+    executionError = error;
   }
+  // Always attempt cleanup, and fail closed if Docker does not prove absence.
+  const deleted = await dockerRequest('DELETE', '/v1.45/containers/' + id + '?force=1');
+  if (deleted.statusCode !== 204) {
+    throw new Error('Docker remove failed with HTTP ' + deleted.statusCode);
+  }
+  const readback = await dockerRequest('GET', '/v1.45/containers/' + id + '/json');
+  if (readback.statusCode !== 404) {
+    throw new Error('Docker container absence readback failed with HTTP ' + readback.statusCode);
+  }
+  observe('container_absent_readback');
+  if (executionError !== null) throw executionError;
 }
 
-async function processMessage(
+async function processObservedMessage(
   environment: WarmRunnerAgentEnvironment,
   pulled: PulledMessage,
+  observe: (stage: WarmRunnerOperationalStage, diagnostic?: string) => void,
 ): Promise<void> {
   const workspace = join(
     environment.workRoot,
     String(pulled.lease.job_id) + '-' + pulled.messageId,
   );
   await mkdir(workspace, { recursive: true, mode: 0o700 });
+  let executionError: unknown = null;
   try {
     const runnerName = dockerName(pulled.messageId, pulled.lease.job_id);
     const authorization = await authorizeQueuedJob(environment, pulled.lease, runnerName);
     if (!authorization.eligible) {
-      console.log(
-        JSON.stringify({
-          event: 'warm_runner_job_stale',
-          repository: pulled.lease.repository,
-          job_id: pulled.lease.job_id,
-          message_id: pulled.messageId,
-        }),
-      );
-      return;
+      observe('job_stale');
+    } else {
+      observe('jit_authorized');
+      await writeFile(join(workspace, 'jit-config'), authorization.encodedJitConfig, {
+        mode: 0o600,
+      });
+      await runContainer(environment, pulled.lease, pulled.messageId, workspace, observe);
     }
-    await writeFile(join(workspace, 'jit-config'), authorization.encodedJitConfig, {
-      mode: 0o600,
-    });
-    await runContainer(environment, pulled.lease, pulled.messageId, workspace);
-  } finally {
-    await rm(workspace, { recursive: true, force: true });
+  } catch (error: unknown) {
+    executionError = error;
   }
+  await rm(workspace, { recursive: true, force: true });
+  try {
+    await lstat(workspace);
+    throw new Error('Runner workspace still exists after removal');
+  } catch (error: unknown) {
+    if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+  observe('workspace_absent_readback');
+  if (executionError !== null) throw executionError;
 }
 
 async function runForever(environment: WarmRunnerAgentEnvironment): Promise<void> {
@@ -479,38 +506,59 @@ async function runForever(environment: WarmRunnerAgentEnvironment): Promise<void
       continue;
     }
 
-    await modifyAckDeadline(environment, pulled.ackId, 120);
+    const identity = warmRunnerOperationalIdentity(
+      environment.projectId,
+      environment.subscription,
+      pulled.lease,
+      pulled.messageId,
+      randomUUID(),
+    );
+    let sequence = 0;
+    const observe = (stage: WarmRunnerOperationalStage, diagnostic?: string): void => {
+      console.log(
+        JSON.stringify(
+          warmRunnerOperationalEvent(
+            identity,
+            ++sequence,
+            stage,
+            new Date().toISOString(),
+            diagnostic,
+          ),
+        ),
+      );
+    };
+    observe('lease_received');
+    try {
+      await modifyAckDeadline(environment, pulled.ackId, 120);
+    } catch (error: unknown) {
+      observe('execution_failed', String(error instanceof Error ? error.message : error));
+      continue; // Unknown lease state: leave unacknowledged for provider redelivery.
+    }
     const keepAlive = setInterval(() => {
       void modifyAckDeadline(environment, pulled.ackId, 120).catch((error) => {
-        console.error(
-          JSON.stringify({
-            event: 'warm_runner_ack_extension_failed',
-            message_id: pulled.messageId,
-            error: String(error instanceof Error ? error.message : error),
-          }),
-        );
+        observe('ack_extension_failed', String(error instanceof Error ? error.message : error));
       });
     }, 60_000);
     keepAlive.unref();
 
+    const processMessage = (
+      runnerEnvironment: WarmRunnerAgentEnvironment,
+      message: PulledMessage,
+    ): Promise<void> => processObservedMessage(runnerEnvironment, message, observe);
     let completed = false;
     try {
       await processMessage(environment, pulled);
       completed = true;
-    } catch (error) {
-      console.error(
-        JSON.stringify({
-          event: 'warm_runner_execution_failed',
-          repository: pulled.lease.repository,
-          job_id: pulled.lease.job_id,
-          message_id: pulled.messageId,
-          error: String(error instanceof Error ? error.message : error),
-        }),
-      );
+    } catch (error: unknown) {
+      observe('execution_failed', String(error instanceof Error ? error.message : error));
     } finally {
       clearInterval(keepAlive);
     }
-    if (completed) await acknowledge(environment, pulled.ackId);
+    const ackAccepted = (): void => observe('ack_request_accepted');
+    const ackUncertain = (error: unknown): void => {
+      observe('ack_request_uncertain', String(error instanceof Error ? error.message : error));
+    };
+    if (completed) await acknowledge(environment, pulled.ackId).then(ackAccepted, ackUncertain);
   }
 }
 
