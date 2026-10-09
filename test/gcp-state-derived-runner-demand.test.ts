@@ -124,10 +124,7 @@ test('moving head is rejected even when the work itself appears idle', () => {
 });
 
 test('inaccessible or uninitialized authority cannot produce a capacity decision', () => {
-  for (const source of [
-    reader([], { throws: true }),
-    reader([], { heads: [null] }),
-  ]) {
+  for (const source of [reader([], { throws: true }), reader([], { heads: [null] })]) {
     const result = projectGcpRunnerDemand(source, policy);
     assert.equal(result.state, 'hold');
     if (result.state === 'hold') assert.equal(result.reason, 'AUTHORITY_UNAVAILABLE');
@@ -187,9 +184,9 @@ test('policy digest and results do not depend on allowlist or observation order'
     reader([item('run-1', 'READY'), item('run-2', 'EXECUTING')]),
     policy,
   );
-  const b = projectGcpRunnerDemand(
-    reader([item('run-2', 'EXECUTING'), item('run-1', 'READY')]),
-    { ...policy, eligible_obligation_ids: ['run-1', 'run-2'] },
-  );
+  const b = projectGcpRunnerDemand(reader([item('run-2', 'EXECUTING'), item('run-1', 'READY')]), {
+    ...policy,
+    eligible_obligation_ids: ['run-1', 'run-2'],
+  });
   assert.deepEqual(a, b);
 });
