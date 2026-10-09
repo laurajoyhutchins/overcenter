@@ -130,6 +130,9 @@ export function planGcpRunnerLeases(
     ) {
       return hold('EXECUTION_CLAIM_MOVED');
     }
+    if (!obligation.packet || typeof obligation.packet !== 'object') {
+      return hold('EXECUTION_JOB_BINDING_MISSING');
+    }
     const raw = obligation.packet.gcp_runner_job;
     let launch: RunnerLaunchRequest;
     try {
@@ -161,7 +164,11 @@ export function planGcpRunnerLeases(
     });
   }
 
-  if (authority.head() !== projection.authority_head) return hold('AUTHORITY_HEAD_MOVED');
+  try {
+    if (authority.head() !== projection.authority_head) return hold('AUTHORITY_HEAD_MOVED');
+  } catch {
+    return hold('AUTHORITY_UNAVAILABLE');
+  }
   return {
     state: 'ready',
     authority_head: projection.authority_head,
