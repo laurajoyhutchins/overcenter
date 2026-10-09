@@ -6,6 +6,7 @@ on:
       - work/gcp-cloud-run-cloud-sql-bootstrap
     paths:
       - .overcenter/gcp-runner-autoscaler-deploy-request
+      - .overcenter/gcp-warm-idle-readback-request
   workflow_dispatch:
 
 permissions:
@@ -33,7 +34,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 2
 
       - name: Prove deployment authority
         shell: bash
@@ -42,6 +43,32 @@ jobs:
           test "$GITHUB_REF" = "refs/heads/work/gcp-cloud-run-cloud-sql-bootstrap"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$EXACT_REVISION" = "$GITHUB_SHA"
+
+      - name: Classify exact one-file observation request
+        id: mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_EVENT_NAME" in
+            push)
+              changed="$(git diff --name-only HEAD^ HEAD)"
+              if [[ "$changed" == ".overcenter/gcp-warm-idle-readback-request" ]]; then
+                echo "readback=true" >> "$GITHUB_OUTPUT"
+              elif grep -Fxq ".overcenter/gcp-warm-idle-readback-request" <<<"$changed"; then
+                echo "::error::Readback marker cannot be mixed with any other source change"
+                exit 1
+              else
+                echo "readback=false" >> "$GITHUB_OUTPUT"
+              fi
+              ;;
+            workflow_dispatch)
+              echo "readback=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Unsupported workflow event"
+              exit 1
+              ;;
+          esac
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
@@ -59,5 +86,13 @@ jobs:
           version: ">= 363.0.0"
 
       - name: Deploy runner substrate
+        if: steps.mode.outputs.readback != 'true'
         shell: bash
         run: bash infra/gcp/deploy-runner-autoscaler.sh
+
+      - name: Verify idle MIG without mutating GCP
+        if: steps.mode.outputs.readback == 'true'
+        shell: bash
+        env:
+          GCP_ZONE: us-west1-a
+        run: bash infra/gcp/readback-runner-idle.sh
