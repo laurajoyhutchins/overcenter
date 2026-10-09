@@ -23,7 +23,7 @@ gcloud pubsub subscriptions describe "$SUBSCRIPTION" --project="$PROJECT_ID" --f
 gcloud compute autoscalers list --project="$PROJECT_ID" --format=json > "$AUTOSCALER_JSON"
 
 # Refuse to overwrite an independently managed autoscaler or a foreign subscription.
-python3 - "$MIG_JSON" "$SUBSCRIPTION_JSON" "$AUTOSCALER_JSON" "$PROJECT_ID" "$ZONE" "$MIG" "$SUBSCRIPTION" <<'PY'
+autoscaler_state="$(python3 - "$MIG_JSON" "$SUBSCRIPTION_JSON" "$AUTOSCALER_JSON" "$PROJECT_ID" "$ZONE" "$MIG" "$SUBSCRIPTION" <<'PY'
 import json
 import sys
 
@@ -37,7 +37,7 @@ if int(mig.get("targetSize", -1)) not in (0, 1):
     raise SystemExit("warm runner MIG is not bounded to one host")
 if not str(mig.get("instanceTemplate") or "").rsplit("/", 1)[-1].startswith("overcenter-gce-runner-"):
     raise SystemExit("warm runner MIG instance template does not match the admitted family")
-if str(sub.get("topic") or "").rsplit("/", 1)[-1] != subscription:
+if str(sub.get("topic") or "") != f"projects/{project}/topics/{subscription}":
     raise SystemExit("warm runner subscription has an unexpected source")
 target = f"/projects/{project}/zones/{zone}/instanceGroupManagers/{name}"
 metric_filter = f'resource.type="pubsub_subscription" AND resource.labels.subscription_id="{subscription}"'
@@ -58,10 +58,19 @@ for autoscaler in autoscalers:
         and "loadBalancingUtilization" not in policy
     ):
         raise SystemExit("refusing to replace a nonmatching warm runner autoscaler")
-    print("Warm runner autoscaler already configured; no mutation required")
+    print("already")
     raise SystemExit(0)
-print("Warm runner autoscaler not yet configured; owner bootstrap may proceed")
+print("new")
 PY
+)"
+if [[ "$autoscaler_state" == "already" ]]; then
+  echo "Exact warm runner autoscaling policy already verified; nothing to mutate"
+  exit 0
+fi
+if [[ "$autoscaler_state" != "new" ]]; then
+  echo "warm runner autoscaling preflight returned an unexpected state" >&2
+  exit 1
+fi
 
 # A subscription's unacknowledged count includes in-flight runner messages. The
 # agent acknowledges only after runner completion and cleanup. No VM IAM expansion.
