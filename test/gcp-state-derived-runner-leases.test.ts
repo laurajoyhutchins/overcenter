@@ -99,7 +99,7 @@ test('an exact claimed execution and queued GitHub job yields a bound proposal, 
   assert.deepEqual(result.candidates[0]?.launch, launch);
   assert.equal(result.candidates[0]?.obligation_id, 'eligible');
   assert.equal(result.candidates[0]?.run_id, 'run-exact');
-  assert.match(result.candidates[0]?.approved_policy_sha256 ?? '', /^[a-f0-9]{64}$/);
+  assert.match(result.candidates[0]?.policy_sha256 ?? '', /^[a-f0-9]{64}$/);
 });
 
 test('ready work creates demand but cannot publish a lease without a claim', () => {
