@@ -5,8 +5,10 @@ import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository
 import {
   SOURCE_CANDIDATE_SCHEMA,
   validateSourceCandidate,
+  validateSourceTaskPacket,
   type SourceCandidate,
   type SourceClaimBinding,
+  type SourceTaskPacket,
 } from './source-obligation.ts';
 
 export const SOURCE_VERIFICATION_SCHEMA = 'overcenter-source-verification/v1' as const;
@@ -137,11 +139,12 @@ export function integrateVerifiedSourceCandidate(
 
 export function inspectSourceCandidate(
   repo: string,
-  _taskValue: unknown,
+  taskValue: unknown,
   claim: SourceClaimBinding,
   candidateSha: string,
   expectedObligationId?: string,
-): { candidate: SourceCandidate; changed_paths: string[] } {
+): { task: SourceTaskPacket; candidate: SourceCandidate; changed_paths: string[] } {
+  const task = validateSourceTaskPacket(taskValue);
   exactSha(candidateSha, 'SOURCE_CANDIDATE_COMMIT_SHA_INVALID');
 
   const parents = git(repo, ['rev-list', '--parents', '-n', '1', candidateSha])
@@ -176,5 +179,5 @@ export function inspectSourceCandidate(
   const changedPaths = delta.entries.map((entry) => entry.path).sort();
   if (!changedPaths.length) throw new Error('SOURCE_CANDIDATE_EMPTY');
 
-  return { candidate, changed_paths: changedPaths };
+  return { task, candidate, changed_paths: changedPaths };
 }
