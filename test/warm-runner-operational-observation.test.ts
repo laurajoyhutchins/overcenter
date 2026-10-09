@@ -153,7 +153,7 @@ test('JSONL reporter groups attempts, tolerates unrelated host logs, and exposes
     [
       'Docker service ready',
       JSON.stringify({ event: 'unrelated' }),
-      ...trace.map(JSON.stringify),
+      ...trace.map((event) => JSON.stringify(event)),
     ].join('\n'),
   );
   assert.equal(report.attempts.length, 1);
@@ -161,10 +161,10 @@ test('JSONL reporter groups attempts, tolerates unrelated host logs, and exposes
   assert.equal(report.settlement_authoritative, false);
   assert.equal(report.source, 'unverified-host-stdout');
 
-  const missing = reportWarmRunnerEvents(trace.slice(0, -1).map(JSON.stringify).join('\n'));
+  const missing = reportWarmRunnerEvents(trace.slice(0, -1).map((event) => JSON.stringify(event)).join('\n'));
   assert.equal(missing.attempts[0]?.result.state, 'incomplete');
   const wrongSchema = reportWarmRunnerEvents(
-    [...trace.map(JSON.stringify), JSON.stringify({ ...trace[0], schema: 'wrong' })].join('\n'),
+    [...trace.map((event) => JSON.stringify(event)), JSON.stringify({ ...trace[0], schema: 'wrong' })].join('\n'),
   );
   assert.equal(wrongSchema.malformed_operational_events, 1);
   assert.equal(reportWarmRunnerEvents('unrelated\n').attempts.length, 0);
