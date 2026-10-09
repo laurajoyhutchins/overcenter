@@ -697,6 +697,7 @@ async function handleRequest(
   try {
     const launch = parseRunnerLaunchRequest(await readJsonBody(request));
     matchRepositoryBinding(config.repositories, launch, config.runner_label);
+    const submissionStartedAt = Date.now();
     const submission = await substrate.submit(runnerExecutionLease(launch));
     console.log(
       JSON.stringify({
@@ -705,6 +706,8 @@ async function handleRequest(
         repository_id: launch.repository_id,
         job_id: launch.job_id,
         build_id: submission.executionId,
+        substrate: submission.substrate,
+        submission_duration_ms: Date.now() - submissionStartedAt,
       }),
     );
     sendJson(response, 202, { build_id: submission.executionId, reused: submission.reused });
