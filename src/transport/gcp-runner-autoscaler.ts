@@ -774,7 +774,11 @@ async function main(): Promise<void> {
       response.end(healthResponse(state, webhook));
       return;
     }
-    if (request.method === 'POST' && request.url === '/reconcile' && reconcileMode === 'scheduled') {
+    if (
+      request.method === 'POST' &&
+      request.url === '/reconcile' &&
+      reconcileMode === 'scheduled'
+    ) {
       // Cloud Run IAM authenticates the Scheduler OIDC principal before forwarding this request.
       // Await authoritative GitHub observation before responding so scale-to-zero never
       // suspends the reconciliation or its side effects mid-flight.
@@ -836,7 +840,10 @@ async function main(): Promise<void> {
   let timer: ReturnType<typeof setInterval> | null = null;
   if (reconcileMode === 'polling') {
     await pollOnce(client, config, state, launcherUrl);
-    timer = setInterval(() => void pollOnce(client, config, state, launcherUrl), config.poll_interval_ms);
+    timer = setInterval(
+      () => void pollOnce(client, config, state, launcherUrl),
+      config.poll_interval_ms,
+    );
     timer.unref();
   }
 
