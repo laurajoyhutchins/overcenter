@@ -105,7 +105,8 @@ test('adapter reports out-of-envelope edits for the trusted broker to reject', (
     assert.throws(
       () => assertSourceWriteEnvelope(task, [{ path: 'outside.txt', changed_bytes: 5 }], []),
       /SOURCE_PROPOSAL_SCOPE_VIOLATION:outside\.txt/,
-    );  } finally {
+    );
+  } finally {
     rmSync(repo, { recursive: true, force: true });
   }
 });
