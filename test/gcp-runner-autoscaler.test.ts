@@ -88,8 +88,9 @@ test('run enumeration includes pending workflows with queued JIT jobs', () => {
     ),
     true,
   );
+  const scanned = new Set<string>(RUNNER_SCAN_STATUSES);
   for (const status of ['completed', 'success', 'failure', 'cancelled']) {
-    assert.equal(RUNNER_SCAN_STATUSES.includes(status as never), false);
+    assert.equal(scanned.has(status), false);
   }
   assert.equal(
     isEligibleRunnerJob(
