@@ -103,8 +103,7 @@ if (existsSync(demandPolicyPath)) {
   console.log(JSON.stringify({ event: 'gcp_runner_demand', ...demand }));
   appendGitHubOutputs({
     gcp_runner_demand_state: demand.state,
-    gcp_runner_authority_head:
-      'authority_head' in demand ? (demand.authority_head ?? '') : '',
+    gcp_runner_authority_head: 'authority_head' in demand ? (demand.authority_head ?? '') : '',
     gcp_runner_capacity: demand.state === 'projected' ? demand.capacity_needed : 'hold',
     gcp_runner_effect_authorized: false,
   });
