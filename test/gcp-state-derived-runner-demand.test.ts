@@ -46,7 +46,7 @@ function reader(
 ): GcpRunnerAuthorityReader {
   let index = 0;
   return {
-    head: () => options.heads?.[index++] ?? head,
+    head: () => (options.heads ? (options.heads[index++] ?? null) : head),
     inspect: () => {
       if (options.throws) throw new Error('lost durable state');
       return work;
