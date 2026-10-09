@@ -244,7 +244,6 @@ test('duplicate queued job evidence cannot impersonate another execution', () =>
   }
 });
 
-
 test('two simultaneous execution claims cannot overcommit the one-host warm pool', () => {
   const secondLaunch = {
     ...launch,
@@ -259,11 +258,19 @@ test('two simultaneous execution claims cannot overcommit the one-host warm pool
     authority([work('EXECUTING'), secondWork]),
     { ...policy, eligible_obligation_ids: ['eligible', 'second'] },
     config,
-    [{ ...observed()[0]!, jobs: [observed()[0]!.jobs[0]!, {
-      id: secondLaunch.job_id,
-      status: 'queued',
-      labels: ['self-hosted', secondLaunch.runner_label],
-    }] }],
+    [
+      {
+        ...observed()[0]!,
+        jobs: [
+          observed()[0]!.jobs[0]!,
+          {
+            id: secondLaunch.job_id,
+            status: 'queued',
+            labels: ['self-hosted', secondLaunch.runner_label],
+          },
+        ],
+      },
+    ],
   );
   assert.equal(result.state, 'hold');
   if (result.state === 'hold') {
