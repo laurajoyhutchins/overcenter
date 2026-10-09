@@ -383,7 +383,7 @@ export async function verifyRunnerContainerTeardown(
   ) => Promise<Readonly<{ statusCode: number; body: Buffer }>>,
 ): Promise<void> {
   if (!/^[0-9a-f]{64}$/.test(containerId)) {
-    throw new Error('Docker container id is not an exact 64-byte hexadecimal identity');
+    throw new Error('Docker container id is not an exact 64-character hexadecimal identity');
   }
   const path = '/v1.45/containers/' + containerId;
   try {
