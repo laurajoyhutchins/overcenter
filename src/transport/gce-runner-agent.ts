@@ -490,12 +490,7 @@ async function processMessage(
     await lstat(workspace);
     throw new Error('Runner workspace still exists after removal');
   } catch (error: unknown) {
-    if (
-      !error ||
-      typeof error !== 'object' ||
-      !('code' in error) ||
-      error.code !== 'ENOENT'
-    ) {
+    if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT') {
       throw error;
     }
   }
