@@ -161,9 +161,11 @@ test('the runner label must match exactly, not only share an allowed prefix', ()
 test('a Cloud Build label cannot be mistaken for warm GCE pool demand', () => {
   const cloudBuildLabel = 'overcenter-gcp-cloudbuild-123';
   const result = planGcpRunnerLeases(
-    authority([work('EXECUTING', {
-      gcp_runner_job: { ...launch, runner_label: cloudBuildLabel },
-    })]),
+    authority([
+      work('EXECUTING', {
+        gcp_runner_job: { ...launch, runner_label: cloudBuildLabel },
+      }),
+    ]),
     policy,
     config,
     observed('queued', cloudBuildLabel),
