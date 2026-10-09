@@ -62,9 +62,9 @@ if ! gcloud pubsub subscriptions describe "$SUBSCRIPTION" --project="$PROJECT_ID
   gcloud pubsub subscriptions create "$SUBSCRIPTION"     --project="$PROJECT_ID"     --topic="$TOPIC"     --ack-deadline=120
 fi
 
-gcloud pubsub topics add-iam-policy-binding "$TOPIC"   --project="$PROJECT_ID"   --member="serviceAccount:${LAUNCHER_SA}"   --role="roles/pubsub.publisher"   --condition=None   --quiet >/dev/null
+gcloud pubsub topics add-iam-policy-binding "$TOPIC"   --project="$PROJECT_ID"   --member="serviceAccount:${LAUNCHER_SA}"   --role="roles/pubsub.publisher"   --quiet >/dev/null
 
-gcloud pubsub subscriptions add-iam-policy-binding "$SUBSCRIPTION"   --project="$PROJECT_ID"   --member="serviceAccount:${RUNTIME_SA}"   --role="roles/pubsub.subscriber"   --condition=None   --quiet >/dev/null
+gcloud pubsub subscriptions add-iam-policy-binding "$SUBSCRIPTION"   --project="$PROJECT_ID"   --member="serviceAccount:${RUNTIME_SA}"   --role="roles/pubsub.subscriber"   --quiet >/dev/null
 
 if ! gcloud compute networks describe "$NETWORK" --project="$PROJECT_ID" >/dev/null 2>&1; then
   gcloud compute networks create "$NETWORK"     --project="$PROJECT_ID"     --subnet-mode=custom
@@ -123,9 +123,14 @@ PY
   tail -n +2 "$ROOT/infra/gcp/start-runner-warm-host.sh"
 } > "$startup_script"
 
-template="overcenter-gce-runner-${REVISION:0:12}"
+startup_hash="$(python3 - "$startup_script" <<'PY'
+import hashlib, pathlib, sys
+print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()[:12])
+PY
+)"
+template="overcenter-gce-runner-${REVISION:0:12}-${startup_hash}"
 if ! gcloud compute instance-templates describe "$template" --project="$PROJECT_ID" >/dev/null 2>&1; then
-  gcloud compute instance-templates create "$template"     --project="$PROJECT_ID"     --machine-type=e2-standard-4     --image-family=cos-stable     --image-project=cos-cloud     --boot-disk-size=30GB     --boot-disk-type=pd-balanced     --service-account="$RUNTIME_SA"     --scopes=https://www.googleapis.com/auth/cloud-platform     --metadata-from-file="startup-script=$startup_script"     --network-interface="network=$NETWORK,subnet=$SUBNET,no-address"     --shielded-secure-boot
+  gcloud compute instance-templates create "$template"     --project="$PROJECT_ID"     --machine-type=e2-standard-4     --image-family=cos-stable     --image-project=cos-cloud     --boot-disk-size=30GB     --boot-disk-type=pd-balanced     --service-account="$RUNTIME_SA"     --scopes=https://www.googleapis.com/auth/cloud-platform     --metadata-from-file="startup-script=$startup_script"     --network-interface="network=$NETWORK,subnet=https://www.googleapis.com/compute/v1/projects/$PROJECT_ID/regions/$REGION/subnetworks/$SUBNET,no-address"     --shielded-secure-boot
 fi
 
 if ! gcloud compute instance-groups managed describe "$MIG"   --project="$PROJECT_ID" --zone="$ZONE" >/dev/null 2>&1; then

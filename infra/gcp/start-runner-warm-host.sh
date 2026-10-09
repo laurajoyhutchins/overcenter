@@ -9,7 +9,7 @@ set -euo pipefail
 WORK_ROOT="/var/lib/overcenter-runner/jobs"
 AGENT_NAME="overcenter-gce-runner-agent"
 
-for command in docker docker-credential-gcr iptables; do
+for command in docker docker-credential-gcr iptables mount mountpoint; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "required command missing: $command" >&2
     exit 2
@@ -36,6 +36,17 @@ REGISTRIES="$CONTROL_REGISTRY"
 if [[ "$RUNNER_REGISTRY" != "$CONTROL_REGISTRY" ]]; then
   REGISTRIES="$REGISTRIES,$RUNNER_REGISTRY"
 fi
+
+# COS provides executable stateful storage under /var/lib/docker.
+# Keep the agent's admitted work-root path through a host bind mount.
+mkdir -p /var/lib/docker/overcenter-runner /var/lib/overcenter-runner
+chmod 0700 /var/lib/docker/overcenter-runner /var/lib/overcenter-runner
+if ! mountpoint -q /var/lib/overcenter-runner; then
+  mount --bind /var/lib/docker/overcenter-runner /var/lib/overcenter-runner
+fi
+export DOCKER_CONFIG="/var/lib/docker/overcenter-docker-config"
+mkdir -p "$DOCKER_CONFIG"
+chmod 0700 "$DOCKER_CONFIG"
 
 docker-credential-gcr configure-docker --registries="$REGISTRIES"
 docker pull "$OVERCENTER_RUNNER_CONTROL_IMAGE"
