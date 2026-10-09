@@ -57,7 +57,10 @@ test('source movement always requires new realization, even with green stale che
 });
 
 test('merge conflicts, unknown mergeability and draft candidates fail closed', () => {
-  assert.equal(assessCandidateReadiness(snapshot({ mergeability: 'dirty' })).decision, 'REPAIR_CONFLICT');
+  assert.equal(
+    assessCandidateReadiness(snapshot({ mergeability: 'dirty' })).decision,
+    'REPAIR_CONFLICT',
+  );
   for (const state of ['unknown', 'unstable'] as const) {
     assert.equal(
       assessCandidateReadiness(snapshot({ mergeability: state })).decision,
@@ -89,7 +92,9 @@ test('required exact-head checks cannot be missing, stale, duplicated, or failin
   assert.equal(
     assessCandidateReadiness(
       snapshot({
-        checks: [{ name: 'check / check', head_sha: base, status: 'completed', conclusion: 'success' }],
+        checks: [
+          { name: 'check / check', head_sha: base, status: 'completed', conclusion: 'success' },
+        ],
       }),
     ).decision,
     'REJECT_CHECK_IDENTITY',
@@ -97,7 +102,9 @@ test('required exact-head checks cannot be missing, stale, duplicated, or failin
   assert.equal(
     assessCandidateReadiness(
       snapshot({
-        checks: [{ name: 'check / check', head_sha: head, status: 'completed', conclusion: 'failure' }],
+        checks: [
+          { name: 'check / check', head_sha: head, status: 'completed', conclusion: 'failure' },
+        ],
       }),
     ).decision,
     'REJECT_CHECK_FAILURE',
@@ -105,7 +112,9 @@ test('required exact-head checks cannot be missing, stale, duplicated, or failin
   assert.equal(
     assessCandidateReadiness(
       snapshot({
-        checks: [{ name: 'check / check', head_sha: head, status: 'in_progress', conclusion: null }],
+        checks: [
+          { name: 'check / check', head_sha: head, status: 'in_progress', conclusion: null },
+        ],
       }),
     ).decision,
     'AWAIT_CHECKS',
@@ -127,7 +136,11 @@ test('invalid snapshots are rejected instead of being treated as missing checks'
     { observed_head_sha: 'bogus' },
     { required_check_names: [] },
     { required_check_names: ['same', 'same'] },
-    { checks: [{ name: 'check / check', head_sha: 'broken', status: 'completed', conclusion: 'success' }] },
+    {
+      checks: [
+        { name: 'check / check', head_sha: 'broken', status: 'completed', conclusion: 'success' },
+      ],
+    },
   ] as const;
   for (const override of bad) {
     assert.equal(assessCandidateReadiness(snapshot(override)).decision, 'REJECT_INVALID');
