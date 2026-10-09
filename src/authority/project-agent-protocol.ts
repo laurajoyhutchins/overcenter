@@ -150,7 +150,7 @@ function validateCommandContext(context: ProjectCommandContext): void {
     context.command_run_attempt !== undefined;
   if (hasTransportMetadata) {
     if (
-      context.transport !== 'github-actions-job-rerun' ||
+      (context.transport !== undefined && context.transport !== 'github-actions-job-rerun') ||
       context.command_run_id === undefined ||
       context.command_run_attempt === undefined
     ) {
@@ -178,10 +178,10 @@ function commandTransportReceipt(context: ProjectCommandContext): {
   command_run_id?: number;
   command_run_attempt?: number;
 } {
-  if (context.transport === undefined) return {};
+  if (context.command_run_id === undefined) return {};
   return {
-    transport: context.transport,
-    command_run_id: context.command_run_id!,
+    transport: 'github-actions-job-rerun',
+    command_run_id: context.command_run_id,
     command_run_attempt: context.command_run_attempt!,
   };
 }
