@@ -79,6 +79,12 @@ test('native one-host idle scaler retains in-flight work by relying on unacknowl
   assert.match(autoscaler, /pubsub\.googleapis\.com\/subscription\/num_undelivered_messages/);
   assert.match(autoscaler, /--stackdriver-metric-single-instance-assignment=1/);
   assert.match(autoscaler, /refusing to replace a nonmatching warm runner autoscaler/);
+  assert.ok(autoscaler.includes('gcloud compute instance-groups managed describe'));
+  assert.ok(autoscaler.includes('mig.get("autoscaler")'));
+  assert.ok(autoscaler.includes('attached.get("autoscalingPolicy")'));
+  assert.ok(autoscaler.includes('HOLD: unexpected autoscaler representation'));
+  assert.doesNotMatch(autoscaler, /gcloud compute autoscalers (?:list|describe)/);
+  assert.match(autoscaler, /HOLD: warm runner autoscaler policy readback mismatch/);
   assert.match(agent, /if \(completed\) await acknowledge\(environment, pulled\.ackId\)/);
   assert.match(agent, /await processMessage\(environment, pulled\)/);
   assert.doesNotMatch(autoscaler, /gcloud projects add-iam-policy-binding/);
