@@ -36,7 +36,7 @@ gcloud run services get-iam-policy "$SERVICE" --project="$PROJECT_ID" --region="
 DEPLOYER_SA="overcenter-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:$DEPLOYER_SA" \
-  --role=roles/cloudscheduler.viewer --quiet >/dev/null
+  --role=roles/cloudscheduler.viewer --condition=None --quiet >/dev/null
 
 python3 - "$POLICY_JSON" "$SCHEDULER_SA" <<'PY'
 import json
