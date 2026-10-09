@@ -550,14 +550,11 @@ async function runForever(environment: WarmRunnerAgentEnvironment): Promise<void
     } finally {
       clearInterval(keepAlive);
     }
-    if (completed) {
-      try {
-        await acknowledge(environment, pulled.ackId);
-        observe('ack_request_accepted');
-      } catch (error: unknown) {
-        observe('ack_request_uncertain', String(error instanceof Error ? error.message : error));
-      }
-    }
+    if (completed) await acknowledge(environment, pulled.ackId).then(
+      () => observe('ack_request_accepted'),
+      (error: unknown) =>
+        observe('ack_request_uncertain', String(error instanceof Error ? error.message : error)),
+    );
   }
 }
 
