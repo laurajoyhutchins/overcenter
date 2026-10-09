@@ -11,7 +11,8 @@ JOB="overcenter-runner-reconcile"
 SCHEDULER_SA="overcenter-runner-scheduler@${PROJECT_ID}.iam.gserviceaccount.com"
 JOB_JSON="$(mktemp)"
 POLICY_JSON="$(mktemp)"
-trap 'rm -f "$JOB_JSON" "$POLICY_JSON"' EXIT
+PROJECT_POLICY_JSON="$(mktemp)"
+trap 'rm -f "$JOB_JSON" "$POLICY_JSON" "$PROJECT_POLICY_JSON"' EXIT
 
 for command in gcloud python3; do
   command -v "$command" >/dev/null 2>&1 || { echo "$command is required" >&2; exit 2; }
@@ -21,22 +22,70 @@ service_url="$(gcloud run services describe "$SERVICE" --project="$PROJECT_ID" -
 [[ "$service_url" == https://* ]] || { echo "private autoscaler service URL missing" >&2; exit 1; }
 
 # Enabling the service and creating the dedicated principal require owner approval.
-gcloud services enable cloudscheduler.googleapis.com --project="$PROJECT_ID" --quiet
+# Service Usage API mutate quota can be exhausted by unrelated deployment traffic.
+# Inspect the enabled service before making any owner-authorized mutation.
+scheduler_api="$(
+  gcloud services list --enabled --project="$PROJECT_ID" \
+    --filter='config.name=cloudscheduler.googleapis.com' --format='value(config.name)'
+)"
+if [[ "$scheduler_api" != "cloudscheduler.googleapis.com" ]]; then
+  gcloud services enable cloudscheduler.googleapis.com --project="$PROJECT_ID" --quiet
+fi
 if ! gcloud iam service-accounts describe "$SCHEDULER_SA" --project="$PROJECT_ID" >/dev/null 2>&1; then
   gcloud iam service-accounts create overcenter-runner-scheduler --project="$PROJECT_ID" \
     --display-name="Overcenter runner reconcile invoker"
 fi
 
-gcloud run services add-iam-policy-binding "$SERVICE" --project="$PROJECT_ID" --region="$REGION" \
-  --member="serviceAccount:$SCHEDULER_SA" --role=roles/run.invoker --quiet >/dev/null
 gcloud run services get-iam-policy "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --format=json > "$POLICY_JSON"
+if ! python3 - "$POLICY_JSON" "$SCHEDULER_SA" <<'PY'
+import json
+import sys
+
+policy_path, principal = sys.argv[1:]
+with open(policy_path, encoding="utf-8") as handle:
+    bindings = json.load(handle).get("bindings") or []
+member = "serviceAccount:" + principal
+if not any(b.get("role") == "roles/run.invoker" and member in (b.get("members") or []) and not b.get("condition") for b in bindings):
+    sys.exit(1)
+PY
+then
+  gcloud run services add-iam-policy-binding "$SERVICE" --project="$PROJECT_ID" --region="$REGION" \
+    --member="serviceAccount:$SCHEDULER_SA" --role=roles/run.invoker --quiet >/dev/null
+  gcloud run services get-iam-policy "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --format=json > "$POLICY_JSON"
+fi
 
 # The recurring deployer needs read-only Scheduler job metadata to prove the wake
 # path before changing Cloud Run's instance floor. No job mutation/dispatch grant.
 DEPLOYER_SA="overcenter-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:$DEPLOYER_SA" \
-  --role=roles/cloudscheduler.viewer --condition=None --quiet >/dev/null
+gcloud projects get-iam-policy "$PROJECT_ID" --format=json > "$PROJECT_POLICY_JSON"
+if ! python3 - "$PROJECT_POLICY_JSON" "$DEPLOYER_SA" <<'PY'
+import json
+import sys
+
+policy_path, principal = sys.argv[1:]
+with open(policy_path, encoding="utf-8") as handle:
+    bindings = json.load(handle).get("bindings") or []
+member = "serviceAccount:" + principal
+if not any(b.get("role") == "roles/cloudscheduler.viewer" and member in (b.get("members") or []) and not b.get("condition") for b in bindings):
+    sys.exit(1)
+PY
+then
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$DEPLOYER_SA" \
+    --role=roles/cloudscheduler.viewer --condition=None --quiet >/dev/null
+  gcloud projects get-iam-policy "$PROJECT_ID" --format=json > "$PROJECT_POLICY_JSON"
+fi
+python3 - "$PROJECT_POLICY_JSON" "$DEPLOYER_SA" <<'PY'
+import json
+import sys
+
+policy_path, principal = sys.argv[1:]
+with open(policy_path, encoding="utf-8") as handle:
+    bindings = json.load(handle).get("bindings") or []
+member = "serviceAccount:" + principal
+if not any(b.get("role") == "roles/cloudscheduler.viewer" and member in (b.get("members") or []) and not b.get("condition") for b in bindings):
+    raise SystemExit("deployer has no unconditional read-only Scheduler inspection grant")
+PY
 
 python3 - "$POLICY_JSON" "$SCHEDULER_SA" <<'PY'
 import json
