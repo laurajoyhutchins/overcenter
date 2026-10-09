@@ -57,7 +57,10 @@ const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 export function assessCandidateReadiness(
   snapshot: CandidateReadinessSnapshot,
 ): CandidateReadinessResult {
-  const outcome = (decision: CandidateReadinessDecision, reason: string): CandidateReadinessResult => ({
+  const outcome = (
+    decision: CandidateReadinessDecision,
+    reason: string,
+  ): CandidateReadinessResult => ({
     decision,
     reason,
     candidate_sha: snapshot.expected_head_sha,
@@ -138,7 +141,13 @@ export function assessCandidateReadiness(
     return outcome('AWAIT_CHECKS', 'REQUIRED_EXACT_HEAD_CHECKS_INCOMPLETE');
   }
   if (snapshot.protected_paths_modified) {
-    return outcome('AWAIT_PROTECTED_SOURCE_REVIEW', 'INDEPENDENT_PROTECTED_SOURCE_ADMISSION_REQUIRED');
+    return outcome(
+      'AWAIT_PROTECTED_SOURCE_REVIEW',
+      'INDEPENDENT_PROTECTED_SOURCE_ADMISSION_REQUIRED',
+    );
   }
-  return outcome('READY_TO_REQUEST_ADMISSION', 'ALL_OBSERVED_CHECKS_PASSED_REQUIRE_EXTERNAL_ADMISSION');
+  return outcome(
+    'READY_TO_REQUEST_ADMISSION',
+    'ALL_OBSERVED_CHECKS_PASSED_REQUIRE_EXTERNAL_ADMISSION',
+  );
 }
