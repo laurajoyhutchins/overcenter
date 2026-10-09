@@ -1,4 +1,9 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { advanceProjectForAgent } from '../authority/project-agent-protocol.ts';
+import { projectGcpRunnerDemand } from '../providers/gcp/state-derived-runner-demand.ts';
+import { GitOvercenterKernel } from '../storage/git-kernel.ts';
 import { observeGitHubHostileMutationEvidence } from '../providers/github/hostile-mutation-evidence.ts';
 import {
   appendGitHubOutputs,
@@ -47,3 +52,29 @@ appendGitHubOutputs({
   candidate_branch_base_sha: receipt.candidate_branch_base_sha ?? '',
   receipt_digest: receipt.receipt_digest,
 });
+
+/*
+ * Optional, source-bound GCP infrastructure status for the existing
+ * project.advance command. The project policy file is controlled by the
+ * source-revision admission path, not by an agent-issued resize operation.
+ * This observation never publishes runner leases or changes provider state.
+ */
+const demandPolicyPath = join(process.cwd(), '.overcenter', 'gcp-runner-demand-policy.json');
+if (existsSync(demandPolicyPath)) {
+  const authority = new GitOvercenterKernel(process.cwd(), {
+    ref: process.env.OVERCENTER_PROJECT_AUTHORITY_REF ?? 'refs/overcenter/state',
+    remote: process.env.OVERCENTER_PROJECT_REMOTE ?? null,
+    githubToken,
+  });
+  const demand = projectGcpRunnerDemand(
+    authority,
+    JSON.parse(readFileSync(demandPolicyPath, 'utf8')) as unknown,
+  );
+  console.log(JSON.stringify({ event: 'gcp_runner_demand', ...demand }));
+  appendGitHubOutputs({
+    gcp_runner_demand_state: demand.state,
+    gcp_runner_authority_head: demand.authority_head ?? '',
+    gcp_runner_capacity: demand.state === 'projected' ? demand.capacity_needed : 'hold',
+    gcp_runner_effect_authorized: false,
+  });
+}
