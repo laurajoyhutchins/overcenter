@@ -61,19 +61,50 @@ appendGitHubOutputs({
  */
 const demandPolicyPath = join(process.cwd(), '.overcenter', 'gcp-runner-demand-policy.json');
 if (existsSync(demandPolicyPath)) {
-  const authority = new GitOvercenterKernel(process.cwd(), {
-    ref: process.env.OVERCENTER_PROJECT_AUTHORITY_REF ?? 'refs/overcenter/state',
-    remote: process.env.OVERCENTER_PROJECT_REMOTE ?? null,
-    githubToken,
-  });
-  const demand = projectGcpRunnerDemand(
-    authority,
-    JSON.parse(readFileSync(demandPolicyPath, 'utf8')) as unknown,
-  );
+  // This command can manage a foreign project's source revision. Never
+  // project GCP authority from the command implementation checkout in
+  // place of that project's actual source.
+  const projectSource = process.env.OVERCENTER_PROJECT_SOURCE_SHA;
+  const commandSource = process.env.OVERCENTER_COMMAND_SOURCE_SHA;
+  let demand:
+    | ReturnType<typeof projectGcpRunnerDemand>
+    | {
+        state: 'hold';
+        reason: 'FOREIGN_PROJECT_POLICY_UNAVAILABLE' | 'DEMAND_OBSERVER_UNAVAILABLE';
+        effect_authorized: false;
+      };
+  if (projectSource && projectSource !== commandSource) {
+    demand = {
+      state: 'hold',
+      reason: 'FOREIGN_PROJECT_POLICY_UNAVAILABLE',
+      effect_authorized: false,
+    };
+  } else {
+    try {
+      const authority = new GitOvercenterKernel(process.cwd(), {
+        ref: process.env.OVERCENTER_PROJECT_AUTHORITY_REF ?? 'refs/overcenter/state',
+        remote: process.env.OVERCENTER_PROJECT_REMOTE ?? null,
+        githubToken,
+      });
+      demand = projectGcpRunnerDemand(
+        authority,
+        JSON.parse(readFileSync(demandPolicyPath, 'utf8')) as unknown,
+      );
+    } catch {
+      // A diagnostic observation must not turn a successfully committed
+      // project.advance claim into a failed command with a missing receipt.
+      demand = {
+        state: 'hold',
+        reason: 'DEMAND_OBSERVER_UNAVAILABLE',
+        effect_authorized: false,
+      };
+    }
+  }
   console.log(JSON.stringify({ event: 'gcp_runner_demand', ...demand }));
   appendGitHubOutputs({
     gcp_runner_demand_state: demand.state,
-    gcp_runner_authority_head: demand.authority_head ?? '',
+    gcp_runner_authority_head:
+      'authority_head' in demand ? (demand.authority_head ?? '') : '',
     gcp_runner_capacity: demand.state === 'projected' ? demand.capacity_needed : 'hold',
     gcp_runner_effect_authorized: false,
   });
