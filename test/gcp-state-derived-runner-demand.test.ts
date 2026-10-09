@@ -56,7 +56,7 @@ function reader(
 
 test('idle authoritative work projects zero runner demand without authorizing a resize', () => {
   const result = projectGcpRunnerDemand(
-    reader([item('run-1', 'DONE'), item('run-2', 'WAITING')]),
+    reader([item('run-1', 'DONE'), item('run-2', 'BLOCKED')]),
     policy,
   );
   assert.equal(result.state, 'projected');
@@ -73,7 +73,7 @@ test('idle authoritative work projects zero runner demand without authorizing a 
 test('ready demand and active authorized executions request at most one worker', () => {
   for (const pair of [
     [item('run-1', 'READY'), item('run-2', 'BLOCKED')],
-    [item('run-1', 'EXECUTING'), item('run-2', 'WAITING')],
+    [item('run-1', 'EXECUTING'), item('run-2', 'DONE')],
     [item('run-1', 'READY'), item('run-2', 'EXECUTING')],
   ]) {
     const result = projectGcpRunnerDemand(reader(pair), policy);
@@ -106,6 +106,20 @@ test('recovery uncertainty always holds rather than scaling down or waking', () 
   assert.deepEqual(result, {
     state: 'hold',
     reason: 'RECOVERY_REQUIRED',
+    authority_head: head,
+    blocked_obligation_ids: ['run-1'],
+    effect_authorized: false,
+  });
+});
+
+test('WAITING is an unsettled in-flight lifecycle, never idle capacity evidence', () => {
+  const result = projectGcpRunnerDemand(
+    reader([item('run-1', 'WAITING'), item('run-2', 'DONE')]),
+    policy,
+  );
+  assert.deepEqual(result, {
+    state: 'hold',
+    reason: 'WAITING_UNRESOLVED',
     authority_head: head,
     blocked_obligation_ids: ['run-1'],
     effect_authorized: false,
