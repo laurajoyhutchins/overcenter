@@ -18,7 +18,7 @@ test('scheduled reconciliation is explicit and rejects unknown modes', () => {
 
 test('scheduled mode awaits each authenticated request instead of relying on idle timers', () => {
   const autoscaler = source('../src/transport/gcp-runner-autoscaler.ts');
-  assert.match(autoscaler, /request\.method === 'POST' && request\.url === '\/reconcile'/);
+  assert.match(autoscaler, /request\.method === 'POST' &&\s+request\.url === '\/reconcile'/);
   assert.match(autoscaler, /await pollOnce\(client, config, state, launcherUrl\)/);
   assert.match(autoscaler, /response\.statusCode = state\.lastError === null \? 200 : 503/);
   assert.match(autoscaler, /if \(reconcileMode === 'polling'\)/);
