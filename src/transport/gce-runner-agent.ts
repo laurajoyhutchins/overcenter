@@ -370,6 +370,41 @@ async function dockerRequest(
   });
 }
 
+/**
+ * Verify the Docker container is absent before treating a runner lease as
+ * cleaned up. The DELETE transport may fail after Docker applied it; an
+ * independent inspect-404 is the only success witness here.
+ */
+export async function verifyRunnerContainerTeardown(
+  containerId: string,
+  request: (
+    method: string,
+    path: string,
+  ) => Promise<Readonly<{ statusCode: number; body: Buffer }>>,
+): Promise<void> {
+  if (!/^[0-9a-f]{64}$/.test(containerId)) {
+    throw new Error('Docker container id is not an exact 64-byte hexadecimal identity');
+  }
+  const path = '/v1.45/containers/' + containerId;
+  try {
+    await request('DELETE', path + '?force=1');
+  } catch (error) {
+    // Ambiguous DELETE outcomes are reconciled by the subsequent GET, not
+    // treated as proof of removal or blindly retried.
+    console.error(
+      JSON.stringify({
+        event: 'warm_runner_container_delete_indeterminate',
+        container_id: containerId,
+        error: String(error instanceof Error ? error.message : error),
+      }),
+    );
+  }
+  const observed = await request('GET', path + '/json');
+  if (observed.statusCode !== 404) {
+    throw new Error('WARM_RUNNER_CONTAINER_TEARDOWN_UNVERIFIED:' + observed.statusCode);
+  }
+}
+
 export function runnerContainerSpec(
   environment: WarmRunnerAgentEnvironment,
   lease: RunnerExecutionLease,
@@ -435,7 +470,7 @@ async function runContainer(
       throw new Error('GitHub runner container exited with code ' + String(outcome.StatusCode));
     }
   } finally {
-    await dockerRequest('DELETE', '/v1.45/containers/' + id + '?force=1').catch(() => undefined);
+    await verifyRunnerContainerTeardown(id, dockerRequest);
   }
 }
 
