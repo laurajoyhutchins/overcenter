@@ -50,11 +50,13 @@ function autoscalerResource(overrides: Record<string, unknown> = {}) {
       stabilizationPeriodSec: 2700,
       coolDownPeriodSec: 60,
       mode: 'ON',
-      customMetricUtilizations: [{
-        metric: 'pubsub.googleapis.com/subscription/num_undelivered_messages',
-        filter: `resource.type="pubsub_subscription" AND resource.labels.subscription_id="${subscription}"`,
-        singleInstanceAssignment: 1,
-      }],
+      customMetricUtilizations: [
+        {
+          metric: 'pubsub.googleapis.com/subscription/num_undelivered_messages',
+          filter: `resource.type="pubsub_subscription" AND resource.labels.subscription_id="${subscription}"`,
+          singleInstanceAssignment: 1,
+        },
+      ],
     },
     other_untrusted_field: 'not-certified',
     ...overrides,
@@ -134,7 +136,9 @@ test('wrong resource identity and forged self-link origin fail closed', () => {
   for (const body of [
     migResource({ name: 'other-group' }),
     migResource({ zone: root.replace(project, 'foreign-project') }),
-    migResource({ selfLink: `https://evil.invalid/compute/v1/projects/${project}/zones/${zone}/instanceGroupManagers/${mig}` }),
+    migResource({
+      selfLink: `https://evil.invalid/compute/v1/projects/${project}/zones/${zone}/instanceGroupManagers/${mig}`,
+    }),
     migResource({ targetSize: -1 }),
   ]) {
     const result = observeCertifiedGcpZonalMig('token', migCoordinate, { get: () => body });
@@ -144,9 +148,13 @@ test('wrong resource identity and forged self-link origin fail closed', () => {
     autoscalerResource({ name: 'other-autoscaler' }),
     autoscalerResource({ target: `${root}/instanceGroupManagers/other` }),
     autoscalerResource({ zone: root.replace(zone, 'us-west1-b') }),
-    autoscalerResource({ autoscalingPolicy: {
-      minNumReplicas: 3, maxNumReplicas: 1, stabilizationPeriodSec: 2700,
-    } }),
+    autoscalerResource({
+      autoscalingPolicy: {
+        minNumReplicas: 3,
+        maxNumReplicas: 1,
+        stabilizationPeriodSec: 2700,
+      },
+    }),
   ]) {
     const result = observeCertifiedGcpZonalAutoscaler('token', autoscalerCoordinate, {
       get: () => body,
@@ -163,9 +171,9 @@ test('additional autoscaler signals are observed as drift, never silently ignore
     { mode: 'OFF' },
     { cpuUtilization: { utilizationTarget: 0.6 } },
     { scalingSchedules: { night: { minRequiredReplicas: 1 } } },
-    { customMetricUtilizations: [
-      { metric: 'other', filter: 'other', singleInstanceAssignment: 1 },
-    ] },
+    {
+      customMetricUtilizations: [{ metric: 'other', filter: 'other', singleInstanceAssignment: 1 }],
+    },
     { customMetricUtilizations: [] },
   ]) {
     const base = autoscalerResource().autoscalingPolicy;
@@ -186,11 +194,12 @@ test('separate readbacks cannot be combined across project or zone', () => {
     'token',
     { ...autoscalerCoordinate, zone: otherZone },
     {
-      get: () => autoscalerResource({
-        zone: otherRoot,
-        selfLink: `${otherRoot}/autoscalers/${autoscaler}`,
-        target: `${otherRoot}/instanceGroupManagers/${mig}`,
-      }),
+      get: () =>
+        autoscalerResource({
+          zone: otherRoot,
+          selfLink: `${otherRoot}/autoscalers/${autoscaler}`,
+          target: `${otherRoot}/instanceGroupManagers/${mig}`,
+        }),
     },
   );
   assert.equal(m.state, 'observed');
@@ -203,7 +212,9 @@ test('separate readbacks cannot be combined across project or zone', () => {
 });
 
 test('incomplete, invalid and denied readback remains indeterminate, never absence', () => {
-  const denied: GcpJsonGet = () => { throw new Error('HTTP 403: compute.instanceGroupManagers.get denied'); };
+  const denied: GcpJsonGet = () => {
+    throw new Error('HTTP 403: compute.instanceGroupManagers.get denied');
+  };
   const m = observeCertifiedGcpZonalMig('token', migCoordinate, { get: denied });
   assert.deepEqual(m, {
     state: 'indeterminate',
@@ -213,14 +224,11 @@ test('incomplete, invalid and denied readback remains indeterminate, never absen
     get: () => ({ ...autoscalerResource(), autoscalingPolicy: { minNumReplicas: '0' } }),
   });
   assert.equal(a.state, 'indeterminate');
-  assert.deepEqual(
-    assessGcpWarmPool(m, a, { subscription, stabilization_seconds: 2700 }),
-    {
-      state: 'indeterminate',
-      reason: 'HTTP 403: compute.instanceGroupManagers.get denied',
-      actual_instances_verified_absent: false,
-    },
-  );
+  assert.deepEqual(assessGcpWarmPool(m, a, { subscription, stabilization_seconds: 2700 }), {
+    state: 'indeterminate',
+    reason: 'HTTP 403: compute.instanceGroupManagers.get denied',
+    actual_instances_verified_absent: false,
+  });
 });
 
 test('invalid coordinate is refused before provider access', () => {
@@ -228,7 +236,12 @@ test('invalid coordinate is refused before provider access', () => {
   const result = observeCertifiedGcpZonalMig(
     'token',
     { ...migCoordinate, mig: '../unauthorized' },
-    { get: () => { called = true; return migResource(); } },
+    {
+      get: () => {
+        called = true;
+        return migResource();
+      },
+    },
   );
   assert.equal(result.state, 'indeterminate');
   assert.equal(called, false);
