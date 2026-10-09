@@ -83,9 +83,7 @@ export function reportWarmRunnerEvents(input: string): {
       event_count: events.length,
     };
   });
-  attempts.sort((a, b) =>
-    JSON.stringify(a.identity).localeCompare(JSON.stringify(b.identity)),
-  );
+  attempts.sort((a, b) => JSON.stringify(a.identity).localeCompare(JSON.stringify(b.identity)));
   return {
     schema: 'overcenter-warm-runner-diagnostic-report/v1',
     source: 'unverified-host-stdout',
@@ -99,7 +97,9 @@ const entrypoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
 if (import.meta.url === entrypoint) {
   const file = process.argv[2];
   if (!file || process.argv.length !== 3) {
-    console.error('usage: node --experimental-strip-types src/transport/report-warm-runner-events.ts <host-stdout.jsonl>');
+    console.error(
+      'usage: node --experimental-strip-types src/transport/report-warm-runner-events.ts <host-stdout.jsonl>',
+    );
     process.exitCode = 2;
   } else {
     const report = reportWarmRunnerEvents(readFileSync(file, 'utf8'));
