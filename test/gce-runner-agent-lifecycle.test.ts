@@ -7,6 +7,7 @@ function lifecycle(scenario: string): string[] {
   const result = spawnSync(
     process.execPath,
     [
+      '--experimental-strip-types',
       '--import',
       fileURLToPath(new URL('./fixtures/warm-runner-lifecycle.ts', import.meta.url)),
       fileURLToPath(new URL('../src/transport/gce-runner-agent.ts', import.meta.url)),
