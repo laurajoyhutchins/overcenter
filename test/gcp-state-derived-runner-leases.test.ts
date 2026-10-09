@@ -7,9 +7,7 @@ import {
   type GcpRunnerAuthorityReader,
 } from '../src/providers/gcp/state-derived-runner-demand.ts';
 import { planGcpRunnerLeases } from '../src/providers/gcp/state-derived-runner-leases.ts';
-import type {
-  GcpRunnerJobObservation,
-} from '../src/providers/gcp/state-derived-runner-leases.ts';
+import type { GcpRunnerJobObservation } from '../src/providers/gcp/state-derived-runner-leases.ts';
 import type { RunnerAutoscalerConfig } from '../src/transport/gcp-runner-autoscaler.ts';
 
 const revision = 'a'.repeat(40);
@@ -64,10 +62,7 @@ function work(
   };
 }
 
-function authority(
-  items: Work[],
-  heads: readonly string[] = [revision],
-): GcpRunnerAuthorityReader {
+function authority(items: Work[], heads: readonly string[] = [revision]): GcpRunnerAuthorityReader {
   let reads = 0;
   return {
     head: () => heads[Math.min(reads++, heads.length - 1)] ?? null,
@@ -75,10 +70,7 @@ function authority(
   };
 }
 
-function observed(
-  status = 'queued',
-  runnerLabel = launch.runner_label,
-): GcpRunnerJobObservation[] {
+function observed(status = 'queued', runnerLabel = launch.runner_label): GcpRunnerJobObservation[] {
   return [
     {
       repository,
@@ -147,12 +139,7 @@ test('an incomplete, mismatched or duplicate repository snapshot fails closed', 
     [{ ...observed()[0]!, repository: { ...repository, owner_id: 1 } }],
     [...observed(), ...observed()],
   ]) {
-    const result = planGcpRunnerLeases(
-      authority([work('EXECUTING')]),
-      policy,
-      config,
-      snapshots,
-    );
+    const result = planGcpRunnerLeases(authority([work('EXECUTING')]), policy, config, snapshots);
     assert.equal(result.state, 'hold');
     assert.equal(result.effect_authorized, false);
   }
@@ -212,17 +199,14 @@ test('moving authority head, WAITING or RECOVERY_REQUIRED never produces candida
 });
 
 test('duplicate queued job evidence cannot impersonate another execution', () => {
-  const duplicates: GcpRunnerJobObservation[] = [{
-    repository,
-    complete: true,
-    jobs: [observed()[0]!.jobs[0]!, observed()[0]!.jobs[0]!],
-  }];
-  const result = planGcpRunnerLeases(
-    authority([work('EXECUTING')]),
-    policy,
-    config,
-    duplicates,
-  );
+  const duplicates: GcpRunnerJobObservation[] = [
+    {
+      repository,
+      complete: true,
+      jobs: [observed()[0]!.jobs[0]!, observed()[0]!.jobs[0]!],
+    },
+  ];
+  const result = planGcpRunnerLeases(authority([work('EXECUTING')]), policy, config, duplicates);
   assert.equal(result.state, 'hold');
   if (result.state === 'hold') {
     assert.equal(result.reason, 'DUPLICATE_GITHUB_JOB_OBSERVATION');
