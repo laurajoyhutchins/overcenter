@@ -12,6 +12,7 @@ test('validation dispatch is limited to published candidate branches and never i
   dispatchSourceValidation(
     'fixture',
     'acme/widget',
+    '.github/workflows/overcenter-candidate.yml',
     publication,
     'b'.repeat(40),
     (token, path, body) => {
@@ -22,7 +23,7 @@ test('validation dispatch is limited to published candidate branches and never i
   assert.deepEqual(calls, [
     {
       token: 'fixture',
-      path: '/repos/acme/widget/actions/workflows/agent-candidate-signal.yml/dispatches',
+      path: '/repos/acme/widget/actions/workflows/overcenter-candidate.yml/dispatches',
       body: {
         ref: 'overcenter/candidate/run-id',
         inputs: { candidate_sha: 'a'.repeat(40), runtime_sha: 'b'.repeat(40) },
@@ -34,6 +35,19 @@ test('validation dispatch is limited to published candidate branches and never i
       dispatchSourceValidation(
         'fixture',
         'acme/widget',
+        '.github/workflows/nested/evil.yml',
+        publication,
+        'b'.repeat(40),
+        () => 204,
+      ),
+    /SOURCE_VALIDATION_WORKFLOW_INVALID/,
+  );
+  assert.throws(
+    () =>
+      dispatchSourceValidation(
+        'fixture',
+        'acme/widget',
+        '.github/workflows/overcenter-candidate.yml',
         { ...publication, ref: 'refs/heads/main' },
         'b'.repeat(40),
         () => 204,
@@ -45,6 +59,7 @@ test('validation dispatch is limited to published candidate branches and never i
       dispatchSourceValidation(
         'fixture',
         'acme/widget',
+        '.github/workflows/overcenter-candidate.yml',
         { ...publication, candidate_sha: 'not-a-sha' },
         'b'.repeat(40),
         () => 204,
@@ -52,12 +67,27 @@ test('validation dispatch is limited to published candidate branches and never i
     /SOURCE_VALIDATION_CANDIDATE_INVALID/,
   );
   assert.throws(
-    () => dispatchSourceValidation('fixture', 'acme/widget', publication, 'not-a-sha', () => 204),
+    () =>
+      dispatchSourceValidation(
+        'fixture',
+        'acme/widget',
+        '.github/workflows/overcenter-candidate.yml',
+        publication,
+        'not-a-sha',
+        () => 204,
+      ),
     /SOURCE_VALIDATION_RUNTIME_INVALID/,
   );
   assert.throws(
     () =>
-      dispatchSourceValidation('fixture', 'acme/widget', publication, 'b'.repeat(40), () => 500),
+      dispatchSourceValidation(
+        'fixture',
+        'acme/widget',
+        '.github/workflows/overcenter-candidate.yml',
+        publication,
+        'b'.repeat(40),
+        () => 500,
+      ),
     /SOURCE_VALIDATION_DISPATCH_FAILED/,
   );
 });
