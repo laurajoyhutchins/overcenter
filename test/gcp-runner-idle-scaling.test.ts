@@ -91,7 +91,6 @@ test('native one-host idle scaler retains in-flight work by relying on unacknowl
   assert.doesNotMatch(autoscaler, /roles\/compute\.admin/);
 });
 
-
 test('idle readback reuses existing authorized deployment principal without a second OIDC job', () => {
   const workflow = source('../.github/workflows/gcp-runner-autoscaler-deploy.yml');
   const script = source('../infra/gcp/readback-runner-idle.sh');
@@ -105,5 +104,8 @@ test('idle readback reuses existing authorized deployment principal without a se
   assert.match(script, /managed list-instances/);
   assert.match(script, /targetSize/);
   assert.match(script, /GCP_WARM_IDLE_READBACK_PASS/);
-  assert.doesNotMatch(script, /gcloud (?:run deploy|services enable|projects add-iam-policy-binding|compute instance-groups managed set-autoscaling)/);
+  assert.doesNotMatch(
+    script,
+    /gcloud (?:run deploy|services enable|projects add-iam-policy-binding|compute instance-groups managed set-autoscaling)/,
+  );
 });
