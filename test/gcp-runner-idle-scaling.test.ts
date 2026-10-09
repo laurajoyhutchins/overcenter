@@ -60,7 +60,9 @@ test('native one-host idle scaler retains in-flight work by relying on unacknowl
   assert.match(autoscaler, /pubsub\.googleapis\.com\/subscription\/num_undelivered_messages/);
   assert.match(autoscaler, /--stackdriver-metric-single-instance-assignment=1/);
   assert.match(autoscaler, /refusing to replace a nonmatching warm runner autoscaler/);
-  assert.match(agent, /if \(completed\) await acknowledge\(environment, pulled\.ackId\)/);
+  assert.match(agent, /if \(completed\) \{\s+await acknowledge\(environment, pulled\.ackId\)/);
+  assert.match(agent, /await verifyRunnerContainerTeardown\(id, dockerRequest\)/);
+  assert.match(agent, /await rm\(workspace, \{ recursive: true, force: true \}\)/);
   assert.match(agent, /await processMessage\(environment, pulled\)/);
   assert.doesNotMatch(autoscaler, /gcloud projects add-iam-policy-binding/);
   assert.doesNotMatch(autoscaler, /roles\/compute\.admin/);
