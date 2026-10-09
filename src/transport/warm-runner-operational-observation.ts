@@ -128,22 +128,23 @@ export function assessWarmRunnerOperationalTrace(
   ) {
     return { state: 'incomplete', reason: 'WARM_RUNNER_TRACE_UNRESOLVED' };
   }
-  const ack = ordered.find((item) => item.stage === 'ack_request_accepted');
-  const workspace = ordered.find((item) => item.stage === 'workspace_absent_readback');
-  const started = ordered.some((item) => item.stage === 'container_started');
-  const removed = ordered.find((item) => item.stage === 'container_absent_readback');
-  const exited = ordered.find((item) => item.stage === 'container_exit_zero');
-  const stale = ordered.find((item) => item.stage === 'job_stale');
-  if (
-    !ack ||
-    ack !== ordered[ordered.length - 1] ||
-    !workspace ||
-    workspace.sequence >= ack.sequence ||
-    (started && (!removed || !exited)) ||
-    (started && (removed!.sequence <= exited!.sequence || removed!.sequence >= workspace.sequence)) ||
-    (!started && !stale) ||
-    (stale && started)
-  ) {
+  const stages = ordered.map((item) => item.stage).join(',');
+  const completedJob = [
+    'lease_received',
+    'jit_authorized',
+    'container_started',
+    'container_exit_zero',
+    'container_absent_readback',
+    'workspace_absent_readback',
+    'ack_request_accepted',
+  ].join(',');
+  const staleJob = [
+    'lease_received',
+    'job_stale',
+    'workspace_absent_readback',
+    'ack_request_accepted',
+  ].join(',');
+  if (stages !== completedJob && stages !== staleJob) {
     return { state: 'incomplete', reason: 'WARM_RUNNER_TRACE_READBACK_INCOMPLETE' };
   }
   return {
