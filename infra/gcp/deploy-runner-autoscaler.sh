@@ -36,6 +36,55 @@ test "$(git rev-parse HEAD)" = "$EXACT_REVISION"
 printf 'Google Cloud CLI components for exact revision %s:\n' "$EXACT_REVISION"
 gcloud version --format=json
 
+# The owner provisions and verifies this external wake path before the
+# always-on autoscaler is allowed to scale to zero. Do not self-provision IAM.
+reconcile_service_url="$(gcloud run services describe "$AUTOSCALER_SERVICE" \
+  --project="$PROJECT_ID" --region="$REGION" --format='value(status.url)')"
+if [[ ! "$reconcile_service_url" =~ ^https:// ]]; then
+  echo "runner Scheduler cutover requires an existing private autoscaler service" >&2
+  exit 1
+fi
+scheduler_json="${RUNNER_TEMP:-/tmp}/overcenter-runner-scheduler-preflight.json"
+scheduler_policy_json="${RUNNER_TEMP:-/tmp}/overcenter-runner-scheduler-policy.json"
+gcloud scheduler jobs describe overcenter-runner-reconcile \
+  --project="$PROJECT_ID" --location="$REGION" --format=json > "$scheduler_json"
+gcloud run services get-iam-policy "$AUTOSCALER_SERVICE" \
+  --project="$PROJECT_ID" --region="$REGION" --format=json > "$scheduler_policy_json"
+python3 - "$scheduler_json" "$scheduler_policy_json" "$reconcile_service_url" "$PROJECT_ID" <<'PY'
+import json
+import sys
+
+job_path, policy_path, url, project = sys.argv[1:]
+def load(path):
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+job, policy = load(job_path), load(policy_path)
+target = job.get("httpTarget") or {}
+oidc = target.get("oidcToken") or {}
+principal = f"overcenter-runner-scheduler@{project}.iam.gserviceaccount.com"
+if not (
+    job.get("state") == "ENABLED"
+    and job.get("schedule") == "* * * * *"
+    and job.get("timeZone") == "Etc/UTC"
+    and target.get("httpMethod") == "POST"
+    and target.get("uri") == url + "/reconcile"
+    and oidc.get("audience") == url
+    and oidc.get("serviceAccountEmail") == principal
+):
+    raise SystemExit("runner Scheduler wake path preflight mismatch; leave continuous reconciliation deployed")
+bindings = policy.get("bindings") or []
+if not any(
+    binding.get("role") == "roles/run.invoker"
+    and "serviceAccount:" + principal in (binding.get("members") or [])
+    for binding in bindings
+):
+    raise SystemExit("runner Scheduler has no private service invoker binding")
+if any(member in ("allUsers", "allAuthenticatedUsers") for b in bindings for member in (b.get("members") or [])):
+    raise SystemExit("runner autoscaler service is publicly invokable")
+print("Scheduler preflight: exact one-minute OIDC wake path and private IAM PASS")
+PY
+
 runner_tree="$(git rev-parse "${EXACT_REVISION}:infra/gcp-runner-image")"
 if [[ ! "$runner_tree" =~ ^[0-9a-f]{40,64}$ ]]; then
   echo "runner image source tree did not resolve to a Git object id" >&2
@@ -160,7 +209,7 @@ gcloud run deploy "$LAUNCHER_SERVICE" \
   --command=node \
   --args="--experimental-strip-types,src/transport/gcp-runner-launcher.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
-  --min=1 \
+  --min=0 \
   --max=1 \
   --cpu-boost \
   --cpu=1 \
@@ -183,8 +232,8 @@ with open(path, encoding="utf-8") as handle:
     body = json.load(handle)
 
 service_annotations = (body.get("metadata") or {}).get("annotations") or {}
-if str(service_annotations.get("run.googleapis.com/minScale") or "") != "1":
-    raise SystemExit("runner launcher service minimum instances readback mismatch")
+if str(service_annotations.get("run.googleapis.com/minScale") or "0") != "0":
+    raise SystemExit("runner launcher service must scale to zero")
 if str(service_annotations.get("run.googleapis.com/maxScale") or "") != "1":
     raise SystemExit("runner launcher service maximum instances readback mismatch")
 
@@ -252,11 +301,11 @@ if not any(
     raise SystemExit("runner launcher invoker binding readback mismatch")
 PY
 
-autoscaler_env="GITHUB_APP_ID=4616688,OVERCENTER_RUNNER_CONFIG_PATH=config/gcp-runner-autoscaler.json,OVERCENTER_RUNNER_LAUNCHER_URL=${launcher_url},OVERCENTER_SOURCE_REVISION=${EXACT_REVISION}"
+autoscaler_env="GITHUB_APP_ID=4616688,OVERCENTER_RUNNER_CONFIG_PATH=config/gcp-runner-autoscaler.json,OVERCENTER_RUNNER_LAUNCHER_URL=${launcher_url},OVERCENTER_SOURCE_REVISION=${EXACT_REVISION},OVERCENTER_RECONCILE_MODE=scheduled"
 
 # Admin-only public-ingress knobs are intentionally not invoked here:
 # --no-invoker-iam-check and run.googleapis.com/invoker-iam-disabled.
-echo "Deploying private autoscaler with two-second conditional reconciliation"
+echo "Deploying request-driven private autoscaler with Scheduler reconciliation"
 gcloud run deploy "$AUTOSCALER_SERVICE" \
   --image="$CONTROL_IMAGE_IMMUTABLE" \
   --project="$PROJECT_ID" \
@@ -267,9 +316,9 @@ gcloud run deploy "$AUTOSCALER_SERVICE" \
   --command=node \
   --args="--experimental-strip-types,src/transport/gcp-runner-autoscaler.ts" \
   --startup-probe="httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=12,timeoutSeconds=3,periodSeconds=5" \
-  --min=1 \
+  --min=0 \
   --max=1 \
-  --no-cpu-throttling \
+  --cpu-throttling \
   --cpu=1 \
   --memory=512Mi \
   --quiet
@@ -307,6 +356,8 @@ if str((env.get("OVERCENTER_SOURCE_REVISION") or {}).get("value") or "") != expe
     raise SystemExit("autoscaler source revision readback mismatch")
 if str((env.get("OVERCENTER_RUNNER_LAUNCHER_URL") or {}).get("value") or "") != launcher_url:
     raise SystemExit("autoscaler launcher URL readback mismatch")
+if str((env.get("OVERCENTER_RECONCILE_MODE") or {}).get("value") or "") != "scheduled":
+    raise SystemExit("autoscaler must not rely on background timers")
 
 private_key = env.get("GITHUB_APP_PRIVATE_KEY") or {}
 if "valueFrom" not in private_key:
@@ -315,7 +366,7 @@ if "valueFrom" not in private_key:
 service_annotations = (body.get("metadata") or {}).get("annotations") or {}
 max_scale = str(service_annotations.get("run.googleapis.com/maxScale") or "")
 min_scale = str(service_annotations.get("run.googleapis.com/minScale") or "")
-if max_scale != "1" or min_scale != "1":
+if max_scale != "1" or min_scale not in ("", "0"):
     raise SystemExit(
         f"autoscaler service instance bounds mismatch: min={min_scale!r} max={max_scale!r}"
     )
@@ -344,6 +395,10 @@ if [[ ! "$service_url" =~ ^https:// ]]; then
   echo "autoscaler deployment returned no HTTPS URL" >&2
   exit 1
 fi
+if [[ "$service_url" != "$reconcile_service_url" ]]; then
+  echo "Scheduler is pinned to a different autoscaler origin" >&2
+  exit 1
+fi
 
 launcher_status="$(
   curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${launcher_url}/health"
@@ -370,5 +425,5 @@ printf '%s\n' \
   "Control digest:  ${control_digest}" \
   "Launcher:        private Cloud Run; Cloud Build default + warm-GCE canary routing" \
   "Autoscaler:      private Cloud Run; authoritative GitHub observation" \
-  "Observation:     2s ETag conditional polling; signed webhook support remains dormant" \
+  "Observation:     authenticated one-minute Scheduler request; no idle CPU allocation" \
   "Hosted Actions:  deployment only, never per verification job"
