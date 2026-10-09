@@ -44,6 +44,7 @@ export type GcpRunnerDemandProjection =
         | 'INVALID_AUTHORITY_STATE'
         | 'TRACKED_OBLIGATION_MISSING'
         | 'RECOVERY_REQUIRED'
+        | 'WAITING_UNRESOLVED'
         | 'INVALID_EXECUTION_CLAIM';
       authority_head?: string;
       blocked_obligation_ids: readonly string[];
@@ -167,6 +168,16 @@ export function projectGcpRunnerDemand(
     return hold(
       'RECOVERY_REQUIRED',
       recovery.map((item) => item.id),
+      before,
+    );
+  }
+  // WAITING is an in-flight lifecycle in Overcenter: it is not proof that
+  // an external runner lease has been released or safely cleaned up.
+  const waiting = selected.filter((item) => item.status === 'WAITING');
+  if (waiting.length > 0) {
+    return hold(
+      'WAITING_UNRESOLVED',
+      waiting.map((item) => item.id),
       before,
     );
   }
