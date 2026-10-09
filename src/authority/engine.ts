@@ -414,11 +414,7 @@ export class KernelCore {
     throw new Error('EXECUTION_AUTHORITY_CONTENTION_EXHAUSTED');
   }
 
-  beginEffect(permit: ExecutionPermit): string {
-    return this.#reserveEffect(permit);
-  }
-
-  #reserveEffect(
+  beginEffect(
     permit: ExecutionPermit,
     binding?: { effect_contract: string; postcondition: Postcondition },
   ): string {
@@ -475,7 +471,7 @@ export class KernelCore {
     effect: (attempt: EffectAttemptBinding) => Promise<T> | T,
   ): Promise<T> {
     const permit = effectAuthorityPermit(authority);
-    const reservationCommit = this.#reserveEffect(permit, {
+    const reservationCommit = this.beginEffect(permit, {
       effect_contract: authority[effectAuthorityBrand],
       postcondition: authority.postcondition,
     });
@@ -495,7 +491,7 @@ export class KernelCore {
     effect: (attempt: EffectAttemptBinding) => T,
   ): T {
     const permit = effectAuthorityPermit(authority);
-    const reservationCommit = this.#reserveEffect(permit, {
+    const reservationCommit = this.beginEffect(permit, {
       effect_contract: authority[effectAuthorityBrand],
       postcondition: authority.postcondition,
     });
