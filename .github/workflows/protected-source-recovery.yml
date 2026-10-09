@@ -141,8 +141,8 @@ jobs:
             readFileSync(process.env.RUNNER_TEMP + '/protected-source-recovery-structural.json', 'utf8'),
           );
           const receipt = {
-            schema: 'overcenter-protected-source-recovery-receipt/v1',
             ...structural,
+            schema: 'overcenter-protected-source-recovery-receipt/v1',
             reason: authorization.reason,
             verification: { lint: 'passed', typecheck: 'passed', unit: 'passed', tcb: 'passed' },
             workflow_run_id: Number(process.env.RUN_ID),

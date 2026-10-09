@@ -1,11 +1,52 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 
 const verifier = resolve('scripts/verify-protected-source-recovery.ts');
+
+test('workflow mints a final receipt without inheriting the structural schema', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'overcenter-recovery-receipt-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const workflow = readFileSync('.github/workflows/protected-source-recovery.yml', 'utf8');
+  const program = workflow
+    .slice(workflow.indexOf('- name: Mint exact recovery receipt'))
+    .match(/node --input-type=module <<'NODE'\n([\s\S]*?)\n          NODE/);
+  assert.ok(program, 'workflow receipt minting program must exist');
+  const structural = {
+    schema: 'overcenter-protected-source-recovery-structural-receipt/v1',
+    candidate_sha: 'candidate',
+    candidate_tree_sha: 'tree',
+    authorization_sha256: 'authorization',
+  };
+  writeFileSync(
+    join(directory, 'protected-source-recovery-authorization.json'),
+    JSON.stringify({ reason: 'owner-authorized repair' }),
+  );
+  writeFileSync(
+    join(directory, 'protected-source-recovery-structural.json'),
+    JSON.stringify(structural),
+  );
+  const result = spawnSync(process.execPath, ['--input-type=module'], {
+    input: program[1],
+    encoding: 'utf8',
+    env: { ...process.env, RUNNER_TEMP: directory, RUN_ID: '123', RUN_ATTEMPT: '2' },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(
+    readFileSync(join(directory, 'protected-source-recovery-receipt.json'), 'utf8'),
+  );
+  assert.deepEqual(receipt, {
+    ...structural,
+    schema: 'overcenter-protected-source-recovery-receipt/v1',
+    reason: 'owner-authorized repair',
+    verification: { lint: 'passed', typecheck: 'passed', unit: 'passed', tcb: 'passed' },
+    workflow_run_id: 123,
+    workflow_run_attempt: 2,
+  });
+});
 
 function fixture(t: import('node:test').TestContext) {
   const repo = mkdtempSync(join(tmpdir(), 'overcenter-protected-recovery-'));
