@@ -509,6 +509,10 @@ async function verifyRepositoryIdentity(
   }
 }
 
+// GitHub reports some workflows with queued jobs as `pending`, not `queued`.
+// Scan the run status, then independently admit only jobs still actually queued.
+export const RUNNER_SCAN_STATUSES = ['queued', 'pending', 'in_progress'] as const;
+
 async function queuedRunnerJobs(
   repository: RepositoryBinding,
   token: string,
@@ -516,7 +520,7 @@ async function queuedRunnerJobs(
 ): Promise<WorkflowJob[]> {
   const runIds = new Set<number>();
   const runsByStatus = await Promise.all(
-    (['queued', 'in_progress'] as const).map(async (status) => {
+    RUNNER_SCAN_STATUSES.map(async (status) => {
       const ids: number[] = [];
       for (let page = 1; ; page += 1) {
         const body = await githubConditionalJson(
