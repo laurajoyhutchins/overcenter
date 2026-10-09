@@ -8,6 +8,7 @@ import {
   runnerExecutionMessage,
 } from '../src/transport/gcp-runner-launcher.ts';
 import {
+  removeRunnerContainer,
   runnerContainerSpec,
   warmRunnerAgentEnvironment,
 } from '../src/transport/gce-runner-agent.ts';
@@ -24,6 +25,54 @@ const lease = {
 const runnerImage =
   'us-west1-docker.pkg.dev/project-6b810532-a302-48dc-b56/cloud-run-source-deploy/overcenter-gcp-runner@sha256:' +
   'a'.repeat(64);
+
+test('container removal requires independent absence after an accepted delete', async () => {
+  for (const deleteStatus of [204, 404]) {
+    const calls: string[] = [];
+    await removeRunnerContainer('container-id', async (method, path) => {
+      calls.push(method + ' ' + path);
+      return { statusCode: method === 'DELETE' ? deleteStatus : 404, body: Buffer.alloc(0) };
+    });
+    assert.deepEqual(calls, [
+      'DELETE /v1.45/containers/container-id?force=1',
+      'GET /v1.45/containers/container-id/json',
+    ]);
+  }
+});
+
+test('container removal rejects transport failure and rejected delete responses', async () => {
+  await assert.rejects(
+    removeRunnerContainer('container-id', async () => {
+      throw new Error('Docker socket disconnected');
+    }),
+    /Docker socket disconnected/,
+  );
+  for (const statusCode of [0, 200, 400, 403, 409, 500]) {
+    await assert.rejects(
+      removeRunnerContainer('container-id', async () => ({ statusCode, body: Buffer.alloc(0) })),
+      /Docker delete failed with HTTP/,
+    );
+  }
+});
+
+test('container removal rejects retained containers and uncertain absence', async () => {
+  for (const statusCode of [0, 200, 403, 500]) {
+    await assert.rejects(
+      removeRunnerContainer('container-id', async (method) => ({
+        statusCode: method === 'DELETE' ? 204 : statusCode,
+        body: Buffer.alloc(0),
+      })),
+      /Docker container absence not verified/,
+    );
+  }
+  await assert.rejects(
+    removeRunnerContainer('container-id', async (method) => {
+      if (method === 'GET') throw new Error('Docker inspection disconnected');
+      return { statusCode: 204, body: Buffer.alloc(0) };
+    }),
+    /Docker inspection disconnected/,
+  );
+});
 
 test('execution lease transport rejects schema drift and unexpected authority fields', () => {
   assert.deepEqual(parseRunnerExecutionLease(lease), lease);
