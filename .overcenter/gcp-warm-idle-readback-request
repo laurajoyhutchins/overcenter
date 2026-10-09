@@ -1,0 +1,2 @@
+Read-only GCE warm group observation after native zero-to-one autoscaler installation.
+Do not redeploy or change IAM. Proof is GitHub job GCP_WARM_IDLE_READBACK_PASS only when target and actual managed instances are both zero.
