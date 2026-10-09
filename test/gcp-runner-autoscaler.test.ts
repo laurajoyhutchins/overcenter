@@ -5,6 +5,7 @@ import test from 'node:test';
 
 import {
   isEligibleRunnerJob,
+  RUNNER_SCAN_STATUSES,
   mapBounded,
   parseRunnerAutoscalerConfig,
   runnerSchedulingLabel,
@@ -71,6 +72,38 @@ test('autoscaler config rejects duplicate repository authorities', () => {
     repositories: [...validConfig.repositories, validConfig.repositories[0]],
   };
   assert.throws(() => parseRunnerAutoscalerConfig(duplicate), /duplicate repository binding/);
+});
+
+test('run enumeration includes pending workflows with queued JIT jobs', () => {
+  // Arcata PR #262 CI run 37953326166 is pending while its job is queued.
+  assert.deepEqual(RUNNER_SCAN_STATUSES, ['queued', 'pending', 'in_progress']);
+  assert.equal(
+    isEligibleRunnerJob(
+      {
+        id: 113897448112,
+        status: 'queued',
+        labels: ['self-hosted', 'overcenter-gcp-37953326166-check-1'],
+      },
+      'overcenter-gcp',
+    ),
+    true,
+  );
+  const scanned = new Set<string>(RUNNER_SCAN_STATUSES);
+  for (const status of ['completed', 'success', 'failure', 'cancelled']) {
+    assert.equal(scanned.has(status), false);
+  }
+  assert.equal(
+    isEligibleRunnerJob(
+      {
+        id: 113897448112,
+        status: 'in_progress',
+        labels: ['self-hosted', 'overcenter-gcp-37953326166-check-1'],
+      },
+      'overcenter-gcp',
+    ),
+    false,
+    'enumerating an in-progress run does not admit an in-progress job',
+  );
 });
 
 test('queued jobs resolve exactly one GCP scheduling label', () => {
