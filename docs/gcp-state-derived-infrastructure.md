@@ -92,7 +92,10 @@ read GitHub repository/job observations. Each `EXECUTING` obligation must
 carry an exact, immutable `packet.gcp_runner_job` binding:
 `repository`, numeric `repository_id`, numeric `owner_id`, numeric
 `job_id`, and `runner_label`. Both the configured repository identity and
-the queued job's scheduling label must match. `READY` work contributes to
+the queued job's scheduling label must match, and the approved policy's
+`pool` must be the exact warm-pool routing prefix (currently
+`overcenter-gcp-warm`). Generic `overcenter-gcp` Cloud Build jobs cannot
+count as warm GCE demand. `READY` work contributes to
 desired capacity but has no publishable lease without a durable claim.
 
 Both observation and lease-candidate results explicitly set
