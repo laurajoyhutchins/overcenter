@@ -77,6 +77,12 @@ export function planGcpRunnerLeases(
     effect_authorized: false,
   });
 
+  const warmPoolPrefix = projection.binding.pool.toLowerCase();
+  const runnerBase = config.runner_label.toLowerCase();
+  if (!warmPoolPrefix.startsWith(runnerBase + '-')) {
+    return hold('WARM_POOL_ROUTE_MISMATCH');
+  }
+
   if (observations.length !== config.repositories.length) {
     return hold('INCOMPLETE_GITHUB_OBSERVATION');
   }
@@ -152,6 +158,10 @@ export function planGcpRunnerLeases(
     if (!boundRepository || !observed) return hold('EXECUTION_JOB_NOT_QUEUED');
     const label = runnerSchedulingLabel(observed.job, config.runner_label);
     if (!label || label !== launch.runner_label) return hold('EXECUTION_JOB_LABEL_MISMATCH');
+    const routedLabel = label.toLowerCase();
+    if (routedLabel !== warmPoolPrefix && !routedLabel.startsWith(warmPoolPrefix + '-')) {
+      return hold('EXECUTION_OUTSIDE_WARM_POOL');
+    }
     if (matched.has(key)) return hold('DUPLICATE_EXECUTION_JOB_BINDING');
     matched.add(key);
 
