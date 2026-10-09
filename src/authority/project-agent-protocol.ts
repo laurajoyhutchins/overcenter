@@ -55,19 +55,20 @@ export interface ProjectCommandContext {
   repository_full_name: string;
   command_source_sha: string;
   project_source_sha?: string;
-  command_run_id: number;
-  command_run_attempt: number;
+  transport?: 'github-actions-job-rerun';
+  command_run_id?: number;
+  command_run_attempt?: number;
 }
 
 export interface ProjectAdvanceReceipt {
   schema: typeof PROJECT_ADVANCE_RECEIPT_SCHEMA;
   command: typeof PROJECT_ADVANCE_COMMAND;
-  transport: 'github-actions-job-rerun';
+  transport?: 'github-actions-job-rerun';
   repository_id: number;
   repository_full_name: string;
   command_source_sha: string;
-  command_run_id: number;
-  command_run_attempt: number;
+  command_run_id?: number;
+  command_run_attempt?: number;
   authority_ref: string;
   authority_head: string;
   state: ProjectVisibleState;
@@ -88,12 +89,12 @@ export interface ProjectSubmitContext extends ProjectCommandContext {
 export interface ProjectSubmitReceipt {
   schema: typeof PROJECT_SUBMIT_RECEIPT_SCHEMA;
   command: typeof PROJECT_SUBMIT_COMMAND;
-  transport: 'github-actions-job-rerun';
+  transport?: 'github-actions-job-rerun';
   repository_id: number;
   repository_full_name: string;
   command_source_sha: string;
-  command_run_id: number;
-  command_run_attempt: number;
+  command_run_id?: number;
+  command_run_attempt?: number;
   authority_ref: string;
   authority_head: string;
   candidate_sha: string;
@@ -143,10 +144,20 @@ function positiveInteger(value: number, name: string): void {
 
 function validateCommandContext(context: ProjectCommandContext): void {
   positiveInteger(context.repository_id, 'repository_id');
-  positiveInteger(context.command_run_id, 'command_run_id');
-  positiveInteger(context.command_run_attempt, 'command_run_attempt');
-  if (context.command_run_attempt < 2) {
-    throw new Error('PROJECT_AGENT_COMMAND_NOT_INVOKED');
+  const hasTransportMetadata =
+    context.transport !== undefined ||
+    context.command_run_id !== undefined ||
+    context.command_run_attempt !== undefined;
+  if (hasTransportMetadata) {
+    if (
+      (context.transport !== undefined && context.transport !== 'github-actions-job-rerun') ||
+      context.command_run_id === undefined ||
+      context.command_run_attempt === undefined
+    ) {
+      throw new Error('PROJECT_AGENT_TRANSPORT_METADATA_INVALID');
+    }
+    positiveInteger(context.command_run_id, 'command_run_id');
+    positiveInteger(context.command_run_attempt, 'command_run_attempt');
   }
   if (!/^[^/\s]+\/[^/\s]+$/.test(context.repository_full_name)) {
     throw new Error('PROJECT_AGENT_REPOSITORY_INVALID');
@@ -160,6 +171,19 @@ function validateCommandContext(context: ProjectCommandContext): void {
   ) {
     throw new Error('PROJECT_AGENT_PROJECT_SOURCE_INVALID');
   }
+}
+
+function commandTransportReceipt(context: ProjectCommandContext): {
+  transport?: 'github-actions-job-rerun';
+  command_run_id?: number;
+  command_run_attempt?: number;
+} {
+  if (context.command_run_id === undefined) return {};
+  return {
+    transport: 'github-actions-job-rerun',
+    command_run_id: context.command_run_id,
+    command_run_attempt: context.command_run_attempt!,
+  };
 }
 
 function projectSourceSha(context: ProjectCommandContext): string {
@@ -396,12 +420,10 @@ export function advanceProjectForAgent(
       return withDigest({
         schema: PROJECT_ADVANCE_RECEIPT_SCHEMA,
         command: PROJECT_ADVANCE_COMMAND,
-        transport: 'github-actions-job-rerun' as const,
         repository_id: context.repository_id,
         repository_full_name: context.repository_full_name,
         command_source_sha: context.command_source_sha.toLowerCase(),
-        command_run_id: context.command_run_id,
-        command_run_attempt: context.command_run_attempt,
+        ...commandTransportReceipt(context),
         authority_ref: authorityRef,
         authority_head: authorityHead,
         state: 'RECOVERY_REQUIRED' as const,
@@ -417,12 +439,10 @@ export function advanceProjectForAgent(
       return withDigest({
         schema: PROJECT_ADVANCE_RECEIPT_SCHEMA,
         command: PROJECT_ADVANCE_COMMAND,
-        transport: 'github-actions-job-rerun' as const,
         repository_id: context.repository_id,
         repository_full_name: context.repository_full_name,
         command_source_sha: context.command_source_sha.toLowerCase(),
-        command_run_id: context.command_run_id,
-        command_run_attempt: context.command_run_attempt,
+        ...commandTransportReceipt(context),
         authority_ref: authorityRef,
         authority_head: authorityHead,
         state: 'RECOVERY_REQUIRED' as const,
@@ -459,12 +479,10 @@ export function advanceProjectForAgent(
       return withDigest({
         schema: PROJECT_ADVANCE_RECEIPT_SCHEMA,
         command: PROJECT_ADVANCE_COMMAND,
-        transport: 'github-actions-job-rerun' as const,
         repository_id: context.repository_id,
         repository_full_name: context.repository_full_name,
         command_source_sha: context.command_source_sha.toLowerCase(),
-        command_run_id: context.command_run_id,
-        command_run_attempt: context.command_run_attempt,
+        ...commandTransportReceipt(context),
         authority_ref: authorityRef,
         authority_head: authorityHead,
         state: visibleState(projected),
@@ -479,12 +497,10 @@ export function advanceProjectForAgent(
       return withDigest({
         schema: PROJECT_ADVANCE_RECEIPT_SCHEMA,
         command: PROJECT_ADVANCE_COMMAND,
-        transport: 'github-actions-job-rerun' as const,
         repository_id: context.repository_id,
         repository_full_name: context.repository_full_name,
         command_source_sha: context.command_source_sha.toLowerCase(),
-        command_run_id: context.command_run_id,
-        command_run_attempt: context.command_run_attempt,
+        ...commandTransportReceipt(context),
         authority_ref: authorityRef,
         authority_head: authorityHead,
         state: 'READY' as const,
@@ -503,12 +519,10 @@ export function advanceProjectForAgent(
       return withDigest({
         schema: PROJECT_ADVANCE_RECEIPT_SCHEMA,
         command: PROJECT_ADVANCE_COMMAND,
-        transport: 'github-actions-job-rerun' as const,
         repository_id: context.repository_id,
         repository_full_name: context.repository_full_name,
         command_source_sha: context.command_source_sha.toLowerCase(),
-        command_run_id: context.command_run_id,
-        command_run_attempt: context.command_run_attempt,
+        ...commandTransportReceipt(context),
         authority_ref: authorityRef,
         authority_head: authorityHead,
         state: 'BLOCKED' as const,
@@ -566,12 +580,10 @@ export function advanceProjectForAgent(
       const base = {
         schema: PROJECT_ADVANCE_RECEIPT_SCHEMA,
         command: PROJECT_ADVANCE_COMMAND,
-        transport: 'github-actions-job-rerun' as const,
         repository_id: context.repository_id,
         repository_full_name: context.repository_full_name,
         command_source_sha: context.command_source_sha.toLowerCase(),
-        command_run_id: context.command_run_id,
-        command_run_attempt: context.command_run_attempt,
+        ...commandTransportReceipt(context),
         authority_ref: authorityRef,
         authority_head: authorityHead,
         state: 'AGENT_EXECUTION_REQUIRED' as const,
@@ -626,12 +638,10 @@ function sourceSubmitReceipt(
   return withDigest({
     schema: PROJECT_SUBMIT_RECEIPT_SCHEMA,
     command: PROJECT_SUBMIT_COMMAND,
-    transport: 'github-actions-job-rerun' as const,
     repository_id: context.repository_id,
     repository_full_name: context.repository_full_name,
     command_source_sha: context.command_source_sha.toLowerCase(),
-    command_run_id: context.command_run_id,
-    command_run_attempt: context.command_run_attempt,
+    ...commandTransportReceipt(context),
     authority_ref: authorityRef,
     authority_head: authorityHead,
     candidate_sha: candidateSha,
@@ -763,12 +773,10 @@ export function submitProjectCandidate(
       return withDigest({
         schema: PROJECT_SUBMIT_RECEIPT_SCHEMA,
         command: PROJECT_SUBMIT_COMMAND,
-        transport: 'github-actions-job-rerun' as const,
         repository_id: context.repository_id,
         repository_full_name: context.repository_full_name,
         command_source_sha: context.command_source_sha.toLowerCase(),
-        command_run_id: context.command_run_id,
-        command_run_attempt: context.command_run_attempt,
+        ...commandTransportReceipt(context),
         authority_ref: authorityRef,
         authority_head: authorityHead,
         candidate_sha: candidateSha,
@@ -788,12 +796,10 @@ export function submitProjectCandidate(
       return withDigest({
         schema: PROJECT_SUBMIT_RECEIPT_SCHEMA,
         command: PROJECT_SUBMIT_COMMAND,
-        transport: 'github-actions-job-rerun' as const,
         repository_id: context.repository_id,
         repository_full_name: context.repository_full_name,
         command_source_sha: context.command_source_sha.toLowerCase(),
-        command_run_id: context.command_run_id,
-        command_run_attempt: context.command_run_attempt,
+        ...commandTransportReceipt(context),
         authority_ref: authorityRef,
         authority_head: authorityHead,
         candidate_sha: candidateSha,
@@ -909,12 +915,10 @@ export function submitProjectCandidate(
     return withDigest({
       schema: PROJECT_SUBMIT_RECEIPT_SCHEMA,
       command: PROJECT_SUBMIT_COMMAND,
-      transport: 'github-actions-job-rerun' as const,
       repository_id: context.repository_id,
       repository_full_name: context.repository_full_name,
       command_source_sha: context.command_source_sha.toLowerCase(),
-      command_run_id: context.command_run_id,
-      command_run_attempt: context.command_run_attempt,
+      ...commandTransportReceipt(context),
       authority_ref: authorityRef,
       authority_head: authorityHead,
       candidate_sha: candidateSha,
@@ -984,12 +988,10 @@ export function submitProjectCandidate(
   return withDigest({
     schema: PROJECT_SUBMIT_RECEIPT_SCHEMA,
     command: PROJECT_SUBMIT_COMMAND,
-    transport: 'github-actions-job-rerun' as const,
     repository_id: context.repository_id,
     repository_full_name: context.repository_full_name,
     command_source_sha: context.command_source_sha.toLowerCase(),
-    command_run_id: context.command_run_id,
-    command_run_attempt: context.command_run_attempt,
+    ...commandTransportReceipt(context),
     authority_ref: authorityRef,
     authority_head: authorityHead,
     candidate_sha: candidateSha,
