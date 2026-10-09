@@ -11,6 +11,8 @@ The table below reflects the production code currently in the repository.
 | Kubernetes ConfigMap | ConfigMap observation with complete LIST/WATCH handling | `kubernetes-configmap/ensure` | Complete-list absence certificate | Reads and writes are bound to the admitted ConfigMap coordinate and authority identity. |
 | GCP Cloud Run service | Certified REST GET | None | No | Failed or missing reads remain indeterminate. |
 | GCP Cloud SQL instance | Certified REST GET | None | No | Failed or missing reads remain indeterminate. |
+| GCP zonal Compute MIG | Certified REST GET | None | No | Binds zone, group identity, target size, and stability; target=0 does not prove actual VM absence. |
+| GCP zonal autoscaler | Certified REST GET | None | No | Binds target MIG, min/max capacity and selected metrics; unrecognized or denied reads remain indeterminate. |
 
 ## How to read the table
 
@@ -34,7 +36,9 @@ For Cloud Run, the observer validates the requested service identity, UID, gener
 
 For Cloud SQL, it validates project and instance identity, settings version, state, database version, backend type, connection identity, and the selected response slice.
 
-Both observers treat read failure and absence as indeterminate. Neither provides a mutation path.
+The Cloud Run and Cloud SQL observers treat read failure and absence as indeterminate. Neither provides a mutation path.
+
+The zonal Compute observers in `src/providers/gcp/compute-zonal-runner-pool.ts` also use the certified GET path. They bind a MIG to its project, zone and resource identity; bind an autoscaler to its exact MIG; and expose policy drift, target size and stability without granting mutation authority. The warm-pool policy assessment explicitly **does not certify actual VM absence**. That requires separate authoritative instance enumeration plus Pub/Sub and teardown evidence. A 403 or missing data is never reported as an empty pool. These observations require a dedicated narrowly permitted GCP reader; the recurring deployer intentionally lacks Compute readback permission (see #686 and #726).
 
 ## Adding provider support
 
