@@ -77,7 +77,8 @@ export const GCP_ZONAL_MIG_OPERATION: GcpObservationOperation = {
   authority_host: COMPUTE_AUTHORITY,
   api_version: 'v1',
   method: 'GET',
-  path_template: '/compute/v1/projects/{project}/zones/{zone}/instanceGroupManagers/{instanceGroupManager}',
+  path_template:
+    '/compute/v1/projects/{project}/zones/{zone}/instanceGroupManagers/{instanceGroupManager}',
   operation_id: 'compute.instanceGroupManagers.get',
   schema_sha256: GCP_ZONAL_MIG_SCHEMA_SHA256,
   outcomes: [{ status: '200', schema: ZONAL_MIG_SCHEMA }],
@@ -125,7 +126,10 @@ const AUTOSCALER_FIELDS = [
   { path: 'autoscalingPolicy.scalingSchedules', required: false },
   { path: 'autoscalingPolicy.customMetricUtilizations[].metric', required: false },
   { path: 'autoscalingPolicy.customMetricUtilizations[].filter', required: false },
-  { path: 'autoscalingPolicy.customMetricUtilizations[].singleInstanceAssignment', required: false },
+  {
+    path: 'autoscalingPolicy.customMetricUtilizations[].singleInstanceAssignment',
+    required: false,
+  },
   { path: 'autoscalingPolicy.customMetricUtilizations[].utilizationTarget', required: false },
 ] as const;
 
@@ -232,7 +236,9 @@ function isExactComputeSelfLink(value: string, path: string): boolean {
 
 function readEvidence(
   value: { id: string },
-  certified: { structural_validation: { validated_paths: string[]; optional_absent_paths: string[] } },
+  certified: {
+    structural_validation: { validated_paths: string[]; optional_absent_paths: string[] };
+  },
   operation: GcpObservationOperation,
   coordinate: GcpZonalCoordinate,
   name: string,
@@ -302,7 +308,14 @@ export function observeCertifiedGcpZonalMig(
     return {
       state: 'observed',
       value,
-      evidence: readEvidence(value, certified, GCP_ZONAL_MIG_OPERATION, coordinate, coordinate.mig, observed_at),
+      evidence: readEvidence(
+        value,
+        certified,
+        GCP_ZONAL_MIG_OPERATION,
+        coordinate,
+        coordinate.mig,
+        observed_at,
+      ),
     };
   } catch (error: unknown) {
     return { state: 'indeterminate', observation_error: message(error) };
@@ -358,7 +371,12 @@ export function observeCertifiedGcpZonalAutoscaler(
       state: 'observed',
       value,
       evidence: readEvidence(
-        value, certified, GCP_ZONAL_AUTOSCALER_OPERATION, coordinate, coordinate.autoscaler, observed_at,
+        value,
+        certified,
+        GCP_ZONAL_AUTOSCALER_OPERATION,
+        coordinate,
+        coordinate.autoscaler,
+        observed_at,
       ),
     };
   } catch (error: unknown) {
@@ -390,7 +408,12 @@ export function assessGcpWarmPool(
   if (mig.state !== 'observed' || autoscaler.state !== 'observed') {
     return {
       state: 'indeterminate',
-      reason: mig.state === 'indeterminate' ? mig.observation_error : autoscaler.state === 'indeterminate' ? autoscaler.observation_error : 'GCP_READBACK_INCOMPLETE',
+      reason:
+        mig.state === 'indeterminate'
+          ? mig.observation_error
+          : autoscaler.state === 'indeterminate'
+            ? autoscaler.observation_error
+            : 'GCP_READBACK_INCOMPLETE',
       actual_instances_verified_absent: false,
     };
   }
@@ -410,8 +433,7 @@ export function assessGcpWarmPool(
   }
   const a = autoscaler.value.autoscalingPolicy;
   const metrics = a.customMetricUtilizations;
-  const expectedFilter =
-    `resource.type="pubsub_subscription" AND resource.labels.subscription_id="${policy.subscription}"`;
+  const expectedFilter = `resource.type="pubsub_subscription" AND resource.labels.subscription_id="${policy.subscription}"`;
   const matches =
     autoscaler.value.status === 'ACTIVE' &&
     a.mode === 'ON' &&
@@ -426,14 +448,14 @@ export function assessGcpWarmPool(
     metrics[0]?.filter === expectedFilter &&
     metrics[0]?.singleInstanceAssignment === 1 &&
     metrics[0]?.utilizationTarget === undefined;
-  const capacity = !mig.value.status.isStable ||
-      mig.value.status.versionTarget?.isReached !== true
-    ? 'changing'
-    : mig.value.targetSize === 0
-      ? 'target-zero-stable'
-      : mig.value.targetSize === 1
-        ? 'target-one-stable'
-        : 'out-of-bounds';
+  const capacity =
+    !mig.value.status.isStable || mig.value.status.versionTarget?.isReached !== true
+      ? 'changing'
+      : mig.value.targetSize === 0
+        ? 'target-zero-stable'
+        : mig.value.targetSize === 1
+          ? 'target-one-stable'
+          : 'out-of-bounds';
   return {
     state: 'observed',
     policy: matches ? 'matches' : 'drift',
