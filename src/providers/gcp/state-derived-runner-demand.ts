@@ -54,9 +54,7 @@ export type GcpRunnerAuthorityReader = Pick<KernelCore, 'head' | 'inspect'>;
 
 function validIdentity(value: unknown): value is string {
   return (
-    typeof value === 'string' &&
-    /^[A-Za-z][A-Za-z0-9_.-]*$/.test(value) &&
-    value.length <= 128
+    typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_.-]*$/.test(value) && value.length <= 128
   );
 }
 
@@ -117,14 +115,9 @@ function validWork(value: Work): boolean {
   return (
     typeof value.id === 'string' &&
     value.id.length > 0 &&
-    [
-      'READY',
-      'EXECUTING',
-      'WAITING',
-      'RECOVERY_REQUIRED',
-      'DONE',
-      'BLOCKED',
-    ].includes(value.status satisfies WorkStatus)
+    ['READY', 'EXECUTING', 'WAITING', 'RECOVERY_REQUIRED', 'DONE', 'BLOCKED'].includes(
+      value.status satisfies WorkStatus,
+    )
   );
 }
 
@@ -171,7 +164,11 @@ export function projectGcpRunnerDemand(
   const selected = policy.eligible_obligation_ids.map((id) => indexed.get(id)!);
   const recovery = selected.filter((item) => item.status === 'RECOVERY_REQUIRED');
   if (recovery.length > 0) {
-    return hold('RECOVERY_REQUIRED', recovery.map((item) => item.id), before);
+    return hold(
+      'RECOVERY_REQUIRED',
+      recovery.map((item) => item.id),
+      before,
+    );
   }
   const executing = selected.filter((item) => item.status === 'EXECUTING');
   const invalid = executing.filter(
@@ -183,7 +180,11 @@ export function projectGcpRunnerDemand(
       (item.execution_generation ?? 0) < 1,
   );
   if (invalid.length > 0) {
-    return hold('INVALID_EXECUTION_CLAIM', invalid.map((item) => item.id), before);
+    return hold(
+      'INVALID_EXECUTION_CLAIM',
+      invalid.map((item) => item.id),
+      before,
+    );
   }
   const ready = selected.filter((item) => item.status === 'READY');
 
