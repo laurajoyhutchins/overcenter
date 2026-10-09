@@ -25,7 +25,7 @@ const config: RunnerAutoscalerConfig = {
 };
 const policy = {
   schema: GCP_RUNNER_DEMAND_POLICY_SCHEMA,
-  pool: 'warm-gcp',
+  pool: 'overcenter-gcp-warm',
   project: 'project-6b810532-a302-48dc-b56',
   zone: 'us-west1-a',
   managed_instance_group: 'overcenter-gce-runners',
@@ -37,7 +37,7 @@ const launch = {
   repository_id: repository.repository_id,
   owner_id: repository.owner_id,
   job_id: 123_456,
-  runner_label: 'overcenter-gcp-12345-verification-1',
+  runner_label: 'overcenter-gcp-warm-12345-verification-1',
 };
 
 function work(
@@ -155,6 +155,35 @@ test('the runner label must match exactly, not only share an allowed prefix', ()
   assert.equal(result.state, 'hold');
   if (result.state === 'hold') {
     assert.equal(result.reason, 'EXECUTION_JOB_LABEL_MISMATCH');
+  }
+});
+
+test('a Cloud Build label cannot be mistaken for warm GCE pool demand', () => {
+  const cloudBuildLabel = 'overcenter-gcp-cloudbuild-123';
+  const result = planGcpRunnerLeases(
+    authority([work('EXECUTING', {
+      gcp_runner_job: { ...launch, runner_label: cloudBuildLabel },
+    })]),
+    policy,
+    config,
+    observed('queued', cloudBuildLabel),
+  );
+  assert.equal(result.state, 'hold');
+  if (result.state === 'hold') {
+    assert.equal(result.reason, 'EXECUTION_OUTSIDE_WARM_POOL');
+  }
+});
+
+test('an incorrect pool prefix cannot widen the trusted execution route', () => {
+  const result = planGcpRunnerLeases(
+    authority([work('EXECUTING')]),
+    { ...policy, pool: 'cloudbuild' },
+    config,
+    observed(),
+  );
+  assert.equal(result.state, 'hold');
+  if (result.state === 'hold') {
+    assert.equal(result.reason, 'WARM_POOL_ROUTE_MISMATCH');
   }
 });
 
