@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { RUNNER_EXECUTION_LEASE_SCHEMA, parseRunnerExecutionLease } from '../src/transport/gcp-runner-launcher.ts';
+import {
+  RUNNER_EXECUTION_LEASE_SCHEMA,
+  parseRunnerExecutionLease,
+} from '../src/transport/gcp-runner-launcher.ts';
 import {
   assessWarmRunnerOperationalTrace,
   warmRunnerOperationalEvent,
@@ -29,9 +32,7 @@ const identity = warmRunnerOperationalIdentity(
 const at = '2026-10-09T18:00:00.000Z';
 
 function events(stages: readonly WarmRunnerOperationalStage[]): WarmRunnerOperationalEvent[] {
-  return stages.map((stage, index) =>
-    warmRunnerOperationalEvent(identity, index + 1, stage, at),
-  );
+  return stages.map((stage, index) => warmRunnerOperationalEvent(identity, index + 1, stage, at));
 }
 
 const success = [
@@ -79,7 +80,15 @@ test('missing or reordered cleanup observations never look complete', () => {
     success.filter((stage) => stage !== 'workspace_absent_readback'),
     success.filter((stage) => stage !== 'container_exit_zero'),
     success.filter((stage) => stage !== 'ack_request_accepted'),
-    ['lease_received', 'jit_authorized', 'container_started', 'container_exit_zero', 'workspace_absent_readback', 'container_absent_readback', 'ack_request_accepted'],
+    [
+      'lease_received',
+      'jit_authorized',
+      'container_started',
+      'container_exit_zero',
+      'workspace_absent_readback',
+      'container_absent_readback',
+      'ack_request_accepted',
+    ],
     [...success.slice(0, -1), 'ack_request_uncertain'],
     [...success.slice(0, -1), 'execution_failed'],
   ] as readonly (readonly WarmRunnerOperationalStage[])[]) {
@@ -112,10 +121,7 @@ test('wrong attempt, wrong job, same-sequence conflict, and partial log streams 
     ]).state,
     'contradictory',
   );
-  assert.equal(
-    assessWarmRunnerOperationalTrace(identity, complete.slice(1)).state,
-    'incomplete',
-  );
+  assert.equal(assessWarmRunnerOperationalTrace(identity, complete.slice(1)).state, 'incomplete');
   assert.equal(
     assessWarmRunnerOperationalTrace(identity, [
       ...complete.slice(0, 4),
@@ -144,7 +150,11 @@ test('JSONL reporter groups attempts, tolerates unrelated host logs, and exposes
   const { reportWarmRunnerEvents } = await import('../src/transport/report-warm-runner-events.ts');
   const trace = events(success);
   const report = reportWarmRunnerEvents(
-    ['Docker service ready', JSON.stringify({ event: 'unrelated' }), ...trace.map(JSON.stringify)].join('\n'),
+    [
+      'Docker service ready',
+      JSON.stringify({ event: 'unrelated' }),
+      ...trace.map(JSON.stringify),
+    ].join('\n'),
   );
   assert.equal(report.attempts.length, 1);
   assert.equal(report.attempts[0]?.result.state, 'reported-cleanup-and-ack-request');
