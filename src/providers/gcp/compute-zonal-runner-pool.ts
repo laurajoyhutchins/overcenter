@@ -394,6 +394,20 @@ export function assessGcpWarmPool(
       actual_instances_verified_absent: false,
     };
   }
+  if (
+    mig.evidence.project !== autoscaler.evidence.project ||
+    mig.evidence.zone !== autoscaler.evidence.zone ||
+    !isExactComputeSelfLink(
+      autoscaler.value.target,
+      zonalResource(mig.evidence, 'instanceGroupManagers', mig.value.name),
+    )
+  ) {
+    return {
+      state: 'indeterminate',
+      reason: 'GCP_WARM_POOL_OBSERVATION_COORDINATE_MISMATCH',
+      actual_instances_verified_absent: false,
+    };
+  }
   const a = autoscaler.value.autoscalingPolicy;
   const metrics = a.customMetricUtilizations;
   const expectedFilter =
