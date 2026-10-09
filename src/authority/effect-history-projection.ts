@@ -525,6 +525,12 @@ export function projectDurableEffectHistory(history: readonly FactCommit[]): Fou
           execution_generation: fact.execution_generation,
           execution_authority_commit: fact.execution_authority_commit,
           reservation_commit: record.commit,
+          ...(fact.effect_contract === undefined
+            ? {}
+            : {
+                effect_contract: fact.effect_contract,
+                postcondition: structuredClone(fact.postcondition),
+              }),
         },
         [factSource],
       );

@@ -86,6 +86,24 @@ export function verifiedContentIdentity(postcondition: Postcondition): string | 
 }
 
 export function effectSemantics(postcondition: Postcondition): EffectSemantics | null {
+  if (
+    postcondition.verifier === 'source-integration/v1' &&
+    postcondition.provider === 'github' &&
+    typeof postcondition.repository_id === 'number' &&
+    typeof postcondition.ref === 'string' &&
+    typeof postcondition.commit_sha === 'string' &&
+    typeof postcondition.base_ref === 'string' &&
+    typeof postcondition.expected_base_sha === 'string'
+  ) {
+    return {
+      resource: `github-source-pr:${postcondition.repository_id}:${postcondition.ref}:${postcondition.base_ref}`,
+      desired: canonicalDigest({
+        commit_sha: postcondition.commit_sha,
+        base_sha: postcondition.expected_base_sha,
+      }),
+      sameDesiredCommutes: false,
+    };
+  }
   if (postcondition.verifier === 'github-pull-request-branch-updated/v1') {
     return {
       resource: `github-pr-branch:${postcondition.repository_id}:${postcondition.pull_number}`,
