@@ -397,6 +397,21 @@ function dockerName(messageId: string, jobId: number): string {
   return 'overcenter-gcp-' + String(jobId) + '-gce-' + suffix;
 }
 
+export async function removeRunnerContainer(
+  id: string,
+  request: typeof dockerRequest = dockerRequest,
+): Promise<void> {
+  const path = '/v1.45/containers/' + encodeURIComponent(id);
+  const removed = await request('DELETE', path + '?force=1');
+  if (removed.statusCode !== 204 && removed.statusCode !== 404) {
+    throw new Error('Docker delete failed with HTTP ' + removed.statusCode);
+  }
+  const inspected = await request('GET', path + '/json');
+  if (inspected.statusCode !== 404) {
+    throw new Error('Docker container absence not verified: HTTP ' + inspected.statusCode);
+  }
+}
+
 async function runContainer(
   environment: WarmRunnerAgentEnvironment,
   lease: RunnerExecutionLease,
@@ -421,21 +436,17 @@ async function runContainer(
   const id = String(body.Id ?? '').trim();
   if (!id) throw new Error('Docker create response did not include a container id');
 
-  try {
-    const started = await dockerRequest('POST', '/v1.45/containers/' + id + '/start');
-    if (started.statusCode !== 204) {
-      throw new Error('Docker start failed with HTTP ' + started.statusCode);
-    }
-    const waited = await dockerRequest('POST', '/v1.45/containers/' + id + '/wait');
-    if (waited.statusCode !== 200) {
-      throw new Error('Docker wait failed with HTTP ' + waited.statusCode);
-    }
-    const outcome = JSON.parse(waited.body.toString('utf8')) as Record<string, unknown>;
-    if (Number(outcome.StatusCode) !== 0) {
-      throw new Error('GitHub runner container exited with code ' + String(outcome.StatusCode));
-    }
-  } finally {
-    await dockerRequest('DELETE', '/v1.45/containers/' + id + '?force=1').catch(() => undefined);
+  const started = await dockerRequest('POST', '/v1.45/containers/' + id + '/start');
+  if (started.statusCode !== 204) {
+    throw new Error('Docker start failed with HTTP ' + started.statusCode);
+  }
+  const waited = await dockerRequest('POST', '/v1.45/containers/' + id + '/wait');
+  if (waited.statusCode !== 200) {
+    throw new Error('Docker wait failed with HTTP ' + waited.statusCode);
+  }
+  const outcome = JSON.parse(waited.body.toString('utf8')) as Record<string, unknown>;
+  if (Number(outcome.StatusCode) !== 0) {
+    throw new Error('GitHub runner container exited with code ' + String(outcome.StatusCode));
   }
 }
 
@@ -467,7 +478,11 @@ async function processMessage(
     });
     await runContainer(environment, pulled.lease, pulled.messageId, workspace);
   } finally {
-    await rm(workspace, { recursive: true, force: true });
+    try {
+      await removeRunnerContainer(dockerName(pulled.messageId, pulled.lease.job_id));
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
   }
 }
 
