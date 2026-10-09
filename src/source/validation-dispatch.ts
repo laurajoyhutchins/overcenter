@@ -8,6 +8,7 @@ import type { SourceCandidatePublicationResult } from './source-integration.ts';
 export function dispatchSourceValidation(
   token: string,
   repositoryFullName: string,
+  workflowPath: string,
   publication: SourceCandidatePublicationResult,
   runtimeSha: string,
   post: (
@@ -17,6 +18,8 @@ export function dispatchSourceValidation(
   ) => number = postDispatch,
 ): void {
   if (publication.state === 'CONFLICT') throw new Error('SOURCE_VALIDATION_PUBLICATION_CONFLICT');
+  const workflow = /^\.github\/workflows\/([A-Za-z0-9._-]+\.ya?ml)$/.exec(workflowPath)?.[1];
+  if (!workflow) throw new Error('SOURCE_VALIDATION_WORKFLOW_INVALID');
   if (!/^[0-9a-f]{40}$/.test(publication.candidate_sha))
     throw new Error('SOURCE_VALIDATION_CANDIDATE_INVALID');
   if (!/^[0-9a-f]{40}$/.test(runtimeSha)) throw new Error('SOURCE_VALIDATION_RUNTIME_INVALID');
@@ -24,7 +27,7 @@ export function dispatchSourceValidation(
     throw new Error('SOURCE_VALIDATION_REF_INVALID');
   const path = githubRepositoryPath(
     repositoryFullName,
-    '/actions/workflows/agent-candidate-signal.yml/dispatches',
+    `/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
   );
   if (
     post(token, path, {

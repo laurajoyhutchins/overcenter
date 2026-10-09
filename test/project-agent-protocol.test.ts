@@ -170,6 +170,40 @@ test('project.advance separates pinned command implementation from project sourc
   }
 });
 
+test('project.advance semantics do not require GitHub Actions transport coordinates', () => {
+  const f = fixture();
+  try {
+    const projectSourceSha = commitProjectIntent(f.work, [
+      sourceIntent('transport-neutral-source'),
+    ]);
+    const outputDir = join(f.root, 'transport-neutral-source-packet');
+    const receipt = advanceProjectForAgent(
+      f.work,
+      {
+        repository_id: 42,
+        repository_full_name: 'acme/widget',
+        command_source_sha: 'f'.repeat(40),
+        project_source_sha: projectSourceSha,
+      },
+      {
+        outputDir,
+        authorityRef: AUTHORITY_REF,
+        remote: 'origin',
+      },
+    );
+
+    assert.equal(receipt.state, 'AGENT_EXECUTION_REQUIRED');
+    assert.equal(receipt.obligation_id, 'transport-neutral-source');
+    assert.equal(receipt.transport, undefined);
+    assert.equal(receipt.command_run_id, undefined);
+    assert.equal(receipt.command_run_attempt, undefined);
+    assert.equal(receipt.candidate_branch_base_sha, projectSourceSha);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+    rmSync(f.postconditionRoot, { recursive: true, force: true });
+  }
+});
+
 test('project.advance binds bounded source intent to the exact project revision', () => {
   const f = fixture();
   try {

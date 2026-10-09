@@ -72,6 +72,7 @@ export function commandContext(sourceSha: string, runId = 9001) {
     repository_id: 42,
     repository_full_name: 'acme/widget',
     command_source_sha: sourceSha,
+    transport: 'github-actions-job-rerun' as const,
     command_run_id: runId,
     command_run_attempt: 2,
   };

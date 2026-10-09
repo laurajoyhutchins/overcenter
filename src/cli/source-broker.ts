@@ -35,6 +35,7 @@ if (process.env.OVERCENTER_DISPATCH_SOURCE_VALIDATION === '1') {
   dispatchSourceValidation(
     process.env.GITHUB_TOKEN ?? '',
     context.repository_full_name,
+    transactionPlan.verification_profile.profile.workflow_path,
     result.publication,
     context.runtime_sha,
   );
