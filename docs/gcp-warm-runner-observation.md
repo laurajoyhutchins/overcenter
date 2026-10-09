@@ -35,7 +35,7 @@ The runner currently writes records to the trusted host agent's stdout. To
 analyze a captured JSONL stream locally:
 
 ```bash
-node --experimental-strip-types scripts/report-warm-runner-events.ts host-stdout.jsonl
+node --experimental-strip-types src/transport/report-warm-runner-events.ts host-stdout.jsonl
 ```
 
 The reporter groups exact attempts and returns
