@@ -5,10 +5,8 @@ import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository
 import {
   SOURCE_CANDIDATE_SCHEMA,
   validateSourceCandidate,
-  validateSourceTaskPacket,
   type SourceCandidate,
   type SourceClaimBinding,
-  type SourceTaskPacket,
 } from './source-obligation.ts';
 
 export const SOURCE_VERIFICATION_SCHEMA = 'overcenter-source-verification/v1' as const;
@@ -40,24 +38,6 @@ export interface SourceIntegrationEvidence {
   integration_commit: string;
   state: 'integrated' | 'already-integrated';
 }
-
-const sourceIntegrationWitnessBrand: unique symbol = Symbol('source-integration-witness');
-const sourceIntegrationEvidenceByWitness = new WeakMap<object, SourceIntegrationEvidence>();
-
-export type TrustedSourceIntegrationWitness = {
-  readonly [sourceIntegrationWitnessBrand]: true;
-};
-
-export type SourceIntegrationResult =
-  | {
-      state: 'INTEGRATED' | 'ALREADY_INTEGRATED';
-      witness: TrustedSourceIntegrationWitness;
-      commit_sha: string;
-    }
-  | {
-      state: 'REREALIZE_REQUIRED' | 'REJECTED' | 'RECOVERY_REQUIRED';
-      reason: string;
-    };
 
 function git(repo: string, args: string[]): string {
   return execFileSync('git', ['-C', repo, ...args], {
@@ -139,24 +119,6 @@ export function validateSourceIntegrationEvidence(value: unknown): SourceIntegra
   return structuredClone(value) as unknown as SourceIntegrationEvidence;
 }
 
-function mintSourceIntegrationWitness(
-  evidence: SourceIntegrationEvidence,
-): TrustedSourceIntegrationWitness {
-  const witness = Object.freeze({
-    [sourceIntegrationWitnessBrand]: true as const,
-  });
-  sourceIntegrationEvidenceByWitness.set(witness, validateSourceIntegrationEvidence(evidence));
-  return witness;
-}
-
-export function trustedSourceIntegrationEvidence(
-  witness: TrustedSourceIntegrationWitness,
-): SourceIntegrationEvidence {
-  const evidence = sourceIntegrationEvidenceByWitness.get(witness);
-  if (!evidence) throw new Error('SOURCE_INTEGRATION_WITNESS_INVALID');
-  return structuredClone(evidence);
-}
-
 export function integrateVerifiedSourceCandidate(
   _repo: string,
   _taskValue: unknown,
@@ -169,18 +131,17 @@ export function integrateVerifiedSourceCandidate(
     ref?: string;
     performReservedMutation: (mutation: () => boolean) => boolean;
   },
-): SourceIntegrationResult {
+): { state: 'REJECTED'; reason: 'SOURCE_DIRECT_MAIN_INTEGRATION_RETIRED' } {
   return { state: 'REJECTED', reason: 'SOURCE_DIRECT_MAIN_INTEGRATION_RETIRED' };
 }
 
 export function inspectSourceCandidate(
   repo: string,
-  taskValue: unknown,
+  _taskValue: unknown,
   claim: SourceClaimBinding,
   candidateSha: string,
   expectedObligationId?: string,
-): { task: SourceTaskPacket; candidate: SourceCandidate; changed_paths: string[] } {
-  const task = validateSourceTaskPacket(taskValue);
+): { candidate: SourceCandidate; changed_paths: string[] } {
   exactSha(candidateSha, 'SOURCE_CANDIDATE_COMMIT_SHA_INVALID');
 
   const parents = git(repo, ['rev-list', '--parents', '-n', '1', candidateSha])
@@ -213,7 +174,7 @@ export function inspectSourceCandidate(
   const delta = observeRepositoryDelta(repo, claim.source_sha, candidateSha);
   assertSupportedSourceDelta(delta);
   const changedPaths = delta.entries.map((entry) => entry.path).sort();
-  if (changedPaths.length === 0) throw new Error('SOURCE_CANDIDATE_EMPTY');
+  if (!changedPaths.length) throw new Error('SOURCE_CANDIDATE_EMPTY');
 
-  return { task, candidate, changed_paths: changedPaths };
+  return { candidate, changed_paths: changedPaths };
 }

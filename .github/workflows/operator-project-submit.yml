@@ -24,6 +24,7 @@ jobs:
     permissions:
       actions: read
       contents: write
+      pull-requests: write
     env:
       COMMAND_IMPLEMENTATION_SHA: ${{ github.sha }}
       CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha }}

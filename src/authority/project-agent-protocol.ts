@@ -33,7 +33,12 @@ import { compileProjectGraph } from './project-graph.ts';
 import { planGraphReconciliation } from '../graph/reconciliation.ts';
 import { repositorySnapshot } from '../evidence/repository-snapshot.ts';
 import type { ObservationContext } from '../observation/observe.ts';
-import type { Work } from '../model.ts';
+import type { SourceIntegrationPostcondition, Work } from '../model.ts';
+import {
+  performGitHubPullRequestPublicationEffectSync,
+  type GitHubPullRequestPostSync,
+} from '../providers/github/pr-publication-effect.ts';
+import type { GitHubJsonGet } from '../providers/github/rest.ts';
 import { isSystemEvidenceWork } from '../evidence/system-evidence.ts';
 
 export const PROJECT_ADVANCE_RECEIPT_SCHEMA = 'overcenter-project-advance/v1' as const;
@@ -129,6 +134,13 @@ export interface SourceTransactionPlanOptions extends ProtocolOptions {
 interface SubmitOptions extends SourceTransactionPlanOptions {
   candidatePath?: string;
   sourceExecutionEvidence?: ExecutionEvidenceReceipt;
+  observationContext?: Omit<ObservationContext, 'githubToken'>;
+  sourcePublication?: {
+    baseRef?: string;
+    get?: GitHubJsonGet;
+    post?: GitHubPullRequestPostSync;
+    clock?: () => string;
+  };
 }
 
 const DEFAULT_AUTHORITY_REF = 'refs/overcenter/state';
@@ -728,6 +740,8 @@ export function submitProjectCandidate(
     candidatePath = DEFAULT_CANDIDATE_PATH,
     transactionContext,
     sourceExecutionEvidence,
+    observationContext = {},
+    sourcePublication = {},
   }: SubmitOptions = {},
 ): ProjectSubmitReceipt {
   validateCommandContext(context);
@@ -741,6 +755,12 @@ export function submitProjectCandidate(
     ref: authorityRef,
     remote,
     githubToken,
+    observationContext: {
+      ...observationContext,
+      ...(sourcePublication.get === undefined || observationContext.githubGet !== undefined
+        ? {}
+        : { githubGet: sourcePublication.get }),
+    },
   });
   if (!kernel.head()) throw new Error('PROJECT_SUBMIT_AUTHORITY_MISSING');
 
@@ -832,6 +852,7 @@ export function submitProjectCandidate(
       );
     }
 
+    let proof: ReturnType<typeof trustedSourceProof>;
     try {
       const { plan, proofContext } = claimedSourceTransactionPlan(
         repo,
@@ -850,8 +871,7 @@ export function submitProjectCandidate(
         executionEvidence: sourceExecutionEvidence,
         context: admittedProofContext,
       });
-      const proof = trustedSourceProof(proofWitness);
-      void proof;
+      proof = trustedSourceProof(proofWitness);
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : String(error);
       const settled =
@@ -874,7 +894,98 @@ export function submitProjectCandidate(
       );
     }
 
-    throw new Error('PROJECT_SUBMIT_SOURCE_PUBLICATION_REQUIRES_PR_EFFECT');
+    if (
+      proof.run_id !== runId ||
+      proof.candidate_sha !== candidateSha ||
+      proof.base_sha !== sourceRevision
+    ) {
+      const settled = kernel.recoverInterrupted(permit, {
+        source_verification: {
+          reason: 'SOURCE_PROOF_BINDING_MISMATCH',
+          candidate_sha: candidateSha,
+        },
+      });
+      return sourceSubmitReceipt(
+        context,
+        authorityRef,
+        kernel,
+        assigned.id,
+        claim.claimed_revision,
+        candidateSha,
+        settled,
+        false,
+      );
+    }
+
+    const publicationPostcondition: SourceIntegrationPostcondition = {
+      verifier: 'source-integration/v1',
+      provider: 'github',
+      repository_id: context.repository_id,
+      repository_full_name: context.repository_full_name,
+      ref: `refs/heads/overcenter/candidate/${runId}`,
+      commit_sha: proof.candidate_sha,
+      base_ref: sourcePublication.baseRef ?? 'main',
+      expected_base_sha: proof.base_sha,
+    };
+    try {
+      performGitHubPullRequestPublicationEffectSync(kernel, permit, {
+        token: githubToken ?? '',
+        ...(sourcePublication.get === undefined ? {} : { get: sourcePublication.get }),
+        ...(sourcePublication.post === undefined ? {} : { post: sourcePublication.post }),
+        ...(sourcePublication.clock === undefined ? {} : { clock: sourcePublication.clock }),
+        postcondition: publicationPostcondition,
+      });
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const settled = kernel.hasUnresolvedEffect(runId)
+        ? kernel.recoverInterrupted(permit, {
+            source_publication: { reason, candidate_sha: candidateSha },
+          })
+        : kernel.retrySourceIntegration(permit, reason, {
+            source_publication: { reason, candidate_sha: candidateSha },
+          });
+      return sourceSubmitReceipt(
+        context,
+        authorityRef,
+        kernel,
+        assigned.id,
+        claim.claimed_revision,
+        candidateSha,
+        settled,
+        false,
+      );
+    }
+
+    try {
+      const settled = kernel.resolve(permit, {
+        source_publication: { candidate_sha: candidateSha },
+      });
+      return sourceSubmitReceipt(
+        context,
+        authorityRef,
+        kernel,
+        assigned.id,
+        claim.claimed_revision,
+        candidateSha,
+        settled,
+        false,
+      );
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const settled = kernel.recoverInterrupted(permit, {
+        source_publication: { reason, candidate_sha: candidateSha },
+      });
+      return sourceSubmitReceipt(
+        context,
+        authorityRef,
+        kernel,
+        assigned.id,
+        claim.claimed_revision,
+        candidateSha,
+        settled,
+        false,
+      );
+    }
   }
 
   const raw = JSON.parse(gitBytes(repo, candidateSha, candidatePath).toString('utf8'));
