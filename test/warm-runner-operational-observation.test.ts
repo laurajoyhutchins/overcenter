@@ -142,7 +142,9 @@ test('the host verifies Docker and workspace absence before Pub/Sub ACK', () => 
   assert.match(source, /observe\('container_absent_readback'\)/);
   assert.match(source, /await lstat\(workspace\)/);
   assert.match(source, /observe\('workspace_absent_readback'\)/);
-  assert.match(source, /if \(completed\) \{[\s\S]*await acknowledge\(environment, pulled\.ackId\)/);
+  assert.match(source, /if \(completed\) await acknowledge\(environment, pulled\.ackId\)/);
+  assert.match(source, /observe\('ack_request_accepted'\)/);
+  assert.match(source, /observe\('ack_request_uncertain'/);
   assert.doesNotMatch(source, /dockerRequest\('DELETE',[^\n]+\.catch\(\(\) => undefined\)/);
 });
 
