@@ -21,6 +21,16 @@ export type RunnerAutoscalerConfig = Readonly<{
   repositories: readonly RepositoryBinding[];
 }>;
 
+export type ReconcileMode = 'polling' | 'scheduled';
+
+export function parseReconcileMode(value: string | undefined): ReconcileMode {
+  const mode = value?.trim() || 'polling';
+  if (mode !== 'polling' && mode !== 'scheduled') {
+    throw new TypeError('OVERCENTER_RECONCILE_MODE must be polling or scheduled');
+  }
+  return mode;
+}
+
 type GitHubToken = Readonly<{
   token: string;
   expiresAtMs: number;
@@ -723,6 +733,7 @@ async function main(): Promise<void> {
   }
 
   const config = await loadConfig(configPath);
+  const reconcileMode = parseReconcileMode(process.env.OVERCENTER_RECONCILE_MODE);
   const client = new GitHubAppClient(appId, privateKey);
   const state: PollState = {
     running: false,
@@ -740,6 +751,9 @@ async function main(): Promise<void> {
   const webhookUrl = String(process.env.OVERCENTER_GITHUB_WEBHOOK_URL ?? '').trim();
   const webhookSecret = deriveGitHubWebhookSecret(privateKey);
   if (webhookUrl) {
+    if (reconcileMode === 'scheduled') {
+      throw new TypeError('scheduled reconciliation must not require public webhook ingress');
+    }
     if (!/^https:\/\/[^/]+\/github-webhook$/.test(webhookUrl)) {
       throw new TypeError('OVERCENTER_GITHUB_WEBHOOK_URL must be an HTTPS /github-webhook URL');
     }
@@ -758,6 +772,24 @@ async function main(): Promise<void> {
       response.statusCode = 200;
       response.setHeader('content-type', 'application/json');
       response.end(healthResponse(state, webhook));
+      return;
+    }
+    if (request.method === 'POST' && request.url === '/reconcile' && reconcileMode === 'scheduled') {
+      // Cloud Run IAM authenticates the Scheduler OIDC principal before forwarding this request.
+      // Await authoritative GitHub observation before responding so scale-to-zero never
+      // suspends the reconciliation or its side effects mid-flight.
+      void (async () => {
+        await pollOnce(client, config, state, launcherUrl);
+        response.statusCode = state.lastError === null ? 200 : 503;
+        response.setHeader('content-type', 'application/json');
+        response.end(healthResponse(state, webhook));
+      })().catch((error: unknown) => {
+        console.error(String(error instanceof Error ? error.message : error));
+        if (!response.headersSent) {
+          response.statusCode = 503;
+          response.end('reconciliation failed');
+        }
+      });
       return;
     }
     if (request.method === 'POST' && request.url === '/github-webhook') {
@@ -786,9 +818,9 @@ async function main(): Promise<void> {
             return;
           }
           webhook.lastWakeAt = new Date().toISOString();
-          response.statusCode = 202;
-          response.end('accepted');
-          queueMicrotask(() => void pollOnce(client, config, state, launcherUrl));
+          await pollOnce(client, config, state, launcherUrl);
+          response.statusCode = state.lastError === null ? 202 : 503;
+          response.end(state.lastError === null ? 'accepted' : 'reconciliation failed');
         } catch (error) {
           response.statusCode = error instanceof RangeError ? 413 : 400;
           response.end('invalid webhook');
@@ -801,15 +833,15 @@ async function main(): Promise<void> {
   });
   await new Promise<void>((resolve) => server.listen(port, '0.0.0.0', resolve));
 
-  await pollOnce(client, config, state, launcherUrl);
-  const timer = setInterval(
-    () => void pollOnce(client, config, state, launcherUrl),
-    config.poll_interval_ms,
-  );
-  timer.unref();
+  let timer: ReturnType<typeof setInterval> | null = null;
+  if (reconcileMode === 'polling') {
+    await pollOnce(client, config, state, launcherUrl);
+    timer = setInterval(() => void pollOnce(client, config, state, launcherUrl), config.poll_interval_ms);
+    timer.unref();
+  }
 
   const shutdown = (): void => {
-    clearInterval(timer);
+    if (timer) clearInterval(timer);
     server.close(() => process.exit(0));
   };
   process.once('SIGTERM', shutdown);
