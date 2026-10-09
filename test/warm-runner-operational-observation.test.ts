@@ -141,7 +141,7 @@ test('the host verifies Docker and workspace absence before Pub/Sub ACK', () => 
 });
 
 test('JSONL reporter groups attempts, tolerates unrelated host logs, and exposes gaps', async () => {
-  const { reportWarmRunnerEvents } = await import('../scripts/report-warm-runner-events.ts');
+  const { reportWarmRunnerEvents } = await import('../src/transport/report-warm-runner-events.ts');
   const trace = events(success);
   const report = reportWarmRunnerEvents(
     ['Docker service ready', JSON.stringify({ event: 'unrelated' }), ...trace.map(JSON.stringify)].join('\n'),
