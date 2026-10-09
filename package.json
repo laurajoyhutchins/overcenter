@@ -32,7 +32,7 @@
     "test:typebox-production-projection": "node --experimental-strip-types --test test/typebox-production-projection.test.ts",
     "bench:production-latency": "node --experimental-strip-types experiments/production-latency/benchmark.ts --iterations 25",
     "bench:production-latency:live": "node --experimental-strip-types experiments/production-latency/benchmark.ts --live --iterations 3",
-    "test:gcp-observation": "node --experimental-strip-types --test test/gcp-certified-observation.test.ts test/gcp-cloud-resource-observation.test.ts",
+    "test:gcp-observation": "node --experimental-strip-types --test test/gcp-certified-observation.test.ts test/gcp-cloud-resource-observation.test.ts test/gcp-compute-zonal-runner-pool.test.ts",
     "proof:worker-client": "bash src/execution/worker-client/proof.sh",
     "lint": "bash scripts/lint.sh",
     "format": "bash scripts/format.sh",
