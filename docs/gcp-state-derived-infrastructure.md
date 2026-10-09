@@ -24,11 +24,13 @@ The trusted operator supplies:
    commands, or caller-selected provider endpoints.
 
 `READY` eligible work or `EXECUTING` work requires one worker.
-`WAITING`, `BLOCKED`, and `DONE` eligible work requires no new worker.
+`BLOCKED` and `DONE` eligible work requires no new worker.
 The cap is exactly one, even if multiple obligations are ready. An
 `EXECUTING` obligation must carry a claim identity. Missing entries,
-contradictory state, or `RECOVERY_REQUIRED` cause HOLD rather than a
-speculative scale-down.
+contradictory state, `WAITING`, or `RECOVERY_REQUIRED` cause HOLD rather than a
+speculative scale-down. Overcenter treats `WAITING` as an in-flight lifecycle;
+the projection may only release capacity once separate provider evidence
+establishes that the runner and outstanding leases are no longer active.
 
 Only explicitly mapped obligations contribute to this pool. This does not
 automatically turn every Overcenter `READY` obligation into a GCP Actions
