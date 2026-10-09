@@ -459,7 +459,7 @@ async function runContainer(
   if (executionError !== null) throw executionError;
 }
 
-async function processMessage(
+async function processObservedMessage(
   environment: WarmRunnerAgentEnvironment,
   pulled: PulledMessage,
   observe: (stage: WarmRunnerOperationalStage, diagnostic?: string) => void,
@@ -541,9 +541,13 @@ async function runForever(environment: WarmRunnerAgentEnvironment): Promise<void
     }, 60_000);
     keepAlive.unref();
 
+    const processMessage = (
+      runnerEnvironment: WarmRunnerAgentEnvironment,
+      message: PulledMessage,
+    ): Promise<void> => processObservedMessage(runnerEnvironment, message, observe);
     let completed = false;
     try {
-      await processMessage(environment, pulled, observe);
+      await processMessage(environment, pulled);
       completed = true;
     } catch (error: unknown) {
       observe('execution_failed', String(error instanceof Error ? error.message : error));
