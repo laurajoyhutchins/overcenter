@@ -41,6 +41,10 @@ if str(sub.get("topic") or "") != f"projects/{project}/topics/{subscription}":
     raise SystemExit("warm runner subscription has an unexpected source")
 attached = mig.get("autoscaler")
 if attached is None:
+    # Underlying MIG REST may expose a link before CLI embeds the policy.
+    # Unresolved attached autoscalers must not be mistaken for no autoscaler.
+    if (mig.get("status") or {}).get("autoscaler"):
+        raise SystemExit("HOLD: attached autoscaler exists but policy is not readable")
     print("new")
     raise SystemExit(0)
 if not isinstance(attached, dict):
