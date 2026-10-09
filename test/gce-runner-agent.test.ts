@@ -9,6 +9,7 @@ import {
 } from '../src/transport/gcp-runner-launcher.ts';
 import {
   runnerContainerSpec,
+  verifyRunnerContainerTeardown,
   warmRunnerAgentEnvironment,
 } from '../src/transport/gce-runner-agent.ts';
 
@@ -108,4 +109,70 @@ test('warm host startup grants Docker authority only to the trusted agent and bl
   assert.match(startup, /--registries="\$REGISTRIES"/);
   assert.doesNotMatch(startup, /--registries=us-west1-docker\.pkg\.dev/);
   assert.doesNotMatch(startup, /generate-jitconfig/);
+});
+
+test('Docker teardown requires an independent 404 after a normal DELETE', async () => {
+  const id = 'a'.repeat(64);
+  const calls: string[] = [];
+  await verifyRunnerContainerTeardown(id, async (method, path) => {
+    calls.push(method + ' ' + path);
+    return { statusCode: method === 'DELETE' ? 204 : 404, body: Buffer.alloc(0) };
+  });
+  assert.deepEqual(calls, [
+    'DELETE /v1.45/containers/' + id + '?force=1',
+    'GET /v1.45/containers/' + id + '/json',
+  ]);
+});
+
+test('ambiguous Docker DELETE is reconciled by GET, not blindly retried', async () => {
+  const id = 'b'.repeat(64);
+  let deletes = 0;
+  let reads = 0;
+  await verifyRunnerContainerTeardown(id, async (method) => {
+    if (method === 'DELETE') {
+      deletes += 1;
+      throw new Error('connection reset after possible deletion');
+    }
+    reads += 1;
+    return { statusCode: 404, body: Buffer.alloc(0) };
+  });
+  assert.equal(deletes, 1);
+  assert.equal(reads, 1);
+});
+
+test('Docker teardown fails closed on present, ambiguous, and denied readbacks', async () => {
+  const id = 'c'.repeat(64);
+  for (const statusCode of [200, 403, 500]) {
+    await assert.rejects(
+      () =>
+        verifyRunnerContainerTeardown(id, async (method) => ({
+          statusCode: method === 'DELETE' ? 204 : statusCode,
+          body: Buffer.alloc(0),
+        })),
+      /Docker container absence readback failed/,
+    );
+  }
+  await assert.rejects(
+    () =>
+      verifyRunnerContainerTeardown(id, async (method) => {
+        if (method === 'DELETE') throw new Error('ambiguous DELETE');
+        throw new Error('GET unavailable');
+      }),
+    /GET unavailable/,
+  );
+});
+
+test('Docker teardown rejects untrusted container IDs before issuing commands', async () => {
+  for (const id of ['abc', '../inspect', 'a'.repeat(63), 'A'.repeat(64)]) {
+    let called = false;
+    await assert.rejects(
+      () =>
+        verifyRunnerContainerTeardown(id, async () => {
+          called = true;
+          return { statusCode: 404, body: Buffer.alloc(0) };
+        }),
+      /not an exact 64-character hex identity/,
+    );
+    assert.equal(called, false);
+  }
 });
