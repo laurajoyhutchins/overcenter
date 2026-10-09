@@ -1,4 +1,7 @@
-Deploy owner-authorized idle-scaling control cutover.
-Prerequisite readback: 2026-10-09 Cloud Shell gcp3.sh prepare: private OIDC Scheduler overcenter-runner-reconcile, one-minute cadence, ENABLED, exact invocation target, PASS.
-Preflight must fail closed if any Scheduler/IAM check is stale.
-Preserve Cloud Build default and warm GCE one-host capacity pending separate owner bootstrap and zero-to-one canary.
+Deploy owner-authorized runner discovery repair from merged infrastructure source.
+Approved source merge: PR #725, a3bc3c283a00f5186a281bbb27f5cc1df4072ad9.
+Exact-head candidate certification: b75eb2ebf73926aaaff8dd0f4cb9ea19c5f853c3, run 37957465971, SUCCESS.
+Change: include pending GitHub workflow runs in polling discovery; admit only individually queued exact-label jobs.
+Use existing pinned GCP deployer IAM, Scheduler private OIDC preflight, immutable image digests, and deployment readbacks.
+Preserve Cloud Build default routing, GCE warm-pool autoscaling bounds and protected-source authorization.
+Do not infer full live GCE 0-to-1-to-0 acceptance from deployment alone.
