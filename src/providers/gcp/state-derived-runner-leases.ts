@@ -77,6 +77,13 @@ export function planGcpRunnerLeases(
     effect_authorized: false,
   });
 
+  // The approved warm pool has exactly one host. Multiple simultaneously
+  // claimed executions cannot be promoted to parallel lease candidates.
+  // READY obligations may queue, but only one EXECUTING claim is eligible.
+  if (projection.eligible_executing.length > 1) {
+    return hold('CONCURRENT_EXECUTIONS_EXCEED_WARM_POOL_CAPACITY');
+  }
+
   const warmPoolPrefix = projection.binding.pool.toLowerCase();
   const runnerBase = config.runner_label.toLowerCase();
   if (!warmPoolPrefix.startsWith(runnerBase + '-')) {

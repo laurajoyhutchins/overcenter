@@ -243,3 +243,31 @@ test('duplicate queued job evidence cannot impersonate another execution', () =>
     assert.equal(result.reason, 'DUPLICATE_GITHUB_JOB_OBSERVATION');
   }
 });
+
+
+test('two simultaneous execution claims cannot overcommit the one-host warm pool', () => {
+  const secondLaunch = {
+    ...launch,
+    job_id: launch.job_id + 1,
+    runner_label: 'overcenter-gcp-warm-12345-verification-2',
+  };
+  const secondWork = {
+    ...work('EXECUTING', { gcp_runner_job: secondLaunch }, 'second'),
+    run_id: 'run-second',
+  };
+  const result = planGcpRunnerLeases(
+    authority([work('EXECUTING'), secondWork]),
+    { ...policy, eligible_obligation_ids: ['eligible', 'second'] },
+    config,
+    [{ ...observed()[0]!, jobs: [observed()[0]!.jobs[0]!, {
+      id: secondLaunch.job_id,
+      status: 'queued',
+      labels: ['self-hosted', secondLaunch.runner_label],
+    }] }],
+  );
+  assert.equal(result.state, 'hold');
+  if (result.state === 'hold') {
+    assert.equal(result.reason, 'CONCURRENT_EXECUTIONS_EXCEED_WARM_POOL_CAPACITY');
+    assert.equal(result.effect_authorized, false);
+  }
+});
