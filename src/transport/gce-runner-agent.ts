@@ -427,6 +427,7 @@ async function runContainer(
   const id = String(body.Id ?? '').trim();
   if (!id) throw new Error('Docker create response did not include a container id');
 
+  let executionError: unknown = null;
   try {
     const started = await dockerRequest('POST', '/v1.45/containers/' + id + '/start');
     if (started.statusCode !== 204) {
@@ -442,18 +443,20 @@ async function runContainer(
       throw new Error('GitHub runner container exited with code ' + String(outcome.StatusCode));
     }
     observe('container_exit_zero');
-  } finally {
-    // Never ACK a lease after an unobserved or failed container deletion.
-    const deleted = await dockerRequest('DELETE', '/v1.45/containers/' + id + '?force=1');
-    if (deleted.statusCode !== 204) {
-      throw new Error('Docker remove failed with HTTP ' + deleted.statusCode);
-    }
-    const readback = await dockerRequest('GET', '/v1.45/containers/' + id + '/json');
-    if (readback.statusCode !== 404) {
-      throw new Error('Docker container absence readback failed with HTTP ' + readback.statusCode);
-    }
-    observe('container_absent_readback');
+  } catch (error: unknown) {
+    executionError = error;
   }
+  // Always attempt cleanup, and fail closed if Docker does not prove absence.
+  const deleted = await dockerRequest('DELETE', '/v1.45/containers/' + id + '?force=1');
+  if (deleted.statusCode !== 204) {
+    throw new Error('Docker remove failed with HTTP ' + deleted.statusCode);
+  }
+  const readback = await dockerRequest('GET', '/v1.45/containers/' + id + '/json');
+  if (readback.statusCode !== 404) {
+    throw new Error('Docker container absence readback failed with HTTP ' + readback.statusCode);
+  }
+  observe('container_absent_readback');
+  if (executionError !== null) throw executionError;
 }
 
 async function processMessage(
@@ -466,35 +469,38 @@ async function processMessage(
     String(pulled.lease.job_id) + '-' + pulled.messageId,
   );
   await mkdir(workspace, { recursive: true, mode: 0o700 });
+  let executionError: unknown = null;
   try {
     const runnerName = dockerName(pulled.messageId, pulled.lease.job_id);
     const authorization = await authorizeQueuedJob(environment, pulled.lease, runnerName);
     if (!authorization.eligible) {
       observe('job_stale');
-      return;
+    } else {
+      observe('jit_authorized');
+      await writeFile(join(workspace, 'jit-config'), authorization.encodedJitConfig, {
+        mode: 0o600,
+      });
+      await runContainer(environment, pulled.lease, pulled.messageId, workspace, observe);
     }
-    observe('jit_authorized');
-    await writeFile(join(workspace, 'jit-config'), authorization.encodedJitConfig, {
-      mode: 0o600,
-    });
-    await runContainer(environment, pulled.lease, pulled.messageId, workspace, observe);
-  } finally {
-    await rm(workspace, { recursive: true, force: true });
-    try {
-      await lstat(workspace);
-      throw new Error('Runner workspace still exists after removal');
-    } catch (error: unknown) {
-      if (
-        !error ||
-        typeof error !== 'object' ||
-        !('code' in error) ||
-        error.code !== 'ENOENT'
-      ) {
-        throw error;
-      }
-    }
-    observe('workspace_absent_readback');
+  } catch (error: unknown) {
+    executionError = error;
   }
+  await rm(workspace, { recursive: true, force: true });
+  try {
+    await lstat(workspace);
+    throw new Error('Runner workspace still exists after removal');
+  } catch (error: unknown) {
+    if (
+      !error ||
+      typeof error !== 'object' ||
+      !('code' in error) ||
+      error.code !== 'ENOENT'
+    ) {
+      throw error;
+    }
+  }
+  observe('workspace_absent_readback');
+  if (executionError !== null) throw executionError;
 }
 
 async function runForever(environment: WarmRunnerAgentEnvironment): Promise<void> {
