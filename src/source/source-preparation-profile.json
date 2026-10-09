@@ -1,0 +1,31 @@
+{
+  "schema": "overcenter-source-preparation-profile/v1",
+  "tools": [
+    {
+      "engine": "biome",
+      "version": "2.5.14",
+      "extensions": [
+        ".ts"
+      ],
+      "safe_fixes": false
+    },
+    {
+      "engine": "gofmt",
+      "version": "1.24.13",
+      "extensions": [
+        ".go"
+      ],
+      "safe_fixes": false
+    },
+    {
+      "engine": "rustfmt",
+      "version": "1.98.1",
+      "extensions": [
+        ".rs"
+      ],
+      "safe_fixes": false
+    }
+  ],
+  "max_passes": 3,
+  "timeout_ms": 10000
+}

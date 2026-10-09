@@ -17,6 +17,7 @@ import {
 import { assertSupportedSourceDelta, observeRepositoryDelta } from './repository-delta.ts';
 import { assertSourceWriteEnvelope } from './source-write-envelope.ts';
 import { readSourceVerificationProfile } from './source-verification-profile.ts';
+import { prepareSourceCandidate, type SourcePreparationReceipt } from './source-preparation.ts';
 
 function candidateGit(repo: string, args: string[], env: NodeJS.ProcessEnv = process.env): string {
   return execFileSync('git', ['-C', repo, ...args], {
@@ -49,7 +50,7 @@ function candidateWorktree(repo: string, revision: string): { root: string; disp
   };
 }
 
-function sourceCandidateMessage(obligationId: string, claim: SourceClaimBinding): string {
+function sourceCandidateMessage(obligationId: string, claim: SourceClaimBinding, preparation: SourcePreparationReceipt): string {
   return [
     `source candidate ${claim.run_id}`,
     '',
@@ -57,6 +58,9 @@ function sourceCandidateMessage(obligationId: string, claim: SourceClaimBinding)
     `Overcenter-Obligation-Key: ${claim.obligation_key}`,
     `Overcenter-Claimed-Revision: ${claim.claimed_revision}`,
     `Overcenter-Claimed-Source: ${claim.source_sha}`,
+    `Overcenter-Preparation-Input: ${preparation.proposal_sha256}`,
+    `Overcenter-Preparation-Output: ${preparation.normalized_sha256}`,
+    `Overcenter-Preparation-Profile: ${preparation.profile_sha256 ?? 'unconfigured'}`,
   ].join('\n');
 }
 
@@ -66,10 +70,11 @@ function materializeSourceProposal(
   taskValue: unknown,
   claim: SourceClaimBinding,
   proposalValue: unknown,
-): SourceCandidate {
+): { candidate: SourceCandidate; preparation: SourcePreparationReceipt } {
   const proposal = validateSourceProposal(proposalValue, taskValue, claim);
   const candidateTree = candidateWorktree(repo, claim.source_sha);
   let candidateSha = '';
+  let preparation: SourcePreparationReceipt | null = null;
   try {
     for (const file of proposal.files) {
       const parts = file.path.split('/');
@@ -96,6 +101,20 @@ function materializeSourceProposal(
         writeFileSync(target, Buffer.from(file.content_base64, 'base64'));
       }
     }
+    const profile = readSourceVerificationProfile(repo, claim.source_sha).profile;
+    // Denied paths and file budgets are rejected before spending tool execution.
+    // The final source delta and byte budget are checked again after normalization.
+    assertSourceWriteEnvelope(
+      taskValue,
+      proposal.files.map((file) => ({ path: file.path, changed_bytes: 0 })),
+      profile.protected_paths,
+    );
+    preparation = prepareSourceCandidate(
+      candidateTree.root,
+      claim.source_sha,
+      proposal.files,
+      profile.protected_paths,
+    );
     candidateGit(candidateTree.root, [
       'add',
       '-A',
@@ -112,7 +131,7 @@ function materializeSourceProposal(
       'user.email=overcenter@local',
       'commit',
       '-m',
-      sourceCandidateMessage(obligationId, claim),
+      sourceCandidateMessage(obligationId, claim, preparation),
     ]);
     candidateSha = candidateGit(candidateTree.root, ['rev-parse', 'HEAD']);
   } finally {
@@ -135,7 +154,8 @@ function materializeSourceProposal(
     }),
     profile.protected_paths,
   );
-  return inspected.candidate;
+  if (preparation === null) throw new Error('SOURCE_PREPARATION_RECEIPT_MISSING');
+  return { candidate: inspected.candidate, preparation };
 }
 
 function publishSourceCandidate(
@@ -186,18 +206,20 @@ export function brokerSourceProposal(
   { remote = 'origin' }: { remote?: string } = {},
 ): {
   candidate: SourceCandidate;
+  preparation: SourcePreparationReceipt;
   publication: SourceCandidatePublicationResult;
 } {
-  const candidate = materializeSourceProposal(repo, obligationId, taskValue, claim, proposalValue);
+  const { candidate, preparation } = materializeSourceProposal(repo, obligationId, taskValue, claim, proposalValue);
   const publication = publishSourceCandidate(repo, taskValue, claim, candidate.commit_sha, {
     remote,
   });
-  return { candidate, publication };
+  return { candidate, preparation, publication };
 }
 
 export interface BrokeredAssignedSourceProposal {
   authority_head: string;
   candidate: SourceCandidate;
+  preparation: SourcePreparationReceipt;
   publication: SourceCandidatePublicationResult;
 }
 
@@ -262,6 +284,7 @@ export function brokerAssignedSourceProposal(
   return {
     authority_head: authorityHead,
     candidate: brokered.candidate,
+    preparation: brokered.preparation,
     publication: brokered.publication,
   };
 }
