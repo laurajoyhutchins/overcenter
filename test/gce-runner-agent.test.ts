@@ -9,6 +9,7 @@ import {
 } from '../src/transport/gcp-runner-launcher.ts';
 import {
   runnerContainerSpec,
+  verifyRunnerContainerTeardown,
   warmRunnerAgentEnvironment,
 } from '../src/transport/gce-runner-agent.ts';
 
@@ -108,4 +109,58 @@ test('warm host startup grants Docker authority only to the trusted agent and bl
   assert.match(startup, /--registries="\$REGISTRIES"/);
   assert.doesNotMatch(startup, /--registries=us-west1-docker\.pkg\.dev/);
   assert.doesNotMatch(startup, /generate-jitconfig/);
+});
+
+test('runner teardown requires an independent Docker inspect 404 before ACK eligibility', async () => {
+  const id = 'a'.repeat(64);
+  const calls: string[] = [];
+  await verifyRunnerContainerTeardown(id, async (method, path) => {
+    calls.push(method + ' ' + path);
+    return { statusCode: method === 'DELETE' ? 204 : 404, body: Buffer.alloc(0) };
+  });
+  assert.deepEqual(calls, [
+    'DELETE /v1.45/containers/' + id + '?force=1',
+    'GET /v1.45/containers/' + id + '/json',
+  ]);
+});
+
+test('ambiguous Docker delete can reconcile to independently verified absence', async () => {
+  const id = 'b'.repeat(64);
+  let reads = 0;
+  await verifyRunnerContainerTeardown(id, async (method) => {
+    if (method === 'DELETE') throw new Error('connection reset after send');
+    reads += 1;
+    return { statusCode: 404, body: Buffer.alloc(0) };
+  });
+  assert.equal(reads, 1);
+});
+
+test('failed Docker cleanup cannot silently acknowledge a runner lease', async () => {
+  const id = 'c'.repeat(64);
+  for (const status of [200, 500]) {
+    await assert.rejects(
+      verifyRunnerContainerTeardown(id, async (method) => ({
+        statusCode: method === 'DELETE' ? 204 : status,
+        body: Buffer.alloc(0),
+      })),
+      /WARM_RUNNER_CONTAINER_TEARDOWN_UNVERIFIED/,
+    );
+  }
+  await assert.rejects(
+    verifyRunnerContainerTeardown(id, async (method) => {
+      if (method === 'GET') throw new Error('daemon unavailable');
+      return { statusCode: 204, body: Buffer.alloc(0) };
+    }),
+    /daemon unavailable/,
+  );
+});
+
+test('runner teardown rejects injected or ambiguous Docker identities', async () => {
+  await assert.rejects(
+    verifyRunnerContainerTeardown('../../other', async () => ({
+      statusCode: 404,
+      body: Buffer.alloc(0),
+    })),
+    /Docker container id/,
+  );
 });
