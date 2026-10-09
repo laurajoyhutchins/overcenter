@@ -31,6 +31,13 @@ gcloud run services add-iam-policy-binding "$SERVICE" --project="$PROJECT_ID" --
   --member="serviceAccount:$SCHEDULER_SA" --role=roles/run.invoker --quiet >/dev/null
 gcloud run services get-iam-policy "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --format=json > "$POLICY_JSON"
 
+# The recurring deployer needs read-only Scheduler job metadata to prove the wake
+# path before changing Cloud Run's instance floor. No job mutation/dispatch grant.
+DEPLOYER_SA="overcenter-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:$DEPLOYER_SA" \
+  --role=roles/cloudscheduler.viewer --quiet >/dev/null
+
 python3 - "$POLICY_JSON" "$SCHEDULER_SA" <<'PY'
 import json
 import sys
