@@ -45,6 +45,19 @@ test('project IAM viewer bootstrap explicitly selects the unconditional binding'
   assert.match(bootstrap, /--role=roles\/cloudscheduler\.viewer --condition=None --quiet/);
 });
 
+test('repeated Scheduler bootstrap observes existing GCP services and IAM before mutation', () => {
+  const bootstrap = source('../infra/gcp/bootstrap-runner-reconcile-scheduler.sh');
+  assert.match(bootstrap, /gcloud services list --enabled/);
+  assert.ok(bootstrap.includes('if [[ "$scheduler_api" != "cloudscheduler.googleapis.com" ]]'));
+  assert.match(bootstrap, /gcloud run services get-iam-policy/);
+  assert.match(bootstrap, /gcloud projects get-iam-policy/);
+  assert.ok(bootstrap.includes('not b.get("condition")'));
+  assert.match(bootstrap, /deployer has no unconditional read-only Scheduler inspection grant/);
+  assert.doesNotMatch(bootstrap, /gcloud services enable compute.googleapis.com/);
+  assert.equal(bootstrap.includes('roles/owner'), false);
+  assert.equal(bootstrap.includes('roles/editor'), false);
+});
+
 test('ordinary GCP deploy requires verified Scheduler before disabling idle CPU allocation', () => {
   const deploy = source('../infra/gcp/deploy-runner-autoscaler.sh');
   assert.match(deploy, /Scheduler wake path preflight mismatch/);
