@@ -2,7 +2,6 @@ import type { Work } from '../../model.ts';
 import {
   projectGcpRunnerDemand,
   type GcpRunnerAuthorityReader,
-  type GcpRunnerDemandProjection,
 } from '../gcp/state-derived-runner-demand.ts';
 import {
   parseRunnerLaunchRequest,
@@ -26,7 +25,7 @@ export interface GcpRunnerLeaseProposal {
   obligation_id: string;
   run_id: string;
   authority_head: string;
-  approved_policy_sha256: string;
+  policy_sha256: string;
   launch: RunnerLaunchRequest;
 }
 
@@ -115,6 +114,7 @@ export function planGcpRunnerLeases(
     return hold('AUTHORITY_UNAVAILABLE');
   }
 
+  if (!Array.isArray(work)) return hold('INVALID_AUTHORITY_STATE');
   const indexed = new Map(work.map((entry) => [entry.id, entry] as const));
   if (indexed.size !== work.length) return hold('INVALID_AUTHORITY_STATE');
   const proposals: GcpRunnerLeaseProposal[] = [];
@@ -156,7 +156,7 @@ export function planGcpRunnerLeases(
       obligation_id: obligationId,
       run_id: obligation.run_id,
       authority_head: projection.authority_head,
-      approved_policy_sha256: projection.binding.policy_sha256,
+      policy_sha256: projection.binding.policy_sha256,
       launch,
     });
   }
@@ -171,8 +171,3 @@ export function planGcpRunnerLeases(
   };
 }
 
-export function runnerDemandHasUnresolvedEffects(
-  projection: GcpRunnerDemandProjection,
-): boolean {
-  return projection.state === 'hold';
-}
