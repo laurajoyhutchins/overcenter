@@ -403,6 +403,12 @@ export async function verifyRunnerContainerTeardown(
   if (observed.statusCode !== 404) {
     throw new Error('WARM_RUNNER_CONTAINER_TEARDOWN_UNVERIFIED:' + observed.statusCode);
   }
+  console.log(
+    JSON.stringify({
+      event: 'warm_runner_container_absence_observed',
+      container_id: containerId,
+    }),
+  );
 }
 
 export function runnerContainerSpec(
@@ -545,7 +551,17 @@ async function runForever(environment: WarmRunnerAgentEnvironment): Promise<void
     } finally {
       clearInterval(keepAlive);
     }
-    if (completed) await acknowledge(environment, pulled.ackId);
+    if (completed) {
+      await acknowledge(environment, pulled.ackId);
+      console.log(
+        JSON.stringify({
+          event: 'warm_runner_pubsub_acknowledged',
+          message_id: pulled.messageId,
+          repository_id: pulled.lease.repository_id,
+          job_id: pulled.lease.job_id,
+        }),
+      );
+    }
   }
 }
 
