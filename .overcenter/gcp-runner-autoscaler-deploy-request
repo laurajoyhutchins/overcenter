@@ -1,1 +1,4 @@
-deploy clean dormant warm-GCE canary control plane after incident cleanup
+Deploy owner-authorized idle-scaling control cutover.
+Prerequisite readback: 2026-10-09 Cloud Shell gcp3.sh prepare: private OIDC Scheduler overcenter-runner-reconcile, one-minute cadence, ENABLED, exact invocation target, PASS.
+Preflight must fail closed if any Scheduler/IAM check is stale.
+Preserve Cloud Build default and warm GCE one-host capacity pending separate owner bootstrap and zero-to-one canary.
