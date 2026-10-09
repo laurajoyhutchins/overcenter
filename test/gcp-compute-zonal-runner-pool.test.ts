@@ -178,6 +178,30 @@ test('additional autoscaler signals are observed as drift, never silently ignore
   }
 });
 
+test('separate readbacks cannot be combined across project or zone', () => {
+  const m = observeCertifiedGcpZonalMig('token', migCoordinate, { get: () => migResource() });
+  const otherZone = 'us-west1-b';
+  const otherRoot = root.replace(zone, otherZone);
+  const a = observeCertifiedGcpZonalAutoscaler(
+    'token',
+    { ...autoscalerCoordinate, zone: otherZone },
+    {
+      get: () => autoscalerResource({
+        zone: otherRoot,
+        selfLink: `${otherRoot}/autoscalers/${autoscaler}`,
+        target: `${otherRoot}/instanceGroupManagers/${mig}`,
+      }),
+    },
+  );
+  assert.equal(m.state, 'observed');
+  assert.equal(a.state, 'observed');
+  assert.deepEqual(assessGcpWarmPool(m, a, { subscription, stabilization_seconds: 2700 }), {
+    state: 'indeterminate',
+    reason: 'GCP_WARM_POOL_OBSERVATION_COORDINATE_MISMATCH',
+    actual_instances_verified_absent: false,
+  });
+});
+
 test('incomplete, invalid and denied readback remains indeterminate, never absence', () => {
   const denied: GcpJsonGet = () => { throw new Error('HTTP 403: compute.instanceGroupManagers.get denied'); };
   const m = observeCertifiedGcpZonalMig('token', migCoordinate, { get: denied });
