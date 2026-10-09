@@ -74,3 +74,34 @@ unfinished in #686. Neither this module nor fixture tests establish
 production actuation or live GCP cost reductions.
 
 Tracking: #726.
+
+## Operator and GitHub queue integration
+
+The existing `project.advance` command now **observes** demand automatically
+when the exact trusted project source contains
+`.overcenter/gcp-runner-demand-policy.json`. This is the closed
+`overcenter-gcp-runner-demand-policy/v1` shape. Its
+`eligible_obligation_ids` identify only those obligations authorized for the
+specified GCP pool. The operator reopens the durable project authority through
+`GitOvercenterKernel` and prints an exact-head JSON observation along with
+machine-readable GitHub step outputs. An invalid policy or unknown state is
+not permission to dispatch.
+
+`planGcpRunnerLeases` then joins this projection with complete, independently
+read GitHub repository/job observations. Each `EXECUTING` obligation must
+carry an exact, immutable `packet.gcp_runner_job` binding:
+`repository`, numeric `repository_id`, numeric `owner_id`, numeric
+`job_id`, and `runner_label`. Both the configured repository identity and
+the queued job's scheduling label must match. `READY` work contributes to
+desired capacity but has no publishable lease without a durable claim.
+
+Both observation and lease-candidate results explicitly set
+`effect_authorized: false`. The original production Cloud Run autoscaler
+still publishes leases based on its existing GitHub queue policy, not this
+new Overcenter authority join. Making this join the live dispatch admission
+boundary requires a trusted observer for the same durable project state in
+the autoscaler, a registered GCP lease-publication effect contract and
+reservation, provider-side ambiguity/duplicate reconciliation, and independent
+Pub/Sub ACK/host teardown observations. That is tracked by #729 and #686.
+It must not be simulated by merely converting a lease candidate into an
+HTTP request.
