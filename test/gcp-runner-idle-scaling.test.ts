@@ -39,6 +39,12 @@ test('owner-only Scheduler bootstrap restricts invocation to a private Cloud Run
   assert.doesNotMatch(bootstrap, /--allow-unauthenticated/);
 });
 
+test('project IAM viewer bootstrap explicitly selects the unconditional binding', () => {
+  const bootstrap = source('../infra/gcp/bootstrap-runner-reconcile-scheduler.sh');
+  assert.match(bootstrap, /gcloud projects add-iam-policy-binding/);
+  assert.match(bootstrap, /--role=roles\/cloudscheduler\.viewer --condition=None --quiet/);
+});
+
 test('ordinary GCP deploy requires verified Scheduler before disabling idle CPU allocation', () => {
   const deploy = source('../infra/gcp/deploy-runner-autoscaler.sh');
   assert.match(deploy, /Scheduler wake path preflight mismatch/);
