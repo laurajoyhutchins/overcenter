@@ -9,9 +9,7 @@ import {
 const head = 'a'.repeat(40);
 const base = 'b'.repeat(40);
 
-function snapshot(
-  overrides: Partial<CandidateReadinessSnapshot> = {},
-): CandidateReadinessSnapshot {
+function snapshot(overrides: Partial<CandidateReadinessSnapshot> = {}): CandidateReadinessSnapshot {
   return {
     repository: 'laurajoyhutchins/arcata',
     pull_number: 262,
@@ -74,10 +72,7 @@ test('merge conflicts, unknown mergeability and draft candidates fail closed', (
 });
 
 test('required exact-head checks cannot be missing, stale, duplicated, or failing', () => {
-  assert.equal(
-    assessCandidateReadiness(snapshot({ checks: [] })).decision,
-    'AWAIT_CHECKS',
-  );
+  assert.equal(assessCandidateReadiness(snapshot({ checks: [] })).decision, 'AWAIT_CHECKS');
   assert.equal(
     assessCandidateReadiness(
       snapshot({
