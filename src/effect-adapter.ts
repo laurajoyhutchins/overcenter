@@ -164,7 +164,17 @@ export function effectPostconditionBindingSafe(
   postcondition: Postcondition,
 ): boolean {
   const capabilities = effectAdapterCapabilities(effectContract);
-  if (!capabilities || work.packet.effect_contract !== effectContract) return false;
+  if (!capabilities) {
+    const legacyContract =
+      typeof work.packet.effect_contract === 'string'
+        ? work.packet.effect_contract
+        : 'overcenter/execution-effect';
+    return (
+      effectContract === legacyContract &&
+      canonicalDigest(work.postcondition) === canonicalDigest(postcondition)
+    );
+  }
+  if (work.packet.effect_contract !== effectContract) return false;
   if (
     capabilities.postcondition_verifier !== work.postcondition.verifier ||
     capabilities.postcondition_verifier !== postcondition.verifier
