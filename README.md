@@ -115,6 +115,8 @@ The production authority store is SQLite: immutable fact-commit rows plus one co
 
 Project state such as `READY`, `EXECUTING`, `BLOCKED`, `RECOVERY_REQUIRED`, and `DONE` is reconstructed from durable facts and current authority. It is not stored as a privileged lifecycle document.
 
+For operational and extension guidance, see the [`documentation index`](./docs/README.md).
+
 For the full model, read [`ARCHITECTURE.md`](./ARCHITECTURE.md). [ADR-0006](./docs/adr/0006-lean-semantic-reference-and-proof-oracle.md) records the narrower decision that Lean is an executable semantic reference and proof oracle rather than a production runtime dependency.
 
 ## What is proved?
