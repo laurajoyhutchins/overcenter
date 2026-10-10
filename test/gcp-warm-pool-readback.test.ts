@@ -57,12 +57,16 @@ function reader(denied = false): GcpJsonGet {
 test('readback produces a truthful policy receipt without declaring physical zero', () => {
   const result = observeGcpWarmPoolReadback('token', target, {
     get: reader(),
+    managedInstancePost: () => ({ managedInstances: [] }),
     clock: () => '2026-10-09T19:00:00Z',
   });
   assert.equal(result.observation, 'observed');
   assert.equal(result.policy, 'matches');
   assert.equal(result.capacity, 'target-zero-stable');
   assert.deepEqual(result.observed_provider_ids, { mig: 'mig-123', autoscaler: 'auto-123' });
+  assert.equal(result.managed_membership, 'observed');
+  assert.equal(result.managed_instance_count, 0);
+  assert.equal(result.managed_membership_observed_at, '2026-10-09T19:00:00Z');
   assert.equal(result.actual_instances_verified_absent, false);
   assert.equal(result.pubsub_ack_verified, false);
   assert.equal(result.host_teardown_verified, false);
@@ -77,6 +81,8 @@ test('permission denied is indeterminate and never declares absence', () => {
   assert.equal(result.observation, 'hold');
   assert.equal(result.policy, 'unknown');
   assert.equal(result.capacity, 'unknown');
+  assert.equal(result.managed_membership, 'hold');
+  assert.equal(result.managed_instance_count, null);
   assert.equal(result.actual_instances_verified_absent, false);
   assert.equal(result.effect_authorized, false);
 });
@@ -99,4 +105,49 @@ test('wrong source, project and policy are rejected before any provider call', (
     );
   }
   assert.equal(calls, 0);
+});
+
+test('incomplete or denied managed-instance enumeration holds even with healthy configuration', () => {
+  for (const response of [
+    { nextPageToken: 'next', managedInstances: [] },
+    {},
+    { managedInstances: [{ instance: 'https://attacker.invalid/instance' }] },
+  ]) {
+    const result = observeGcpWarmPoolReadback('token', target, {
+      get: reader(),
+      managedInstancePost: () => response,
+    });
+    assert.equal(result.observation, 'hold');
+    assert.equal(result.policy, 'unknown');
+    assert.equal(result.capacity, 'unknown');
+    assert.equal(result.managed_membership, 'hold');
+    assert.equal(result.managed_instance_count, null);
+    assert.equal(result.actual_instances_verified_absent, false);
+  }
+  const denied = observeGcpWarmPoolReadback('token', target, {
+    get: reader(),
+    managedInstancePost: () => {
+      throw new Error('HTTP 403');
+    },
+  });
+  assert.equal(denied.observation, 'hold');
+  assert.equal(denied.reason, 'HTTP 403');
+  assert.equal(denied.actual_instances_verified_absent, false);
+});
+
+test('observed managed members do not certify physical teardown or Pub/Sub settlement', () => {
+  const prefix =
+    'https://www.googleapis.com/compute/v1/projects/demo-project/zones/us-west1-a/instances/';
+  const result = observeGcpWarmPoolReadback('token', target, {
+    get: reader(),
+    managedInstancePost: () => ({
+      managedInstances: [{ instance: prefix + 'runner-001', id: '123' }],
+    }),
+  });
+  assert.equal(result.observation, 'observed');
+  assert.equal(result.managed_membership, 'observed');
+  assert.equal(result.managed_instance_count, 1);
+  assert.equal(result.actual_instances_verified_absent, false);
+  assert.equal(result.pubsub_ack_verified, false);
+  assert.equal(result.host_teardown_verified, false);
 });

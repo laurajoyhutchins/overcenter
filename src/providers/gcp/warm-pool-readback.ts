@@ -4,6 +4,10 @@ import {
   observeCertifiedGcpZonalMig,
   type GcpComputeReadOptions,
 } from './compute-zonal-runner-pool.ts';
+import {
+  observeGcpManagedInstanceCensus,
+  type GcpManagedInstancePost,
+} from './compute-managed-instance-census.ts';
 
 export const GCP_WARM_POOL_READBACK_SCHEMA = 'overcenter-gcp-warm-pool-readback/v1' as const;
 
@@ -26,10 +30,18 @@ export interface GcpWarmPoolReadbackReceipt {
   capacity: 'target-zero-stable' | 'target-one-stable' | 'changing' | 'out-of-bounds' | 'unknown';
   observed_provider_ids: { mig: string | null; autoscaler: string | null };
   observed_at: { mig: string | null; autoscaler: string | null };
+  managed_membership: 'observed' | 'hold';
+  managed_instance_count: number | null;
+  managed_membership_observed_at: string | null;
+  managed_membership_reason: string | null;
   actual_instances_verified_absent: false;
   pubsub_ack_verified: false;
   host_teardown_verified: false;
   effect_authorized: false;
+}
+
+export interface GcpWarmPoolReadOptions extends GcpComputeReadOptions {
+  managedInstancePost?: GcpManagedInstancePost;
 }
 
 function validSegment(value: string): boolean {
@@ -64,7 +76,7 @@ function validTarget(target: GcpWarmPoolReadbackTarget): boolean {
 export function observeGcpWarmPoolReadback(
   accessToken: string,
   target: GcpWarmPoolReadbackTarget,
-  options: GcpComputeReadOptions = {},
+  options: GcpWarmPoolReadOptions = {},
 ): GcpWarmPoolReadbackReceipt {
   if (!validTarget(target)) throw new Error('GCP_WARM_POOL_READBACK_TARGET_INVALID');
   if (!accessToken) throw new Error('GCP_WARM_POOL_READBACK_TOKEN_REQUIRED');
@@ -88,14 +100,34 @@ export function observeGcpWarmPoolReadback(
     subscription: target.subscription,
     stabilization_seconds: target.stabilization_seconds,
   });
-  const observed = assessment.state === 'observed';
-  const policy = observed ? assessment.policy : 'unknown';
-  const capacity = observed ? assessment.capacity : 'unknown';
+  // Only enumerate members after the MIG and autoscaler identities are validated.
+  // A denied/partial list is a HOLD, never evidence that no machines exist.
+  const membership =
+    mig.state === 'observed' && autoscaler.state === 'observed'
+      ? observeGcpManagedInstanceCensus(
+          accessToken,
+          { project: target.project, zone: target.zone, mig: target.mig },
+          {
+            ...(options.managedInstancePost ? { post: options.managedInstancePost } : {}),
+            ...(options.clock ? { clock: options.clock } : {}),
+          },
+        )
+      : null;
+  const observed = assessment.state === 'observed' && membership?.state === 'observed';
+  const reason = observed
+    ? null
+    : assessment.state === 'indeterminate'
+      ? assessment.reason
+      : membership?.state === 'indeterminate'
+        ? membership.observation_error
+        : 'GCP_MANAGED_MEMBERSHIP_NOT_OBSERVED';
+  const policy = observed && assessment.state === 'observed' ? assessment.policy : 'unknown';
+  const capacity = observed && assessment.state === 'observed' ? assessment.capacity : 'unknown';
   return {
     schema: GCP_WARM_POOL_READBACK_SCHEMA,
     target: { ...target },
     observation: observed ? 'observed' : 'hold',
-    reason: observed ? null : assessment.reason,
+    reason,
     policy,
     capacity,
     observed_provider_ids: {
@@ -106,6 +138,13 @@ export function observeGcpWarmPoolReadback(
       mig: mig.state === 'observed' ? mig.evidence.observed_at : null,
       autoscaler: autoscaler.state === 'observed' ? autoscaler.evidence.observed_at : null,
     },
+    managed_membership: membership?.state === 'observed' ? 'observed' : 'hold',
+    managed_instance_count:
+      membership?.state === 'observed' ? membership.evidence.managed_instance_count : null,
+    managed_membership_observed_at:
+      membership?.state === 'observed' ? membership.evidence.observed_at : null,
+    managed_membership_reason:
+      membership?.state === 'indeterminate' ? membership.observation_error : null,
     actual_instances_verified_absent: false,
     pubsub_ack_verified: false,
     host_teardown_verified: false,
