@@ -197,56 +197,6 @@
       }
     },
     {
-      "id": "production-criticality-ranking",
-      "kind": "experiment",
-      "status": "maintained",
-      "directory": "experiments/production-criticality-ranking",
-      "readme": "experiments/production-criticality-ranking/README.md",
-      "question": "Can Overcenter maintain a reproducible total ordering of production-code importance from quantitative facts?",
-      "claim": "A revision-bound callable graph plus explicit authority/recovery semantics can derive an inspectable production-code criticality vector and a calibrated total order without ranking tests or experiments themselves.",
-      "contrast": "Periodically repeat a human ranking exercise or rely on generic complexity/hotspot metrics alone.",
-      "reproduce": {
-        "tier": "toolchain",
-        "local": "npm install --no-save --ignore-scripts typescript@5.8.3 && node --experimental-strip-types --test experiments/production-criticality-ranking/analyze.test.ts && node --experimental-strip-types experiments/production-criticality-ranking/analyze.ts --config experiments/production-criticality-ranking/config.json --json /tmp/criticality.json --markdown /tmp/criticality.md"
-      },
-      "environment": [
-        "Node.js from .node-version",
-        "Git with full repository history for revision-bound blame/change exposure",
-        "TypeScript 5.8.3 installed for the analyzer"
-      ],
-      "success_criteria": [
-        "Only production callables under src/ enter the ranked population.",
-        "Configured authority and recovery selectors resolve exactly once.",
-        "Internal static-call resolution remains informative; unresolved internal/unknown calls are reported, and critical callback-boundary exemptions fail closed when stale or malformed.",
-        "Every named required calibration regression remains satisfied while known model mismatches remain explicit diagnostics rather than consuming a percentage budget.",
-        "Every surprising rank decomposes into quantitative vector components and graph evidence.",
-        "Deleting generated reports and recomputing at the same revision produces the same result."
-      ],
-      "evidence": {
-        "status": "evaluated",
-        "evaluated_revision": "515a771257ca0ac21cede5410144be5e02da4f7b",
-        "artifacts": [
-          "GitHub Actions run 35673456200: production criticality ranking passed after component-local normalization made unchanged authority components invariant to disconnected production code.",
-          "experiments/production-criticality-ranking/mutation-evidence.json: exact-blob-bound hostile-case evidence; stale probes fail closed to a full evidence gap."
-        ]
-      },
-      "interpretation": "The maintained ranking provides reproducible consequence and engineering-attention orders from revision-bound graph and evidence facts. Component-local normalization prevents unrelated disconnected code from perturbing unchanged authority components. Required calibration regressions remain explicit, branch-level/callable-granularity mismatches remain diagnostics, and mutation evidence is exact-blob-bound so stale probes fail closed rather than silently transferring.",
-      "non_claims": [
-        "Callable boundaries are the final semantic unit.",
-        "Static test reachability is equivalent to hostile-case evidence.",
-        "Exported-entrypoint reachability is equivalent to production telemetry.",
-        "The current weighting equation is uniquely correct."
-      ],
-      "design": {
-        "provenance": "mixed",
-        "note": "Prior human pairwise judgments predate the analyzer, but callable granularity, ranking policy, component normalization, and mutation-evidence handling evolved in response to observed disagreements and gaps."
-      },
-      "outcome": {
-        "state": "mixed",
-        "summary": "The ranking is reproducible and useful for consequence/attention ordering, while callable granularity and hostile-case evidence remain explicit model limitations rather than hidden calibration errors."
-      }
-    },
-    {
       "id": "production-latency",
       "kind": "experiment",
       "status": "maintained",
