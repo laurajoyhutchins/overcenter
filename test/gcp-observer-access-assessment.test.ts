@@ -22,6 +22,11 @@ function observed(
 
 test('only fixed observer resource and permission tuples can be planned', () => {
   assert.equal(GCP_OBSERVER_ACCESS_PROBES.length, 4);
+  assert.equal(
+    GCP_OBSERVER_ACCESS_PROBES.find((probe) => probe.id === 'mig-resize-denied')?.accessTuple
+      .permission,
+    'compute.instanceGroupManagers.update',
+  );
   assert.equal(GCP_OBSERVER_TROUBLESHOOTER_ENDPOINT.method, 'POST');
   assert.equal(GCP_OBSERVER_TROUBLESHOOTER_ENDPOINT.path, '/v3beta/iam:troubleshoot');
   assert.equal(GCP_OBSERVER_TROUBLESHOOTER_ENDPOINT.mutation_authorized, false);
