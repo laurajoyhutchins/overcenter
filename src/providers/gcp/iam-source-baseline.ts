@@ -3,7 +3,12 @@
  * no effective-permission conclusion, privilege grant, or effect admission.
  */
 export type GcpIamPolicyReadback =
-  | { readonly state: 'observed'; readonly resource: string; readonly policy: unknown; readonly evidence_ref: string }
+  | {
+      readonly state: 'observed';
+      readonly resource: string;
+      readonly policy: unknown;
+      readonly evidence_ref: string;
+    }
   | { readonly state: 'indeterminate'; readonly resource: string; readonly reason: string };
 
 export interface GcpIamDirectBinding {
@@ -33,7 +38,8 @@ export type GcpIamSourceBaseline =
 const resourcePattern = /^[a-z][a-z0-9-]*(?:\/[a-zA-Z0-9_.@-]+)+$/;
 const rolePattern =
   /^(?:roles\/[a-zA-Z][a-zA-Z0-9_.]*|(?:projects|organizations)\/[a-zA-Z0-9_-]+\/roles\/[a-zA-Z][a-zA-Z0-9_.]*)$/;
-const memberPattern = /^(?:(?:user|group|serviceAccount|domain|principal|principalSet):[^\s]+|allUsers|allAuthenticatedUsers)$/;
+const memberPattern =
+  /^(?:(?:user|group|serviceAccount|domain|principal|principalSet):[^\s]+|allUsers|allAuthenticatedUsers)$/;
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -145,9 +151,9 @@ export function inspectGcpIamDirectBindings(
     if (!seen.has(resource)) reasons.push(resource + ': MISSING_READBACK');
   }
   const sorted = bindings.sort((a, b) =>
-    [a.resource, a.role, a.member, a.condition_expression ?? ''].join('|').localeCompare(
-      [b.resource, b.role, b.member, b.condition_expression ?? ''].join('|'),
-    ),
+    [a.resource, a.role, a.member, a.condition_expression ?? '']
+      .join('|')
+      .localeCompare([b.resource, b.role, b.member, b.condition_expression ?? ''].join('|')),
   );
   if (reasons.length > 0) {
     return {
