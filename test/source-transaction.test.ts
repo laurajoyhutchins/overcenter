@@ -260,3 +260,20 @@ test('transaction plan is reconstructed from immutable candidate and runtime bin
     /SOURCE_TRANSACTION_TASK_MISMATCH/,
   );
 });
+
+test('v4 command evidence binds the complete profile and cannot be downgraded to v3', () => {
+  const value = plan();
+  value.schema_version = 4;
+  value.verification_profile.profile = { ...profile, commands: ['python tools/check.py'] };
+  value.verification_profile.sha256 = sourceVerificationProfileBinding(
+    value.verification_profile.profile,
+  ).sha256;
+  const candidate = value.assurance.evidence_frontiers[0]!.candidates[0]!;
+  candidate.package_scripts = [];
+  candidate.uses_package_runtime = false;
+  candidate.verification_commands = ['python tools/check.py'];
+  assert.equal(validateSourceTransactionPlan(value).schema_version, 4);
+  assert.throws(() => validateSourceTransactionPlan({ ...value, schema_version: 3 }));
+  candidate.verification_commands = ['python tools/skip.py'];
+  assert.throws(() => validateSourceTransactionPlan(value));
+});

@@ -3,6 +3,11 @@ name: Tool capsule transport
 on:
   workflow_call:
     inputs:
+      runtime_sha:
+        description: Exact Overcenter verifier revision for a consumer repository.
+        required: false
+        default: ""
+        type: string
       python_version:
         description: Python major.minor selected by the request target
         required: true
@@ -11,6 +16,13 @@ on:
         description: Base64-encoded tool-capsule/request/v1 JSON
         required: true
         type: string
+    outputs:
+      artifact_name:
+        value: ${{ jobs.materialize.outputs.artifact_name }}
+      request_sha256:
+        value: ${{ jobs.materialize.outputs.request_sha256 }}
+      capsule_sha256:
+        value: ${{ jobs.materialize.outputs.capsule_sha256 }}
   workflow_dispatch:
     inputs:
       python_version:
@@ -42,7 +54,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ env.SOURCE_SHA }}
+          repository: laurajoyhutchins/overcenter
+          ref: ${{ inputs.runtime_sha || env.SOURCE_SHA }}
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
