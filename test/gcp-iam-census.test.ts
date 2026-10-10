@@ -5,7 +5,10 @@ import { collectGcpIamCensus, GCP_IAM_CENSUS_TARGETS } from '../src/providers/gc
 
 test('all IAM census operations are fixed, read-only and bound to expected project', () => {
   assert.equal(GCP_IAM_CENSUS_TARGETS.length, 7);
+  assert.equal(Object.isFrozen(GCP_IAM_CENSUS_TARGETS), true);
   for (const item of GCP_IAM_CENSUS_TARGETS) {
+    assert.equal(Object.isFrozen(item), true);
+    assert.equal(Object.isFrozen(item.command), true);
     assert.match(item.command.join(' '), /project-6b810532-a302-48dc-b56/);
     assert.ok(item.command.includes('--format=json'));
     assert.ok(
