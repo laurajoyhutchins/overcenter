@@ -13,6 +13,7 @@ import type { DurableFactStore } from './store.ts';
 import {
   observePostcondition,
   observePostconditionAsync,
+  validatePostcondition,
   type ObservationContext,
 } from '../observation/observe.ts';
 import {
@@ -63,6 +64,7 @@ import {
 } from './transaction-admission.ts';
 import {
   effectAdapterCapabilities,
+  effectPostconditionBindingSafe,
   GITHUB_SOURCE_INTEGRATION_EFFECT,
   reservedEffectReleaseWitnessSafe,
   type EffectVerifier,
@@ -75,10 +77,6 @@ import {
   type EffectAttemptBinding,
   type TrustedEffectReleaseWitness,
 } from '../effect-release-witness.ts';
-import {
-  trustedSourceIntegrationEvidence,
-  type TrustedSourceIntegrationWitness,
-} from '../source/source-integration.ts';
 import { bindSourceClaim, type SourceClaimBinding } from '../source/source-obligation.ts';
 
 export type { Receipt } from './facts.ts';
@@ -201,6 +199,7 @@ export class KernelCore {
   authorizeEffect<E extends RegisteredEffectContract | undefined = undefined>(
     permit: ExecutionPermit,
     effectContract?: E,
+    boundPostcondition?: Postcondition,
   ): E extends RegisteredEffectContract
     ? EffectAuthority<E, EffectVerifier<Extract<E, RegisteredEffectContract>>>
     : EffectAuthority<string, Postcondition['verifier']> {
@@ -218,9 +217,24 @@ export class KernelCore {
       (typeof work.packet.effect_contract === 'string'
         ? work.packet.effect_contract
         : 'overcenter/execution-effect');
+    const postcondition = boundPostcondition ?? work.postcondition;
+    if (boundPostcondition !== undefined) {
+      validatePostcondition(postcondition);
+      if (!effectPostconditionBindingSafe(work, authorityContract, postcondition)) {
+        throw new Error('EFFECT_POSTCONDITION_BINDING_UNAUTHORIZED');
+      }
+      if (
+        authorityContract === GITHUB_SOURCE_INTEGRATION_EFFECT &&
+        postcondition.verifier === 'source-integration/v1' &&
+        (postcondition.expected_base_sha !== permit.source_revision ||
+          postcondition.ref !== `refs/heads/overcenter/candidate/${permit.id}`)
+      ) {
+        throw new Error('SOURCE_PUBLICATION_BINDING_MISMATCH');
+      }
+    }
     const authority = Object.freeze({
       [effectAuthorityBrand]: authorityContract,
-      postcondition: Object.freeze(work.postcondition),
+      postcondition: Object.freeze(structuredClone(postcondition)),
     }) as E extends RegisteredEffectContract
       ? EffectAuthority<E, EffectVerifier<Extract<E, RegisteredEffectContract>>>
       : EffectAuthority<string, Postcondition['verifier']>;
@@ -260,7 +274,12 @@ export class KernelCore {
       throw new Error('CURRENT_REALIZATION_REFRESH_UNRESOLVED_EFFECT');
     }
 
-    const observed = this.#observe(run.obligation.postcondition);
+    const reservation = history.reservationsByRun?.get(run.id);
+    const refreshWork =
+      reservation?.postcondition === undefined
+        ? run.obligation
+        : { ...run.obligation, postcondition: structuredClone(reservation.postcondition) };
+    const observed = this.#observe(refreshWork.postcondition);
     const fact = this.#receiptFact(
       run,
       run.obligation_id,
@@ -268,7 +287,7 @@ export class KernelCore {
       observed,
       currentRealizationRefreshDiagnostic(prior.settlement_commit),
     );
-    projectReceipt(fact, run.obligation, undefined, false);
+    projectReceipt(fact, refreshWork, undefined, false);
     const commit = this.#store.append(
       head,
       `overcenter: refresh realization ${run.obligation_id} ${run.id}`,
@@ -395,7 +414,10 @@ export class KernelCore {
     throw new Error('EXECUTION_AUTHORITY_CONTENTION_EXHAUSTED');
   }
 
-  beginEffect(permit: ExecutionPermit): string {
+  beginEffect(
+    permit: ExecutionPermit,
+    binding?: { effect_contract: string; postcondition: Postcondition },
+  ): string {
     for (let attempt = 0; attempt < 16; attempt += 1) {
       const head = this.#requireHead();
       const { history, project } = this.#historicalProjection(head);
@@ -427,6 +449,12 @@ export class KernelCore {
         obligation_id: run.obligation_id,
         execution_generation: run.execution_generation,
         execution_authority_commit: run.execution_authority_commit,
+        ...(binding === undefined
+          ? {}
+          : {
+              effect_contract: binding.effect_contract,
+              postcondition: structuredClone(binding.postcondition),
+            }),
       };
       const commit = this.#store.append(
         head,
@@ -443,7 +471,10 @@ export class KernelCore {
     effect: (attempt: EffectAttemptBinding) => Promise<T> | T,
   ): Promise<T> {
     const permit = effectAuthorityPermit(authority);
-    const reservationCommit = this.beginEffect(permit);
+    const reservationCommit = this.beginEffect(permit, {
+      effect_contract: authority[effectAuthorityBrand],
+      postcondition: authority.postcondition,
+    });
     const attempt: EffectAttemptBinding = Object.freeze({
       run_id: permit.id,
       obligation_id: permit.obligation_id,
@@ -460,7 +491,10 @@ export class KernelCore {
     effect: (attempt: EffectAttemptBinding) => T,
   ): T {
     const permit = effectAuthorityPermit(authority);
-    const reservationCommit = this.beginEffect(permit);
+    const reservationCommit = this.beginEffect(permit, {
+      effect_contract: authority[effectAuthorityBrand],
+      postcondition: authority.postcondition,
+    });
     const attempt: EffectAttemptBinding = Object.freeze({
       run_id: permit.id,
       obligation_id: permit.obligation_id,
@@ -546,38 +580,6 @@ export class KernelCore {
       return receipt;
     }
     throw new Error('EFFECT_RELEASE_CONTENTION_EXHAUSTED');
-  }
-
-  settleSourceIntegration(
-    permit: ExecutionPermit,
-    witness: TrustedSourceIntegrationWitness,
-  ): Receipt {
-    const evidence = trustedSourceIntegrationEvidence(witness);
-    const receipt = this.#settleWithoutObservation(
-      permit,
-      'source-integration',
-      { source_integration: evidence },
-      ({ run, work }) => {
-        if (
-          work.packet.kind !== 'source-change' ||
-          work.packet.effect_contract !== GITHUB_SOURCE_INTEGRATION_EFFECT ||
-          work.postcondition.verifier !== 'source-integration/v1'
-        ) {
-          throw new Error('SOURCE_SETTLEMENT_WORK_INVALID');
-        }
-        if (
-          evidence.run_id !== run.id ||
-          evidence.obligation_key !== run.obligation_key ||
-          evidence.source_sha !== run.source_revision
-        ) {
-          throw new Error('SOURCE_INTEGRATION_EVIDENCE_BINDING_MISMATCH');
-        }
-      },
-    );
-    if (receipt.disposition !== 'DONE' || !receipt.verified) {
-      throw new Error('SOURCE_INTEGRATION_PROJECTION_FAILED');
-    }
-    return receipt;
   }
 
   retrySourceIntegration(permit: ExecutionPermit, reason: string, diagnostic: Data = {}): Receipt {
@@ -757,7 +759,11 @@ export class KernelCore {
       return { receipt: prior };
     }
     if (!state.obligations[known.obligation_id]) throw new Error('UNKNOWN_OBLIGATION');
-    const work = known.obligation;
+    const reservation = history.unresolvedReservationsByRun.get(runId);
+    const work =
+      reservation?.postcondition === undefined
+        ? known.obligation
+        : { ...known.obligation, postcondition: structuredClone(reservation.postcondition) };
     const run = this.#requireExecutionPermit(history, permit);
     const lifecycle = project.lifecycles.get(run.obligation_id);
     if (lifecycle?.run?.id !== runId) {
@@ -797,10 +803,7 @@ export class KernelCore {
 
   #settleWithoutObservation(
     permit: ExecutionPermit,
-    kind: Extract<
-      ReceiptKind,
-      'judgment-required' | 'execution-terminated' | 'source-integration' | 'source-retry'
-    >,
+    kind: Extract<ReceiptKind, 'judgment-required' | 'execution-terminated' | 'source-retry'>,
     diagnostic: Data,
     validate?: (context: { run: HistoricalRun; work: HistoricalRun['obligation'] }) => void,
   ): Receipt {
@@ -820,14 +823,7 @@ export class KernelCore {
               unresolvedError: null,
               contentionError: 'RECOVERY_CONTENTION_EXHAUSTED',
             }
-          : kind === 'source-integration'
-            ? {
-                action: 'integrate source',
-                lifecycleError: 'SOURCE_SETTLEMENT_RUN_NOT_EXECUTING',
-                unresolvedError: null,
-                contentionError: 'SOURCE_INTEGRATION_SETTLEMENT_CONTENTION_EXHAUSTED',
-              }
-            : {
+          : {
                 action: 'retry source',
                 lifecycleError: 'SOURCE_RETRY_RUN_NOT_EXECUTING',
                 unresolvedError: 'SOURCE_RETRY_WITH_UNRESOLVED_EFFECT',
@@ -851,9 +847,6 @@ export class KernelCore {
         throw new Error(policy.lifecycleError);
       }
       const unresolvedEffect = history.unresolvedReservationsByRun.has(runId);
-      if (kind === 'source-integration' && !unresolvedEffect) {
-        throw new Error('SOURCE_SETTLEMENT_WITHOUT_RESERVED_EFFECT');
-      }
       if (policy.unresolvedError && unresolvedEffect) {
         throw new Error(policy.unresolvedError);
       }

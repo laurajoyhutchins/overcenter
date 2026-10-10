@@ -683,7 +683,7 @@ test('generic source proposal broker reproduces a worker revision tree exactly',
   }
 });
 
-test('project.submit refuses to publish a verified source candidate directly to main', () => {
+test('project.submit publishes the exact verified source candidate as a PR without moving main', () => {
   const f = fixture();
   try {
     const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
@@ -742,30 +742,90 @@ test('project.submit refuses to publish a verified source candidate directly to 
     const remoteMainBefore = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(
       /\s+/,
     )[0];
-    assert.throws(
-      () =>
-        submitProjectCandidate(
-          f.work,
-          {
-            ...commandContext(transactionContext.runtime_sha, 9100),
-            candidate_sha: candidateSha,
-            candidate_run_id: runId,
-          },
-          {
-            authorityRef: AUTHORITY_REF,
-            remote: 'origin',
-            githubToken: 'fixture',
-            transactionContext,
-            sourceExecutionEvidence: sourceProofEvidence(
-              plan,
-              verificationPath,
-              candidateSha,
-              runId,
-            ),
-          },
+    let published = false;
+    const publicationGet = (_token: string, path: string): unknown => {
+      if (path === '/repos/acme/widget') {
+        return {
+          id: 42,
+          node_id: 'R_42',
+          full_name: 'acme/widget',
+          name: 'widget',
+          owner: { login: 'acme' },
+        };
+      }
+      if (path.includes('/git/ref/')) {
+        const decoded = decodeURIComponent(path);
+        if (decoded.endsWith(`heads/overcenter/candidate/${runId}`)) {
+          return {
+            ref: `refs/heads/overcenter/candidate/${runId}`,
+            object: { type: 'commit', sha: candidateSha },
+          };
+        }
+        if (decoded.endsWith('heads/main')) {
+          return {
+            ref: 'refs/heads/main',
+            object: { type: 'commit', sha: sourceSha },
+          };
+        }
+      }
+      if (path.startsWith('/repos/acme/widget/pulls?')) {
+        return published
+          ? [
+              {
+                id: 3700,
+                node_id: 'PR_node_37',
+                number: 37,
+                state: 'open',
+                title: `Overcenter verified candidate ${candidateSha.slice(0, 12)}`,
+                user: { login: 'acme' },
+                head: { sha: candidateSha },
+                base: { ref: 'main', sha: sourceSha },
+                updated_at: '2026-10-07T00:00:00Z',
+              },
+            ]
+          : [];
+      }
+      throw new Error(`unexpected publication read: ${path}`);
+    };
+    const result = submitProjectCandidate(
+      f.work,
+      {
+        ...commandContext(transactionContext.runtime_sha, 9100),
+        candidate_sha: candidateSha,
+        candidate_run_id: runId,
+      },
+      {
+        authorityRef: AUTHORITY_REF,
+        remote: 'origin',
+        githubToken: 'fixture',
+        transactionContext,
+        observationContext: { githubGet: publicationGet },
+        sourceExecutionEvidence: sourceProofEvidence(
+          plan,
+          verificationPath,
+          candidateSha,
+          runId,
         ),
-      /PROJECT_SUBMIT_SOURCE_PUBLICATION_REQUIRES_PR_EFFECT/,
+        sourcePublication: {
+          get: publicationGet,
+          post: (_token, path, body) => {
+            assert.equal(path, '/repos/acme/widget/pulls');
+            assert.deepEqual(body, {
+              title: `Overcenter verified candidate ${candidateSha.slice(0, 12)}`,
+              head: `overcenter/candidate/${runId}`,
+              base: 'main',
+            });
+            published = true;
+            return { status: 201, body: '{}' };
+          },
+        },
+      },
     );
+    assert.equal(result.disposition, 'DONE');
+    assert.equal(result.verified, true);
+    assert.equal(result.candidate_sha, candidateSha);
+    assert.equal(published, true);
+
     const remoteMainAfter = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
     assert.equal(remoteMainAfter, remoteMainBefore);
   } finally {
