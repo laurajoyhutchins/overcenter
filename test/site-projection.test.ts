@@ -44,6 +44,7 @@ test('site projection conserves source records and internal links', async () => 
     const experiments = pages.get('experiments.html') ?? '';
     const architecture = pages.get('architecture.html') ?? '';
     const index = pages.get('index-of-terms.html') ?? '';
+    const search = pages.get('search.html') ?? '';
 
     const robots = await readFile(join(outDir, 'robots.txt'), 'utf8');
     const sitemap = await readFile(join(outDir, 'sitemap.xml'), 'utf8');
@@ -59,15 +60,6 @@ test('site projection conserves source records and internal links', async () => 
     }
 
     for (const [file, html] of pages) {
-      assert.ok(html.includes('<main data-pagefind-body>'), `search body missing: ${file}`);
-      assert.ok(
-        html.includes('<pagefind-modal-trigger class="site-search"></pagefind-modal-trigger>'),
-        `search trigger missing: ${file}`,
-      );
-      assert.ok(
-        html.includes('pagefind/pagefind-component-ui.js'),
-        `Pagefind script missing: ${file}`,
-      );
       assert.ok(html.includes('rel="canonical"'), `canonical metadata missing: ${file}`);
       assert.ok(html.includes('property="og:title"'), `OpenGraph metadata missing: ${file}`);
       assert.ok(
@@ -82,6 +74,46 @@ test('site projection conserves source records and internal links', async () => 
       'architecture.html',
     ]) {
       assert.ok(home.includes(`href="${target}"`), `home route missing: ${target}`);
+    }
+    assert.ok(search.includes('id="site-record-search"'), 'structured search input missing');
+    assert.ok(search.includes('data-search-record'), 'structured search records missing');
+    assert.ok(
+      search.includes("addEventListener('input', update)"),
+      'structured search behavior missing',
+    );
+    const expectedSearchRecords =
+      model.claims.length +
+      model.proofObligations.length +
+      model.experiments.length +
+      model.architecture.length;
+    assert.equal(
+      [...search.matchAll(/<article class="search-record" data-search-record/g)].length,
+      expectedSearchRecords,
+      'structured search must conserve every searchable record',
+    );
+    for (const claim of model.claims) {
+      assert.ok(
+        search.includes(`claims.html#claim-${slug(claim.id)}`),
+        `search missing claim: ${claim.id}`,
+      );
+    }
+    for (const proof of model.proofObligations) {
+      assert.ok(
+        search.includes(`evidence.html#proof-${slug(proof.obligation)}`),
+        `search missing proof obligation: ${proof.obligation}`,
+      );
+    }
+    for (const experiment of model.experiments) {
+      assert.ok(
+        search.includes(`experiments.html#experiment-${slug(experiment.id)}`),
+        `search missing experiment: ${experiment.id}`,
+      );
+    }
+    for (const entity of model.architecture) {
+      assert.ok(
+        search.includes(`architecture.html#${slug(entity.kind)}-${slug(entity.id)}`),
+        `search missing architecture entity: ${entity.kind}:${entity.id}`,
+      );
     }
 
     const demonstrated = model.claims.filter((claim) => claim.statusKind === 'demonstrated').length;
@@ -274,8 +306,7 @@ test('site projection conserves source records and internal links', async () => 
           href.startsWith('https://') ||
           href.startsWith('http://') ||
           href.startsWith('mailto:') ||
-          href === 'site.css' ||
-          href.startsWith('pagefind/')
+          href === 'site.css'
         ) {
           continue;
         }

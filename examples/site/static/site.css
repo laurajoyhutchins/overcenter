@@ -87,19 +87,6 @@ nav a[aria-current="page"] {
   color: var(--phthalo-green);
   box-shadow: inset 0 -2px var(--teal);
 }
-.site-nav-group {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-.site-search {
-  --pagefind-ui-primary: var(--phthalo-blue);
-  --pagefind-ui-text: var(--ink);
-  --pagefind-ui-background: var(--cream);
-  --pagefind-ui-border: var(--line);
-  --pagefind-ui-tag: var(--mint);
-  font-family: var(--font-label);
-}
 
 main,
 footer {
@@ -498,6 +485,67 @@ main { background: var(--cream); }
   font-size: 0.74rem;
 }
 
+.search-field {
+  display: block;
+  max-width: 760px;
+  margin-top: 2rem;
+  color: var(--phthalo-green);
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.search-field span { display: block; margin-bottom: 0.5rem; }
+.search-field input {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--teal);
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: var(--white);
+  font: inherit;
+  font-size: 1rem;
+}
+.search-field input:focus {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+.search-count {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-label);
+  font-size: 0.82rem;
+}
+.search-results {
+  display: grid;
+  gap: 0;
+}
+.search-record {
+  padding: 1.2rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.search-record:first-child { border-top: 1px solid var(--line); }
+.search-record[hidden] { display: none; }
+.search-record h2 {
+  margin: 0.15rem 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+.search-record h2 a { text-decoration: none; }
+.search-record > p:last-child {
+  max-width: 820px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.search-kind {
+  margin: 0;
+  color: var(--phthalo-green);
+  font-family: var(--font-label);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 footer {
   padding: 2.75rem 0 5rem;
   color: var(--muted);
@@ -518,11 +566,6 @@ footer {
     align-items: flex-start;
     flex-direction: column;
     gap: 0.65rem;
-  }
-  .site-nav-group {
-    width: 100%;
-    align-items: flex-start;
-    flex-direction: column;
   }
   .home-intro,
   .page-intro { padding-top: 3.25rem; }

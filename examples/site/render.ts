@@ -15,6 +15,7 @@ export const PAGE_FILES = [
   'architecture.html',
   'experiments.html',
   'index-of-terms.html',
+  'search.html',
 ] as const;
 
 export function slug(value: string): string {
@@ -44,6 +45,7 @@ const NAV = [
   ['architecture.html', 'Architecture'],
   ['experiments.html', 'Experiments'],
   ['index-of-terms.html', 'Index'],
+  ['search.html', 'Search'],
 ] as const;
 
 function page(file: string, title: string, description: string, body: string): string {
@@ -63,7 +65,7 @@ function page(file: string, title: string, description: string, body: string): s
     license: 'https://www.apache.org/licenses/LICENSE-2.0',
     programmingLanguage: 'TypeScript',
   }).replaceAll('<', '\\u003c');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${canonical}"><meta property="og:site_name" content="Overcenter"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(title)} · Overcenter"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${canonical}"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="${escapeHtml(title)} · Overcenter"><meta name="twitter:description" content="${escapeHtml(description)}"><title>${escapeHtml(title)} · Overcenter</title><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="pagefind/pagefind-component-ui.css"><script src="pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">${structuredData}</script></head><body><pagefind-config base-url="/overcenter/"></pagefind-config><header class="site-header" data-pagefind-ignore><a class="wordmark" href="index.html">Overcenter</a><div class="site-nav-group"><nav aria-label="Primary">${nav}</nav><pagefind-modal-trigger class="site-search"></pagefind-modal-trigger></div><pagefind-modal></pagefind-modal></header><main data-pagefind-body>${body}</main><footer data-pagefind-ignore><p>Generated from repository authority and evidence records. This site is a projection, not project authority.</p></footer></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${canonical}"><meta property="og:site_name" content="Overcenter"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(title)} · Overcenter"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${canonical}"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="${escapeHtml(title)} · Overcenter"><meta name="twitter:description" content="${escapeHtml(description)}"><title>${escapeHtml(title)} · Overcenter</title><link rel="stylesheet" href="site.css"><script type="application/ld+json">${structuredData}</script></head><body><header class="site-header"><a class="wordmark" href="index.html">Overcenter</a><nav aria-label="Primary">${nav}</nav></header><main>${body}</main><footer><p>Generated from repository authority and evidence records. This site is a projection, not project authority.</p></footer></body></html>`;
 }
 
 function pageIntro(title: string, lede: string, extra = ''): string {
@@ -84,7 +86,8 @@ function proofAnchor(obligation: string): string {
 }
 
 function repositorySourceUrl(path: string): string {
-  return `${REPOSITORY_ROOT}${path
+  const file = path.split('#', 1)[0] ?? path;
+  return `${REPOSITORY_ROOT}${file
     .split('/')
     .map((part) => encodeURIComponent(part))
     .join('/')}`;
@@ -286,6 +289,115 @@ export function generateExperiments(model: SiteModel): string {
   );
 }
 
+function searchText(values: Array<string | undefined>): string {
+  return values
+    .filter((value): value is string => Boolean(value))
+    .join(' ')
+    .toLowerCase();
+}
+
+function searchRecord(
+  kind: string,
+  title: string,
+  href: string,
+  detail: string,
+  searchable: Array<string | undefined>,
+): string {
+  return `<article class="search-record" data-search-record data-search-text="${escapeHtml(
+    searchText([kind, title, detail, ...searchable]),
+  )}"><p class="search-kind">${escapeHtml(kind)}</p><h2><a href="${href}">${escapeHtml(
+    title,
+  )}</a></h2><p>${escapeHtml(detail)}</p></article>`;
+}
+
+export function generateSearch(model: SiteModel): string {
+  const claims = model.claims.map((claim) =>
+    searchRecord(
+      'Claim',
+      `${claim.id} · ${claim.title}`,
+      `claims.html#claim-${slug(claim.id)}`,
+      claim.statement,
+      [
+        claim.family,
+        claim.status,
+        claim.statusScope,
+        claim.evidenceBoundary,
+        ...claim.repositoryRefs,
+      ],
+    ),
+  );
+  const proofs = model.proofObligations.map((proof) =>
+    searchRecord(
+      'Proof obligation',
+      proof.obligation,
+      `evidence.html#${proofAnchor(proof.obligation)}`,
+      proof.boundary,
+      [
+        proof.implementation,
+        proof.localAdversarial,
+        proof.formal,
+        proof.liveProvider,
+        ...proof.repositoryRefs,
+      ],
+    ),
+  );
+  const experiments = model.experiments.map((experiment) =>
+    searchRecord(
+      'Experiment',
+      experiment.id,
+      `experiments.html#experiment-${slug(experiment.id)}`,
+      experiment.question,
+      [
+        experiment.claim,
+        experiment.outcome,
+        experiment.summary,
+        experiment.evidenceStatus,
+        experiment.evaluatedRevision,
+        ...experiment.repositoryRefs,
+      ],
+    ),
+  );
+  const architecture = model.architecture.map((entity) =>
+    searchRecord(
+      entity.kind.replaceAll('_', ' '),
+      entity.id,
+      `architecture.html#${architectureAnchor(entity)}`,
+      `Architecture ${entity.kind.replaceAll('_', ' ')}`,
+      [entity.kind],
+    ),
+  );
+  const records = [...claims, ...proofs, ...experiments, ...architecture].join('');
+  const total =
+    model.claims.length +
+    model.proofObligations.length +
+    model.experiments.length +
+    model.architecture.length;
+  const script = `<script type="module">
+const input = document.querySelector('#site-record-search');
+const count = document.querySelector('#site-search-count');
+const records = [...document.querySelectorAll('[data-search-record]')];
+const update = () => {
+  const terms = (input?.value ?? '').toLowerCase().trim().split(/\\s+/).filter(Boolean);
+  let visible = 0;
+  for (const record of records) {
+    const text = record.getAttribute('data-search-text') ?? '';
+    const show = terms.every((term) => text.includes(term));
+    record.hidden = !show;
+    if (show) visible += 1;
+  }
+  if (count) count.textContent = terms.length ? \`\${visible} matching records\` : \`\${records.length} records\`;
+};
+input?.addEventListener('input', update);
+update();
+</script>`;
+  return page(
+    'search.html',
+    'Search',
+    'Search claims, proof obligations, experiments, and architecture records derived from repository authority.',
+    `${pageIntro('Search', 'Search the structured records that generate this site. Results link back to their canonical projection surfaces.', `<label class="search-field" for="site-record-search"><span>Search records</span><input id="site-record-search" type="search" autocomplete="off" spellcheck="false" placeholder="Try exact revision, settlement, GitHub, or authority"></label><p class="search-count" id="site-search-count" aria-live="polite">${total} records</p>`)}<section class="section search-results" aria-label="Search results">${records}</section>${script}`,
+  );
+}
+
 export function generateIndex(model: SiteModel): string {
   const familyCounts = new Map<string, number>();
   const statusCounts = new Map<string, number>();
@@ -380,4 +492,5 @@ export const generators = [
   ['architecture.html', generateArchitecture],
   ['experiments.html', generateExperiments],
   ['index-of-terms.html', generateIndex],
+  ['search.html', generateSearch],
 ] as const;
