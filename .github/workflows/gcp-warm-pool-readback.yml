@@ -1,0 +1,70 @@
+name: Certified GCP warm-pool readback
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  read:
+    name: Observe fixed warm-pool resources
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GCP_PROJECT_ID: project-6b810532-a302-48dc-b56
+      GCP_WORKLOAD_IDENTITY_PROVIDER: projects/380435294892/locations/global/workloadIdentityPools/overcenter-observer/providers/github-main
+      GCP_OBSERVER_SERVICE_ACCOUNT: overcenter-observer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com
+    steps:
+      - name: Check out immutable main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate read-only operator identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_REPOSITORY" = "laurajoyhutchins/overcenter"
+          test "$GITHUB_ACTOR" = "laurajoyhutchins"
+          test "$GITHUB_WORKFLOW_REF" = "laurajoyhutchins/overcenter/.github/workflows/gcp-warm-pool-readback.yml@refs/heads/main"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Authenticate as dedicated read-only observer
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_OBSERVER_SERVICE_ACCOUNT }}
+          token_format: access_token
+          create_credentials_file: false
+          export_environment_variables: false
+
+      - name: Install pinned Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22'
+
+      - name: Read back fixed MIG and autoscaler policy
+        shell: bash
+        env:
+          GCP_OBSERVER_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          GCP_OBSERVER_RECEIPT_PATH: ${{ runner.temp }}/gcp-warm-pool-readback.json
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types src/providers/gcp/warm-pool-cli.ts
+
+      - name: Preserve readback evidence if produced
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gcp-warm-pool-readback-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gcp-warm-pool-readback.json
+          if-no-files-found: warn
+          retention-days: 90
