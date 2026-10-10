@@ -41,7 +41,8 @@ function retryEstablished(value: SettlementRelations): boolean {
 // Keep the retired settlement projection as an independent test oracle, not production routing.
 function shadowRecoveryRouting(coordinate: string, value: SettlementRelations) {
   const disposition = settlementDispositionFromRelations(value);
-  const legacy = disposition === 'DONE' ? 'settle' : disposition === 'READY' ? 'retry' : 'reconcile';
+  const legacy =
+    disposition === 'DONE' ? 'settle' : disposition === 'READY' ? 'retry' : 'reconcile';
   const derived = deriveRecoveryPlan(coordinate, value).preferred;
   return { legacy, derived, agrees: legacy === derived };
 }

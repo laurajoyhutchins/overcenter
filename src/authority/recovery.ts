@@ -5,7 +5,6 @@ import {
 } from './relational-explanation.ts';
 import type { SettlementRelations } from './settlement.ts';
 
-
 export type RecoveryEvent = 'reconcile' | 'retry' | 'settle';
 export type PossibleEffectOutcome = 'postcondition-asserted' | 'not-dispatched';
 
