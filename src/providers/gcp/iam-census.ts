@@ -14,7 +14,7 @@ const PROJECT = GCP_IAM_CENSUS_PROJECT;
 const DEPLOYER = 'overcenter-deployer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com';
 const OBSERVER = 'overcenter-observer@project-6b810532-a302-48dc-b56.iam.gserviceaccount.com';
 
-export const GCP_IAM_CENSUS_TARGETS: readonly GcpIamCensusTarget[] = [
+const CENSUS_TARGETS: readonly GcpIamCensusTarget[] = [
   {
     id: 'project-iam-allow',
     shape: 'object',
@@ -75,6 +75,16 @@ export const GCP_IAM_CENSUS_TARGETS: readonly GcpIamCensusTarget[] = [
     ],
   },
 ] as const;
+
+export const GCP_IAM_CENSUS_TARGETS: readonly GcpIamCensusTarget[] = Object.freeze(
+  CENSUS_TARGETS.map((target) =>
+    Object.freeze({
+      id: target.id,
+      shape: target.shape,
+      command: Object.freeze([...target.command]),
+    }),
+  ),
+);
 
 export interface GcpIamCensusObservation {
   readonly id: string;
