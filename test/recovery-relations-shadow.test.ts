@@ -8,11 +8,13 @@ import {
   fallbackPreservesAuthority,
   possibleEffectWorlds,
   recoveryEventsPermittedInAllWorlds,
-  shadowRecoveryRouting,
   type PossibleEffectWorld,
   type RecoveryPolicy,
 } from '../src/authority/recovery.ts';
-import type { SettlementRelations } from '../src/authority/settlement.ts';
+import {
+  settlementDispositionFromRelations,
+  type SettlementRelations,
+} from '../src/authority/settlement.ts';
 
 const coordinate = 'coordinate-current';
 const bools = [false, true] as const;
@@ -34,6 +36,15 @@ function retryEstablished(value: SettlementRelations): boolean {
     (value.object_supports_accepted_absence &&
       (!value.accepted_absence_requires_replay_safety || value.object_supports_replay_safety))
   );
+}
+
+// Keep the retired settlement projection as an independent test oracle, not production routing.
+function shadowRecoveryRouting(coordinate: string, value: SettlementRelations) {
+  const disposition = settlementDispositionFromRelations(value);
+  const legacy =
+    disposition === 'DONE' ? 'settle' : disposition === 'READY' ? 'retry' : 'reconcile';
+  const derived = deriveRecoveryPlan(coordinate, value).preferred;
+  return { legacy, derived, agrees: legacy === derived };
 }
 
 function policy(overrides: Partial<RecoveryPolicy> = {}): RecoveryPolicy {

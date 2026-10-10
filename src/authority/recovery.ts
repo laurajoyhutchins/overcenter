@@ -3,7 +3,7 @@ import {
   type RelationalEventExplanation,
   type RelationalExplanationInput,
 } from './relational-explanation.ts';
-import { settlementDispositionFromRelations, type SettlementRelations } from './settlement.ts';
+import type { SettlementRelations } from './settlement.ts';
 
 export type RecoveryEvent = 'reconcile' | 'retry' | 'settle';
 export type PossibleEffectOutcome = 'postcondition-asserted' | 'not-dispatched';
@@ -18,12 +18,6 @@ export interface RecoveryPlan {
   worlds: PossibleEffectWorld[];
   permitted: RecoveryEvent[];
   preferred: RecoveryEvent;
-}
-
-export interface RecoveryRoutingShadow {
-  legacy: RecoveryEvent;
-  derived: RecoveryEvent;
-  agrees: boolean;
 }
 
 export type RecoveryDisposition =
@@ -201,22 +195,6 @@ export function deriveRecoveryPlan(
       ? 'retry'
       : 'reconcile';
   return { coordinate, worlds, permitted, preferred };
-}
-
-function legacyRecoveryEvent(relations: SettlementRelations): RecoveryEvent {
-  const disposition = settlementDispositionFromRelations(relations);
-  if (disposition === 'DONE') return 'settle';
-  if (disposition === 'READY') return 'retry';
-  return 'reconcile';
-}
-
-export function shadowRecoveryRouting(
-  coordinate: string,
-  relations: SettlementRelations,
-): RecoveryRoutingShadow {
-  const legacy = legacyRecoveryEvent(relations);
-  const derived = deriveRecoveryPlan(coordinate, relations).preferred;
-  return { legacy, derived, agrees: legacy === derived };
 }
 
 function effectAuthorityKey(authority: RecoveryEffectAuthority): string | null {

@@ -14,7 +14,6 @@ Only maintained executable research lives in this tree. Git history is the archi
 - `distributed-authority-chaos` (supported) — Does the Postgres-free remote-CAS authority architecture survive repeated controller turnover, concurrent unrelated authority updates, unresolved-effect handoff, and repeated execution-authority rotation rather than only one staged transaction?
 - `distributed-authority-handoff` (supported) — Can independent disposable controllers share authoritative Overcenter project truth without a shared application database by using immutable Git facts plus one remote exact-head CAS coordinate?
 - `github-object-transport` (supported) — Can a worker receive exactly declared GitHub bytes without a checkout or repository credential?
-- `production-criticality-ranking` (mixed) — Can Overcenter maintain a reproducible total ordering of production-code importance from quantitative facts?
 - `production-latency` (supported) — For one successful production GitHub status transaction, how much latency belongs to Overcenter local correctness machinery versus provider I/O?
 - `semantic-scaling` (pending) — Does marginal trusted semantic complexity converge as supported autonomous work becomes more semantic?
 - `substrate-capability-admission` (supported) — Can signed, context-bound substrate capability evidence safely affect admission for one exact provider capability without trusting environment declarations?
