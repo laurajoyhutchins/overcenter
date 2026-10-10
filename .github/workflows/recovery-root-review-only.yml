@@ -1,0 +1,86 @@
+name: Recovery-root review (non-authoritative)
+
+on:
+  push:
+    branches:
+      - review/owner-recovery-root-update
+
+permissions:
+  contents: read
+
+env:
+  REVIEW_CANDIDATE_SHA: 44027510ace92aa23590409557d45972114a90a6
+  REVIEW_CANDIDATE_TREE: e0f22a1ae048bf15ed38b7914c429993b9eb447b
+
+jobs:
+  smoke:
+    name: Read-only root verification review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact review source without persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.REVIEW_CANDIDATE_SHA }}
+          persist-credentials: false
+
+      - name: Bind review object
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$REVIEW_CANDIDATE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$REVIEW_CANDIDATE_TREE"
+          test -z "$(git status --porcelain)"
+          echo "Review-only execution; not an owner recovery authorization." >> "$GITHUB_STEP_SUMMARY"
+          echo "Review workflow SHA: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verified candidate SHA: $REVIEW_CANDIDATE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verified candidate tree: $REVIEW_CANDIDATE_TREE" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install accepted Node.js version
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Install accepted Go version
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: .go-version
+          cache: false
+
+      - name: Install accepted Rust version
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(sed -n 's/^channel = "\([^"]*\)"$/\1/p' rust-toolchain.toml)"
+          [[ "$channel" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          rustup toolchain install "$channel" --profile minimal --component rustfmt --no-self-update
+          rustup default "$channel"
+          test "$(rustc --version | awk '{print $2}')" = "$channel"
+
+      - name: Install exact declared TypeScript dependencies
+        shell: bash
+        run: npm install --ignore-scripts --package-lock=false
+
+      - name: Verify repository lint and formatting
+        shell: bash
+        run: npm run lint
+
+      - name: Verify repository typecheck
+        shell: bash
+        run: npm run typecheck
+
+      - name: Verify recovery root hostile fixtures
+        shell: bash
+        run: |
+          node --experimental-strip-types --test \
+            test/recovery-root-update.test.ts \
+            test/recovery-root-update-checks.test.ts
+
+      - name: Verify full unit suite
+        shell: bash
+        run: npm run test:unit
+
+      - name: Verify TCB analysis
+        shell: bash
+        run: npm run check:tcb
