@@ -51,8 +51,9 @@ test('settlement records an honest no-side-effect outcome even when approval doe
   assert.notEqual(settleStart, -1, 'missing settle job');
   const settle = workflow.slice(settleStart);
   assert.match(settle, /if: always\(\) && needs\.prepare\.result == 'success'/);
-  assert.match(settle, /approval_job_result: gateResult/);
-  assert.match(settle, /approval_not_settled/);
+  assert.match(settle, /approval_job_result: process\.env\.GATE_RESULT/);
+  assert.match(settle, /approval_evidence_source/);
+  assert.match(settle, /classifyCanaryApproval/);
   assert.match(settle, /side_effects: \[\]/);
   assert.match(settle, /retention-days: 90/);
 });
@@ -77,4 +78,13 @@ test('approval summary is rendered from the exact manifest before the environmen
     assert.ok(prepare.includes(field), `missing visible request field: ${field}`);
   }
   assert.doesNotMatch(prepare, /echo "- Request ID:/);
+});
+
+test('settlement reads the GitHub review decision and writes the reviewer to the receipt', () => {
+  const settle = workflow.slice(workflow.indexOf('  settle:\n'));
+  assert.match(settle, /actions: read/);
+  assert.match(settle, /actions\/runs\/\$\{process\.env\.GITHUB_RUN_ID\}\/approvals/);
+  assert.match(settle, /classifyCanaryApproval/);
+  assert.match(settle, /approval_evidence_source/);
+  assert.match(settle, /GITHUB_TOKEN/);
 });
