@@ -32,6 +32,8 @@ jobs:
           test "$GITHUB_REF" = "refs/heads/main"
           test "$GITHUB_REPOSITORY" = "laurajoyhutchins/overcenter"
           test "$GITHUB_ACTOR" = "laurajoyhutchins"
+          test "$GITHUB_TRIGGERING_ACTOR" = "laurajoyhutchins"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
           test "$GITHUB_WORKFLOW_REF" = "laurajoyhutchins/overcenter/.github/workflows/gcp-warm-pool-readback.yml@refs/heads/main"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
