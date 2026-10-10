@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  collectGcpIamCensus,
-  GCP_IAM_CENSUS_TARGETS,
-} from '../src/providers/gcp/iam-census.ts';
+import { collectGcpIamCensus, GCP_IAM_CENSUS_TARGETS } from '../src/providers/gcp/iam-census.ts';
 
 test('all IAM census operations are fixed, read-only and bound to expected project', () => {
   assert.equal(GCP_IAM_CENSUS_TARGETS.length, 7);
@@ -16,10 +13,7 @@ test('all IAM census operations are fixed, read-only and bound to expected proje
         item.command.includes(verb),
       ),
     );
-    assert.doesNotMatch(
-      item.command.join(' '),
-      /\b(?:create|update|delete|set|add|remove)\b/,
-    );
+    assert.doesNotMatch(item.command.join(' '), /\b(?:create|update|delete|set|add|remove)\b/);
   }
 });
 
@@ -38,7 +32,10 @@ test('successful raw census never authorizes IAM or claims effective privilege',
   assert.equal(receipt.authority_granted, false);
   assert.equal(receipt.independently_verified, false);
   assert.equal(receipt.effective_permissions_established, false);
-  assert.equal(receipt.observations.every((entry) => entry.outcome.state === 'read'), true);
+  assert.equal(
+    receipt.observations.every((entry) => entry.outcome.state === 'read'),
+    true,
+  );
 });
 
 test('unavailable observer readback and malformed responses remain indeterminate', () => {
@@ -66,5 +63,8 @@ test('caller cannot inject additional IAM targets or commands', () => {
     return '{}';
   });
   assert.equal(invoked.length, 7);
-  assert.equal(invoked.every((command) => ['projects', 'iam'].includes(command)), true);
+  assert.equal(
+    invoked.every((command) => ['projects', 'iam'].includes(command)),
+    true,
+  );
 });
