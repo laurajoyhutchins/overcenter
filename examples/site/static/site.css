@@ -92,13 +92,94 @@ nav a[aria-current="page"] {
   gap: 1rem;
   align-items: center;
 }
-.site-search {
-  --pagefind-ui-primary: var(--phthalo-blue);
-  --pagefind-ui-text: var(--ink);
-  --pagefind-ui-background: var(--cream);
-  --pagefind-ui-border: var(--line);
-  --pagefind-ui-tag: var(--mint);
+.site-search-trigger,
+.site-search-dialog button {
+  border: 1px solid var(--teal);
+  border-radius: 0.3rem;
+  color: var(--phthalo-blue);
+  background: var(--cream);
   font-family: var(--font-label);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.site-search-trigger {
+  padding: 0.42rem 0.58rem;
+  white-space: nowrap;
+}
+.site-search-trigger kbd {
+  margin-left: 0.25rem;
+  color: var(--phthalo-green);
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+.site-search-dialog {
+  width: min(720px, calc(100vw - 2rem));
+  max-height: min(78vh, 760px);
+  padding: 0;
+  border: 1px solid var(--teal);
+  border-radius: 0.45rem;
+  color: var(--ink);
+  background: var(--cream);
+  box-shadow: 0 1rem 3rem rgba(4, 16, 25, 0.18);
+}
+.site-search-dialog::backdrop {
+  background: rgba(4, 16, 25, 0.52);
+}
+.site-search-dialog-header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+.site-search-dialog-header label {
+  color: var(--phthalo-blue);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.site-search-dialog-header button {
+  padding: 0.35rem 0.55rem;
+}
+.site-search-dialog input[type="search"] {
+  width: calc(100% - 2.2rem);
+  margin: 1.1rem;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid var(--teal);
+  border-radius: 0.3rem;
+  color: var(--ink);
+  background: var(--white);
+  font: inherit;
+}
+.site-search-status {
+  margin: 0 1.1rem 0.7rem;
+  color: var(--muted);
+  font-family: var(--font-label);
+  font-size: 0.78rem;
+}
+.site-search-results {
+  margin: 0;
+  padding: 0 1.1rem 1.1rem;
+  list-style: none;
+}
+.site-search-results li {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.72rem 0;
+  border-top: 1px solid var(--line);
+}
+.site-search-results a {
+  font-weight: 700;
+  text-decoration: none;
+}
+.site-search-results span {
+  color: var(--phthalo-green);
+  font-family: var(--font-label);
+  font-size: 0.74rem;
+  text-align: right;
 }
 
 main,
@@ -523,6 +604,15 @@ footer {
     width: 100%;
     align-items: flex-start;
     flex-direction: column;
+  }
+  .site-search-dialog {
+    width: calc(100vw - 1rem);
+    max-height: calc(100vh - 1rem);
+  }
+  .site-search-results li {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
   }
   .home-intro,
   .page-intro { padding-top: 3.25rem; }

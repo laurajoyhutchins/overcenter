@@ -58,21 +58,36 @@ test('site projection conserves source records and internal links', async () => 
       assert.ok(sitemap.includes(`<loc>${expected}</loc>`), `sitemap missing: ${file}`);
     }
 
+    const searchIndex = JSON.parse(
+      await readFile(join(outDir, 'search-index.json'), 'utf8'),
+    ) as Array<{ title: string; href: string; kind: string; text: string }>;
+    const searchClient = await readFile(join(outDir, 'search.js'), 'utf8');
+    assert.ok(
+      searchIndex.length > model.architecture.length,
+      'search index must include record types',
+    );
+    assert.ok(
+      searchClient.includes("fetch('search-index.json')"),
+      'search client must load generated index',
+    );
+
     for (const [file, html] of pages) {
-      assert.ok(html.includes('<main data-pagefind-body>'), `search body missing: ${file}`);
       assert.ok(
-        html.includes('<pagefind-modal-trigger class="site-search"></pagefind-modal-trigger>'),
+        html.includes('class="site-search-trigger" data-search-open'),
         `search trigger missing: ${file}`,
       );
-      assert.ok(
-        html.includes('pagefind/pagefind-component-ui.js'),
-        `Pagefind script missing: ${file}`,
-      );
+      assert.ok(html.includes('id="site-search"'), `search dialog missing: ${file}`);
+      assert.ok(html.includes('src="search.js"'), `search client missing: ${file}`);
       assert.ok(html.includes('rel="canonical"'), `canonical metadata missing: ${file}`);
       assert.ok(html.includes('property="og:title"'), `OpenGraph metadata missing: ${file}`);
       assert.ok(
         html.includes('type="application/ld+json"'),
         `structured metadata missing: ${file}`,
+      );
+      assert.equal(
+        html.includes('pagefind'),
+        false,
+        `Pagefind publication dependency returned: ${file}`,
       );
     }
     for (const target of [
@@ -143,6 +158,10 @@ test('site projection conserves source records and internal links', async () => 
         new RegExp(`claims\\.html#${anchor}`),
         `claim absent from index: ${claim.id}`,
       );
+      assert.ok(
+        searchIndex.some((record) => record.href === `claims.html#${anchor}`),
+        `claim absent from search index: ${claim.id}`,
+      );
     }
 
     for (const experiment of model.experiments) {
@@ -161,6 +180,10 @@ test('site projection conserves source records and internal links', async () => 
         new RegExp(`experiments\\.html#${anchor}`),
         `experiment absent from index: ${experiment.id}`,
       );
+      assert.ok(
+        searchIndex.some((record) => record.href === `experiments.html#${anchor}`),
+        `experiment absent from search index: ${experiment.id}`,
+      );
       for (const path of experiment.repositoryRefs) {
         assert.ok(
           experiments.includes(path),
@@ -178,6 +201,10 @@ test('site projection conserves source records and internal links', async () => 
       assert.ok(
         index.includes(`evidence.html#${anchor}`),
         `proof obligation absent from index: ${proof.obligation}`,
+      );
+      assert.ok(
+        searchIndex.some((record) => record.href === `evidence.html#${anchor}`),
+        `proof obligation absent from search index: ${proof.obligation}`,
       );
       for (const path of proof.repositoryRefs) {
         assert.ok(
@@ -218,6 +245,10 @@ test('site projection conserves source records and internal links', async () => 
         index,
         new RegExp(`architecture\\.html#${anchor}`),
         `architecture entity absent from index: ${entity.kind}:${entity.id}`,
+      );
+      assert.ok(
+        searchIndex.some((record) => record.href === `architecture.html#${anchor}`),
+        `architecture entity absent from search index: ${entity.kind}:${entity.id}`,
       );
     }
 
@@ -274,8 +305,7 @@ test('site projection conserves source records and internal links', async () => 
           href.startsWith('https://') ||
           href.startsWith('http://') ||
           href.startsWith('mailto:') ||
-          href === 'site.css' ||
-          href.startsWith('pagefind/')
+          href === 'site.css'
         ) {
           continue;
         }
