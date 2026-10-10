@@ -10,7 +10,7 @@ With a compatible Google Cloud SDK and Node 22+:
 
 ```bash
 export GCP_IAM_CENSUS_OUTPUT="$(mktemp -u "$HOME/overcenter-iam-XXXXXX.json")"
-node --experimental-strip-types scripts/gcp-iam-census.ts
+node --experimental-strip-types src/providers/gcp/iam-census-cli.ts
 ```
 
 Use a location outside the checked-out repository; keep this output confidential. The tool creates the file with mode `0600` and refuses to overwrite an existing path. The example `mktemp -u` creates a candidate filename without creating the file; the operator's exclusive-create flag prevents overwrite, but the output directory must also be trusted. No automatic GitHub artifact upload is allowed.
