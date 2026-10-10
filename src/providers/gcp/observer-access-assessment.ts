@@ -47,7 +47,7 @@ const definitions = [
   {
     id: 'mig-resize-denied',
     resource: MIG,
-    permission: 'compute.instanceGroupManagers.resize',
+    permission: 'compute.instanceGroupManagers.update',
     expected: 'CANNOT_ACCESS',
   },
   {
