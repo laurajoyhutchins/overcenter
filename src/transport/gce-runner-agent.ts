@@ -375,6 +375,27 @@ async function dockerRequest(
   });
 }
 
+/** Prove physical container absence, even after an ambiguous DELETE transport outcome. */
+export async function verifyRunnerContainerTeardown(
+  containerId: string,
+  request: (method: string, path: string) => Promise<DockerResponse>,
+): Promise<void> {
+  if (!/^[0-9a-f]{64}$/.test(containerId)) {
+    throw new Error('Docker container id is not an exact 64-character hex identity');
+  }
+  const path = '/v1.45/containers/' + containerId;
+  try {
+    // DELETE status, including success, is not an authoritative absence witness.
+    await request('DELETE', path + '?force=1');
+  } catch {
+    // Transport failure may occur after Docker processed DELETE. Reconcile with GET.
+  }
+  const observed = await request('GET', path + '/json');
+  if (observed.statusCode !== 404) {
+    throw new Error('Docker container absence readback failed with HTTP ' + observed.statusCode);
+  }
+}
+
 export function runnerContainerSpec(
   environment: WarmRunnerAgentEnvironment,
   lease: RunnerExecutionLease,
@@ -425,7 +446,9 @@ async function runContainer(
   }
   const body = JSON.parse(created.body.toString('utf8')) as Record<string, unknown>;
   const id = String(body.Id ?? '').trim();
-  if (!id) throw new Error('Docker create response did not include a container id');
+  if (!/^[0-9a-f]{64}$/.test(id)) {
+    throw new Error('Docker create response did not include an exact container id');
+  }
 
   let executionError: unknown = null;
   try {
@@ -446,15 +469,8 @@ async function runContainer(
   } catch (error: unknown) {
     executionError = error;
   }
-  // Always attempt cleanup, and fail closed if Docker does not prove absence.
-  const deleted = await dockerRequest('DELETE', '/v1.45/containers/' + id + '?force=1');
-  if (deleted.statusCode !== 204) {
-    throw new Error('Docker remove failed with HTTP ' + deleted.statusCode);
-  }
-  const readback = await dockerRequest('GET', '/v1.45/containers/' + id + '/json');
-  if (readback.statusCode !== 404) {
-    throw new Error('Docker container absence readback failed with HTTP ' + readback.statusCode);
-  }
+  // A lost DELETE response is indeterminate until Docker's own readback.
+  await verifyRunnerContainerTeardown(id, dockerRequest);
   observe('container_absent_readback');
   if (executionError !== null) throw executionError;
 }
