@@ -137,8 +137,9 @@ test('the host verifies Docker and workspace absence before Pub/Sub ACK', () => 
     new URL('../src/transport/gce-runner-agent.ts', import.meta.url),
     'utf8',
   );
-  assert.match(source, /dockerRequest\('GET', '\/v1\.45\/containers\/' \+ id \+ '\/json'\)/);
-  assert.match(source, /readback\.statusCode !== 404/);
+  assert.match(source, /await verifyRunnerContainerTeardown\(id, dockerRequest\)/);
+  assert.match(source, /await request\('GET', path \+ '\/json'\)/);
+  assert.match(source, /observed\.statusCode !== 404/);
   assert.match(source, /observe\('container_absent_readback'\)/);
   assert.match(source, /await lstat\(workspace\)/);
   assert.match(source, /observe\('workspace_absent_readback'\)/);
