@@ -93,7 +93,8 @@ export function routeOwnerConsent(impact: ObservedConsentImpact): ConsentRouting
     ) {
       return {
         kind: 'hold',
-        reason: 'Protected maintenance requires an independently admitted narrow policy, not routine owner approval.',
+        reason:
+          'Protected maintenance requires an independently admitted narrow policy, not routine owner approval.',
       };
     }
   }
@@ -126,10 +127,23 @@ export interface OwnerConsentRequest {
 }
 
 const REQUEST_KEYS = [
-  'schema', 'request_id', 'repository', 'base_sha', 'candidate_sha',
-  'candidate_tree_sha', 'expires_at', 'operation', 'outcome', 'why',
-  'scope', 'risks', 'approval_consequence', 'rejection_consequence',
-  'recovery', 'verification', 'evidence_url',
+  'schema',
+  'request_id',
+  'repository',
+  'base_sha',
+  'candidate_sha',
+  'candidate_tree_sha',
+  'expires_at',
+  'operation',
+  'outcome',
+  'why',
+  'scope',
+  'risks',
+  'approval_consequence',
+  'rejection_consequence',
+  'recovery',
+  'verification',
+  'evidence_url',
 ] as const;
 
 function isSha(value: string): boolean {
@@ -149,12 +163,20 @@ function requestValid(value: unknown): value is OwnerConsentRequest {
     !isSha(request.candidate_sha) ||
     !isSha(request.candidate_tree_sha) ||
     !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\//.test(request.evidence_url)
-  ) return false;
+  )
+    return false;
   const expires = Date.parse(request.expires_at);
-  if (!Number.isFinite(expires) || new Date(expires).toISOString() !== request.expires_at) return false;
+  if (!Number.isFinite(expires) || new Date(expires).toISOString() !== request.expires_at)
+    return false;
   for (const key of [
-    'outcome', 'why', 'scope', 'risks', 'approval_consequence',
-    'rejection_consequence', 'recovery', 'verification',
+    'outcome',
+    'why',
+    'scope',
+    'risks',
+    'approval_consequence',
+    'rejection_consequence',
+    'recovery',
+    'verification',
   ] as const) {
     const text = request[key];
     if (text.trim().length === 0 || text.length > 500 || /[\r\n]/.test(text)) return false;

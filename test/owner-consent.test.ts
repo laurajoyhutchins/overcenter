@@ -42,8 +42,11 @@ test('ordinary observed source maintenance is only a non-authorizing candidate',
 
 test('every consequential effect goes to owner review', () => {
   for (const effect of [
-    'privilege-grant', 'protection-policy-change', 'production-cutover',
-    'irreversible-data-change', 'material-financial-commitment',
+    'privilege-grant',
+    'protection-policy-change',
+    'production-cutover',
+    'irreversible-data-change',
+    'material-financial-commitment',
     'external-legal-commitment',
   ] as const) {
     assert.equal(routeOwnerConsent({ ...ordinary, effects: [effect] }).kind, 'owner-review');
@@ -53,7 +56,10 @@ test('every consequential effect goes to owner review', () => {
 test('unknown, invalid and duplicate evidence never requests approval', () => {
   assert.equal(routeOwnerConsent({ ...ordinary, evidence: 'unknown' }).kind, 'hold');
   assert.equal(routeOwnerConsent({ ...ordinary, effects: ['unknown' as never] }).kind, 'hold');
-  assert.equal(routeOwnerConsent({ ...ordinary, effects: ['privilege-grant', 'privilege-grant'] }).kind, 'hold');
+  assert.equal(
+    routeOwnerConsent({ ...ordinary, effects: ['privilege-grant', 'privilege-grant'] }).kind,
+    'hold',
+  );
   assert.equal(routeOwnerConsent({ ...ordinary, changed_paths: [] }).kind, 'hold');
   assert.equal(routeOwnerConsent({ ...ordinary, changed_paths: ['../secrets'] }).kind, 'hold');
   assert.equal(routeOwnerConsent({ ...ordinary, changed_paths: ['b', 'a'] }).kind, 'hold');
@@ -62,40 +68,57 @@ test('unknown, invalid and duplicate evidence never requests approval', () => {
 test('protected source maintenance is held without independently admitted exact path delegation', () => {
   const protectedChange = { ...ordinary, changed_paths: ['architecture/physics.sql'] };
   assert.equal(routeOwnerConsent(protectedChange).kind, 'hold');
-  assert.equal(routeOwnerConsent({
-    ...protectedChange,
-    routine_policy: {
-      id: 'routine-architecture-reconciliation/v1',
-      permitted_paths: ['architecture/physics.sql'],
-      independently_admitted: false,
-    },
-  }).kind, 'hold');
-  assert.equal(routeOwnerConsent({
-    ...protectedChange,
-    routine_policy: {
-      id: 'routine-architecture-reconciliation/v1',
-      permitted_paths: ['architecture/physics.sql'],
-      independently_admitted: true,
-    },
-  }).kind, 'routine-candidate');
-  assert.equal(routeOwnerConsent({
-    ...protectedChange,
-    routine_policy: {
-      id: 'routine-architecture-reconciliation/v1',
-      permitted_paths: ['architecture/other.sql'],
-      independently_admitted: true,
-    },
-  }).kind, 'hold');
+  assert.equal(
+    routeOwnerConsent({
+      ...protectedChange,
+      routine_policy: {
+        id: 'routine-architecture-reconciliation/v1',
+        permitted_paths: ['architecture/physics.sql'],
+        independently_admitted: false,
+      },
+    }).kind,
+    'hold',
+  );
+  assert.equal(
+    routeOwnerConsent({
+      ...protectedChange,
+      routine_policy: {
+        id: 'routine-architecture-reconciliation/v1',
+        permitted_paths: ['architecture/physics.sql'],
+        independently_admitted: true,
+      },
+    }).kind,
+    'routine-candidate',
+  );
+  assert.equal(
+    routeOwnerConsent({
+      ...protectedChange,
+      routine_policy: {
+        id: 'routine-architecture-reconciliation/v1',
+        permitted_paths: ['architecture/other.sql'],
+        independently_admitted: true,
+      },
+    }).kind,
+    'hold',
+  );
 });
 
 test('plain-language consent explanation includes both consequences and exact identity', () => {
   const summary = ownerConsentSummary(request);
   for (const snippet of [
-    request.outcome, request.why, request.scope, request.risks,
-    request.approval_consequence, request.rejection_consequence,
-    request.recovery, request.verification, request.candidate_sha,
-    request.evidence_url, request.expires_at,
-  ]) assert.ok(summary.includes(snippet));
+    request.outcome,
+    request.why,
+    request.scope,
+    request.risks,
+    request.approval_consequence,
+    request.rejection_consequence,
+    request.recovery,
+    request.verification,
+    request.candidate_sha,
+    request.evidence_url,
+    request.expires_at,
+  ])
+    assert.ok(summary.includes(snippet));
   assert.match(summary, /Request digest: [0-9a-f]{64}/);
 });
 
@@ -107,7 +130,8 @@ test('changing any consequential part invalidates the exact request digest', () 
     { operation: 'privilege-grant' as const },
     { risks: 'New risk' },
     { rejection_consequence: 'A new rejection effect' },
-  ]) assert.notEqual(ownerConsentRequestDigest({ ...request, ...mutation }), previous);
+  ])
+    assert.notEqual(ownerConsentRequestDigest({ ...request, ...mutation }), previous);
 });
 
 test('refuse incomplete consent, forged fields, free-form effects and invalid revisions', () => {
@@ -119,5 +143,6 @@ test('refuse incomplete consent, forged fields, free-form effects and invalid re
     { ...request, evidence_url: 'https://example.com/untrusted' },
     { ...request, expires_at: 'not a date' },
     { ...request, injected_operation: 'delete-everything' },
-  ]) assert.throws(() => ownerConsentRequestDigest(malformed), /OWNER_CONSENT_REQUEST_INVALID/);
+  ])
+    assert.throws(() => ownerConsentRequestDigest(malformed), /OWNER_CONSENT_REQUEST_INVALID/);
 });
