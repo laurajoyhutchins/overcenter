@@ -1,3 +1,8 @@
+import {
+  readSourceVerificationProfile,
+  sourceVerificationCommandArgv,
+} from '../source/source-verification-profile.ts';
+import { observeSourceBaseline } from '../source/transaction-baseline.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -6,6 +11,7 @@ import { loadArchitectureDatabase } from '../architecture/sql-model.ts';
 import { canonicalDigest, canonicalJson } from '../digest.ts';
 import {
   ASSURANCE_EVIDENCE_NEED_SCHEMA,
+  BASELINE_COMMAND_NEED_SCHEMA,
   type AssuranceEvidenceNeed,
   type AssuranceEvidenceNeedInputs,
 } from '../source/assurance-evidence-needs.ts';
@@ -18,6 +24,7 @@ import {
 } from './evidence-receipt.ts';
 
 export const ASSURANCE_EVIDENCE_RECIPE_SCHEMA = 'overcenter-assurance-evidence-recipe/v1' as const;
+export const BASELINE_COMMAND_RECIPE_SCHEMA = 'overcenter-assurance-evidence-recipe/v2' as const;
 export const ASSURANCE_EVIDENCE_EXECUTION_OBSERVATION_SCHEMA =
   'overcenter-assurance-evidence-execution-observation/v1' as const;
 
@@ -34,7 +41,7 @@ const REQUIRED_NEED_INPUT_KEYS = [
 const OPTIONAL_NEED_INPUT_KEYS = ['baseline_sha256'] as const;
 
 export interface AssuranceEvidenceRecipe {
-  schema: typeof ASSURANCE_EVIDENCE_RECIPE_SCHEMA;
+  schema: typeof ASSURANCE_EVIDENCE_RECIPE_SCHEMA | typeof BASELINE_COMMAND_RECIPE_SCHEMA;
   need: AssuranceEvidenceNeed;
   need_sha256: string;
   scripts: string[];
@@ -94,7 +101,10 @@ export function normalizeAssuranceEvidenceNeed(value: unknown): AssuranceEvidenc
     [],
     'ASSURANCE_EVIDENCE_NEED_INVALID',
   );
-  if (value.schema !== ASSURANCE_EVIDENCE_NEED_SCHEMA) {
+  if (
+    value.schema !== ASSURANCE_EVIDENCE_NEED_SCHEMA &&
+    value.schema !== BASELINE_COMMAND_NEED_SCHEMA
+  ) {
     throw new Error('ASSURANCE_EVIDENCE_NEED_SCHEMA_INVALID');
   }
   assertNonEmptyString(value.need_id, 'ASSURANCE_EVIDENCE_NEED_ID_INVALID');
@@ -114,14 +124,23 @@ export function normalizeAssuranceEvidenceNeed(value: unknown): AssuranceEvidenc
 
   if (!isData(value.inputs)) throw new Error('ASSURANCE_EVIDENCE_INPUTS_INVALID');
   const inputValue = value.inputs;
+  const commandNeed = value.schema === BASELINE_COMMAND_NEED_SCHEMA;
+  const requiredKeys = commandNeed
+    ? [
+        ...REQUIRED_NEED_INPUT_KEYS.filter(
+          (key) => key !== 'package_scripts' && key !== 'uses_package_runtime',
+        ),
+        'verification_commands',
+      ]
+    : [...REQUIRED_NEED_INPUT_KEYS];
   assertExactKeys(
     inputValue,
-    REQUIRED_NEED_INPUT_KEYS,
+    requiredKeys,
     OPTIONAL_NEED_INPUT_KEYS,
     'ASSURANCE_EVIDENCE_INPUTS_INVALID',
   );
   const inputs = Object.fromEntries(
-    [...REQUIRED_NEED_INPUT_KEYS, ...OPTIONAL_NEED_INPUT_KEYS]
+    [...requiredKeys, ...OPTIONAL_NEED_INPUT_KEYS]
       .filter((key) => Object.hasOwn(inputValue, key))
       .map((key) => {
         const member = inputValue[key];
@@ -139,31 +158,52 @@ export function normalizeAssuranceEvidenceNeed(value: unknown): AssuranceEvidenc
   if (inputs.baseline_sha256 !== undefined && !isSha256Hex(inputs.baseline_sha256)) {
     throw new Error('ASSURANCE_EVIDENCE_BASELINE_DIGEST_INVALID');
   }
-  if (inputs.uses_package_runtime !== 'true' && inputs.uses_package_runtime !== 'false') {
+  if (
+    !commandNeed &&
+    inputs.uses_package_runtime !== 'true' &&
+    inputs.uses_package_runtime !== 'false'
+  ) {
     throw new Error('ASSURANCE_EVIDENCE_PACKAGE_RUNTIME_INVALID');
   }
   for (const key of [
     'proposition_ids',
     'obligation_ids',
     'artifact_ids',
-    'package_scripts',
-  ] as const) {
+    ...(!commandNeed ? ['package_scripts'] : []),
+  ]) {
     canonicalStringArray(requiredNeedInput(inputs, key), `ASSURANCE_EVIDENCE_INPUT_INVALID:${key}`);
   }
 
+  if (commandNeed) {
+    const commands: unknown = JSON.parse(inputs.verification_commands!);
+    if (
+      !Array.isArray(commands) ||
+      commands.length === 0 ||
+      new Set(commands).size !== commands.length ||
+      canonicalJson(commands) !== inputs.verification_commands ||
+      !inputs.baseline_sha256 ||
+      !value.identity.evidence_id.startsWith('baseline:')
+    )
+      throw new Error('ASSURANCE_EVIDENCE_BASELINE_COMMANDS_INVALID');
+    for (const command of commands) {
+      if (typeof command !== 'string')
+        throw new Error('ASSURANCE_EVIDENCE_BASELINE_COMMANDS_INVALID');
+      sourceVerificationCommandArgv(command);
+    }
+  }
   const identity = {
     evidence_id: value.identity.evidence_id,
     revision: value.identity.revision,
   };
   const expectedNeedId = `assurance-evidence:${canonicalDigest({
-    schema: ASSURANCE_EVIDENCE_NEED_SCHEMA,
+    schema: value.schema,
     identity,
     inputs,
   })}`;
   if (value.need_id !== expectedNeedId) throw new Error('ASSURANCE_EVIDENCE_NEED_ID_MISMATCH');
 
   return {
-    schema: ASSURANCE_EVIDENCE_NEED_SCHEMA,
+    schema: value.schema,
     need_id: value.need_id,
     identity,
     inputs,
@@ -171,14 +211,22 @@ export function normalizeAssuranceEvidenceNeed(value: unknown): AssuranceEvidenc
 }
 
 function assertRecipe(recipe: AssuranceEvidenceRecipe): AssuranceEvidenceNeed {
-  if (recipe.schema !== ASSURANCE_EVIDENCE_RECIPE_SCHEMA) {
+  if (
+    recipe.schema !== ASSURANCE_EVIDENCE_RECIPE_SCHEMA &&
+    recipe.schema !== BASELINE_COMMAND_RECIPE_SCHEMA
+  ) {
     throw new Error('ASSURANCE_EVIDENCE_RECIPE_SCHEMA_INVALID');
   }
   const need = normalizeAssuranceEvidenceNeed(recipe.need);
   if (recipe.need_sha256 !== canonicalDigest(need)) {
     throw new Error('ASSURANCE_EVIDENCE_RECIPE_NEED_MISMATCH');
   }
-  const canonicalScripts = [...new Set(recipe.scripts)].sort();
+  const commandRecipe = recipe.schema === BASELINE_COMMAND_RECIPE_SCHEMA;
+  if (commandRecipe !== (need.schema === BASELINE_COMMAND_NEED_SCHEMA))
+    throw new Error('ASSURANCE_EVIDENCE_RECIPE_SCHEMA_INVALID');
+  const canonicalScripts = commandRecipe
+    ? [...new Set(recipe.scripts)]
+    : [...new Set(recipe.scripts)].sort();
   if (
     canonicalScripts.length === 0 ||
     canonicalScripts.length !== recipe.scripts.length ||
@@ -189,10 +237,13 @@ function assertRecipe(recipe: AssuranceEvidenceRecipe): AssuranceEvidenceNeed {
   ) {
     throw new Error('ASSURANCE_EVIDENCE_RECIPE_SCRIPTS_NONCANONICAL');
   }
-  if (canonicalJson(recipe.scripts) !== requiredNeedInput(need.inputs, 'package_scripts')) {
+  if (
+    canonicalJson(recipe.scripts) !==
+    requiredNeedInput(need.inputs, commandRecipe ? 'verification_commands' : 'package_scripts')
+  ) {
     throw new Error('ASSURANCE_EVIDENCE_RECIPE_NEED_SCRIPTS_MISMATCH');
   }
-  if (requiredNeedInput(need.inputs, 'uses_package_runtime') !== 'true') {
+  if (!commandRecipe && requiredNeedInput(need.inputs, 'uses_package_runtime') !== 'true') {
     throw new Error('ASSURANCE_EVIDENCE_RECIPE_RUNTIME_UNAVAILABLE');
   }
   return need;
@@ -203,6 +254,24 @@ export function deriveAssuranceEvidenceRecipe(
   needValue: AssuranceEvidenceNeed,
 ): AssuranceEvidenceRecipe {
   const need = normalizeAssuranceEvidenceNeed(needValue);
+  if (need.schema === BASELINE_COMMAND_NEED_SCHEMA) {
+    const profile = readSourceVerificationProfile(repo, need.identity.revision).profile;
+    if (
+      need.identity.evidence_id !== `baseline:${profile.id}` ||
+      canonicalJson(profile.commands) !== need.inputs.verification_commands ||
+      observeSourceBaseline(repo, need.identity.revision, profile).digest !==
+        need.inputs.baseline_sha256
+    )
+      throw new Error('ASSURANCE_EVIDENCE_BASELINE_RECIPE_MISMATCH');
+    const recipe: AssuranceEvidenceRecipe = {
+      schema: BASELINE_COMMAND_RECIPE_SCHEMA,
+      need,
+      need_sha256: canonicalDigest(need),
+      scripts: [...profile.commands],
+    };
+    assertRecipe(recipe);
+    return recipe;
+  }
   const requestedScripts = canonicalStringArray(
     requiredNeedInput(need.inputs, 'package_scripts', 'ASSURANCE_EVIDENCE_PACKAGE_SCRIPTS_INVALID'),
     'ASSURANCE_EVIDENCE_PACKAGE_SCRIPTS_INVALID',
@@ -274,10 +343,19 @@ function defaultRunScript(script: string, cwd: string): number {
   return result.status;
 }
 
+function defaultRunCommand(command: string, cwd: string): number {
+  const [name, ...args] = sourceVerificationCommandArgv(command);
+  const result = spawnSync(name, args, { cwd, env: process.env, stdio: 'inherit', shell: false });
+  if (result.error) throw result.error;
+  if (result.signal || result.status === null)
+    throw new Error('ASSURANCE_EVIDENCE_COMMAND_STATUS_MISSING');
+  return result.status;
+}
+
 export function observeAssuranceEvidenceRecipe(
   repo: string,
   recipe: AssuranceEvidenceRecipe,
-  runScript: AssuranceEvidenceScriptRunner = defaultRunScript,
+  runScript?: AssuranceEvidenceScriptRunner,
 ): AssuranceEvidenceExecutionObservation {
   const need = assertRecipe(recipe);
   const root = resolve(repo);
@@ -288,9 +366,20 @@ export function observeAssuranceEvidenceRecipe(
     throw new Error('ASSURANCE_EVIDENCE_CHECKOUT_REVISION_MISMATCH');
   }
 
+  if (recipe.schema === BASELINE_COMMAND_RECIPE_SCHEMA) {
+    if (canonicalDigest(deriveAssuranceEvidenceRecipe(root, need)) !== canonicalDigest(recipe))
+      throw new Error('ASSURANCE_EVIDENCE_BASELINE_RECIPE_MISMATCH');
+    if (spawnSync('git', ['-C', root, 'diff', '--quiet', 'HEAD', '--']).status !== 0)
+      throw new Error('ASSURANCE_EVIDENCE_CHECKOUT_DIRTY');
+  }
+
   const attempts: AssuranceEvidenceExecutionAttempt[] = [];
   for (const script of recipe.scripts) {
-    const exitCode = runScript(script, root);
+    const exitCode = runScript
+      ? runScript(script, root)
+      : recipe.schema === BASELINE_COMMAND_RECIPE_SCHEMA
+        ? defaultRunCommand(script, root)
+        : defaultRunScript(script, root);
     if (!Number.isSafeInteger(exitCode) || exitCode < 0 || exitCode > 255) {
       throw new Error(`ASSURANCE_EVIDENCE_SCRIPT_EXIT_INVALID:${script}`);
     }
@@ -359,10 +448,15 @@ export function executionEvidenceRealizationFromRecipeObservation(
     ...descriptor,
     outputs: {
       realization_recipe_sha256: canonicalDigest(recipe),
-      package_scripts_sha256: canonicalDigest(recipe.scripts),
+      ...(recipe.schema === BASELINE_COMMAND_RECIPE_SCHEMA
+        ? { verification_commands_sha256: canonicalDigest(recipe.scripts) }
+        : { package_scripts_sha256: canonicalDigest(recipe.scripts) }),
     },
     semantic_evidence: {
-      realization_kind: 'package-scripts/v1',
+      realization_kind:
+        recipe.schema === BASELINE_COMMAND_RECIPE_SCHEMA
+          ? 'baseline-commands/v1'
+          : 'package-scripts/v1',
     },
     observation: { result: executionResult(recipe, observation) },
   };

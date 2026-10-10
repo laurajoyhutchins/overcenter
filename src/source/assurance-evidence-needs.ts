@@ -15,6 +15,8 @@ import type {
 
 export const ASSURANCE_EVIDENCE_NEED_SCHEMA = 'overcenter-assurance-evidence-need/v1' as const;
 
+export const BASELINE_COMMAND_NEED_SCHEMA = 'overcenter-assurance-evidence-need/v2' as const;
+
 export interface AssuranceEvidenceNeedIdentity {
   evidence_id: string;
   revision: string;
@@ -23,7 +25,7 @@ export interface AssuranceEvidenceNeedIdentity {
 export type AssuranceEvidenceNeedInputs = Record<string, string>;
 
 export interface AssuranceEvidenceNeed {
-  schema: typeof ASSURANCE_EVIDENCE_NEED_SCHEMA;
+  schema: typeof ASSURANCE_EVIDENCE_NEED_SCHEMA | typeof BASELINE_COMMAND_NEED_SCHEMA;
   need_id: string;
   identity: AssuranceEvidenceNeedIdentity;
   inputs: AssuranceEvidenceNeedInputs;
@@ -48,15 +50,22 @@ function candidateNeed(
     proposition_ids: canonicalJson(canonicalStrings(candidate.proposition_ids)),
     obligation_ids: canonicalJson(canonicalStrings(candidate.obligation_ids)),
     artifact_ids: canonicalJson(canonicalStrings(candidate.artifact_ids)),
-    package_scripts: canonicalJson(canonicalStrings(candidate.package_scripts)),
-    uses_package_runtime: candidate.uses_package_runtime ? 'true' : 'false',
+    ...(candidate.verification_commands
+      ? { verification_commands: canonicalJson(candidate.verification_commands) }
+      : {
+          package_scripts: canonicalJson(canonicalStrings(candidate.package_scripts)),
+          uses_package_runtime: candidate.uses_package_runtime ? 'true' : 'false',
+        }),
   };
   if (frontier.baseline_sha256 !== null) inputs.baseline_sha256 = frontier.baseline_sha256;
 
+  const schema = candidate.verification_commands
+    ? BASELINE_COMMAND_NEED_SCHEMA
+    : ASSURANCE_EVIDENCE_NEED_SCHEMA;
   return {
-    schema: ASSURANCE_EVIDENCE_NEED_SCHEMA,
+    schema,
     need_id: `assurance-evidence:${canonicalDigest({
-      schema: ASSURANCE_EVIDENCE_NEED_SCHEMA,
+      schema,
       identity,
       inputs,
     })}`,

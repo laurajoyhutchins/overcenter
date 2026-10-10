@@ -51,6 +51,7 @@ export interface TransactionEvidenceCandidate {
   artifact_ids: string[];
   package_scripts: string[];
   uses_package_runtime: boolean;
+  verification_commands?: string[];
 }
 
 export interface TransactionAssuranceFrontier {

@@ -34,7 +34,7 @@ import type { TransactionAssurancePlan } from './transaction-planner.ts';
 
 export interface SourceTransactionPlan {
   schema: 'overcenter-source-transaction';
-  schema_version: 3;
+  schema_version: 3 | 4;
   repository_id: number;
   repository_full_name: string;
   runtime_sha: string;
@@ -108,7 +108,7 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
   ]);
   if (
     plan.schema !== 'overcenter-source-transaction' ||
-    plan.schema_version !== 3 ||
+    (plan.schema_version !== 3 && plan.schema_version !== 4) ||
     !isPositiveSafeInteger(plan.repository_id) ||
     typeof plan.repository_full_name !== 'string' ||
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(plan.repository_full_name)
@@ -282,6 +282,11 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
         'artifact_ids',
         'package_scripts',
         'uses_package_runtime',
+        ...(plan.schema_version === 4 &&
+        isData(candidate) &&
+        Object.hasOwn(candidate, 'verification_commands')
+          ? ['verification_commands']
+          : []),
       ]);
       assertNonEmptyString(entry.evidence_id, INVALID);
       strings(entry.proposition_ids);
@@ -289,11 +294,24 @@ export function validateSourceTransactionPlan(value: unknown): SourceTransaction
       paths(entry.artifact_ids);
       strings(entry.package_scripts);
       if (
-        entry.package_scripts.length === 0 ||
+        (entry.package_scripts.length === 0 && !Object.hasOwn(entry, 'verification_commands')) ||
         typeof entry.uses_package_runtime !== 'boolean' ||
         entry.proposition_ids.some((proposition) => !required.has(proposition))
       )
         throw new Error(INVALID);
+      if (Object.hasOwn(entry, 'verification_commands')) {
+        strings(entry.verification_commands);
+        if (
+          plan.schema_version !== 4 ||
+          entry.uses_package_runtime !== false ||
+          entry.package_scripts.length !== 0 ||
+          entry.evidence_id !== `baseline:${verifiedProfile.id}` ||
+          canonicalJson(entry.verification_commands) !== canonicalJson(verifiedProfile.commands) ||
+          item.baseline_sha256 !== assurance.baseline_sha256 ||
+          item.revision !== plan.candidate_sha
+        )
+          throw new Error(INVALID);
+      }
     }
     for (const proposition of item.required_propositions)
       if (
@@ -424,7 +442,11 @@ export function buildSourceTransactionPlan({
 
   const plan = validateSourceTransactionPlan({
     schema: 'overcenter-source-transaction',
-    schema_version: 3,
+    schema_version: assurance.evidence_frontiers.some((frontier) =>
+      frontier.candidates.some((candidate) => candidate.verification_commands !== undefined),
+    )
+      ? 4
+      : 3,
     repository_id: context.repository_id,
     repository_full_name: context.repository_full_name,
     runtime_sha: context.runtime_sha,

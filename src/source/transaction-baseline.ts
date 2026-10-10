@@ -47,9 +47,11 @@ export function observeSourceBaseline(
       profile.protected_paths.some((path) => file === path || file.startsWith(`${path}/`)),
     )
     .sort();
-  for (const path of profile.protected_paths)
-    if (!matched.some((file) => file === path || file.startsWith(`${path}/`)))
-      throw new Error(`SOURCE_TRANSACTION_BASELINE_UNAVAILABLE:${path}`);
+  // A successful immutable tree read proves absence. Keep negative roots protected:
+  // recreating one changes the baseline and requires reconciliation.
+  const absentRoots = profile.protected_paths
+    .filter((path) => !matched.some((file) => file === path || file.startsWith(`${path}/`)))
+    .sort();
   const artifacts = matched.map((path) => ({
     path,
     mode: entries.find((entry) => entry.path === path)!.mode,
@@ -58,7 +60,10 @@ export function observeSourceBaseline(
   return {
     artifacts,
     digest: canonicalDigest({
-      domain: 'overcenter-source-baseline/v1',
+      domain: absentRoots.length
+        ? 'overcenter-source-baseline/v2'
+        : 'overcenter-source-baseline/v1',
+      ...(absentRoots.length ? { absent_roots: absentRoots } : {}),
       id: profile.id,
       artifacts,
     }),
@@ -93,11 +98,8 @@ export function baselineSourceTransactionPlan(
     candidate_revision: delta.candidate_revision,
     candidate_tree: delta.candidate_tree,
   });
-  const packageScripts = profile.commands.map((command) => {
-    const match = /^npm run (.+)$/.exec(command);
-    if (!match) throw new Error('SOURCE_TRANSACTION_BASELINE_COMMAND_UNSUPPORTED');
-    return match[1]!;
-  });
+  const packageRuntime = profile.commands.every((command) => /^npm run (.+)$/.test(command));
+  const packageScripts = packageRuntime ? profile.commands.map((command) => command.slice(8)) : [];
   return {
     base_revision: delta.base_revision,
     candidate_revision: delta.candidate_revision,
@@ -123,7 +125,8 @@ export function baselineSourceTransactionPlan(
             obligation_ids: [],
             artifact_ids: [],
             package_scripts: [...packageScripts].sort(),
-            uses_package_runtime: true,
+            uses_package_runtime: packageRuntime,
+            ...(!packageRuntime ? { verification_commands: [...profile.commands] } : {}),
           },
         ],
       },
