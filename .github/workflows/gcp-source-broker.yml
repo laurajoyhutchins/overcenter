@@ -1,0 +1,187 @@
+name: Trusted source preparation broker
+
+on:
+  workflow_call:
+    inputs:
+      runtime_sha:
+        description: Exact accepted Overcenter runtime selected by the caller policy.
+        required: true
+        type: string
+      proposal_files_base64:
+        description: Canonical base64 JSON array of proposed paths and content bytes.
+        required: true
+        type: string
+      capsule_request_base64:
+        description: Accepted Python verification tool capsule request; empty for non-Python repositories.
+        required: false
+        default: ""
+        type: string
+      assignment_run_id:
+        description: Existing assignment artifact producer; zero advances authoritative project intent.
+        required: false
+        default: 0
+        type: number
+
+permissions: {}
+
+jobs:
+  capsule:
+    if: ${{ inputs.capsule_request_base64 != '' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/tool-capsule.yml
+    with:
+      runtime_sha: ${{ inputs.runtime_sha }}
+      python_version: "3.13"
+      request_base64: ${{ inputs.capsule_request_base64 }}
+
+  broker:
+    name: Prepare and publish exact source candidate
+    needs: capsule
+    if: ${{ always() && (needs.capsule.result == 'success' || needs.capsule.result == 'skipped') }}
+    runs-on: [self-hosted, overcenter-gcp]
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    env:
+      OVERCENTER_RUNTIME_SHA: ${{ inputs.runtime_sha }}
+      OVERCENTER_COMMAND_SOURCE_SHA: ${{ inputs.runtime_sha }}
+      OVERCENTER_PROJECT_SOURCE_SHA: ${{ github.sha }}
+      OVERCENTER_COMMAND_REPOSITORY: ${{ github.repository }}
+      OVERCENTER_COMMAND_REPOSITORY_ID: ${{ github.repository_id }}
+      OVERCENTER_COMMAND_RUN_ID: ${{ github.run_id }}
+      OVERCENTER_COMMAND_RUN_ATTEMPT: ${{ github.run_attempt }}
+      OVERCENTER_PROJECT_AUTHORITY_REF: refs/overcenter/state
+      OVERCENTER_PROJECT_REMOTE: origin
+    steps:
+      - name: Require owner and accepted main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_TRIGGERING_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$OVERCENTER_RUNTIME_SHA" =~ ^[a-f0-9]{40}$ ]]
+      - name: Advertise trusted source command
+        if: ${{ github.run_attempt == 1 }}
+        run: echo 'Rerun this broker job to realize the authoritative source assignment, normalize its proposal, and dispatch independent exact-head verification.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Check out accepted caller source
+        if: ${{ github.run_attempt > 1 }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Check out exact trusted runtime
+        if: ${{ github.run_attempt > 1 }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: laurajoyhutchins/overcenter
+          ref: ${{ inputs.runtime_sha }}
+          path: trusted-runtime
+          persist-credentials: false
+      - name: Use accepted Node runtime
+        if: ${{ github.run_attempt > 1 }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: trusted-runtime/.node-version
+          package-manager-cache: false
+      - name: Select only accepted formatter pins
+        if: ${{ github.run_attempt > 1 }}
+        id: tools
+        run: node --experimental-strip-types trusted-runtime/src/cli/source-preparation-tools.ts
+      - name: Provision pinned Go
+        if: ${{ github.run_attempt > 1 && steps.tools.outputs.gofmt_version != '' }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: ${{ steps.tools.outputs.gofmt_version }}
+          cache: false
+      - name: Provision direct pinned Rust binaries
+        if: ${{ github.run_attempt > 1 && steps.tools.outputs.rustfmt_version != '' }}
+        env:
+          RUST_VERSION: ${{ steps.tools.outputs.rustfmt_version }}
+        run: |
+          set -euo pipefail
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component rustfmt --no-self-update
+          dirname "$(rustup which --toolchain "$RUST_VERSION" rustfmt)" >> "$GITHUB_PATH"
+      - name: Provision pinned Biome
+        if: ${{ github.run_attempt > 1 && steps.tools.outputs.biome_version != '' }}
+        env:
+          BIOME_VERSION: ${{ steps.tools.outputs.biome_version }}
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/source-formatter" --ignore-scripts --package-lock=false "@biomejs/biome@$BIOME_VERSION"
+          echo "$RUNNER_TEMP/source-formatter/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Use accepted Python runtime
+        if: ${{ github.run_attempt > 1 && steps.tools.outputs.ruff_version != '' }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.13"
+      - name: Download verified Python capsule
+        if: ${{ github.run_attempt > 1 && steps.tools.outputs.ruff_version != '' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ${{ needs.capsule.outputs.artifact_name }}
+          path: ${{ runner.temp }}/source-tool-capsule
+      - name: Verify and install Python tools offline
+        if: ${{ github.run_attempt > 1 && steps.tools.outputs.ruff_version != '' }}
+        env:
+          CAPSULE_SHA256: ${{ needs.capsule.outputs.capsule_sha256 }}
+          REQUEST_SHA256: ${{ needs.capsule.outputs.request_sha256 }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source-tool-capsule"
+          test "$(sha256sum tool-capsule.tar | cut -d' ' -f1)" = "$CAPSULE_SHA256"
+          mkdir capsule
+          tar -xf tool-capsule.tar -C capsule
+          test "$(sha256sum capsule/request.json | cut -d' ' -f1)" = "$REQUEST_SHA256"
+          node --experimental-strip-types "$GITHUB_WORKSPACE/trusted-runtime/src/transport/tool-capsule.ts" verify-capsule capsule/request.json capsule/manifest.json capsule/wheelhouse
+          node --experimental-strip-types "$GITHUB_WORKSPACE/trusted-runtime/src/transport/tool-capsule.ts" render-requirements capsule/request.json capsule/requirements.rebuilt.txt
+          cmp capsule/requirements.txt capsule/requirements.rebuilt.txt
+          python "$GITHUB_WORKSPACE/tools/verification_tools.py" requirements > accepted-requirements.txt
+          LC_ALL=C sort accepted-requirements.txt > accepted.sorted
+          LC_ALL=C sort capsule/requirements.rebuilt.txt > capsule.sorted
+          cmp accepted.sorted capsule.sorted
+          python -m venv "$RUNNER_TEMP/source-python-tools"
+          "$RUNNER_TEMP/source-python-tools/bin/python" -m pip install --disable-pip-version-check --no-index --no-deps --require-hashes --find-links capsule/wheelhouse --requirement capsule/requirements.txt
+          "$RUNNER_TEMP/source-python-tools/bin/python" -m pip check
+          echo "$RUNNER_TEMP/source-python-tools/bin" >> "$GITHUB_PATH"
+      - name: Advance committed source intent
+        if: ${{ github.run_attempt > 1 && inputs.assignment_run_id == 0 }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --experimental-strip-types trusted-runtime/src/cli/project-advance.ts --output-dir response
+      - name: Preserve authoritative assignment
+        if: ${{ github.run_attempt > 1 && inputs.assignment_run_id == 0 }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-assignment-${{ github.run_id }}
+          path: response
+          if-no-files-found: error
+      - name: Download existing authoritative assignment
+        if: ${{ github.run_attempt > 1 && inputs.assignment_run_id != 0 }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: source-assignment-${{ inputs.assignment_run_id }}
+          path: response
+          run-id: ${{ inputs.assignment_run_id }}
+          github-token: ${{ github.token }}
+      - name: Bind proposal bytes to the actual assignment
+        if: ${{ github.run_attempt > 1 }}
+        env:
+          SOURCE_PROPOSAL_FILES_BASE64: ${{ inputs.proposal_files_base64 }}
+        run: node --experimental-strip-types trusted-runtime/src/cli/source-proposal-files.ts --assignment response/assignment.json --output response/proposal.json
+      - name: Normalize, publish and dispatch independent verification
+        if: ${{ github.run_attempt > 1 }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OVERCENTER_DISPATCH_SOURCE_VALIDATION: "1"
+        run: node --experimental-strip-types trusted-runtime/src/cli/source-broker.ts --assignment response/assignment.json --proposal response/proposal.json --output response/broker.json
+      - name: Publish exact preparation receipt
+        if: ${{ github.run_attempt > 1 && always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-preparation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: response
+          if-no-files-found: error
