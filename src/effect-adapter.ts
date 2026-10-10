@@ -158,6 +158,55 @@ export function effectAdapterCapabilities(
   );
 }
 
+export function effectPostconditionBindingSafe(
+  work: Obligation,
+  effectContract: string,
+  postcondition: Postcondition,
+): boolean {
+  const capabilities = effectAdapterCapabilities(effectContract);
+  if (!capabilities) {
+    const legacyContract =
+      typeof work.packet.effect_contract === 'string'
+        ? work.packet.effect_contract
+        : 'overcenter/execution-effect';
+    return (
+      effectContract === legacyContract &&
+      canonicalDigest(work.postcondition) === canonicalDigest(postcondition)
+    );
+  }
+  if (work.packet.effect_contract !== effectContract) return false;
+  if (
+    capabilities.postcondition_verifier !== work.postcondition.verifier ||
+    capabilities.postcondition_verifier !== postcondition.verifier
+  ) {
+    return false;
+  }
+  if (canonicalDigest(work.postcondition) === canonicalDigest(postcondition)) return true;
+  const binding: unknown = postcondition;
+  return (
+    data(binding) &&
+    effectContract === GITHUB_SOURCE_INTEGRATION_EFFECT &&
+    work.packet.kind === 'source-change' &&
+    work.postcondition.verifier === 'source-integration/v1' &&
+    Object.keys(work.postcondition).length === 1 &&
+    postcondition.verifier === 'source-integration/v1' &&
+    binding.provider === 'github' &&
+    Number.isSafeInteger(binding.repository_id) &&
+    Number(binding.repository_id) > 0 &&
+    typeof binding.repository_full_name === 'string' &&
+    /^[^/]+\/[^/]+$/.test(binding.repository_full_name) &&
+    typeof binding.ref === 'string' &&
+    binding.ref.startsWith('refs/heads/overcenter/candidate/') &&
+    typeof binding.commit_sha === 'string' &&
+    /^[0-9a-f]{40}$/.test(binding.commit_sha) &&
+    typeof binding.base_ref === 'string' &&
+    binding.base_ref.length > 0 &&
+    !binding.base_ref.startsWith('refs/') &&
+    typeof binding.expected_base_sha === 'string' &&
+    /^[0-9a-f]{40}$/.test(binding.expected_base_sha)
+  );
+}
+
 export function reservedEffectReplaySafe(
   work: Obligation,
   absenceEvidence: AbsenceEvidenceCertificate,
