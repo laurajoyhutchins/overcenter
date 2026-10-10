@@ -1,5 +1,8 @@
 import { GITHUB_SOURCE_INTEGRATION_EFFECT } from '../effect-adapter.ts';
 import { assertExactKeys, assertNonEmptyString, isData } from '../validation.ts';
+import { bindSourceClaim, type SourceClaimBinding } from './source-claim.ts';
+
+export { bindSourceClaim, type SourceClaimBinding } from './source-claim.ts';
 
 export const SOURCE_TASK_SCHEMA = 'overcenter-source-task/v1' as const;
 export const SOURCE_ASSIGNMENT_SCHEMA = 'overcenter-source-assignment/v1' as const;
@@ -20,13 +23,6 @@ export interface SourceTaskPacket extends Record<string, unknown> {
   effect_contract: typeof GITHUB_SOURCE_INTEGRATION_EFFECT;
   acceptance?: SourceTaskAcceptance;
   context?: Record<string, unknown>;
-}
-
-export interface SourceClaimBinding {
-  obligation_key: string;
-  run_id: string;
-  claimed_revision: string;
-  source_sha: string;
 }
 
 export interface SourceAssignment {
@@ -167,24 +163,6 @@ export function validateSourceTaskPacket(value: unknown): SourceTaskPacket {
     effect_contract: GITHUB_SOURCE_INTEGRATION_EFFECT,
     ...(acceptance ? { acceptance } : {}),
     ...(value.context === undefined ? {} : { context: structuredClone(value.context) }),
-  };
-}
-
-export function bindSourceClaim(
-  obligationKey: string,
-  runId: string,
-  claimedRevision: string,
-  sourceSha: string,
-): SourceClaimBinding {
-  assertNonEmptyString(obligationKey, 'SOURCE_CLAIM_OBLIGATION_KEY_INVALID');
-  assertNonEmptyString(runId, 'SOURCE_CLAIM_RUN_ID_INVALID');
-  assertNonEmptyString(claimedRevision, 'SOURCE_CLAIM_REVISION_INVALID');
-  exactSha(sourceSha, 'SOURCE_CLAIM_SOURCE_SHA_INVALID');
-  return {
-    obligation_key: obligationKey,
-    run_id: runId,
-    claimed_revision: claimedRevision,
-    source_sha: sourceSha,
   };
 }
 

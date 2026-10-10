@@ -98,6 +98,8 @@ export interface EffectReservationFact {
   obligation_id: string;
   execution_generation: number;
   execution_authority_commit: string;
+  effect_contract?: string;
+  postcondition?: Postcondition;
 }
 
 export interface EffectReservation extends EffectReservationFact {
@@ -395,7 +397,7 @@ export function validateEffectReservationFact(value: unknown): EffectReservation
   exactKeys(
     value,
     ['schema', 'run_id', 'obligation_id', 'execution_generation', 'execution_authority_commit'],
-    [],
+    ['effect_contract', 'postcondition'],
     'INVALID_EFFECT_RESERVATION_FACT',
   );
   if (value.schema !== EFFECT_RESERVATION_SCHEMA) {
@@ -405,6 +407,13 @@ export function validateEffectReservationFact(value: unknown): EffectReservation
   nonEmptyString(value.obligation_id, 'INVALID_OBLIGATION_ID');
   positiveSafeInteger(value.execution_generation, 'INVALID_EXECUTION_GENERATION');
   nonEmptyString(value.execution_authority_commit, 'INVALID_EXECUTION_AUTHORITY_COMMIT');
+  if ((value.effect_contract === undefined) !== (value.postcondition === undefined)) {
+    throw new Error('INVALID_EFFECT_RESERVATION_BINDING');
+  }
+  if (value.effect_contract !== undefined) {
+    nonEmptyString(value.effect_contract, 'INVALID_EFFECT_RESERVATION_CONTRACT');
+    validatePostcondition(value.postcondition as Postcondition);
+  }
   return structuredClone(value) as unknown as EffectReservationFact;
 }
 

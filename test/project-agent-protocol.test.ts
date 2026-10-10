@@ -683,7 +683,7 @@ test('generic source proposal broker reproduces a worker revision tree exactly',
   }
 });
 
-test('project.submit refuses to publish a verified source candidate directly to main', () => {
+function verifyProjectSourcePublication(ambiguousCreate: boolean): void {
   const f = fixture();
   try {
     const kernel = new GitOvercenterKernel(f.work, { remote: 'origin', ref: AUTHORITY_REF });
@@ -742,12 +742,92 @@ test('project.submit refuses to publish a verified source candidate directly to 
     const remoteMainBefore = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(
       /\s+/,
     )[0];
-    assert.throws(
-      () =>
-        submitProjectCandidate(
+    let published = false;
+    let posts = 0;
+    const publicationGet = (_token: string, path: string): unknown => {
+      if (path === '/repos/acme/widget') {
+        return {
+          id: 42,
+          node_id: 'R_42',
+          full_name: 'acme/widget',
+          name: 'widget',
+          owner: { login: 'acme' },
+        };
+      }
+      if (path.includes('/git/ref/')) {
+        const decoded = decodeURIComponent(path);
+        if (decoded.endsWith(`heads/overcenter/candidate/${runId}`)) {
+          return {
+            ref: `refs/heads/overcenter/candidate/${runId}`,
+            object: { type: 'commit', sha: candidateSha },
+          };
+        }
+        if (decoded.endsWith('heads/main')) {
+          return {
+            ref: 'refs/heads/main',
+            object: { type: 'commit', sha: sourceSha },
+          };
+        }
+      }
+      if (path.startsWith('/repos/acme/widget/pulls?')) {
+        return published
+          ? [
+              {
+                id: 3700,
+                node_id: 'PR_node_37',
+                number: 37,
+                state: 'open',
+                title: `Overcenter verified candidate ${candidateSha.slice(0, 12)}`,
+                user: { login: 'acme' },
+                head: { sha: candidateSha },
+                base: { ref: 'main', sha: sourceSha },
+                updated_at: '2026-10-07T00:00:00Z',
+              },
+            ]
+          : [];
+      }
+      throw new Error(`unexpected publication read: ${path}`);
+    };
+    const first = submitProjectCandidate(
+      f.work,
+      {
+        ...commandContext(transactionContext.runtime_sha, 9100),
+        candidate_sha: candidateSha,
+        candidate_run_id: runId,
+      },
+      {
+        authorityRef: AUTHORITY_REF,
+        remote: 'origin',
+        githubToken: 'fixture',
+        transactionContext,
+        observationContext: { githubGet: publicationGet },
+        sourceExecutionEvidence: sourceProofEvidence(plan, verificationPath, candidateSha, runId),
+        sourcePublication: {
+          get: publicationGet,
+          post: (_token, path, body) => {
+            assert.equal(path, '/repos/acme/widget/pulls');
+            assert.deepEqual(body, {
+              title: `Overcenter verified candidate ${candidateSha.slice(0, 12)}`,
+              head: `overcenter/candidate/${runId}`,
+              base: 'main',
+            });
+            published = true;
+            posts += 1;
+            if (ambiguousCreate) throw new Error('transport timeout');
+            return { status: 201, body: '{}' };
+          },
+        },
+      },
+    );
+    if (ambiguousCreate) {
+      assert.equal(first.disposition, 'RECOVERY_REQUIRED');
+      assert.equal(first.verified, false);
+    }
+    const result = ambiguousCreate
+      ? submitProjectCandidate(
           f.work,
           {
-            ...commandContext(transactionContext.runtime_sha, 9100),
+            ...commandContext(transactionContext.runtime_sha, 9103),
             candidate_sha: candidateSha,
             candidate_run_id: runId,
           },
@@ -755,23 +835,57 @@ test('project.submit refuses to publish a verified source candidate directly to 
             authorityRef: AUTHORITY_REF,
             remote: 'origin',
             githubToken: 'fixture',
-            transactionContext,
-            sourceExecutionEvidence: sourceProofEvidence(
-              plan,
-              verificationPath,
-              candidateSha,
-              runId,
-            ),
+            observationContext: { githubGet: publicationGet },
           },
-        ),
-      /PROJECT_SUBMIT_SOURCE_PUBLICATION_REQUIRES_PR_EFFECT/,
+        )
+      : first;
+    assert.equal(result.disposition, 'DONE');
+    assert.equal(result.verified, true);
+    assert.equal(result.candidate_sha, candidateSha);
+    assert.equal(posts, 1);
+    assert.equal(published, true);
+
+    const repeated = submitProjectCandidate(
+      f.work,
+      {
+        ...commandContext(transactionContext.runtime_sha, 9101),
+        candidate_sha: candidateSha,
+        candidate_run_id: runId,
+      },
+      { authorityRef: AUTHORITY_REF, remote: 'origin' },
     );
+    assert.equal(repeated.disposition, 'DONE');
+    assert.equal(repeated.verified, true);
+    assert.equal(repeated.already_settled, true);
+    assert.equal(repeated.settlement_commit, result.settlement_commit);
+    assert.throws(
+      () =>
+        submitProjectCandidate(
+          f.work,
+          {
+            ...commandContext(transactionContext.runtime_sha, 9102),
+            candidate_sha: 'f'.repeat(40),
+            candidate_run_id: runId,
+          },
+          { authorityRef: AUTHORITY_REF, remote: 'origin' },
+        ),
+      /PROJECT_SUBMIT_SETTLED_SOURCE_MISMATCH/,
+    );
+
     const remoteMainAfter = git(f.work, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
     assert.equal(remoteMainAfter, remoteMainBefore);
   } finally {
     rmSync(f.root, { recursive: true, force: true });
     rmSync(f.postconditionRoot, { recursive: true, force: true });
   }
+}
+
+test('project.submit publishes a verified PR without moving main', () => {
+  verifyProjectSourcePublication(false);
+});
+
+test('project.submit reconciles an ambiguous PR create without a second POST', () => {
+  verifyProjectSourcePublication(true);
 });
 
 test('certified source verification rejection returns work to READY without moving source authority', () => {
