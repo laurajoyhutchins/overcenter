@@ -10,10 +10,18 @@ import {
   type SourceClaimBinding,
   type SourceTaskPacket,
 } from './source-obligation.ts';
+import {
+  validateSourceIntegrationEvidence,
+  type SourceIntegrationEvidence,
+} from './source-integration-evidence.ts';
+
+export {
+  SOURCE_INTEGRATION_EVIDENCE_SCHEMA,
+  validateSourceIntegrationEvidence,
+  type SourceIntegrationEvidence,
+} from './source-integration-evidence.ts';
 
 export const SOURCE_VERIFICATION_SCHEMA = 'overcenter-source-verification/v1' as const;
-export const SOURCE_INTEGRATION_EVIDENCE_SCHEMA =
-  'overcenter-source-integration-evidence/v1' as const;
 
 export type SourceCandidatePublicationResult =
   | { state: 'PUBLISHED' | 'ALREADY_PUBLISHED'; ref: string; candidate_sha: string }
@@ -27,18 +35,6 @@ export interface SourceVerification {
   base_sha: string;
   tree_sha: string | null;
   reason: string | null;
-}
-
-export interface SourceIntegrationEvidence {
-  schema: typeof SOURCE_INTEGRATION_EVIDENCE_SCHEMA;
-  run_id: string;
-  obligation_key: string;
-  source_sha: string;
-  candidate_sha: string;
-  verification_base_sha: string;
-  verified_tree_sha: string;
-  integration_commit: string;
-  state: 'integrated' | 'already-integrated';
 }
 
 const sourceIntegrationWitnessBrand: unique symbol = Symbol('source-integration-witness');
@@ -103,40 +99,6 @@ export function validateSourceVerification(value: unknown): SourceVerification {
     tree_sha: value.tree_sha,
     reason: value.reason,
   };
-}
-
-export function validateSourceIntegrationEvidence(value: unknown): SourceIntegrationEvidence {
-  if (!isData(value)) throw new Error('SOURCE_INTEGRATION_EVIDENCE_INVALID');
-  assertExactKeys(
-    value,
-    [
-      'schema',
-      'run_id',
-      'obligation_key',
-      'source_sha',
-      'candidate_sha',
-      'verification_base_sha',
-      'verified_tree_sha',
-      'integration_commit',
-      'state',
-    ],
-    [],
-    'SOURCE_INTEGRATION_EVIDENCE_INVALID',
-  );
-  if (value.schema !== SOURCE_INTEGRATION_EVIDENCE_SCHEMA) {
-    throw new Error('SOURCE_INTEGRATION_EVIDENCE_SCHEMA_MISMATCH');
-  }
-  assertNonEmptyString(value.run_id, 'SOURCE_INTEGRATION_EVIDENCE_RUN_INVALID');
-  assertNonEmptyString(value.obligation_key, 'SOURCE_INTEGRATION_EVIDENCE_KEY_INVALID');
-  exactSha(value.source_sha, 'SOURCE_INTEGRATION_EVIDENCE_SOURCE_INVALID');
-  exactSha(value.candidate_sha, 'SOURCE_INTEGRATION_EVIDENCE_CANDIDATE_INVALID');
-  exactSha(value.verification_base_sha, 'SOURCE_INTEGRATION_EVIDENCE_BASE_INVALID');
-  exactSha(value.verified_tree_sha, 'SOURCE_INTEGRATION_EVIDENCE_TREE_INVALID');
-  exactSha(value.integration_commit, 'SOURCE_INTEGRATION_EVIDENCE_COMMIT_INVALID');
-  if (value.state !== 'integrated' && value.state !== 'already-integrated') {
-    throw new Error('SOURCE_INTEGRATION_EVIDENCE_STATE_INVALID');
-  }
-  return structuredClone(value) as unknown as SourceIntegrationEvidence;
 }
 
 function mintSourceIntegrationWitness(

@@ -7,6 +7,7 @@ import type {
   GitHubHostileMutationEvidencePostcondition,
   Observation,
   Postcondition,
+  SourceIntegrationPostcondition,
 } from '../model.ts';
 import {
   localFileEnoentEvidence,
@@ -21,6 +22,8 @@ import {
   type GitHubJsonGet,
 } from '../providers/github/certified-status.ts';
 import { observeCertifiedGitHubPullRequestIdentity } from '../providers/github/certified-pr.ts';
+import { observeCertifiedGitHubSemanticRead } from '../providers/github/certified-read.ts';
+import { canonicalGitHubRef } from '../providers/github/certified-ref.ts';
 import { observeCertifiedGitHubCommitAncestry } from '../providers/github/certified-ancestry.ts';
 import {
   githubGet,
@@ -65,6 +68,40 @@ const repositoryRelativePath = (value: unknown): value is string =>
   value.length > 0 &&
   !value.startsWith('/') &&
   !value.split('/').some((part) => part === '' || part === '.' || part === '..');
+
+type GitHubSourceIntegrationPostcondition = SourceIntegrationPostcondition & {
+  provider: 'github';
+  repository_id: number;
+  repository_full_name: string;
+  ref: string;
+  commit_sha: string;
+  base_ref: string;
+  expected_base_sha: string;
+};
+
+function githubSourceIntegrationPostcondition(
+  value: SourceIntegrationPostcondition,
+): value is GitHubSourceIntegrationPostcondition {
+  return (
+    value.provider === 'github' &&
+    Object.keys(value).length === 8 &&
+    isPositiveSafeInteger(value.repository_id) &&
+    typeof value.repository_full_name === 'string' &&
+    /^[^/]+\/[^/]+$/.test(value.repository_full_name) &&
+    typeof value.ref === 'string' &&
+    value.ref.startsWith('refs/heads/') &&
+    value.ref.length > 'refs/heads/'.length &&
+    isGitHubObjectId(value.commit_sha) &&
+    typeof value.base_ref === 'string' &&
+    value.base_ref.length > 0 &&
+    !value.base_ref.startsWith('refs/') &&
+    isGitHubObjectId(value.expected_base_sha)
+  );
+}
+
+function legacySourceIntegrationPostcondition(value: SourceIntegrationPostcondition): boolean {
+  return Object.keys(value).length === 1;
+}
 
 assertSupportedStructuralSchema(SettlementObservationSchema);
 
@@ -113,7 +150,10 @@ function readLocalFile(path: string, context: ObservationContext): string {
 
 export function validatePostcondition(p: Postcondition): void {
   if (p?.verifier === 'operator-judgment/v1' && data(p.subject)) return;
-  if (p?.verifier === 'source-integration/v1') return;
+  if (p?.verifier === 'source-integration/v1') {
+    if (legacySourceIntegrationPostcondition(p) || githubSourceIntegrationPostcondition(p)) return;
+    throw new Error('SOURCE_INTEGRATION_POSTCONDITION_INVALID');
+  }
   if (
     p?.verifier === 'file-content-equals/v1' &&
     typeof p.path === 'string' &&
@@ -129,6 +169,7 @@ export function validatePostcondition(p: Postcondition): void {
   if (
     p?.verifier === 'github-commit-status/v2' &&
     p.provider === 'github' &&
+    Object.keys(p).length === 7 &&
     Number.isSafeInteger(p.repository_id) &&
     p.repository_id > 0 &&
     typeof p.repository_full_name === 'string' &&
@@ -142,6 +183,7 @@ export function validatePostcondition(p: Postcondition): void {
   if (
     p?.verifier === 'github-pull-request-branch-updated/v1' &&
     p.provider === 'github' &&
+    Object.keys(p).length === 9 &&
     Number.isSafeInteger(p.repository_id) &&
     p.repository_id > 0 &&
     typeof p.repository_full_name === 'string' &&
@@ -189,23 +231,11 @@ export function validatePostcondition(p: Postcondition): void {
   throw new Error('UNSUPPORTED_POSTCONDITION');
 }
 
-const githubStatusCommon = (
-  p: Extract<Postcondition, { verifier: 'github-commit-status/v2' }>,
-) => ({
-  verifier: p.verifier,
-  provider: 'github' as const,
-  repository_id: p.repository_id,
-  repository_full_name: p.repository_full_name,
-  commit_sha: p.commit_sha,
-  context: p.context,
-  expected_state: p.expected_state,
-});
-
 function githubStatusObservation(
   p: Extract<Postcondition, { verifier: 'github-commit-status/v2' }>,
   status: ReturnType<typeof observeCertifiedGitHubCommitStatus>,
 ): Observation {
-  const common = githubStatusCommon(p);
+  const common = p;
   return status.state === 'indeterminate'
     ? {
         ...common,
@@ -225,7 +255,7 @@ const githubStatusError = (
   p: Extract<Postcondition, { verifier: 'github-commit-status/v2' }>,
   error: string,
 ): Observation => ({
-  ...githubStatusCommon(p),
+  ...p,
   mutation_certainty: 'uncertain',
   observation_error: error,
 });
@@ -251,23 +281,11 @@ type GitHubPullRequestBranchUpdatedPostcondition = Extract<
   { verifier: 'github-pull-request-branch-updated/v1' }
 >;
 
-const githubPullRequestBranchUpdatedCommon = (p: GitHubPullRequestBranchUpdatedPostcondition) => ({
-  verifier: p.verifier,
-  provider: 'github' as const,
-  repository_id: p.repository_id,
-  repository_full_name: p.repository_full_name,
-  pull_number: p.pull_number,
-  pull_node_id: p.pull_node_id,
-  expected_previous_head_sha: p.expected_previous_head_sha,
-  base_ref: p.base_ref,
-  expected_base_sha: p.expected_base_sha,
-});
-
 const githubPullRequestBranchUpdatedError = (
   p: GitHubPullRequestBranchUpdatedPostcondition,
   error: string,
 ): Observation => ({
-  ...githubPullRequestBranchUpdatedCommon(p),
+  ...p,
   mutation_certainty: 'uncertain',
   observation_error: error,
 });
@@ -278,7 +296,7 @@ function observeGitHubPullRequestBranchUpdated(
   get: GitHubJsonGet,
   clock?: () => string,
 ): Observation {
-  const common = githubPullRequestBranchUpdatedCommon(p);
+  const common = p;
   const result = observeCertifiedGitHubPullRequestIdentity(token, {
     repositoryId: p.repository_id,
     repositoryFullName: p.repository_full_name,
@@ -422,10 +440,158 @@ function githubPullRequestBranchUpdatedEvidenceMatches(
   );
 }
 
+const sourceIntegrationError = (
+  p: GitHubSourceIntegrationPostcondition,
+  error: string,
+): Observation => ({
+  ...p,
+  mutation_certainty: 'uncertain',
+  observation_error: error,
+});
+
+function observeSourceIntegrationPullRequest(
+  token: string,
+  p: GitHubSourceIntegrationPostcondition,
+  get: GitHubJsonGet,
+  clock?: () => string,
+): Observation {
+  const headRef = canonicalGitHubRef(p.ref);
+  const head = `${p.repository_full_name.split('/')[0]!}:${headRef.split('refs/heads/')[1]!}`;
+  const read = observeCertifiedGitHubSemanticRead(token, {
+    repositoryId: p.repository_id,
+    repositoryFullName: p.repository_full_name,
+    operation: 'pull_requests',
+    parameters: { base: p.base_ref, head, page: 1, per_page: 100, state: 'open' },
+    grantedPermissions: ['pull_requests:read'],
+    get,
+    ...(clock ? { clock } : {}),
+  });
+  if (read.state === 'indeterminate' || !Array.isArray(read.value) || read.value.length >= 100) {
+    return sourceIntegrationError(
+      p,
+      read.state === 'indeterminate'
+        ? read.observation_error
+        : 'SOURCE_PR_PUBLICATION_COLLECTION_INCOMPLETE',
+    );
+  }
+
+  const matches = read.value.filter(
+    (value) =>
+      data(value) &&
+      value.state === 'open' &&
+      isPositiveSafeInteger(value.number) &&
+      typeof value.node_id === 'string' &&
+      value.node_id.length > 0 &&
+      data(value.head) &&
+      isGitHubObjectId(value.head.sha) &&
+      sameGitHubObjectId(value.head.sha, p.commit_sha) &&
+      data(value.base) &&
+      value.base.ref === p.base_ref &&
+      isGitHubObjectId(value.base.sha) &&
+      sameGitHubObjectId(value.base.sha, p.expected_base_sha),
+  );
+  if (matches.length !== 1) {
+    return sourceIntegrationError(
+      p,
+      matches.length === 0
+        ? 'SOURCE_PR_PUBLICATION_NOT_OBSERVED'
+        : 'SOURCE_PR_PUBLICATION_OBSERVATION_AMBIGUOUS',
+    );
+  }
+
+  const pull = matches[0]!;
+  return {
+    ...p,
+    pull_number: pull.number as number,
+    pull_node_id: pull.node_id as string,
+    actual_head_sha: (pull.head as Record<string, unknown>).sha as string,
+    mutation_certainty: 'present',
+    provider_evidence: {
+      pull_request: read.evidence,
+      matched_pull: {
+        number: pull.number,
+        node_id: pull.node_id,
+        head_sha: (pull.head as Record<string, unknown>).sha,
+        base_sha: (pull.base as Record<string, unknown>).sha,
+      },
+      member_count: read.value.length,
+    },
+  };
+}
+
+function sourceIntegrationPullRequestEvidenceMatches(
+  p: GitHubSourceIntegrationPostcondition,
+  observed: Observation,
+): boolean {
+  if (
+    !isPositiveSafeInteger(observed.pull_number) ||
+    typeof observed.pull_node_id !== 'string' ||
+    observed.pull_node_id.length === 0 ||
+    typeof observed.actual_head_sha !== 'string' ||
+    !isGitHubObjectId(observed.actual_head_sha) ||
+    !sameGitHubObjectId(observed.actual_head_sha, p.commit_sha) ||
+    !data(observed.provider_evidence) ||
+    !data(observed.provider_evidence.pull_request)
+  )
+    return false;
+
+  const evidence = observed.provider_evidence;
+  const read = evidence.pull_request as Record<string, unknown>;
+  const matched = data(evidence.matched_pull) ? evidence.matched_pull : null;
+  const parameters = data(read.parameters) ? read.parameters : null;
+  return (
+    !!matched &&
+    matched.number === observed.pull_number &&
+    matched.node_id === observed.pull_node_id &&
+    typeof matched.head_sha === 'string' &&
+    isGitHubObjectId(matched.head_sha) &&
+    sameGitHubObjectId(matched.head_sha, p.commit_sha) &&
+    typeof matched.base_sha === 'string' &&
+    isGitHubObjectId(matched.base_sha) &&
+    sameGitHubObjectId(matched.base_sha, p.expected_base_sha) &&
+    read.provider === 'github' &&
+    read.operation_id === 'pulls/list' &&
+    read.repository_id === p.repository_id &&
+    typeof read.requested_repository_full_name === 'string' &&
+    read.requested_repository_full_name.toLowerCase() === p.repository_full_name.toLowerCase() &&
+    !!parameters &&
+    parameters.head ===
+      `${p.repository_full_name.split('/')[0]!}:${p.ref.split('refs/heads/')[1]!}` &&
+    parameters.base === p.base_ref &&
+    parameters.state === 'open' &&
+    parameters.page === 1 &&
+    parameters.per_page === 100 &&
+    typeof evidence.member_count === 'number' &&
+    evidence.member_count >= 1 &&
+    evidence.member_count < 100
+  );
+}
+
+function observeGitHubSync(
+  context: ObservationContext,
+  observe: (token: string, get: GitHubJsonGet) => Observation,
+  failure: (reason: string) => Observation,
+): Observation {
+  const token = context.githubToken;
+  if (!token) return failure('GITHUB_TOKEN_UNAVAILABLE');
+  try {
+    return observe(token, context.githubGet ?? githubGet);
+  } catch (error: unknown) {
+    return failure(errorMessage(error));
+  }
+}
+
 export function observePostcondition(p: Postcondition, context: ObservationContext): Observation {
   validatePostcondition(p);
   if (p.verifier === 'source-integration/v1') {
-    throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
+    if (!githubSourceIntegrationPostcondition(p)) {
+      throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
+    }
+    return observeGitHubSync(
+      context,
+      (token, get) => observeSourceIntegrationPullRequest(token, p, get, context.clock),
+      (reason) => sourceIntegrationError(p, reason),
+    );
   }
 
   if (p.verifier === 'operator-judgment/v1') {
@@ -433,19 +599,11 @@ export function observePostcondition(p: Postcondition, context: ObservationConte
   }
 
   if (p.verifier === 'github-pull-request-branch-updated/v1') {
-    if (!context.githubToken) {
-      return githubPullRequestBranchUpdatedError(p, 'GITHUB_TOKEN_UNAVAILABLE');
-    }
-    try {
-      return observeGitHubPullRequestBranchUpdated(
-        context.githubToken,
-        p,
-        context.githubGet ?? githubGet,
-        context.clock,
-      );
-    } catch (e: unknown) {
-      return githubPullRequestBranchUpdatedError(p, errorMessage(e));
-    }
+    return observeGitHubSync(
+      context,
+      (token, get) => observeGitHubPullRequestBranchUpdated(token, p, get, context.clock),
+      (reason) => githubPullRequestBranchUpdatedError(p, reason),
+    );
   }
 
   if (p.verifier === 'github-hostile-mutation-evidence/v1') {
@@ -463,22 +621,22 @@ export function observePostcondition(p: Postcondition, context: ObservationConte
   }
 
   if (p.verifier === 'github-commit-status/v2') {
-    if (!context.githubToken) return githubStatusError(p, 'GITHUB_TOKEN_UNAVAILABLE');
-    try {
-      return githubStatusObservation(
-        p,
-        observeCertifiedGitHubCommitStatus(context.githubToken, {
-          repositoryId: p.repository_id,
-          repositoryFullName: p.repository_full_name,
-          commitSha: p.commit_sha,
-          context: p.context,
-          get: context.githubGet ?? githubGet,
-          ...(context.clock ? { clock: context.clock } : {}),
-        }),
-      );
-    } catch (e: unknown) {
-      return githubStatusError(p, errorMessage(e));
-    }
+    return observeGitHubSync(
+      context,
+      (token, get) =>
+        githubStatusObservation(
+          p,
+          observeCertifiedGitHubCommitStatus(token, {
+            repositoryId: p.repository_id,
+            repositoryFullName: p.repository_full_name,
+            commitSha: p.commit_sha,
+            context: p.context,
+            get,
+            ...(context.clock ? { clock: context.clock } : {}),
+          }),
+        ),
+      (reason) => githubStatusError(p, reason),
+    );
   }
 
   if (p.verifier === 'kubernetes-configmap-exists/v1') {
@@ -604,69 +762,96 @@ export function observePostcondition(p: Postcondition, context: ObservationConte
   }
 }
 
+async function observeGitHubAsync(
+  context: ObservationContext,
+  observe: (token: string, get: GitHubJsonGet) => Observation,
+  failure: (reason: string) => Observation,
+): Promise<Observation> {
+  const token = context.githubToken;
+  if (!token) return failure('GITHUB_TOKEN_UNAVAILABLE');
+  const getAsync =
+    context.githubGetAsync ??
+    (context.githubGet
+      ? async (readToken: string, path: string) => context.githubGet!(readToken, path)
+      : githubGetAsync);
+  try {
+    return await runGitHubReadObserverAsync(token, (get) => observe(token, get), getAsync);
+  } catch (error: unknown) {
+    return failure(errorMessage(error));
+  }
+}
+
 export async function observePostconditionAsync(
   p: Postcondition,
   context: ObservationContext,
 ): Promise<Observation> {
   validatePostcondition(p);
+  if (p.verifier === 'source-integration/v1' && githubSourceIntegrationPostcondition(p)) {
+    return observeGitHubAsync(
+      context,
+      (token, get) => observeSourceIntegrationPullRequest(token, p, get, context.clock),
+      (reason) => sourceIntegrationError(p, reason),
+    );
+  }
   if (p.verifier === 'github-pull-request-branch-updated/v1') {
-    if (!context.githubToken) {
-      return githubPullRequestBranchUpdatedError(p, 'GITHUB_TOKEN_UNAVAILABLE');
-    }
-    const getAsync =
-      context.githubGetAsync ??
-      (context.githubGet
-        ? async (token: string, path: string) => context.githubGet!(token, path)
-        : githubGetAsync);
-    try {
-      return await runGitHubReadObserverAsync(
-        context.githubToken,
-        (get) => observeGitHubPullRequestBranchUpdated(context.githubToken!, p, get, context.clock),
-        getAsync,
-      );
-    } catch (e: unknown) {
-      return githubPullRequestBranchUpdatedError(p, errorMessage(e));
-    }
+    return observeGitHubAsync(
+      context,
+      (token, get) => observeGitHubPullRequestBranchUpdated(token, p, get, context.clock),
+      (reason) => githubPullRequestBranchUpdatedError(p, reason),
+    );
   }
   if (p.verifier !== 'github-commit-status/v2') return observePostcondition(p, context);
-  if (!context.githubToken) return githubStatusError(p, 'GITHUB_TOKEN_UNAVAILABLE');
-  const getAsync =
-    context.githubGetAsync ??
-    (context.githubGet
-      ? async (token: string, path: string) => context.githubGet!(token, path)
-      : githubGetAsync);
-  try {
-    return githubStatusObservation(
-      p,
-      await runGitHubReadObserverAsync(
-        context.githubToken,
-        (get) =>
-          observeCertifiedGitHubCommitStatus(context.githubToken!, {
-            repositoryId: p.repository_id,
-            repositoryFullName: p.repository_full_name,
-            commitSha: p.commit_sha,
-            context: p.context,
-            get,
-            ...(context.clock ? { clock: context.clock } : {}),
-          }),
-        getAsync,
+  return observeGitHubAsync(
+    context,
+    (token, get) =>
+      githubStatusObservation(
+        p,
+        observeCertifiedGitHubCommitStatus(token, {
+          repositoryId: p.repository_id,
+          repositoryFullName: p.repository_full_name,
+          commitSha: p.commit_sha,
+          context: p.context,
+          get,
+          ...(context.clock ? { clock: context.clock } : {}),
+        }),
       ),
-    );
-  } catch (e: unknown) {
-    return githubStatusError(p, errorMessage(e));
-  }
+    (reason) => githubStatusError(p, reason),
+  );
 }
 
 function assertObservationCoordinate(postcondition: Postcondition, observed: Observation): void {
   if (postcondition.verifier === 'operator-judgment/v1') {
     throw new Error('OPERATOR_JUDGMENT_NOT_AUTOMATICALLY_OBSERVABLE');
   }
-  if (postcondition.verifier === 'source-integration/v1') {
+  if (
+    postcondition.verifier === 'source-integration/v1' &&
+    !githubSourceIntegrationPostcondition(postcondition)
+  ) {
     throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
   }
   validateObservationEnvelope(observed);
   if (observed.verifier !== postcondition.verifier) {
     throw new Error('OBSERVATION_VERIFIER_MISMATCH');
+  }
+
+  if (
+    postcondition.verifier === 'source-integration/v1' &&
+    githubSourceIntegrationPostcondition(postcondition)
+  ) {
+    if (
+      observed.provider !== 'github' ||
+      observed.repository_id !== postcondition.repository_id ||
+      typeof observed.repository_full_name !== 'string' ||
+      observed.repository_full_name.toLowerCase() !==
+        postcondition.repository_full_name.toLowerCase() ||
+      observed.ref !== postcondition.ref ||
+      observed.commit_sha !== postcondition.commit_sha ||
+      observed.base_ref !== postcondition.base_ref ||
+      observed.expected_base_sha !== postcondition.expected_base_sha
+    ) {
+      throw new Error('OBSERVATION_COORDINATE_MISMATCH');
+    }
+    return;
   }
 
   if (
@@ -774,7 +959,11 @@ export function observationVerified(postcondition: Postcondition, observed: Obse
   }
   assertObservationCoordinate(postcondition, observed);
   if (postcondition.verifier === 'source-integration/v1') {
-    throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
+    if (!githubSourceIntegrationPostcondition(postcondition)) {
+      throw new Error('SOURCE_INTEGRATION_REQUIRES_TRUSTED_SETTLEMENT');
+    }
+    if (observed.mutation_certainty !== 'present') return false;
+    return sourceIntegrationPullRequestEvidenceMatches(postcondition, observed);
   }
   if (observed.mutation_certainty !== 'present') return false;
 

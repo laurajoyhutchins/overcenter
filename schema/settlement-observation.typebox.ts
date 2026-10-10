@@ -11,6 +11,7 @@ export const VerifierKind = stringEnum([
   'github-commit-status/v2',
   'github-pull-request-branch-updated/v1',
   'github-hostile-mutation-evidence/v1',
+  'source-integration/v1',
   'kubernetes-configmap-exists/v1',
 ] as const);
 

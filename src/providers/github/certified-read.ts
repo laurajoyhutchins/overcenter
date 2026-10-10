@@ -17,7 +17,7 @@ import {
 } from './certified-repository.ts';
 import { projectResponseSlice } from '../../observation/response-slice.ts';
 import { observeCertifiedGitHubRead200 } from './certified-observation.ts';
-import { githubGet, type GitHubJsonGet } from './rest.ts';
+import { GitHubAsyncReadRequired, githubGet, type GitHubJsonGet } from './rest.ts';
 
 export type GitHubGenericSemanticOperationName = Exclude<GitHubSemanticOperationName, 'repository'>;
 
@@ -186,11 +186,11 @@ export function observeCertifiedGitHubSemanticRead(
   },
 ): CertifiedGitHubSemanticReadResult {
   validateParameters(operation, parameters);
-  githubRepositoryCoordinate(repositoryFullName);
   const definition = GITHUB_OBSERVATION_OPERATIONS[operation];
   const semantic = GITHUB_OPERATION_SEMANTICS[operation];
-  const granted = new Set<GitHubRepositoryReadPermission>(grantedPermissions);
-  const missing = semantic.required_permissions.filter((permission) => !granted.has(permission));
+  const missing = semantic.required_permissions.filter(
+    (permission) => !grantedPermissions.some((granted) => granted === permission),
+  );
   if (missing.length > 0) {
     return {
       state: 'indeterminate',
@@ -227,6 +227,7 @@ export function observeCertifiedGitHubSemanticRead(
       },
     };
   } catch (error: unknown) {
+    if (error instanceof GitHubAsyncReadRequired) throw error;
     return {
       state: 'indeterminate',
       operation_key: operation,
