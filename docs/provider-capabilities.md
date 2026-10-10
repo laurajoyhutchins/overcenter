@@ -6,6 +6,7 @@ The table below reflects the production code currently in the repository.
 
 | Resource | Observation | Mutation | Authoritative absence | Notes |
 | --- | --- | --- | --- | --- |
+| GitHub Pages static tree (inactive support) | Prospective certified provider/tree/served-byte readback, outside kernel settlement | Narrow explicit-lease transport; no admitted effect | No | Separate activation required; kernel rejects Pages work and live publication is unverified. |
 | GitHub commit status | Certified repository/status reads | `github-commit-status/create` | No generic collection-negative proof | Writes require effect authority, a durable reservation, provider execution, and readback. |
 | GitHub pull request update branch | Provider-specific GitHub reads | `github-pull-request/update-branch` | No | Supported as a narrow effect, not as general GitHub automation. |
 | Kubernetes ConfigMap | ConfigMap observation with complete LIST/WATCH handling | `kubernetes-configmap/ensure` | Complete-list absence certificate | Reads and writes are bound to the admitted ConfigMap coordinate and authority identity. |
