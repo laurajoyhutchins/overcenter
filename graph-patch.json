@@ -1,0 +1,43 @@
+{
+  "schema": "overcenter-graph-patch-v1",
+  "definitions": [
+    {
+      "id": "6d4b5a738de59d6da45496f2a9423140490ec089a212b3a414ea6dbd855e5136",
+      "definition": {
+        "dependencies": [],
+        "packet": {
+          "kind": "github-actions-trust-boundary-proof/v1",
+          "executor": {
+            "provider": "github-actions/v1",
+            "repository_id": 1354872053,
+            "workflow_run_id": "38065224792",
+            "workflow_run_attempt": "1",
+            "job": "agent-a"
+          },
+          "exact_input": {
+            "kind": "git-commit/v1",
+            "repository_id": 1354872053,
+            "commit_sha": "cdfcb6557346e7ed4698fbdc7516358abda7dee1"
+          },
+          "effect_contract": "github-commit-status/set-from-postcondition/v1"
+        },
+        "postcondition": {
+          "verifier": "github-commit-status/v2",
+          "provider": "github",
+          "repository_id": 1354872053,
+          "repository_full_name": "laurajoyhutchins/overcenter",
+          "commit_sha": "cdfcb6557346e7ed4698fbdc7516358abda7dee1",
+          "context": "overcenter/trust-proof/38065224792/1",
+          "expected_state": "success"
+        }
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "node_id": "actions-trust-proof-38065224792-1",
+      "definition_id": "6d4b5a738de59d6da45496f2a9423140490ec089a212b3a414ea6dbd855e5136"
+    }
+  ],
+  "retire": []
+}
